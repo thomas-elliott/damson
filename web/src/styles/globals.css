@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode — three surface tiers in a narrow luminance range. */
+    --background: 0 0% 99%;
+    --foreground: 0 0% 10%;
+    --panel: 0 0% 96%;
+    --elevated: 0 0% 100%;
+    --border: 0 0% 88%;
+    --muted: 0 0% 42%;
+
+    /* Yellow accent — Damson's single semantic accent. */
+    --accent: 44 95% 52%;
+    --accent-foreground: 44 30% 12%;
+  }
+
+  .dark {
+    /* Dark mode is the home experience — asset thumbnails prefer dark. */
+    --background: 0 0% 9%;
+    --foreground: 0 0% 93%;
+    --panel: 0 0% 12%;
+    --elevated: 0 0% 15%;
+    --border: 0 0% 20%;
+    --muted: 0 0% 58%;
+
+    --accent: 44 95% 58%;
+    --accent-foreground: 44 30% 10%;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "cv11", "ss01";
+  }
+}

@@ -1,0 +1,102 @@
+version: "3"
+
+vars:
+  WEB_DIR: web
+
+tasks:
+  dev:
+    desc: Go server with air hot-reload
+    cmds:
+      - air
+
+  dev:spa:
+    desc: Backend + Vite SPA in parallel
+    deps: [web:deps]
+    cmds:
+      - |
+        set -e
+        trap 'kill 0' INT TERM
+        (cd {{.WEB_DIR}} && npm run dev) &
+        air &
+        wait
+
+  web:dev:
+    desc: Vite dev server only
+    deps: [web:deps]
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - npm run dev
+
+  web:deps:
+    desc: Install frontend deps if missing
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - npm install
+    status:
+      - test -d node_modules
+
+  build:
+    desc: Production binary (SPA + Go)
+    deps: [web:build]
+    cmds:
+      - CGO_ENABLED=0 go build -o damson ./cmd/server
+
+  web:build:
+    desc: Build SPA into web/static
+    deps: [web:deps]
+    dir: "{{.WEB_DIR}}"
+    cmds:
+      - npm run build
+
+  fmt:
+    desc: go fmt
+    cmds:
+      - go fmt ./...
+
+  vet:
+    desc: go vet
+    cmds:
+      - go vet ./...
+
+  test:
+    desc: go test
+    cmds:
+      - go test ./...
+
+  test:short:
+    desc: Non-verbose Go tests
+    cmds:
+      - go test -count=1 ./...
+
+  test:coverage:
+    desc: Generate coverage.html
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  web:test:
+    desc: Vitest run
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm test -- --run
+
+  web:test:watch:
+    desc: Vitest watch mode
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm test
+
+  pre-release-checks:
+    desc: fmt + vet + tests (Go & web)
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: test
+      - task: web:test
+
+  docker-build:
+    desc: Container image
+    cmds:
+      - docker build -t damson:local .

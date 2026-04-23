@@ -1,0 +1,23 @@
+# Go
+/tmp/
+/damson
+/coverage.out
+/coverage.html
+*.test
+*.out
+
+# Node
+node_modules/
+/web/dist/
+
+# SPA build output — ignored except the placeholder so go:embed still succeeds
+/web/static/*
+!/web/static/.gitkeep
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
