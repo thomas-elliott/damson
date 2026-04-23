@@ -1,0 +1,21 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/damson ./cmd/server"
+  bin = "./tmp/damson"
+  include_ext = ["go", "sql", "html"]
+  exclude_dir = ["tmp", "web/static", "web/node_modules", "web/dist", ".git", ".idea", "docs"]
+  delay = 500
+  kill_delay = "1s"
+  stop_on_error = true
+  send_interrupt = true
+
+[log]
+  time = false
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
