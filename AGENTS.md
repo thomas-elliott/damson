@@ -10,6 +10,7 @@ Before making non-trivial changes, read the design docs in `docs/`. They are the
 - `docs/ui-design.md` — frontend design brief
 - `docs/technical-design.md` — architecture, schema, API surface, confirmed decisions (§22)
 - `docs/CONVENTIONS.md` — stack, formatting rules, handler patterns, test helpers
+- `docs/progress.md` — milestone-by-milestone status of what's actually in the tree; read this before starting a new slice so you know what foundations do (and don't) already exist
 
 ## Development commands
 
