@@ -61,4 +61,5 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *handler
 	scoped.Use(h.requireLibrary())
 	scoped.GET("/assets", h.getAssets)
 	scoped.POST("/imports", h.postImport)
+	scoped.POST("/assets/:id/versions/:vid/reextract", h.postReExtract)
 }
