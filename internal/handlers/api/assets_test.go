@@ -61,8 +61,11 @@ func TestPostImport_StoresAssetAndVersion(t *testing.T) {
 	requireStatus(t, w, http.StatusCreated)
 
 	resp := jsonResponse[importResponse](t, w)
-	if resp.AssetID == 0 || resp.AssetVersionID == 0 || resp.FileID == 0 {
+	if resp.AssetID == 0 || resp.AssetVersionID == 0 {
 		t.Fatalf("missing ids in response: %+v", resp)
+	}
+	if resp.PackageKind != "loose" || resp.FileCount != 1 {
+		t.Fatalf("unexpected response: %+v", resp)
 	}
 
 	// Asset row is library-scoped and has current_version_id set.
@@ -82,7 +85,7 @@ func TestPostImport_StoresAssetAndVersion(t *testing.T) {
 
 	// File row carries the content hash as its object key.
 	var f models.AssetFile
-	if err := db.First(&f, resp.FileID).Error; err != nil {
+	if err := db.Where("asset_version_id = ?", resp.AssetVersionID).First(&f).Error; err != nil {
 		t.Fatal(err)
 	}
 	if f.ContentHash == "" || f.ContentHash != f.ObjectKey {
