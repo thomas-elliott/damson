@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.air.toml
+docs
+tmp
+coverage.*
+damson
+web/node_modules
+web/dist
+web/static
+README.md

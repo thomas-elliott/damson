@@ -1,0 +1,242 @@
+// Asset detail panel & full-page mode.
+const { useState: useStD } = React;
+
+function Section({ title, count, children, defaultOpen = true }) {
+  const [open, setOpen] = useStD(defaultOpen);
+  return (
+    <div className="section">
+      <button className={`section-head ${open ? 'open' : ''}`} onClick={() => setOpen(!open)}>
+        <span className="caret"><I.ChevronRight size={11}/></span>
+        <span>{title}</span>
+        {count != null ? <span className="section-count">{count}</span> : null}
+      </button>
+      {open ? <div className="section-body">{children}</div> : null}
+    </div>
+  );
+}
+
+function TreeNode({ node, depth = 0 }) {
+  const [open, setOpen] = useStD(node.open || false);
+  const isFolder = node.type === 'folder';
+  const hasChildren = isFolder && Array.isArray(node.children);
+  return (
+    <>
+      <div className={`tree-node ${isFolder ? 'tree-folder' : ''}`} style={{ paddingLeft: 6 + depth * 14 }}
+        onClick={() => isFolder && setOpen(!open)}>
+        {isFolder ? <span className="caret">{open ? '▾' : '▸'}</span> : <span className="caret"/>}
+        {isFolder ? <I.Folder size={11} stroke={1.5}/> : <I.File size={11} stroke={1.5}/>}
+        <span>{node.name}</span>
+        {typeof node.children === 'number'
+          ? <span className="size">{node.children} files</span>
+          : node.size ? <span className="size">{node.size}</span> : null}
+      </div>
+      {hasChildren && open ? node.children.map((c, i) => <TreeNode key={i} node={c} depth={depth + 1}/>) : null}
+    </>
+  );
+}
+
+function LicenceAttrs({ attrs }) {
+  const keys = [
+    ['commercial', 'Commercial use'],
+    ['modification', 'Modification'],
+    ['redistribution', 'Redistribution'],
+    ['attribution', 'Attribution req.'],
+    ['shareAlike', 'Share-alike'],
+    ['opensource', 'Open source'],
+  ];
+  return (
+    <div className="lic-grid">
+      {keys.map(([k, label]) => {
+        const v = attrs[k];
+        const has = v === true;
+        return (
+          <div key={k} className={`lic-attr ${has ? 'yes' : 'no'}`}>
+            <span className="box">
+              {has ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg> : null}
+            </span>
+            {label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DetailBody({ asset }) {
+  const lic = LICENCES[asset.licence] || LICENCES.Unknown;
+  return (
+    <div className="detail-scroll">
+      <div className="detail-hero">
+        <div className="detail-thumb">
+          <AssetThumb asset={asset}/>
+        </div>
+        <h2 className="detail-title">{asset.name}</h2>
+        <div className="detail-sub">
+          <span className="mono">v{asset.version || '—'}</span>
+          <span className="sep">·</span>
+          <TypeIcon type={asset.type} size={11} stroke={1.5}/> {asset.type}
+          <span className="sep">·</span>
+          <span>{formatSize(asset.size)}</span>
+          <span className="sep">·</span>
+          <span>{asset.files} {asset.files === 1 ? 'file' : 'files'}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <LicencePill licence={asset.licence}/>
+          {asset.needsReview ? (
+            <span className="lic-pill warn" style={{ fontFamily: 'var(--sans)' }}>
+              <span className="dot"/> Needs review
+            </span>
+          ) : null}
+        </div>
+        <div className="tag-chips">
+          {asset.tags.map(t => <span key={t} className="tag-chip">{t}</span>)}
+          <span className="tag-chip add"><I.Plus size={10}/>&nbsp;tag</span>
+        </div>
+      </div>
+
+      <Section title="Versions" count={asset.versions.length}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {asset.versions.map(v => (
+            <div key={v.v} className={`v-item ${v.current ? 'current' : ''}`}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="v-num">{v.v}</span>
+                  {v.current ? <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>current</span> : null}
+                  <span className="v-date">{formatDate(v.date)}</span>
+                </div>
+                <div className="v-notes">{v.notes} · <span className="mono" style={{ color: 'var(--text-4)' }}>{v.files} files</span></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Files" count={asset.files} defaultOpen={false}>
+        <div className="tree">
+          {asset.fileTree.map((n, i) => <TreeNode key={i} node={n}/>)}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button className="tbtn" style={{ border: '1px solid var(--line)' }}>
+            <I.Download size={11}/> Download original
+          </button>
+          {asset.type === 'unitypackage'
+            ? <button className="tbtn" style={{ border: '1px solid var(--line)' }}><I.Package size={11}/> Re-extract</button>
+            : null}
+        </div>
+      </Section>
+
+      <Section title="Licence">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <LicencePill licence={asset.licence}/>
+          <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-4)' }}>
+            confidence: {lic.status === 'unk' ? 'none' : '92%'}
+          </span>
+        </div>
+        <LicenceAttrs attrs={lic.attrs}/>
+        <div className="lic-text">{asset.licenceText}</div>
+      </Section>
+
+      <Section title="Projects" count={asset.projects.length} defaultOpen={false}>
+        {asset.projects.length === 0
+          ? <div style={{ fontSize: 12, color: 'var(--text-4)', padding: '4px 0' }}>Not pinned to any project.</div>
+          : asset.projects.map(pn => {
+              const p = PROJECTS.find(x => x.name === pn) || { name: pn, colour: 'var(--line-2)' };
+              return (
+                <div key={pn} className="row-item">
+                  <span className="swatch" style={{ background: p.colour, color: 'var(--bg)' }}>{pn[0]}</span>
+                  <div>
+                    <div style={{ color: 'var(--text)', fontSize: 12.5 }}>{pn}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-4)' }}>pinned · thomas</div>
+                  </div>
+                  <span className="row-meta">v{asset.version}</span>
+                </div>
+              );
+            })}
+      </Section>
+
+      <Section title="Collections" count={asset.collections.length} defaultOpen={false}>
+        {asset.collections.length === 0
+          ? <div style={{ fontSize: 12, color: 'var(--text-4)', padding: '4px 0' }}>Not in any collection.</div>
+          : asset.collections.map(c => (
+            <div key={c} className="row-item">
+              <span className="swatch"><I.Collections size={11} stroke={1.5}/></span>
+              <div style={{ color: 'var(--text)', fontSize: 12.5 }}>{c}</div>
+            </div>
+          ))}
+      </Section>
+
+      <Section title="Source" defaultOpen={false}>
+        <dl className="kv">
+          <dt>Origin</dt><dd className="mono" style={{ fontSize: 11 }}>{asset.source}</dd>
+          <dt>Hash</dt><dd className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>sha256:{asset.id.padEnd(6, '0')}f4a2…e91c</dd>
+          <dt>Notes</dt><dd style={{ color: 'var(--text-4)', fontStyle: 'italic' }}>No notes yet.</dd>
+        </dl>
+      </Section>
+
+      <Section title="Audit" defaultOpen={false}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+          <div style={{ color: 'var(--text-2)' }}>
+            <span className="mono" style={{ color: 'var(--text-4)' }}>{formatDate(asset.imported)}</span>
+            &nbsp;· thomas · <span style={{ color: 'var(--text-3)' }}>imported (v{asset.version})</span>
+          </div>
+          <div style={{ color: 'var(--text-2)' }}>
+            <span className="mono" style={{ color: 'var(--text-4)' }}>3w ago</span>
+            &nbsp;· thomas · <span style={{ color: 'var(--text-3)' }}>added tags: {asset.tags.slice(0,2).join(', ')}</span>
+          </div>
+          <a style={{ color: 'var(--accent)', fontSize: 11.5, textDecoration: 'none' }}>View full audit →</a>
+        </div>
+      </Section>
+
+      <div style={{ height: 40 }}/>
+    </div>
+  );
+}
+
+function DetailPanel({ asset, onClose, onPrev, onNext, onExpand, index, total }) {
+  if (!asset) return null;
+  return (
+    <div className="detail-panel">
+      <div className="detail-head">
+        <button className="nav-btn" onClick={onPrev} title="Previous (↑)"><I.ChevronLeft size={14}/></button>
+        <button className="nav-btn" onClick={onNext} title="Next (↓)"><I.ChevronRight size={14}/></button>
+        <span className="counter">{index + 1} / {total}</span>
+        <div className="spacer"/>
+        <button className="nav-btn" title="Open as full page" onClick={onExpand}><I.Expand size={13}/></button>
+        <button className="nav-btn" title="More"><I.MoreH size={14}/></button>
+        <button className="nav-btn" title="Close (esc)" onClick={onClose}><I.X size={14}/></button>
+      </div>
+      <DetailBody asset={asset}/>
+    </div>
+  );
+}
+
+function FullPage({ asset, onClose, onCollapse }) {
+  return (
+    <div className="fullpage">
+      <div className="fullpage-head">
+        <button className="nav-btn" onClick={onClose} title="Back to library"><I.ChevronLeft size={14}/></button>
+        <div className="crumb">
+          <span>Library</span>
+          <I.ChevronRight size={11}/>
+          <span className="on">{asset.name}</span>
+        </div>
+        <div style={{ flex: 1 }}/>
+        <button className="tbtn" onClick={onCollapse} title="Back to side panel">
+          <I.Collapse size={12}/> Side panel
+        </button>
+      </div>
+      <div className="fullpage-body">
+        <div className="fullpage-preview">
+          <div className="pv-box">
+            <AssetThumb asset={asset} large/>
+          </div>
+        </div>
+        <div className="fullpage-side">
+          <DetailBody asset={asset}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { DetailPanel, FullPage });
