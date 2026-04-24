@@ -26,4 +26,6 @@ RUN apk add --no-cache ca-certificates tzdata \
 USER damson
 COPY --from=build /out/damson /usr/local/bin/damson
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
+    CMD wget -q -O- http://localhost:8080/api/health || exit 1
 ENTRYPOINT ["/usr/local/bin/damson"]
