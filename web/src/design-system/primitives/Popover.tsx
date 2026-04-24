@@ -21,7 +21,7 @@ export const PopoverContent = forwardRef<
         sideOffset={sideOffset}
         align={align}
         className={cn(
-          "z-tooltip rounded-md border border-line bg-panel p-3 text-sm-plus text-text shadow-elevated",
+          "z-popover rounded-md border border-line bg-panel p-3 text-sm-plus text-text shadow-elevated",
           "data-[state=open]:animate-fade-in",
           className,
         )}

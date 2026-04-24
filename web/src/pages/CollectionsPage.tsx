@@ -9,6 +9,7 @@ import {
   Button,
   CollectionCard,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -120,7 +121,7 @@ function NewCollectionDialog({
         <DialogHeader>
           <DialogTitle>New collection</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <DialogBody>
           <FieldRow label="Name">
             <Input
               value={name}
@@ -138,7 +139,7 @@ function NewCollectionDialog({
             />
           </FieldRow>
           {error && <div className="text-xs text-err">{error}</div>}
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
