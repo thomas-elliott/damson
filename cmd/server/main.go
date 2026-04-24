@@ -66,7 +66,16 @@ func main() {
 		slog.Info("auth mode", "mode", "oidc", "issuer", cfg.OIDCIssuerURL)
 
 	case config.AuthModeLocal:
-		la, err := auth.NewLocalAuthenticator(gormDB, cfg.JWTSigningKey)
+		signingKey := cfg.JWTSigningKey
+		if len(signingKey) == 0 {
+			k, err := auth.LoadOrCreateJWTKey(cfg.JWTKeyFile)
+			if err != nil {
+				slog.Error("jwt key", "err", err)
+				os.Exit(1)
+			}
+			signingKey = k
+		}
+		la, err := auth.NewLocalAuthenticator(gormDB, signingKey)
 		if err != nil {
 			slog.Error("local auth init", "err", err)
 			os.Exit(1)

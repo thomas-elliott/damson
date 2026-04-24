@@ -423,7 +423,7 @@ Exactly one authenticator is active per deployment, picked at startup by `DAMSON
 
 **`local` (default).** Server-issued HS256 JWTs against users stored in Postgres with bcrypt password hashes.
 
-- `DAMSON_JWT_SIGNING_KEY` (≥ 32 bytes) is the only always-required var.
+- Signing key: `DAMSON_JWT_SIGNING_KEY` is honoured verbatim when set. When unset, `internal/auth.LoadOrCreateJWTKey` generates 32 random bytes on first boot and persists them atomically to `DAMSON_JWT_KEY_FILE` (default `./data/jwt.key`, mode 0600). Subsequent boots read the same file, so sessions survive restarts. The generated-file path is ideal for single-node dev; production deployments should still set `DAMSON_JWT_SIGNING_KEY` via the normal secret-injection path so the key rotates with the rest of the config.
 - First-user bootstrap has two paths:
   1. **HTTP bootstrap (zero-config).** If no users exist, `GET /api/auth/mode` reports `needs_bootstrap=true` and the SPA renders a "create first admin" page. `POST /api/auth/bootstrap` creates the user, promotes them to `sysadmin` via `BootstrapFirstAdmin`, creates the default "Personal" library with them as its admin member, and returns a logged-in JWT. The endpoint 409s once any user exists, so it's safe to leave wired in perpetuity.
   2. **Env seed (ops setups).** If both `DAMSON_LOCAL_ADMIN_EMAIL` and `DAMSON_LOCAL_ADMIN_PASSWORD` are set, the same transaction runs at startup — useful for scripted provisioning. Seed is a no-op if any user already exists.
@@ -664,11 +664,12 @@ The only always-required variable is the Postgres DSN. Everything else either de
 | `DAMSON_AUTH_MODE` | optional | `local` — also accepts `oidc` |
 | `DAMSON_STORAGE_MODE` | optional | `local` — also accepts `s3` |
 
-**`DAMSON_AUTH_MODE=local`** (the default; see §8.1 local mode) additionally requires:
+**`DAMSON_AUTH_MODE=local`** (the default; see §8.1 local mode) additionally reads:
 
 | Var | Required? | Default |
 |---|---|---|
-| `DAMSON_JWT_SIGNING_KEY` | required | — (≥ 32 bytes, HS256 signing key) |
+| `DAMSON_JWT_SIGNING_KEY` | optional | unset — if empty, a 32-byte key is generated on first boot and persisted to `DAMSON_JWT_KEY_FILE` |
+| `DAMSON_JWT_KEY_FILE` | optional | `./data/jwt.key` — consulted only when `_SIGNING_KEY` is unset |
 | `DAMSON_LOCAL_ADMIN_EMAIL` | optional | unset — when both this and `_PASSWORD` are set, seeds the initial sysadmin at startup; otherwise the first browser hit lands on the in-app bootstrap page (§8.1) |
 | `DAMSON_LOCAL_ADMIN_PASSWORD` | optional | unset |
 
@@ -912,7 +913,7 @@ Deployment target: a reverse proxy (Caddy/Traefik) fronting the container. TLS i
 
 ### 19.1 First-run flow
 
-1. Start the container. `DAMSON_POSTGRES_DSN` is the only always-required env var; `DAMSON_JWT_SIGNING_KEY` is also required in the default local auth mode.
+1. Start the container. `DAMSON_POSTGRES_DSN` is the only always-required env var — local auth and local storage are the defaults, and the JWT signing key is auto-generated at `./data/jwt.key` on first boot if `DAMSON_JWT_SIGNING_KEY` isn't set.
 2. Migrations run on startup (inside a DB-level advisory lock to prevent parallel-startup races).
 3. First browser hit → `GET /api/auth/mode` returns `{ mode: "local", needs_bootstrap: true }`, and the SPA renders the "create first admin" page.
 4. The new user submits email + password → `POST /api/auth/bootstrap` creates the user with `role='sysadmin'`, creates the default `"Personal"` library, grants the user library admin membership, sets `current_library_id`, and returns a logged-in JWT. The SPA stores the token and redirects to the library.

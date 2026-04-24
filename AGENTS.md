@@ -117,7 +117,7 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 
 ## Environment variables
 
-Loaded in `internal/config/config.go`. The only always-required var is `DAMSON_POSTGRES_DSN`; `DAMSON_JWT_SIGNING_KEY` is also required in the default local auth mode. Defaults worth knowing: `DAMSON_LISTEN_ADDR=:8080`, `DAMSON_BASE_URL=http://localhost:8080`, `DAMSON_LOG_LEVEL=info`, `DAMSON_AUTH_MODE=local`, `DAMSON_STORAGE_MODE=local`, `DAMSON_STORAGE_LOCAL_PATH=./data/blobs`.
+Loaded in `internal/config/config.go`. The only always-required var is `DAMSON_POSTGRES_DSN`. `DAMSON_JWT_SIGNING_KEY` is optional in local mode — if unset, `internal/auth.LoadOrCreateJWTKey` generates 32 random bytes on first boot and persists them to `./data/jwt.key` (overridable via `DAMSON_JWT_KEY_FILE`). Defaults worth knowing: `DAMSON_LISTEN_ADDR=:8080`, `DAMSON_BASE_URL=http://localhost:8080`, `DAMSON_LOG_LEVEL=info`, `DAMSON_AUTH_MODE=local`, `DAMSON_STORAGE_MODE=local`, `DAMSON_STORAGE_LOCAL_PATH=./data/blobs`.
 
 Mode-dependent:
 - `DAMSON_AUTH_MODE=oidc` → `DAMSON_OIDC_ISSUER_URL`, `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`, optional `DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV).
