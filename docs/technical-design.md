@@ -513,6 +513,13 @@ asset_imports
 
 One row per import. `done` rows are retained for debugging but UI filters them out. The queue view in the UI is `assets WHERE needs_review = true`.
 
+> **Implementation status (2026-04):** M2 extracts synchronously inside
+> the HTTP request, so only `done` is written to `asset_imports.stage`
+> today. The intermediate stages (`extracting`, `detecting`,
+> `thumbnailing`, `failed`) and the SSE event stream land with M3+; see
+> `docs/progress.md` "Foundations the tech design assumes but hasn't
+> been built yet".
+
 Progress reaches the SPA over **Server-Sent Events**: a handler at `GET /api/imports/:id/events` streams stage transitions for one import, and `GET /api/imports/events` streams all in-flight imports for the current user. A broadcaster sits inside `services/audit` (or a sibling `services/events`) with one channel per user; the import pipeline publishes stage updates; SSE handlers subscribe and fan them out. The SPA connects via `EventSource`; if the connection drops, it reconnects and re-reads the current row state from `GET /api/imports/:id` to backfill whatever was missed.
 
 ### 9.2 Unity package handling
@@ -638,21 +645,49 @@ Per UI design §6: **env vars for bootstrap/secrets only; everything else in DB,
 
 ### 14.1 Env vars (bootstrap)
 
+Always required:
+
 ```
 DAMSON_LISTEN_ADDR                    :8080
 DAMSON_BASE_URL                       https://damson.local
 DAMSON_POSTGRES_DSN
+DAMSON_AUTH_MODE                      oidc | local
+DAMSON_STORAGE_MODE                   s3  | local
+DAMSON_LOG_LEVEL                      info
+```
+
+`DAMSON_AUTH_MODE=oidc` adds:
+
+```
+DAMSON_OIDC_ISSUER_URL
+DAMSON_OIDC_CLIENT_ID
+DAMSON_OIDC_AUDIENCE
+DAMSON_BOOTSTRAP_ADMIN_EMAILS         comma-separated — seeds initial sysadmin(s)
+```
+
+`DAMSON_AUTH_MODE=local` adds (see §8.1 local mode):
+
+```
+DAMSON_JWT_SIGNING_KEY                ≥ 32 bytes, HS256 signing key
+DAMSON_LOCAL_ADMIN_EMAIL
+DAMSON_LOCAL_ADMIN_PASSWORD
+```
+
+`DAMSON_STORAGE_MODE=s3` adds:
+
+```
 DAMSON_S3_ENDPOINT
 DAMSON_S3_REGION
 DAMSON_S3_BUCKET
 DAMSON_S3_ACCESS_KEY
 DAMSON_S3_SECRET_KEY
 DAMSON_S3_FORCE_PATH_STYLE            true
-DAMSON_OIDC_ISSUER_URL
-DAMSON_OIDC_CLIENT_ID
-DAMSON_OIDC_AUDIENCE
-DAMSON_BOOTSTRAP_ADMIN_EMAILS         comma-separated — seeds initial sysadmin(s)
-DAMSON_LOG_LEVEL                      info
+```
+
+`DAMSON_STORAGE_MODE=local` adds:
+
+```
+DAMSON_STORAGE_LOCAL_PATH             ./data/blobs
 ```
 
 Loaded once at startup by `internal/config`. Missing required values cause `MustGetEnv`-style panics (matches the conventions' startup-panic rule).
@@ -727,7 +762,7 @@ The grid is designed for many thousands of assets. `@tanstack/react-virtual` wit
 
 ### 15.5 API client
 
-`src/api.ts` follows the conventions' `fetchJson<T>` pattern — attach bearer, handle 401 via silent token renewal with single-flight deduping, retry once, throw `ApiError`. For uploads, a parallel `uploadFormData` helper uses `XMLHttpRequest` (fetch lacks good upload progress events) and emits progress via callback.
+`src/api.ts` follows the conventions' `fetchJson<T>` pattern — attach bearer, handle 401 via silent token renewal with single-flight deduping, retry once, throw `ApiError`. For uploads, a parallel `uploadFile` helper uses `XMLHttpRequest` (fetch lacks good upload progress events) and emits progress via callback.
 
 ## 16. API surface
 
@@ -737,7 +772,7 @@ All library-scoped endpoints (everything below `# Assets`) operate against the a
 
 ```
 # Session / user
-GET    /api/me                        # user + current library summary + membership list
+GET    /api/me                        # user + current library summary
 POST   /api/me/current-library        # { library_id } — switches active library
 
 # Libraries (membership-gated; reads any library the user is a member of)
@@ -855,7 +890,7 @@ CI target: `task pre-release-checks` (fmt + vet + Go tests + web tests).
 
 Multi-stage Dockerfile:
 
-1. **Node stage** — `node:22-alpine`, install SPA deps, `vite build` → `web/static/`.
+1. **Node stage** — `node:24-alpine`, install SPA deps, `vite build` → `web/static/`.
 2. **Go build stage** — `golang:1.26-alpine`, copy source + built SPA, `CGO_ENABLED=0 go build -o /out/damson ./cmd/server`. No C toolchain required.
 3. **Runtime stage** — `alpine:3.20` with `ca-certificates`. Non-root user. Binary only.
 
