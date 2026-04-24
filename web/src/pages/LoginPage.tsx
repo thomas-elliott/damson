@@ -1,14 +1,22 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
+import { useAuthMode } from "@/hooks/useDataQueries";
 import { localLogin } from "@/lib/localAuth";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { mode, needsBootstrap, loading: modeLoading } = useAuthMode();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // On a fresh local-mode deployment, there's nothing to log in as yet.
+  // Bounce the user to the bootstrap flow so they create the first admin.
+  if (!modeLoading && mode === "local" && needsBootstrap) {
+    return <Navigate to="/bootstrap" replace />;
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
