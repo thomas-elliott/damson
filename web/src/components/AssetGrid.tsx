@@ -18,7 +18,7 @@ function formatSize(bytes: number): string {
 export function AssetGrid({ assets }: { assets: AssetRow[] }) {
   if (assets.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted">
+      <div className="flex h-full items-center justify-center text-sm text-text-3">
         Drop files here to begin, or click to select.
       </div>
     );
@@ -28,20 +28,20 @@ export function AssetGrid({ assets }: { assets: AssetRow[] }) {
       {assets.map((a) => (
         <li
           key={a.id}
-          className="group flex flex-col overflow-hidden rounded-md border border-border bg-panel transition hover:border-accent"
+          className="group flex flex-col overflow-hidden rounded-md border border-line bg-panel transition hover:border-accent"
         >
-          <div className="aspect-square bg-elevated" aria-hidden>
+          <div className="aspect-square bg-surface" aria-hidden>
             {/* Icon fallback — real thumbnails arrive in M6. */}
-            <div className="flex h-full items-center justify-center text-xs text-muted">
+            <div className="flex h-full items-center justify-center text-xs text-text-3">
               {a.file_count} {a.file_count === 1 ? "file" : "files"}
             </div>
           </div>
           <div className="flex flex-col gap-0.5 p-2 text-xs">
-            <div className="truncate font-medium text-foreground">{a.name}</div>
-            <div className="flex items-center justify-between text-muted">
+            <div className="truncate font-medium text-text">{a.name}</div>
+            <div className="flex items-center justify-between text-text-3">
               <span>{formatSize(a.size_bytes)}</span>
               {a.needs_review && (
-                <span className="rounded bg-accent/20 px-1.5 py-0.5 font-mono text-[10px] text-accent-foreground">
+                <span className="rounded bg-accent/20 px-1.5 py-0.5 font-mono text-[10px] text-accent-fg">
                   review
                 </span>
               )}

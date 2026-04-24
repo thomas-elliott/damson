@@ -75,17 +75,17 @@ export function DropZone({ children }: { children: React.ReactNode }) {
       <input {...getInputProps()} />
       {children}
       {isDragActive && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center border-2 border-dashed border-accent bg-background/70 text-sm">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center border-2 border-dashed border-accent bg-bg/70 text-sm">
           Drop to import
         </div>
       )}
       {uploads.length > 0 && (
-        <ul className="absolute bottom-4 right-4 flex max-w-xs flex-col gap-1 rounded-md border border-border bg-elevated p-2 text-xs shadow-lg">
+        <ul className="absolute bottom-4 right-4 flex max-w-xs flex-col gap-1 rounded-md border border-line bg-surface p-2 text-xs shadow-lg">
           {uploads.map((u, i) => (
             <li key={`${u.filename}-${i}`} className="flex flex-col gap-0.5">
               <div className="flex items-center justify-between gap-4">
                 <span className="truncate font-mono">{u.filename}</span>
-                <span className="text-muted">
+                <span className="text-text-3">
                   {u.error ? "error" : u.done ? "done" : `${Math.round(u.progress * 100)}%`}
                 </span>
               </div>
@@ -97,7 +97,7 @@ export function DropZone({ children }: { children: React.ReactNode }) {
                   />
                 </div>
               )}
-              {u.error && <span className="text-licence-violation">{u.error}</span>}
+              {u.error && <span className="text-err">{u.error}</span>}
             </li>
           ))}
         </ul>

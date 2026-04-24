@@ -1,0 +1,87 @@
+import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+
+import { cn } from "@/design-system/utils";
+
+import { AssetThumb, type ThumbDescriptor } from "./AssetThumb";
+
+export interface AssetListRowProps
+  extends Omit<HTMLAttributes<HTMLTableRowElement>, "onSelect"> {
+  name: string;
+  thumb?: ThumbDescriptor;
+  /** Cells to render after the name (each wrapped in its own <td>). */
+  cells?: ReactNode[];
+  selected?: boolean;
+  onSelect?: () => void;
+}
+
+/**
+ * Asset list row — table row variant for dense list views. Leading cell is
+ * 22px mini-thumb + asset name; subsequent cells are caller-provided so the
+ * column schema can vary between views.
+ */
+export const AssetListRow = forwardRef<HTMLTableRowElement, AssetListRowProps>(
+  function AssetListRow(
+    {
+      className,
+      name,
+      thumb,
+      cells,
+      selected,
+      onSelect,
+      onClick,
+      ...props
+    },
+    ref,
+  ) {
+    return (
+      <tr
+        ref={ref}
+        aria-selected={selected || undefined}
+        onClick={(e) => {
+          onSelect?.();
+          onClick?.(e);
+        }}
+        className={cn(
+          "cursor-pointer text-sm-plus text-text-2 transition-colors duration-std ease",
+          "hover:bg-panel hover:text-text",
+          "aria-selected:bg-accent-tint aria-selected:text-text",
+          className,
+        )}
+        {...props}
+      >
+        <td className="px-2.5 py-1.5">
+          <div className="flex items-center gap-2">
+            <div className="h-[22px] w-[22px] shrink-0 overflow-hidden rounded-[3px] border border-line bg-surface">
+              <AssetThumb thumb={thumb} />
+            </div>
+            <span className="truncate font-medium text-text">{name}</span>
+          </div>
+        </td>
+        {cells?.map((cell, i) => (
+          <td key={i} className="px-2.5 py-1.5">
+            {cell}
+          </td>
+        ))}
+      </tr>
+    );
+  },
+);
+
+/**
+ * Sticky header row for AssetListRow tables — matches the mockup's small-caps
+ * label styling.
+ */
+export function AssetListHead({ columns }: { columns: ReactNode[] }) {
+  return (
+    <thead className="sticky top-0 z-10 bg-bg">
+      <tr className="text-2xs uppercase tracking-wider text-text-3">
+        <th className="px-2.5 py-1.5 text-left font-medium">Name</th>
+        {columns.map((col, i) => (
+          <th key={i} className="px-2.5 py-1.5 text-left font-medium">
+            {col}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
