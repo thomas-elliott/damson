@@ -115,8 +115,7 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 
 ## Environment variables
 
-Loaded in `internal/config/config.go`. Required regardless of mode:
-`DAMSON_BASE_URL`, `DAMSON_POSTGRES_DSN`.
+Loaded in `internal/config/config.go`. The only always-required var is `DAMSON_POSTGRES_DSN`. Defaults worth knowing: `DAMSON_LISTEN_ADDR=:8080`, `DAMSON_BASE_URL=http://localhost:8080`, `DAMSON_LOG_LEVEL=info`, `DAMSON_AUTH_MODE=oidc`, `DAMSON_STORAGE_MODE=s3`.
 
 Mode-dependent:
 - `DAMSON_AUTH_MODE=oidc` → `DAMSON_OIDC_ISSUER_URL`, `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`, optional `DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV).

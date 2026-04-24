@@ -79,7 +79,7 @@ func Load() Config {
 
 	cfg := Config{
 		ListenAddr:  getenv("DAMSON_LISTEN_ADDR", ":8080"),
-		BaseURL:     mustGetEnv("DAMSON_BASE_URL"),
+		BaseURL:     getenv("DAMSON_BASE_URL", "http://localhost:8080"),
 		PostgresDSN: mustGetEnv("DAMSON_POSTGRES_DSN"),
 		AuthMode:    authMode,
 		StorageMode: storageMode,
