@@ -68,16 +68,24 @@ func BootstrapFirstAdmin(ctx context.Context, db *gorm.DB, u *models.User, boots
 	})
 }
 
+// ErrAlreadyBootstrapped is returned by CreateFirstLocalAdmin when a user
+// already exists. Callers map it to 409 Conflict at the HTTP boundary so
+// that the "first user" endpoint is safe to leave registered permanently
+// — it simply stops succeeding once bootstrap is done.
+var ErrAlreadyBootstrapped = errors.New("already bootstrapped")
+
 // SeedLocalAdmin creates the initial local-auth admin user if no users exist
-// yet. Runs at startup in local auth mode. The email/password come from
-// DAMSON_LOCAL_ADMIN_EMAIL / DAMSON_LOCAL_ADMIN_PASSWORD.
+// yet. Runs at startup in local auth mode when DAMSON_LOCAL_ADMIN_EMAIL /
+// DAMSON_LOCAL_ADMIN_PASSWORD are both set. Missing credentials is not an
+// error — the server boots anyway and the first browser hit lands on the
+// in-app bootstrap page via CreateFirstLocalAdmin.
 //
 // The resulting user is immediately put through BootstrapFirstAdmin to set
 // up the default library. Re-running with different env values after a user
 // has been seeded does NOT rotate the password — that's an admin action.
 func SeedLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) error {
 	if email == "" || password == "" {
-		return errors.New("DAMSON_LOCAL_ADMIN_EMAIL and DAMSON_LOCAL_ADMIN_PASSWORD are required in local auth mode")
+		return nil
 	}
 
 	var count int64
@@ -88,9 +96,37 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) er
 		return nil
 	}
 
+	_, err := createLocalAdmin(ctx, db, email, password)
+	return err
+}
+
+// CreateFirstLocalAdmin creates the very first user of a local-auth
+// deployment when no users exist yet. Returns ErrAlreadyBootstrapped if
+// any user record is present. Intended for HTTP-driven bootstrap when
+// ops haven't pre-seeded via env vars.
+func CreateFirstLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) (*models.User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" || password == "" {
+		return nil, errors.New("email and password are required")
+	}
+
+	var count int64
+	if err := db.WithContext(ctx).Model(&models.User{}).Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("count users: %w", err)
+	}
+	if count > 0 {
+		return nil, ErrAlreadyBootstrapped
+	}
+
+	return createLocalAdmin(ctx, db, email, password)
+}
+
+// createLocalAdmin is the shared transaction for seed/HTTP bootstrap.
+// Callers are responsible for the "no users exist" precondition.
+func createLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) (*models.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return nil, fmt.Errorf("hash password: %w", err)
 	}
 	hashStr := string(hash)
 
@@ -102,10 +138,13 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) er
 		PasswordHash: &hashStr,
 	}
 	if err := db.WithContext(ctx).Create(&u).Error; err != nil {
-		return fmt.Errorf("create admin user: %w", err)
+		return nil, fmt.Errorf("create admin user: %w", err)
 	}
 
-	return BootstrapFirstAdmin(ctx, db, &u, []string{email})
+	if err := BootstrapFirstAdmin(ctx, db, &u, []string{email}); err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 func emailInList(email string, list []string) bool {

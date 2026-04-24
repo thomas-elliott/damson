@@ -47,6 +47,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *handler
 	root.GET("/auth/mode", h.getAuthMode)
 	if h.authMode == config.AuthModeLocal {
 		root.POST("/auth/login", h.postAuthLogin)
+		root.POST("/auth/bootstrap", h.postAuthBootstrap)
 	}
 
 	// Authenticated (no library context required)
