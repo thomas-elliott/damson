@@ -37,7 +37,7 @@ M0 is complete.
 | Content-addressed `storage.Service` interface | ✅ | `internal/services/storage/storage.go` |
 | LocalFS implementation with atomic rename + SHA-256 dedup | ✅ | `internal/services/storage/localfs.go` |
 | S3 implementation with endpoint override + path-style for MinIO | ✅ | `internal/services/storage/s3.go` |
-| `assets` / `asset_versions` / `asset_files` / `asset_imports` SQL migrations | ✅ | `database/migrations/006–009` |
+| `assets` / `asset_versions` / `asset_files` / `asset_imports` SQL migrations | ✅ | `database/migrations/001_initial.sql` |
 | Matching GORM models (struct tags mirror the SQL) | ✅ | `internal/models/asset.go` |
 | `POST /api/imports` streams uploads, stores blob, creates asset + version + file | ✅ | `internal/handlers/api/assets.go` |
 | `GET /api/assets` list with pagination, library-scoped, joined file count + size | ✅ | `internal/handlers/api/assets.go` |
@@ -65,7 +65,7 @@ M1 is complete for the scope called out in §21. Notes:
 | File manifest rows with `unity_guid` set | ✅ | same |
 | Preview harvest into `assets.thumbnail_object_key` (+ `thumbnail_content_type`) | ✅ | same |
 | `POST /api/assets/:id/versions/:vid/reextract` | ✅ | same |
-| Extractor unit tests (happy path, traversal, incomplete bundles, first-preview-wins, total-size cap, non-gzip input) | ✅ | `internal/services/extract/unitypackage_test.go` |
+| Extractor unit tests (happy path, traversal, incomplete bundles, first-preview-wins, total-size cap, raw-tar input, garbage input rejected) | ✅ | `internal/services/extract/unitypackage_test.go` |
 | Handler tests (Unity import, re-extract success, 409 on non-Unity version, 404 across libraries) | ✅ | `internal/handlers/api/assets_unity_test.go` |
 
 M2 is complete.
@@ -82,14 +82,23 @@ something exists and then discover it doesn't.
 | SSE broadcaster + `/api/imports/events` + `/api/imports/:id/events` | Once imports take long enough to be worth streaming; kept synchronous for M1–M2 | `internal/services/events/` (or alongside audit) + `internal/handlers/api/imports.go` |
 | `/api/imports`, `/api/imports/:id`, `/api/imports/:id/retry` — list + detail + retry | Required for the queue/review UI before M7 | `internal/handlers/api/imports.go` |
 | `GET /api/files/:objectKey` + `GET /api/thumbs/:objectKey` streaming handlers | Detail panel + thumbnails from M3 | `internal/handlers/api/files.go` |
-| `assets.search_vector` + trigger + GIN index + `PATCH /api/assets/:id` | M5 (search) / M3 (metadata edits) | `database/migrations/011_search_vector_trigger.sql` |
-| `server_settings` + `library_settings` tables + their API | Needed before M6 toggles can land | `database/migrations/010_library_settings.sql` |
+| `assets.search_vector` + trigger + GIN index + `PATCH /api/assets/:id` | M5 (search) / M3 (metadata edits) | new `database/migrations/NNN_search_vector_trigger.sql` |
+| `server_settings` + `library_settings` tables + their API | Needed before M6 toggles can land | new `database/migrations/NNN_library_settings.sql` |
 | Licence detection, licence editor, Unity EULA fingerprint | M3 | `internal/services/licence/` |
 | Tags tree + `asset_tags` | M3 | new migration + models |
 | Projects + pinning + upgrade | M4 | new migration + models + handlers |
 | Collections | M5 | new migration + models + handlers |
 | Thumbnail pipeline (raster/audio/font) + per-type toggles | M6 | `internal/services/thumbnail/` |
 | Audit viewers, queue surfaces, empty-state / keyboard polish | M7 | frontend |
+
+## Stretch goals (no firm milestone)
+
+Real work, but not blocking any milestone. Pick up when a concrete import
+blocks on them rather than speculatively.
+
+| Stretch goal | Trigger to implement | Expected home |
+|---|---|---|
+| Zip-format `.unitypackage` extractor | A real package that is zip-not-tar can't be imported | `internal/services/extract/unitypackage.go` (parallel zip path producing the same `UnityResult`) |
 
 ## Decisions reflected in code that diverge from the draft docs
 

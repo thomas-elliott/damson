@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 // AuthMode selects the authenticator implementation. Exclusive — one or the
@@ -64,6 +66,10 @@ type Config struct {
 }
 
 func Load() Config {
+	// Optional: load ./.env if present. Real environment variables always
+	// win — godotenv.Load does not overwrite existing values.
+	_ = godotenv.Load()
+
 	authMode := AuthMode(getenv("DAMSON_AUTH_MODE", string(AuthModeLocal)))
 	switch authMode {
 	case AuthModeOIDC, AuthModeLocal:
@@ -81,7 +87,7 @@ func Load() Config {
 	cfg := Config{
 		ListenAddr:  getenv("DAMSON_LISTEN_ADDR", ":8080"),
 		BaseURL:     getenv("DAMSON_BASE_URL", "http://localhost:8080"),
-		PostgresDSN: mustGetEnv("DAMSON_POSTGRES_DSN"),
+		PostgresDSN: mustGetSecret("DAMSON_POSTGRES_DSN"),
 		AuthMode:    authMode,
 		StorageMode: storageMode,
 		LogLevel:    getenv("DAMSON_LOG_LEVEL", "info"),
@@ -99,7 +105,7 @@ func Load() Config {
 		// main.go falls back to reading (or generating) JWTKeyFile. This
 		// keeps the zero-config dev path working — the operator only has
 		// to set DAMSON_POSTGRES_DSN.
-		if raw := os.Getenv("DAMSON_JWT_SIGNING_KEY"); raw != "" {
+		if raw := getSecret("DAMSON_JWT_SIGNING_KEY"); raw != "" {
 			cfg.JWTSigningKey = []byte(raw)
 		}
 		cfg.JWTKeyFile = getenv("DAMSON_JWT_KEY_FILE", "./data/jwt.key")
@@ -107,7 +113,7 @@ func Load() Config {
 		// unset, the first browser hit will see `needs_bootstrap=true` on
 		// /api/auth/mode and land on the in-app "create admin" page.
 		cfg.LocalAdminEmail = os.Getenv("DAMSON_LOCAL_ADMIN_EMAIL")
-		cfg.LocalAdminPassword = os.Getenv("DAMSON_LOCAL_ADMIN_PASSWORD")
+		cfg.LocalAdminPassword = getSecret("DAMSON_LOCAL_ADMIN_PASSWORD")
 	}
 
 	switch storageMode {
@@ -115,8 +121,8 @@ func Load() Config {
 		cfg.S3Endpoint = mustGetEnv("DAMSON_S3_ENDPOINT")
 		cfg.S3Region = mustGetEnv("DAMSON_S3_REGION")
 		cfg.S3Bucket = mustGetEnv("DAMSON_S3_BUCKET")
-		cfg.S3AccessKey = mustGetEnv("DAMSON_S3_ACCESS_KEY")
-		cfg.S3SecretKey = mustGetEnv("DAMSON_S3_SECRET_KEY")
+		cfg.S3AccessKey = mustGetSecret("DAMSON_S3_ACCESS_KEY")
+		cfg.S3SecretKey = mustGetSecret("DAMSON_S3_SECRET_KEY")
 		cfg.S3ForcePathStyle = getenv("DAMSON_S3_FORCE_PATH_STYLE", "true") == "true"
 	case StorageModeLocal:
 		cfg.StorageLocalPath = getenv("DAMSON_STORAGE_LOCAL_PATH", "./data/blobs")
@@ -129,6 +135,35 @@ func mustGetEnv(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
 		log.Panicf("config: required env var %s is empty", key)
+	}
+	return v
+}
+
+// getSecret returns the value of the named env var, or if `<key>_FILE` is set,
+// the trimmed contents of that file. Supports the Docker Secrets pattern where
+// secrets are mounted at /run/secrets/<name> and surfaced via a *_FILE env.
+// If both the direct var and the _FILE variant are set, startup panics —
+// ambiguous configuration is a deployment error.
+func getSecret(key string) string {
+	direct := os.Getenv(key)
+	filePath := os.Getenv(key + "_FILE")
+	if direct != "" && filePath != "" {
+		log.Panicf("config: set either %s or %s_FILE, not both", key, key)
+	}
+	if filePath != "" {
+		b, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Panicf("config: read %s_FILE=%q: %v", key, filePath, err)
+		}
+		return strings.TrimRight(string(b), "\r\n")
+	}
+	return direct
+}
+
+func mustGetSecret(key string) string {
+	v := getSecret(key)
+	if v == "" {
+		log.Panicf("config: required secret %s (or %s_FILE) is empty", key, key)
 	}
 	return v
 }

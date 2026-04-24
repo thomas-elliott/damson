@@ -58,10 +58,15 @@ export function AuthGuard() {
       </div>
     );
   }
-  if (mode === "local" && needsBootstrap) {
-    return <Navigate to="/bootstrap" replace />;
-  }
   if (state === "needs-login") {
+    // `needsBootstrap` only matters for unauthenticated users — an authed
+    // session means the server has at least one user, regardless of what a
+    // stale cached /api/auth/mode says. Checking it inside "needs-login"
+    // also avoids a race right after bootstrap where the flag hasn't
+    // refetched yet.
+    if (mode === "local" && needsBootstrap) {
+      return <Navigate to="/bootstrap" replace />;
+    }
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
   return <Outlet />;

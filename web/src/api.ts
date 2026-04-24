@@ -115,7 +115,14 @@ export function uploadFile(
         } else if (xhr.status === 401) {
           reject(new AuthRedirectError());
         } else {
-          reject(new ApiError(xhr.status, xhr.responseText, `upload failed ${xhr.status}`));
+          let msg = `upload failed ${xhr.status}`;
+          try {
+            const body = JSON.parse(xhr.responseText || "{}") as { error?: string };
+            if (body.error) msg = `upload failed ${xhr.status}: ${body.error}`;
+          } catch {
+            // non-JSON body — keep the generic message
+          }
+          reject(new ApiError(xhr.status, xhr.responseText, msg));
         }
       };
       xhr.onerror = () => reject(new ApiError(0, null, "network error"));

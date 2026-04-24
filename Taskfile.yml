@@ -14,11 +14,13 @@ tasks:
     deps: [web:deps]
     cmds:
       - |
+        bash -c '
         set -e
-        trap 'kill 0' INT TERM
+        trap "kill 0" INT TERM
         (cd {{.WEB_DIR}} && npm run dev) &
         air &
         wait
+        '
 
   web:dev:
     desc: Vite dev server only

@@ -25,4 +25,5 @@ node_modules/
 !.env.example
 
 # OS
+.idea
 .DS_Store
