@@ -21,6 +21,10 @@ export class AuthRedirectError extends Error {
   }
 }
 
+export function isAuthRedirectError(err: unknown): err is AuthRedirectError {
+  return err instanceof AuthRedirectError;
+}
+
 async function authHeader(): Promise<Record<string, string>> {
   const token = await getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
