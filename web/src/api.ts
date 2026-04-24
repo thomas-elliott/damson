@@ -84,6 +84,43 @@ export async function fetchJson<T>(
   return (await res.json()) as T;
 }
 
+// fetchMaybeJson issues an authenticated request and tolerates responses
+// with no body (204 No Content). Use it for PATCH/DELETE/POST mutations
+// where the server replies with a status code only.
+export async function fetchMaybeJson<T = unknown>(
+  url: string,
+  options: RequestInit = {},
+): Promise<T | null> {
+  const hdrs: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(await authHeader()),
+    ...((options.headers as Record<string, string>) ?? {}),
+  };
+  let res = await fetch(url, { ...options, headers: hdrs });
+  if (res.status === 401) {
+    if (await renewOrReject()) {
+      res = await fetch(url, {
+        ...options,
+        headers: { ...hdrs, ...(await authHeader()) },
+      });
+    }
+    if (res.status === 401) throw new AuthRedirectError();
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body as { error?: string }).error;
+    throw new ApiError(res.status, body, msg);
+  }
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
 // uploadFile posts a FormData body (single file under the `file` field) and
 // surfaces XHR upload progress via onProgress. Uses XMLHttpRequest because
 // fetch has no upload-progress events yet.

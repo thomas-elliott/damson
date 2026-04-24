@@ -1,0 +1,154 @@
+package api
+
+import (
+	"net/http"
+	"testing"
+
+	"gorm.io/gorm"
+
+	"github.com/thomas-elliott/damson/internal/models"
+)
+
+// seedLibraryAndSwitch creates a library, membership, and switches the user
+// to it. Matches the older helper in assets_test.go but lives here so new
+// tests don't depend on import-specific seed code.
+func seedLibraryForUser(t *testing.T, db *gorm.DB, u *models.User, name string) *models.Library {
+	t.Helper()
+	lib := seedLibrary(t, db, name)
+	seedMembership(t, db, lib.ID, u.ID, "admin")
+	u.CurrentLibraryID = &lib.ID
+	if err := db.Save(u).Error; err != nil {
+		t.Fatalf("set current lib: %v", err)
+	}
+	return lib
+}
+
+func seedAsset(t *testing.T, db *gorm.DB, libID uint, name string) *models.Asset {
+	t.Helper()
+	a := models.Asset{LibraryID: libID, Name: name, NeedsReview: true}
+	if err := db.Create(&a).Error; err != nil {
+		t.Fatalf("seed asset: %v", err)
+	}
+	return &a
+}
+
+func TestPatchAsset_UpdatesFieldsAndAudits(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "original-name")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPatch, "/api/assets/1",
+		map[string]any{"name": "new-name", "description": "has a description"})
+	requireStatus(t, w, http.StatusOK)
+
+	var refreshed models.Asset
+	if err := db.First(&refreshed, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Name != "new-name" || refreshed.Description != "has a description" {
+		t.Fatalf("asset not updated: %+v", refreshed)
+	}
+	var auditCount int64
+	if err := db.Model(&models.AuditLog{}).
+		Where("action_type = ? AND target_type = ? AND target_id = ?", "asset.update", "asset", asset.ID).
+		Count(&auditCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != 1 {
+		t.Fatalf("expected 1 audit row, got %d", auditCount)
+	}
+}
+
+func TestPatchAsset_RejectsBlankName(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedAsset(t, db, lib.ID, "x")
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPatch, "/api/assets/1",
+		map[string]any{"name": "   "})
+	requireStatus(t, w, http.StatusBadRequest)
+}
+
+func TestDeleteAsset_CascadesVersionsAndAudits(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "to-delete")
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodDelete, "/api/assets/1", nil)
+	requireStatus(t, w, http.StatusNoContent)
+
+	var assetCount int64
+	_ = db.Model(&models.Asset{}).Count(&assetCount)
+	if assetCount != 0 {
+		t.Fatalf("asset not deleted")
+	}
+	var versionCount int64
+	_ = db.Model(&models.AssetVersion{}).Count(&versionCount)
+	if versionCount != 0 {
+		t.Fatalf("version not cascaded")
+	}
+	var auditCount int64
+	_ = db.Model(&models.AuditLog{}).Where("action_type = ?", "asset.delete").Count(&auditCount)
+	if auditCount != 1 {
+		t.Fatalf("expected 1 asset.delete audit row, got %d", auditCount)
+	}
+}
+
+func TestPostReview_ClearsFlag(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "review-me")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/1/review", nil)
+	requireStatus(t, w, http.StatusNoContent)
+
+	var refreshed models.Asset
+	_ = db.First(&refreshed, asset.ID)
+	if refreshed.NeedsReview {
+		t.Fatalf("needs_review not cleared")
+	}
+}
+
+func TestGetAssetDetail_ReturnsTagsVersionsAndLicence(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset-one")
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	asset.CurrentVersionID = &v.ID
+	_ = db.Save(asset)
+
+	tag := models.Tag{LibraryID: lib.ID, Path: "environment"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.AssetTag{AssetID: asset.ID, TagID: tag.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/assets/1")
+	requireStatus(t, w, http.StatusOK)
+
+	body := jsonResponse[assetDetailView](t, w)
+	if len(body.Versions) != 1 || !body.Versions[0].IsCurrent {
+		t.Fatalf("versions wrong: %+v", body.Versions)
+	}
+	if len(body.Tags) != 1 || body.Tags[0].Path != "environment" {
+		t.Fatalf("tags wrong: %+v", body.Tags)
+	}
+}

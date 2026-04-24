@@ -11,6 +11,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/licensecheck v0.3.1
 	github.com/joho/godotenv v1.5.1
 	golang.org/x/crypto v0.25.0
 	gorm.io/driver/postgres v1.5.11

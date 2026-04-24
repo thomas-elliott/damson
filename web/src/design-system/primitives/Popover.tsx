@@ -11,7 +11,7 @@ export const PopoverContent = forwardRef<
   React.ElementRef<typeof RadixPopover.Content>,
   ComponentPropsWithoutRef<typeof RadixPopover.Content>
 >(function PopoverContent(
-  { className, sideOffset = 6, align = "start", ...props },
+  { className, sideOffset = 6, align = "start", style, ...props },
   ref,
 ) {
   return (
@@ -20,8 +20,9 @@ export const PopoverContent = forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         align={align}
+        style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-tooltip rounded-md border border-line bg-panel p-3 text-sm-plus text-text shadow-elevated",
+          "z-popover rounded-md border border-line bg-panel p-3 text-sm-plus text-text shadow-elevated",
           "data-[state=open]:animate-fade-in",
           className,
         )}

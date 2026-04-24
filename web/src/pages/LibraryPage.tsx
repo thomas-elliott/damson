@@ -1,75 +1,107 @@
-import {
-  Boxes,
-  FileSearch,
-  FolderGit2,
-  Inbox,
-  Library,
-  LogOut,
-  Settings,
-  UploadCloud,
-} from "lucide-react";
+import { useMemo } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { LogOut, Search, UploadCloud } from "lucide-react";
 
 import { AssetGrid } from "@/components/AssetGrid";
-import { DropZone } from "@/components/DropZone";
+import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
+import { DropZone, useDropZoneOpen } from "@/components/DropZone";
+import { LibraryFilterSidebar } from "@/components/LibraryFilterSidebar";
+import { Shell } from "@/components/Shell";
 import {
-  AppShell,
-  Badge,
   Breadcrumb,
   BreadcrumbItem,
   Button,
   EmptyState,
-  FilterSidebar,
-  NavRail,
-  NavRailItem,
-  NavRailSpacer,
-  Section,
+  SearchInput,
   Toolbar,
   ToolbarSpacer,
 } from "@/design-system";
-import { useAssets, useMe, type Me } from "@/hooks/useDataQueries";
+import { Library as LibraryIcon } from "lucide-react";
+import {
+  useAssets,
+  useMe,
+  type AssetFilters,
+  type LicenceStatus,
+  type Me,
+} from "@/hooks/useDataQueries";
 
 export function LibraryPage() {
-  const { data: me, loading: meLoading } = useMe();
+  const { data: me } = useMe();
+  const params = useParams();
+  const navigate = useNavigate();
+  const [search, setSearch] = useSearchParams();
   const hasLibrary = !!me?.current_library;
-  const { data: assets, loading: assetsLoading, total } = useAssets(hasLibrary);
 
-  if (meLoading) {
-    return <LoadingShell />;
-  }
+  const assetId = params.assetId ? Number(params.assetId) : null;
+
+  const filters: AssetFilters = useMemo(() => {
+    const f: AssetFilters = {};
+    const q = search.get("q");
+    if (q) f.q = q;
+    const tag = search.get("tag");
+    if (tag) f.tag_path = tag;
+    const lic = search.get("licence");
+    if (lic) f.licence_status = lic as LicenceStatus;
+    const spdx = search.get("spdx");
+    if (spdx) f.licence_spdx = spdx;
+    const kind = search.get("kind");
+    if (kind) f.package_kind = kind;
+    const needsReview = search.get("needs_review");
+    if (needsReview === "true") f.needs_review = true;
+    return f;
+  }, [search]);
+
+  const { data: assets, total, loading } = useAssets(filters, hasLibrary);
+
+  const onSearchChange = (next: string) => {
+    const params = new URLSearchParams(search);
+    if (next) params.set("q", next);
+    else params.delete("q");
+    setSearch(params, { replace: true });
+  };
+
+  const onOpenAsset = (id: number) => {
+    navigate(`/library/${id}${search.toString() ? `?${search}` : ""}`);
+  };
+  const onCloseDetail = () => {
+    navigate(`/library${search.toString() ? `?${search}` : ""}`);
+  };
+
   if (!me) return null;
 
   return (
-    <AppShell
-      rail={<DamsonRail />}
-      sidebar={<LibrarySidebar me={me} />}
+    <Shell
+      sidebar={hasLibrary ? <LibraryFilterSidebar me={me} filters={filters} /> : <SignedOutSidebar me={me} />}
       main={
         hasLibrary ? (
-          <>
+          <DropZone>
             <Toolbar>
               <Breadcrumb count={`${total} assets`}>
                 <BreadcrumbItem current>Library</BreadcrumbItem>
               </Breadcrumb>
+              <div className="min-w-[220px] max-w-[360px] flex-1">
+                <SearchInput
+                  value={search.get("q") ?? ""}
+                  onChange={(e) => onSearchChange(e.currentTarget.value)}
+                  placeholder="Search assets"
+                  aria-label="Search assets"
+                />
+              </div>
               <ToolbarSpacer />
-              <Button
-                variant="primary"
-                leadingIcon={<UploadCloud size={12} />}
-              >
-                Upload
-              </Button>
+              <UploadButton />
             </Toolbar>
-            <DropZone>
-              {assetsLoading ? (
-                <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
-                  Loading assets…
-                </div>
-              ) : (
-                <AssetGrid assets={assets} />
-              )}
-            </DropZone>
-          </>
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+                Loading assets…
+              </div>
+            ) : (
+              <AssetGrid assets={assets} onOpen={onOpenAsset} selectedId={assetId} />
+            )}
+            <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} />
+          </DropZone>
         ) : (
           <EmptyState
-            icon={<Library size={32} />}
+            icon={<LibraryIcon size={32} />}
             title="No library access yet"
             description={
               <>
@@ -86,106 +118,34 @@ export function LibraryPage() {
   );
 }
 
-function LoadingShell() {
+function UploadButton() {
+  const dz = useDropZoneOpen();
   return (
-    <div className="grid h-screen place-items-center bg-bg text-sm-plus text-text-3">
-      Loading…
-    </div>
-  );
-}
-
-function DamsonRail() {
-  return (
-    <NavRail brand={<DamsonBrand />}>
-      <NavRailItem
-        label="Library"
-        icon={<Library size={16} />}
-        active
-      />
-      <NavRailItem
-        label="Projects (M4)"
-        icon={<FolderGit2 size={16} />}
-        disabled
-      />
-      <NavRailItem
-        label="Collections (M5)"
-        icon={<Boxes size={16} />}
-        disabled
-      />
-      <NavRailItem
-        label="Import queue (M7)"
-        icon={<Inbox size={16} />}
-        disabled
-      />
-      <NavRailItem
-        label="Audit log (M7)"
-        icon={<FileSearch size={16} />}
-        disabled
-      />
-      <NavRailSpacer />
-      <NavRailItem
-        label="Settings (M6)"
-        icon={<Settings size={16} />}
-        disabled
-      />
-    </NavRail>
-  );
-}
-
-function DamsonBrand() {
-  return (
-    <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-sm-plus font-bold text-accent-fg">
-      D
-    </div>
-  );
-}
-
-function LibrarySidebar({ me }: { me: Me }) {
-  const lib = me.current_library;
-  return (
-    <FilterSidebar
-      header={
-        <div className="flex items-center gap-2 text-sm-plus">
-          <span className="truncate font-medium text-text">
-            {lib?.name ?? "No library"}
-          </span>
-          {lib && (
-            <Badge size="sm" mono>
-              {lib.role}
-            </Badge>
-          )}
-        </div>
-      }
-      footer={
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="truncate font-mono text-text-3" title={me.email}>
-            {me.email}
-          </span>
-          <a
-            href="#"
-            aria-label="Sign out"
-            className="text-text-3 transition-colors duration-std ease hover:text-text"
-          >
-            <LogOut size={13} />
-          </a>
-        </div>
-      }
+    <Button
+      variant="primary"
+      leadingIcon={<UploadCloud size={12} />}
+      onClick={() => dz?.open()}
+      disabled={!dz}
     >
-      <Section title="Licence" defaultOpen={false}>
-        <div className="text-xs-plus text-text-3">
-          Licence filters arrive in M3 (licence detection + editor).
-        </div>
-      </Section>
-      <Section title="File type" defaultOpen={false}>
-        <div className="text-xs-plus text-text-3">
-          Type filters arrive in M5 (search + filters).
-        </div>
-      </Section>
-      <Section title="Tags" defaultOpen={false}>
-        <div className="text-xs-plus text-text-3">
-          Tags arrive in M3 (tags tree).
-        </div>
-      </Section>
-    </FilterSidebar>
+      Upload
+    </Button>
+  );
+}
+
+function SignedOutSidebar({ me }: { me: Me }) {
+  return (
+    <div className="flex h-full flex-col justify-end border-r border-line bg-panel p-3">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="truncate font-mono text-text-3" title={me.email}>
+          {me.email}
+        </span>
+        <a href="#" aria-label="Sign out" className="text-text-3 hover:text-text">
+          <LogOut size={13} />
+        </a>
+      </div>
+      <div className="sr-only">
+        <Search size={1} />
+      </div>
+    </div>
   );
 }
