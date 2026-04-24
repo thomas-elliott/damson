@@ -11,7 +11,7 @@ Early development. See `docs/` for the full design:
 
 ## Running locally
 
-Prerequisites: Go 1.26, Node 22+, Postgres, an S3-compatible bucket, an OIDC provider, [Task](https://taskfile.dev), and [air](https://github.com/air-verse/air).
+Prerequisites: Go 1.26, Node 24+, Postgres, an S3-compatible bucket, an OIDC provider, [Task](https://taskfile.dev), and [air](https://github.com/air-verse/air).
 
 ```
 # First time
