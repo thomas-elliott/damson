@@ -1,11 +1,11 @@
 // Filter sidebar — search + composable filters.
 const { useState: useSt } = React;
 
-function FGroupHead({ title, onClear, children }) {
+function FGroupHead({ title, onClear, action, children }) {
   return (
     <div className="fgroup-head">
       <span>{title}</span>
-      {onClear ? <button onClick={onClear}>clear</button> : children}
+      {action ? action : onClear ? <button onClick={onClear}>clear</button> : children}
     </div>
   );
 }
@@ -54,6 +54,7 @@ function FilterSidebar({
   query, setQuery,
   filters, toggleFilter, clearFilters,
   width, onResizerDown,
+  activeCollection, setActiveCollection, onNewCollection,
 }) {
   return (
     <aside className="sidebar" style={{ width }}>
@@ -114,19 +115,27 @@ function FilterSidebar({
         </div>
 
         <div className="fgroup">
-          <FGroupHead title="Collections"/>
-          {COLLECTIONS.slice(0, 6).map(c => (
-            <FRow key={c.id}
-              active={filters.collection.has(c.id)}
-              onClick={() => toggleFilter('collection', c.id)}
-              icon={<I.Collections size={12} stroke={1.5}/>}
-              label={c.name}
-              count={c.count}/>
+          <FGroupHead title="Collections"
+            action={<button onClick={onNewCollection} title="New collection"><I.Plus size={11}/></button>}/>
+          {COLLECTIONS.filter(c => c.kind === 'smart').map(c => (
+            <div key={c.id}
+              className={`sb-col ${activeCollection === c.id ? 'on' : ''}`}
+              onClick={() => setActiveCollection(activeCollection === c.id ? null : c.id)}>
+              <I.Sliders size={11} stroke={1.5} style={{ color: 'var(--accent)' }}/>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+              <span className="count">{c.count}</span>
+            </div>
           ))}
-          <div className="f-row" style={{ color: 'var(--text-4)' }}>
-            <span style={{ width: 12 }}/>
-            Show {COLLECTIONS.length - 6} more…
-          </div>
+          <div style={{ height: 6 }}/>
+          {COLLECTIONS.filter(c => c.kind === 'manual').slice(0, 8).map(c => (
+            <div key={c.id}
+              className={`sb-col ${activeCollection === c.id ? 'on' : ''}`}
+              onClick={() => setActiveCollection(activeCollection === c.id ? null : c.id)}>
+              <I.Folder size={11} stroke={1.5}/>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+              <span className="count">{c.count}</span>
+            </div>
+          ))}
         </div>
 
         <div className="fgroup">

@@ -215,7 +215,80 @@ ASSETS.forEach(a => {
   if (!a.fileTree) {
     a.fileTree = [{ name: a.name + a.ext, type: 'file', size: formatSize(a.size) }];
   }
+  if (!a.overview) {
+    a.overview = buildOverview(a);
+  }
 });
+
+// Stub "scraped from source" overview. Each asset gets tagline, description, gallery, publisher, rating.
+function buildOverview(a) {
+  const fromStore = a.source === 'Unity Asset Store';
+  const publisherMap = {
+    'Unity Asset Store': { name: 'Synty Studios', url: 'assetstore.unity.com/publishers/5217', assets: 94 },
+    'itch.io': { name: 'elthen', url: 'itch.io/profile/elthen', assets: 42 },
+    'freesound.org': { name: 'Community (freesound.org)', url: 'freesound.org', assets: null },
+    'OpenGameArt': { name: 'Community (OpenGameArt)', url: 'opengameart.org', assets: null },
+    'Google Fonts': { name: 'Google Fonts', url: 'fonts.google.com', assets: null },
+    'Pixel Sagas': { name: 'Pixel Sagas', url: 'pixelsagas.com', assets: 380 },
+    'Incompetech': { name: 'Kevin MacLeod', url: 'incompetech.com', assets: null },
+    'Kenney.nl': { name: 'Kenney', url: 'kenney.nl', assets: 180 },
+    'Unity Registry': { name: 'Unity Technologies', url: 'docs.unity3d.com', assets: null },
+    'Artstation': { name: 'Artstation Marketplace', url: 'artstation.com', assets: null },
+    'Zapsplat': { name: 'Zapsplat', url: 'zapsplat.com', assets: null },
+    'Splice': { name: 'Splice Sounds', url: 'splice.com', assets: null },
+    'Internal': { name: 'Internal · in-house', url: null, assets: null },
+  };
+  const publisher = publisherMap[a.source] || { name: a.source, url: null, assets: null };
+
+  const descByType = {
+    unitypackage: `A ${a.tags.includes('low-poly') ? 'stylised low-poly' : a.tags.includes('sci-fi') ? 'sci-fi themed' : a.tags.includes('vfx') ? 'VFX-focused' : 'production-ready'} Unity package. Drop-in prefabs, demo scene included, mobile-friendly materials. Compatible with Built-in, URP and HDRP render pipelines.`,
+    sprite: `${a.tags.includes('pixel') ? 'Pixel-art' : '2D'} ${a.tags.includes('character') ? 'character animation' : a.tags.includes('tileset') ? 'tileset' : 'sprite asset'}. ${a.tags.includes('animation') ? 'Includes frame-by-frame animation sheets.' : 'Layered source files included.'} Power-of-two dimensions, transparent background.`,
+    audio: `${a.tags.includes('ambient') ? 'Seamless ambient loop' : a.tags.includes('music') ? 'Original composition' : 'Field-recorded sound effect'}. ${a.tags.includes('loop') ? 'Loop points aligned to zero-crossings.' : 'Normalised to -1 dBFS.'} Delivered as 44.1 kHz 16-bit.`,
+    font: `Open-licence ${a.tags.includes('pixel') ? 'pixel bitmap font' : a.tags.includes('mono') ? 'monospaced font' : 'display face'}. Full Latin-1 + extended Latin glyph coverage. Kerning pairs included.`,
+  };
+
+  const taglineByType = {
+    unitypackage: 'Drop-in Unity package — prefabs, demo scene, LODs.',
+    sprite: 'Source-layered 2D asset with transparent background.',
+    audio: 'Loopable, normalised, 44.1 kHz.',
+    font: 'Open-licence font · Latin + extended.',
+  };
+
+  // Mock gallery: 3-4 palette-swapped thumbnails derived from main thumb
+  const galleryCount = a.type === 'audio' ? 0 : (a.type === 'font' ? 2 : 4);
+  const gallery = Array.from({ length: galleryCount }, (_, i) => ({
+    kind: a.thumb.kind,
+    palette: a.thumb.palette ? shiftPalette(a.thumb.palette, i) : null,
+    pattern: a.thumb.pattern,
+    seed: (a.thumb.seed || 1) + i,
+    sample: a.thumb.sample,
+    family: a.thumb.family,
+    caption: [
+      a.type === 'unitypackage' ? 'Demo scene' : 'Hero',
+      'Variants',
+      'Close-up',
+      'Breakdown',
+    ][i],
+  }));
+
+  return {
+    tagline: taglineByType[a.type] || '',
+    description: descByType[a.type] || '',
+    gallery,
+    publisher,
+    rating: fromStore ? { stars: 4.7, count: 1284 } : null,
+    originUrl: publisher.url ? `https://${publisher.url}/${a.name.toLowerCase().replace(/\s+/g, '-')}` : null,
+    archivedAt: a.imported,
+    teamNotes: a.needsReview
+      ? 'Flagged for review — confirm redistribution clause before shipping.'
+      : (a.projects.length > 0 ? `Used in ${a.projects.join(' and ')}. Keep current version pinned until end-of-sprint.` : ''),
+  };
+}
+
+function shiftPalette(p, i) {
+  if (i === 0) return p;
+  return p.slice(i % p.length).concat(p.slice(0, i % p.length));
+}
 
 // Import queue — in-flight items (not yet in library, or newly landed with review flag).
 const QUEUE_SEED = [
@@ -266,23 +339,48 @@ const TAG_TREE = [
 ];
 
 const PROJECTS = [
-  { id: 'grove', name: 'Grove', colour: 'oklch(0.7 0.12 155)', count: 5 },
-  { id: 'ashfall', name: 'Ashfall', colour: 'oklch(0.68 0.17 28)', count: 6 },
-  { id: 'prologue', name: 'Prologue (new)', colour: 'oklch(0.7 0.14 244)', count: 0 },
+  {
+    id: 'grove', name: 'Grove', colour: 'oklch(0.7 0.12 155)', glyph: 'G',
+    path: '~/Dev/grove', engine: 'Unity 2023.3',
+    updated: '2026-04-22', manifestLast: '2026-04-22',
+    description: 'Cozy sim · pre-alpha. Signed NDA with publisher — no redistribution.',
+    sync: 'synced',
+  },
+  {
+    id: 'ashfall', name: 'Ashfall', colour: 'oklch(0.68 0.17 28)', glyph: 'A',
+    path: '~/Dev/ashfall', engine: 'Unity 2023.3',
+    updated: '2026-04-18', manifestLast: '2026-04-10',
+    description: 'Top-down action-RPG, 2D pixel. Commercial release Q3.',
+    sync: 'drift',
+  },
+  {
+    id: 'prologue', name: 'Prologue', colour: 'oklch(0.7 0.14 244)', glyph: 'P',
+    path: '~/Dev/prologue', engine: 'Godot 4.3',
+    updated: '2026-04-23', manifestLast: null,
+    description: 'Narrative prototype — just started. No manifest yet.',
+    sync: 'never',
+  },
 ];
 
 const COLLECTIONS = [
-  { id: 'env', name: 'Environments', count: 1 },
-  { id: 'chars', name: 'Character sheets', count: 2 },
-  { id: 'sfx', name: 'SFX', count: 2 },
-  { id: 'music', name: 'Music', count: 1 },
-  { id: 'amb', name: 'Ambience', count: 1 },
-  { id: 'tiles', name: 'Tilesets', count: 1 },
-  { id: 'ui', name: 'UI', count: 2 },
-  { id: 'tools', name: 'Tools', count: 2 },
-  { id: 'pf', name: 'Pixel fonts', count: 2 },
-  { id: 'df', name: 'Display fonts', count: 1 },
-  { id: 'mkt', name: 'Marketing', count: 1 },
+  // Manual collections
+  { id: 'env', name: 'Environments', kind: 'manual', count: 1, icon: 'folder' },
+  { id: 'chars', name: 'Character sheets', kind: 'manual', count: 2, icon: 'folder' },
+  { id: 'sfx', name: 'SFX', kind: 'manual', count: 2, icon: 'folder' },
+  { id: 'music', name: 'Music', kind: 'manual', count: 1, icon: 'folder' },
+  { id: 'amb', name: 'Ambience', kind: 'manual', count: 1, icon: 'folder' },
+  { id: 'tiles', name: 'Tilesets', kind: 'manual', count: 1, icon: 'folder' },
+  { id: 'ui', name: 'UI', kind: 'manual', count: 2, icon: 'folder' },
+  { id: 'tools', name: 'Tools', kind: 'manual', count: 2, icon: 'folder' },
+  { id: 'pf', name: 'Pixel fonts', kind: 'manual', count: 2, icon: 'folder' },
+  { id: 'df', name: 'Display fonts', kind: 'manual', count: 1, icon: 'folder' },
+  { id: 'mkt', name: 'Marketing', kind: 'manual', count: 1, icon: 'folder' },
+  // Smart collections — saved filter queries
+  { id: 'sm-review', name: 'Needs review', kind: 'smart', count: 3, query: { licence: ['warn', 'unk'] } },
+  { id: 'sm-unsafe', name: 'Licence conflicts', kind: 'smart', count: 1, query: { licence: ['err'] } },
+  { id: 'sm-recent', name: 'Imported this week', kind: 'smart', count: 4, query: { recent: 7 } },
+  { id: 'sm-big', name: 'Over 100 MB', kind: 'smart', count: 4, query: { minSize: 100_000_000 } },
+  { id: 'sm-orphan', name: 'Not in any project', kind: 'smart', count: 6, query: { orphan: true } },
 ];
 
 const LICENCE_FILTERS = [
@@ -309,9 +407,63 @@ const SOURCES = [
   { id: 'misc', label: 'Other', count: 6 },
 ];
 
-Object.assign(window, {
-  ASSETS, LICENCES, LICENCE_TEXT_MIT, LICENCE_TEXT_UNITY,
-  QUEUE_SEED, TAG_TREE, PROJECTS, COLLECTIONS,
-  LICENCE_FILTERS, FILETYPE_FILTERS, SOURCES,
-  formatSize, formatDate,
-});
+const PROJECT_ASSETS = {
+  grove: ['a01', 'a03', 'a08', 'a12', 'a13', 'a14', 'a17'],
+  ashfall: ['a01', 'a02', 'a04', 'a06', 'a07', 'a08', 'a15', 'a17'],
+  prologue: [],
+};
+
+// Compute per-project stats from PROJECT_ASSETS + ASSETS
+function projectStats(projectId) {
+  const ids = PROJECT_ASSETS[projectId] || [];
+  const items = ids.map(id => ASSETS.find(a => a.id === id)).filter(Boolean);
+  const size = items.reduce((s, a) => s + a.size, 0);
+  const files = items.reduce((s, a) => s + a.files, 0);
+  const byStatus = { ok: 0, warn: 0, err: 0, unk: 0 };
+  items.forEach(a => {
+    const st = (LICENCES[a.licence] || LICENCES.Unknown).status;
+    byStatus[st]++;
+  });
+  return { count: items.length, size, files, byStatus, items };
+}
+
+Object.assign(window, { PROJECT_ASSETS, projectStats });
+
+const COLLECTION_ASSETS = {
+  env: ['a01'],
+  chars: ['a02', 'a12'],
+  sfx: ['a06', 'a11'],
+  music: ['a14'],
+  amb: ['a03'],
+  tiles: ['a07'],
+  ui: ['a05', 'a17'],
+  tools: ['a08', 'a13'],
+  pf: ['a04', 'a15'],
+  df: ['a09'],
+  mkt: ['a10'],
+};
+
+function collectionAssets(col) {
+  if (!col) return [];
+  if (col.kind === 'manual') {
+    return (COLLECTION_ASSETS[col.id] || []).map(id => ASSETS.find(a => a.id === id)).filter(Boolean);
+  }
+  const q = col.query || {};
+  return ASSETS.filter(a => {
+    if (q.licence) {
+      const st = (LICENCES[a.licence] || LICENCES.Unknown).status;
+      if (!q.licence.includes(st)) return false;
+    }
+    if (q.recent) {
+      if (!a.imported.includes('-')) return true;
+      const d = new Date(a.imported);
+      const now = new Date('2026-04-23');
+      if ((now - d) / 86400000 > q.recent) return false;
+    }
+    if (q.minSize && a.size < q.minSize) return false;
+    if (q.orphan && a.projects.length) return false;
+    return true;
+  });
+}
+
+Object.assign(window, { COLLECTION_ASSETS, collectionAssets });

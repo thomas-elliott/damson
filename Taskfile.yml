@@ -77,11 +77,39 @@ tasks:
       - go tool cover -html=coverage.out -o coverage.html
 
   web:test:
-    desc: Vitest run
+    desc: Vitest unit tests (jsdom)
     dir: "{{.WEB_DIR}}"
     deps: [web:deps]
     cmds:
       - npm test -- --run
+
+  web:test:stories:
+    desc: Run Storybook stories as Vitest tests (Playwright Chromium)
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm run test:stories -- --run
+
+  web:test:all:
+    desc: All Vitest projects (unit + stories)
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm run test:all -- --run
+
+  web:storybook:
+    desc: Storybook dev server (design system)
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm run storybook
+
+  web:storybook:build:
+    desc: Static Storybook build (smoke test)
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm run build-storybook
 
   web:test:watch:
     desc: Vitest watch mode
