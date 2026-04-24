@@ -22,12 +22,16 @@ This document complements:
 - Vite build tool
 - TanStack Query v5 for server state
 - React Router
-- Tailwind CSS + shadcn/ui primitives
+- Tailwind CSS with OKLCH design tokens
+- Radix UI headless primitives (`@radix-ui/react-*`) + hand-rolled components under `web/src/design-system/`
+- `class-variance-authority` for component variants; `clsx` + `tailwind-merge` via a `cn()` helper
+- `lucide-react` icons; `@fontsource/inter` + `@fontsource/jetbrains-mono` self-hosted fonts
 
 **Tooling**
 - Task (`Taskfile.yml`) for all developer workflows
 - `air` for Go hot-reload
-- Vitest (+ Testing Library) for frontend tests
+- Vitest 3 with two projects: `unit` (jsdom) for component unit tests and `storybook` (Playwright Chromium) that runs every `*.stories.tsx` as a real-browser test with axe-core a11y checks
+- Storybook 10 (`@storybook/react-vite`) for the component gallery, with `@storybook/addon-a11y`, `@storybook/addon-vitest`, and `storybook-addon-pseudo-states`
 - Multi-stage Dockerfile (Node → Go → Alpine)
 
 ---
@@ -48,8 +52,12 @@ All workflows run through `task` (see `Taskfile.yml`).
 | `task test` | `go test ./...` |
 | `task test:short` | Non-verbose Go tests |
 | `task test:coverage` | Generate `coverage.html` |
-| `task web:test` | Vitest run (frontend) |
-| `task web:test:watch` | Vitest watch mode |
+| `task web:test` | Vitest unit project (jsdom, fast) |
+| `task web:test:stories` | Vitest storybook project — every `*.stories.tsx` in real Chromium with axe a11y |
+| `task web:test:all` | Both Vitest projects |
+| `task web:test:watch` | Vitest watch mode (unit project) |
+| `task web:storybook` | Storybook dev server (port 6006) |
+| `task web:storybook:build` | Static Storybook build (smoke test) |
 | `task pre-release-checks` | fmt + vet + tests (Go & web) |
 | `task docker-build` | Container image |
 
@@ -111,8 +119,9 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Strict mode on (`tsconfig.json`). `@` path alias maps to `src/`.
 - Functional components only. Explicit props interfaces.
 - Pages in `pages/` use React Router hooks (`useParams`, `useNavigate`, `useSearchParams`).
-- Components grouped by feature under `components/`. Generic shadcn primitives go in `components/ui/`.
+- Feature-level compositions live under `components/` and consume the design system. See `docs/design-system.md` for the canonical component inventory.
 - All authenticated routes are wrapped in `<AuthGuard>` in `App.tsx`.
+- `TooltipProvider` is mounted once in `main.tsx` — tooltips anywhere in the tree (nav rail, icon buttons) rely on it.
 
 ### Server state (TanStack Query)
 - Query keys live in `lib/queryKeys.ts` — a factory-style object. Never hand-roll query keys in components.
@@ -141,16 +150,19 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Never log tokens or raw session values.
 
 ### Styling
-- Tailwind CSS with CSS-variable theming; dark mode via a `class` on the root.
+- OKLCH design tokens live in `src/design-system/tokens/tokens.css`. Dark is the default (`:root`); light opts in via `html[data-theme="light"]`.
+- Tailwind's theme extends the tokens as utility classes (`bg-bg`, `bg-panel`, `text-text-2`, `border-line`, `bg-accent-tint`, `text-ok`, etc.) — prefer these over raw `var(--ds-*)`.
 - `@tailwindcss/typography` for markdown content.
-- Reuse shadcn primitives from `components/ui/` (button, card, dialog, input, badge, etc.) rather than building new ones.
+- Use the design-system primitives (`Button`, `Input`, `Dialog`, `Pill`, `Tabs`, …) from `@/design-system` rather than hand-rolling equivalents. New components go in `src/design-system/{primitives,compositions,domain}/` alongside a `*.stories.tsx` with variants + states; see `docs/design-system.md`.
+- `cn()` composes classes: `clsx` for conditional joins, `tailwind-merge` for dedup. The custom font-size keys (`2xs`, `xs-plus`, `sm-plus`, `base`, `md`) are registered with `tailwind-merge` in `utils/cn.ts` — new size utilities belong in the same group.
 - Do not reintroduce CDN Tailwind; everything goes through the Vite pipeline.
 
 ### Frontend tests (Vitest)
-- Config: `vitest.config.ts`, environment `jsdom`, globals enabled.
-- Setup file: `src/test/setupTests.ts` (imports `@testing-library/jest-dom/vitest`).
-- Libraries: `@testing-library/react`, `@testing-library/user-event`.
-- Pattern: `src/**/*.{test,spec}.{ts,tsx}`.
+- Config: `vitest.config.ts` defines two projects:
+  - **`unit`** — `jsdom`, globals enabled, setup file `src/test/setupTests.ts`, pattern `src/**/*.{test,spec}.{ts,tsx}`. Run with `task web:test`.
+  - **`storybook`** — real Chromium via Playwright and `@storybook/addon-vitest/vitest-plugin`; every `*.stories.tsx` runs as a test with axe-core a11y checks (`a11y.test = "error"`). Run with `task web:test:stories`. `task web:test:all` runs both.
+- Libraries: `@testing-library/react`, `@testing-library/user-event` for the unit project; `storybook/test` helpers for story interactions.
+- Browsers are installed via `npx playwright install chromium`; the cache lives at `~/Library/Caches/ms-playwright/` on macOS.
 
 ---
 
