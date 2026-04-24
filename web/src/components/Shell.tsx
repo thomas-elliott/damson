@@ -39,6 +39,7 @@ export function Shell({
       rail={<DamsonRail />}
       sidebar={sidebar}
       main={main}
+      resizableSidebar={!!sidebar}
     />
   );
 }

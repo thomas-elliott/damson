@@ -18,8 +18,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       data-disabled={disabled ? "true" : undefined}
       className={cn(
         "flex items-center gap-1.5 rounded-sm border border-line bg-bg px-2 py-1.5 text-sm-plus text-text transition-colors duration-std ease",
-        "focus-within:border-transparent focus-within:bg-surface focus-within:outline focus-within:outline-2 focus-within:outline-accent-ring",
-        "data-[invalid=true]:border-err/60 data-[invalid=true]:focus-within:outline-err/50",
+        "focus-within:border-accent focus-within:bg-surface focus-within:ring-2 focus-within:ring-inset focus-within:ring-accent-ring",
+        "data-[invalid=true]:border-err/60 data-[invalid=true]:focus-within:ring-err/50",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50",
         className,
       )}
