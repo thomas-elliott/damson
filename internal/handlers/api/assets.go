@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -167,6 +168,7 @@ func (h *handler) postImport(c *gin.Context) {
 		ex := &extract.UnityExtractor{Storage: h.storage}
 		res, xerr := ex.Extract(c.Request.Context(), blob)
 		if xerr != nil {
+			slog.Warn("unity extract failed", "err", xerr, "filename", filename, "size", size, "library_id", lib.ID)
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + xerr.Error()})
 			return
 		}
@@ -306,6 +308,7 @@ func (h *handler) postReExtract(c *gin.Context) {
 	ex := &extract.UnityExtractor{Storage: h.storage}
 	result, err := ex.Extract(c.Request.Context(), blob)
 	if err != nil {
+		slog.Warn("unity re-extract failed", "err", err, "asset_id", asset.ID, "version_id", source.ID)
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + err.Error()})
 		return
 	}

@@ -351,23 +351,11 @@ Per the conventions' note on "enriched views": the following are likely to becom
 
 ### 6.3 Migrations
 
-SQL-only, per `CONVENTIONS.md`. Initial sequence:
-
-```
-database/migrations/
-  001_users.sql
-  002_libraries.sql
-  003_library_memberships.sql
-  004_audit_log.sql
-  005_assets_versions_files.sql
-  006_licences.sql
-  007_tags.sql
-  008_collections.sql
-  009_projects_and_pins.sql
-  010_library_settings.sql
-  011_search_vector_trigger.sql
-  012_indexes.sql
-```
+SQL-only, per `CONVENTIONS.md`. M0–M2 tables (users, libraries, memberships,
+audit log, assets, versions, files, imports) landed pre-boot as a single
+`001_initial.sql`. Subsequent slices add incrementally-numbered files —
+licences, tags, collections, projects, library settings, search-vector
+trigger, etc. — each as its own `NNN_*.sql`.
 
 Each file: `BEGIN; … COMMIT;`, `IF NOT EXISTS` throughout. A migration runner at startup reads the `database/migrations/` directory (embedded via `go:embed`), tracks applied files in a `schema_migrations` table, and applies new files in order. No Go migration framework — matches the repo style.
 
@@ -529,7 +517,9 @@ Progress reaches the SPA over **Server-Sent Events**: a handler at `GET /api/imp
 
 ### 9.2 Unity package handling
 
-`.unitypackage` is a gzipped tar archive. Each entry is a directory named by a GUID (32 hex chars) containing:
+`.unitypackage` is typically a gzipped tar archive, but raw (ungzipped) tars occur in the wild (some Asset Store exports, older tooling). The extractor sniffs the first two bytes: `1f 8b` → gzip-wrapped; anything else is handed straight to `tar.NewReader`. Zip-format `.unitypackage` files (newer Unity Hub exports; magic `50 4b`) are a known third variant — support is deferred, see §20.
+
+Each tar entry is a directory named by a GUID (32 hex chars) containing:
 
 - `asset` — the actual file bytes
 - `asset.meta` — YAML metadata (keep verbatim if desired; not required for v1)
@@ -938,6 +928,9 @@ Data/structure that exists in v1 specifically because deferred features need it:
 | Background thumbnail/extraction queue | Pipeline stages isolated in `services/*`; swap in a queue behind the same interface |
 | Shared-vocabulary tags across libraries | `tags` is library-scoped now; a later `global_tags` table + reference from `tags.global_tag_id` is additive |
 | Cross-library move / copy of an asset | Blob storage is already global (content-addressed); only DB rows need to be duplicated with new `library_id` |
+
+**Deferred extractor variants:**
+- **Zip-format `.unitypackage`.** Newer Unity Hub exports and some third-party tooling produce zip containers named `.unitypackage` (magic `50 4b 03 04`). The current extractor covers gzipped tar and raw tar; zip is a parallel `archive/zip`-based path producing the same `UnityResult`. Uploads of zip-format packages currently fail at import with a descriptive 400; users work around by re-exporting or switching Unity versions. Implement when it blocks a real import, not speculatively.
 
 ## 21. Milestones (proposed)
 

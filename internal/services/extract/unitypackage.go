@@ -7,6 +7,7 @@ package extract
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -66,11 +67,15 @@ const (
 
 var guidPrefix = regexp.MustCompile(`^([0-9a-f]{32})(?:/|$)`)
 
-// Extract streams r (which must be a gzipped tar — the raw .unitypackage) and
-// produces a UnityResult. Files whose GUID bundle is incomplete (missing
-// pathname or asset) are skipped rather than erroring — real packages
-// occasionally carry meta-only stubs, and the UI surfaces the discrepancy
-// downstream if it matters.
+// Extract streams r (a .unitypackage — either a gzipped tar or a plain tar)
+// and produces a UnityResult. The format is detected from the first two
+// bytes: `1f 8b` is gzip; anything else is handed straight to tar.NewReader,
+// which covers the rarer raw-tar packages that appear in the wild (Unity
+// Asset Store packages from older exports, some third-party tooling).
+//
+// Files whose GUID bundle is incomplete (missing pathname or asset) are
+// skipped rather than erroring — real packages occasionally carry meta-only
+// stubs, and the UI surfaces the discrepancy downstream if it matters.
 //
 // Extraction is streaming in intent but not fully streaming in implementation:
 // `asset` entries are streamed straight to storage, but small sidecar files
@@ -94,13 +99,23 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 		maxEntries = defaultMaxEntries
 	}
 
-	gzr, err := gzip.NewReader(r)
-	if err != nil {
-		return nil, fmt.Errorf("gzip: %w", err)
+	br := bufio.NewReader(r)
+	head, err := br.Peek(2)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("peek header: %w", err)
 	}
-	defer gzr.Close()
 
-	tr := tar.NewReader(gzr)
+	var tarSrc io.Reader = br
+	if len(head) >= 2 && head[0] == 0x1f && head[1] == 0x8b {
+		gzr, gerr := gzip.NewReader(br)
+		if gerr != nil {
+			return nil, fmt.Errorf("gzip: %w", gerr)
+		}
+		defer gzr.Close()
+		tarSrc = gzr
+	}
+
+	tr := tar.NewReader(tarSrc)
 
 	type bundle struct {
 		guid        string
