@@ -157,7 +157,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 ## Database Migrations
 
 - Location: `database/migrations/`.
-- Naming: `NNN_descriptive_name.sql` (zero-padded 3-digit sequence). Example: `007_asset_versions.sql`.
+- Naming: `NNN_descriptive_name.sql` (zero-padded 3-digit sequence). Example: `002_tags.sql`.
 - Each migration is wrapped in `BEGIN; ... COMMIT;`.
 - Use `IF NOT EXISTS` for idempotency.
 - Primary keys: `bigserial PRIMARY KEY`. Timestamps: `timestamptz NOT NULL DEFAULT now()`.

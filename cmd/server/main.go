@@ -98,6 +98,7 @@ func main() {
 
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(requestLogger())
 
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
@@ -142,6 +143,31 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown", "err", err)
+	}
+}
+
+// requestLogger emits one slog line per HTTP request with method, path,
+// status, and duration. 5xx logs at error, 4xx at warn, everything else info.
+// Deliberately minimal — no request bodies, no headers (don't leak tokens).
+func requestLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		status := c.Writer.Status()
+		attrs := []any{
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", status,
+			"duration_ms", time.Since(start).Milliseconds(),
+		}
+		switch {
+		case status >= 500:
+			slog.Error("request", attrs...)
+		case status >= 400:
+			slog.Warn("request", attrs...)
+		default:
+			slog.Info("request", attrs...)
+		}
 	}
 }
 

@@ -232,10 +232,51 @@ func TestUnityExtractor_TotalBytesCap(t *testing.T) {
 	}
 }
 
-func TestUnityExtractor_RejectsNonGzipInput(t *testing.T) {
+func TestUnityExtractor_RejectsGarbageInput(t *testing.T) {
+	// Neither gzip nor valid tar — should surface a tar error rather than
+	// succeeding silently.
 	_, err := (&UnityExtractor{Storage: newFakeStorage()}).
-		Extract(context.Background(), bytes.NewReader([]byte("not a gzip stream")))
+		Extract(context.Background(), bytes.NewReader([]byte("not an archive at all")))
 	if err == nil {
-		t.Fatalf("expected gzip error")
+		t.Fatalf("expected error for garbage input")
+	}
+}
+
+// TestUnityExtractor_AcceptsRawTar covers .unitypackage files that are plain
+// POSIX tars without gzip framing — rarer than the tar.gz variant but present
+// in real-world Asset Store downloads.
+func TestUnityExtractor_AcceptsRawTar(t *testing.T) {
+	g1 := guidN(0x33)
+	var out bytes.Buffer
+	tw := tar.NewWriter(&out)
+	for _, e := range []entry{
+		{guid: g1, leaf: "pathname", data: []byte("Assets/Props/chip.fbx")},
+		{guid: g1, leaf: "asset", data: []byte("chip-bytes")},
+	} {
+		hdr := &tar.Header{
+			Name:     e.guid + "/" + e.leaf,
+			Size:     int64(len(e.data)),
+			Mode:     0o644,
+			Typeflag: tar.TypeReg,
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(e.data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	fs := newFakeStorage()
+	res, err := (&UnityExtractor{Storage: fs}).
+		Extract(context.Background(), bytes.NewReader(out.Bytes()))
+	if err != nil {
+		t.Fatalf("extract raw tar: %v", err)
+	}
+	if len(res.Files) != 1 || res.Files[0].RelativePath != "Assets/Props/chip.fbx" {
+		t.Fatalf("unexpected files: %+v", res.Files)
 	}
 }
