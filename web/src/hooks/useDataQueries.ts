@@ -56,6 +56,8 @@ export function useMe(enabled: boolean = true) {
 
 // -- /api/assets ------------------------------------------------------------
 
+export type LicenceStatus = "ok" | "warn" | "err" | "unk";
+
 export interface AssetRow {
   id: number;
   name: string;
@@ -63,6 +65,10 @@ export interface AssetRow {
   size_bytes: number;
   needs_review: boolean;
   created_at: string;
+  thumbnail_object_key?: string;
+  licence_spdx?: string;
+  licence_status?: LicenceStatus;
+  package_kind?: string;
 }
 
 interface AssetListResponse {
@@ -70,17 +76,310 @@ interface AssetListResponse {
   total: number;
 }
 
-export function useAssets(enabled: boolean = true) {
+export interface AssetFilters {
+  q?: string;
+  tag_id?: number;
+  tag_path?: string;
+  licence_status?: LicenceStatus;
+  licence_spdx?: string;
+  project_id?: number;
+  collection_id?: number;
+  source_host?: string;
+  needs_review?: boolean;
+  package_kind?: string;
+}
+
+function filtersToQuery(f: AssetFilters | undefined): string {
+  if (!f) return "";
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (v === undefined || v === "" || v === null) continue;
+    params.set(k, String(v));
+  }
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
+export function useAssets(filters?: AssetFilters, enabled: boolean = true) {
+  const keyed = filters && Object.keys(filters).length > 0
+    ? (Object.fromEntries(
+        Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
+      ) as Record<string, string | number | boolean>)
+    : undefined;
   const q = useQuery({
-    queryKey: queryKeys.assets(),
-    queryFn: () => fetchJson<AssetListResponse>("/api/assets"),
-    staleTime: 30 * 1000, // assets change often during import; short stale
+    queryKey: queryKeys.assets(keyed),
+    queryFn: () =>
+      fetchJson<AssetListResponse>(`/api/assets${filtersToQuery(filters)}`),
+    staleTime: 30 * 1000,
     gcTime: 10 * MINUTE,
     enabled,
   });
   return {
     data: q.data?.assets ?? [],
     total: q.data?.total ?? 0,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/assets/:id --------------------------------------------------------
+
+export interface AssetVersionView {
+  id: number;
+  version_label: string;
+  notes: string;
+  import_date: string;
+  package_kind: string;
+  file_count: number;
+  size_bytes: number;
+  has_original: boolean;
+  is_current: boolean;
+}
+
+export interface AssetFileView {
+  id: number;
+  relative_path: string;
+  size_bytes: number;
+  content_hash: string;
+  object_key: string;
+  detected_type?: string;
+}
+
+export interface AssetTagView {
+  id: number;
+  path: string;
+  parent_id?: number;
+}
+
+export interface LicenceAttributes {
+  commercial_use: boolean | null;
+  modification: boolean | null;
+  redistribution: boolean | null;
+  attribution_required: boolean | null;
+  share_alike: boolean | null;
+  open_source_required: boolean | null;
+  custom_terms?: string | null;
+}
+
+export interface LicenceView {
+  id: number;
+  asset_id: number;
+  detected_type: string;
+  detection_confidence: number;
+  canonical_diff?: string;
+  original_text: string;
+  attributes: LicenceAttributes;
+  status: LicenceStatus;
+  reviewed_at?: string;
+}
+
+export interface ProjectPinRef {
+  project_id: number;
+  project_name: string;
+  pinned_version_id: number;
+  version_label: string;
+}
+
+export interface CollectionRef {
+  collection_id: number;
+  collection_name: string;
+}
+
+export interface AssetDetailView {
+  id: number;
+  name: string;
+  description: string;
+  source_url: string;
+  needs_review: boolean;
+  current_version_id?: number;
+  thumbnail_object_key?: string;
+  thumbnail_content_type?: string;
+  created_at: string;
+  updated_at: string;
+  licence?: LicenceView;
+  tags: AssetTagView[];
+  versions: AssetVersionView[];
+  files: AssetFileView[];
+  projects: ProjectPinRef[];
+  collections: CollectionRef[];
+}
+
+export function useAssetDetail(id: number | null) {
+  const q = useQuery({
+    queryKey: id ? queryKeys.asset(id) : ["asset", "none"],
+    queryFn: () => fetchJson<AssetDetailView>(`/api/assets/${id}`),
+    staleTime: 30 * 1000,
+    gcTime: 10 * MINUTE,
+    enabled: id != null,
+  });
+  return {
+    data: q.data ?? null,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/tags --------------------------------------------------------------
+
+export interface TagView {
+  id: number;
+  path: string;
+  parent_id?: number;
+  asset_count: number;
+}
+
+export function useTags(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.tags,
+    queryFn: () => fetchJson<{ tags: TagView[] }>("/api/tags"),
+    staleTime: 5 * MINUTE,
+    gcTime: 1 * HOUR,
+    enabled,
+  });
+  return {
+    data: q.data?.tags ?? [],
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/projects ----------------------------------------------------------
+
+export interface ProjectView {
+  id: number;
+  name: string;
+  description: string;
+  target_distribution: string;
+  glyph: string;
+  glyph_color: string;
+  asset_count: number;
+  updates_available: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectPinDetail {
+  pin_id: number;
+  asset_id: number;
+  asset_name: string;
+  pinned_version_id: number;
+  version_label: string;
+  latest_version_id?: number;
+  latest_label?: string;
+  has_update: boolean;
+  licence_status: LicenceStatus;
+  licence_spdx?: string;
+  size_bytes: number;
+  pinned_at: string;
+}
+
+export interface ProjectDetailView extends ProjectView {
+  pins: ProjectPinDetail[];
+}
+
+export function useProjects(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: () => fetchJson<{ projects: ProjectView[] }>("/api/projects"),
+    staleTime: 30 * 1000,
+    gcTime: 10 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.projects ?? [],
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+export function useProject(id: number | null) {
+  const q = useQuery({
+    queryKey: id ? queryKeys.project(id) : ["project", "none"],
+    queryFn: () => fetchJson<ProjectDetailView>(`/api/projects/${id}`),
+    staleTime: 30 * 1000,
+    gcTime: 10 * MINUTE,
+    enabled: id != null,
+  });
+  return {
+    data: q.data ?? null,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/collections -------------------------------------------------------
+
+export interface CollectionView {
+  id: number;
+  name: string;
+  description: string;
+  asset_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useCollections(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.collections,
+    queryFn: () => fetchJson<{ collections: CollectionView[] }>("/api/collections"),
+    staleTime: 30 * 1000,
+    gcTime: 10 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.collections ?? [],
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+export function useCollection(id: number | null) {
+  const q = useQuery({
+    queryKey: id ? queryKeys.collection(id) : ["collection", "none"],
+    queryFn: () => fetchJson<CollectionView>(`/api/collections/${id}`),
+    staleTime: 30 * 1000,
+    gcTime: 10 * MINUTE,
+    enabled: id != null,
+  });
+  return {
+    data: q.data ?? null,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/settings ----------------------------------------------------------
+
+export interface LibrarySettings {
+  library_id: number;
+  theme_default: "dark" | "light";
+  grid_density_default: "small" | "medium" | "large";
+  retain_original_packages: boolean;
+  dedupe_enabled: boolean;
+  thumbnails_raster_enabled: boolean;
+  thumbnails_audio_enabled: boolean;
+  thumbnails_font_enabled: boolean;
+  thumbnails_unity_preview: boolean;
+  audit_retention_days: number | null;
+}
+
+export function useLibrarySettings(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.librarySettings,
+    queryFn: () => fetchJson<LibrarySettings>("/api/settings"),
+    staleTime: 5 * MINUTE,
+    gcTime: 1 * HOUR,
+    enabled,
+  });
+  return {
+    data: q.data ?? null,
     loading: q.isPending,
     error: q.error,
     reload: q.refetch,

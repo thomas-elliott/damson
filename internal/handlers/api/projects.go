@@ -1,0 +1,565 @@
+package api
+
+import (
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/audit"
+)
+
+type projectView struct {
+	ID                 uint      `json:"id"`
+	Name               string    `json:"name"`
+	Description        string    `json:"description"`
+	TargetDistribution string    `json:"target_distribution"`
+	Glyph              string    `json:"glyph"`
+	GlyphColor         string    `json:"glyph_color"`
+	AssetCount         int       `json:"asset_count"`
+	UpdatesAvailable   int       `json:"updates_available"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+// getProjects lists projects in the library with pin count + updates-available
+// count (pins whose pinned_version_id is not the asset's current_version_id).
+func (h *handler) getProjects(c *gin.Context) {
+	lib := getLibrary(c)
+	type row struct {
+		ID                 uint
+		Name               string
+		Description        string
+		TargetDistribution string
+		Glyph              string
+		GlyphColor         string
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+		AssetCount         int
+		UpdatesAvailable   int
+	}
+	var rows []row
+	err := h.db.WithContext(c.Request.Context()).
+		Table("projects AS p").
+		Select(`p.id, p.name, p.description, p.target_distribution, p.glyph, p.glyph_color, p.created_at, p.updated_at,
+			COALESCE(COUNT(pin.id), 0) AS asset_count,
+			COALESCE(SUM(CASE WHEN a.current_version_id IS NOT NULL AND a.current_version_id <> pin.pinned_version_id THEN 1 ELSE 0 END), 0) AS updates_available`).
+		Joins("LEFT JOIN project_asset_pins pin ON pin.project_id = p.id").
+		Joins("LEFT JOIN assets a ON a.id = pin.asset_id").
+		Where("p.library_id = ?", lib.ID).
+		Group("p.id").
+		Order("p.name").
+		Scan(&rows).Error
+	if err != nil {
+		respond500(c)
+		return
+	}
+	out := make([]projectView, len(rows))
+	for i, r := range rows {
+		out[i] = projectView{
+			ID:                 r.ID,
+			Name:               r.Name,
+			Description:        r.Description,
+			TargetDistribution: r.TargetDistribution,
+			Glyph:              r.Glyph,
+			GlyphColor:         r.GlyphColor,
+			AssetCount:         r.AssetCount,
+			UpdatesAvailable:   r.UpdatesAvailable,
+			CreatedAt:          r.CreatedAt,
+			UpdatedAt:          r.UpdatedAt,
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"projects": out})
+}
+
+type projectWriteRequest struct {
+	Name               string `json:"name"`
+	Description        string `json:"description"`
+	TargetDistribution string `json:"target_distribution,omitempty"`
+	Glyph              string `json:"glyph,omitempty"`
+	GlyphColor         string `json:"glyph_color,omitempty"`
+}
+
+var allowedDistributions = map[string]bool{
+	"commercial":  true,
+	"open-source": true,
+	"personal":    true,
+	"unspecified": true,
+}
+
+// postProject creates a new project in the library.
+func (h *handler) postProject(c *gin.Context) {
+	lib := getLibrary(c)
+	u := auth.GetUser(c)
+	var req projectWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond400(c, err)
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		respond400(c, asError("name required"))
+		return
+	}
+	dist := req.TargetDistribution
+	if dist == "" {
+		dist = "unspecified"
+	}
+	if !allowedDistributions[dist] {
+		respond400(c, asError("invalid target_distribution"))
+		return
+	}
+	p := models.Project{
+		LibraryID:          lib.ID,
+		Name:               name,
+		Description:        req.Description,
+		TargetDistribution: dist,
+		Glyph:              req.Glyph,
+		GlyphColor:         req.GlyphColor,
+		CreatedByUserID:    &u.ID,
+	}
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var existing models.Project
+		if err := tx.Where("library_id = ? AND LOWER(name) = LOWER(?)", lib.ID, name).First(&existing).Error; err == nil {
+			return asError("project name already exists")
+		} else if !isNotFound(err) {
+			return err
+		}
+		if err := tx.Create(&p).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "project.create",
+			TargetType: "project",
+			TargetID:   &p.ID,
+			Diff:       audit.Created(p),
+		})
+	})
+	if err != nil {
+		if _, ok := err.(stringError); ok {
+			respond409(c, err.Error())
+			return
+		}
+		respond500(c)
+		return
+	}
+	c.JSON(http.StatusCreated, projectView{
+		ID:                 p.ID,
+		Name:               p.Name,
+		Description:        p.Description,
+		TargetDistribution: p.TargetDistribution,
+		Glyph:              p.Glyph,
+		GlyphColor:         p.GlyphColor,
+		AssetCount:         0,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
+	})
+}
+
+type projectDetailView struct {
+	projectView
+	Pins []projectPinDetail `json:"pins"`
+}
+
+type projectPinDetail struct {
+	PinID           uint      `json:"pin_id"`
+	AssetID         uint      `json:"asset_id"`
+	AssetName       string    `json:"asset_name"`
+	PinnedVersionID uint      `json:"pinned_version_id"`
+	VersionLabel    string    `json:"version_label"`
+	LatestVersionID *uint     `json:"latest_version_id,omitempty"`
+	LatestLabel     string    `json:"latest_label,omitempty"`
+	HasUpdate       bool      `json:"has_update"`
+	LicenceStatus   string    `json:"licence_status"`
+	LicenceSPDX     string    `json:"licence_spdx,omitempty"`
+	SizeBytes       int64     `json:"size_bytes"`
+	PinnedAt        time.Time `json:"pinned_at"`
+}
+
+func (h *handler) getProject(c *gin.Context) {
+	lib := getLibrary(c)
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var p models.Project
+	if err := h.db.WithContext(c.Request.Context()).
+		Where("id = ? AND library_id = ?", id, lib.ID).
+		First(&p).Error; err != nil {
+		if isNotFound(err) {
+			respond404(c, "project not found")
+			return
+		}
+		respond500(c)
+		return
+	}
+
+	type pinRow struct {
+		PinID           uint
+		AssetID         uint
+		AssetName       string
+		PinnedVersionID uint
+		VersionLabel    string
+		CurrentVersion  *uint
+		CurrentLabel    string
+		LicenceType     string
+		SizeBytes       int64
+		PinnedAt        time.Time
+	}
+	var pins []pinRow
+	err := h.db.WithContext(c.Request.Context()).
+		Table("project_asset_pins AS pin").
+		Select(`pin.id AS pin_id, pin.asset_id, a.name AS asset_name,
+			pin.pinned_version_id, v.version_label, a.current_version_id AS current_version,
+			cv.version_label AS current_label,
+			l.detected_type AS licence_type,
+			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = pin.pinned_version_id), 0) AS size_bytes,
+			pin.pinned_at`).
+		Joins("JOIN assets a ON a.id = pin.asset_id").
+		Joins("JOIN asset_versions v ON v.id = pin.pinned_version_id").
+		Joins("LEFT JOIN asset_versions cv ON cv.id = a.current_version_id").
+		Joins("LEFT JOIN licences l ON l.id = a.licence_id").
+		Where("pin.project_id = ?", p.ID).
+		Order("a.name").
+		Scan(&pins).Error
+	if err != nil {
+		respond500(c)
+		return
+	}
+	out := projectDetailView{
+		projectView: projectView{
+			ID:                 p.ID,
+			Name:               p.Name,
+			Description:        p.Description,
+			TargetDistribution: p.TargetDistribution,
+			Glyph:              p.Glyph,
+			GlyphColor:         p.GlyphColor,
+			CreatedAt:          p.CreatedAt,
+			UpdatedAt:          p.UpdatedAt,
+			AssetCount:         len(pins),
+		},
+		Pins: make([]projectPinDetail, 0, len(pins)),
+	}
+	for _, r := range pins {
+		detail := projectPinDetail{
+			PinID:           r.PinID,
+			AssetID:         r.AssetID,
+			AssetName:       r.AssetName,
+			PinnedVersionID: r.PinnedVersionID,
+			VersionLabel:    r.VersionLabel,
+			LatestVersionID: r.CurrentVersion,
+			LatestLabel:     r.CurrentLabel,
+			HasUpdate:       r.CurrentVersion != nil && *r.CurrentVersion != r.PinnedVersionID,
+			LicenceSPDX:     r.LicenceType,
+			LicenceStatus:   "unk",
+			SizeBytes:       r.SizeBytes,
+			PinnedAt:        r.PinnedAt,
+		}
+		if r.LicenceType != "" {
+			// Minimal status inference without loading attrs — call the
+			// canonical helper with empty attrs for the common case.
+			detail.LicenceStatus = quickLicenceStatus(r.LicenceType)
+		}
+		if detail.HasUpdate {
+			out.UpdatesAvailable++
+		}
+		out.Pins = append(out.Pins, detail)
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func quickLicenceStatus(id string) string {
+	switch id {
+	case "MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "Zlib", "ISC",
+		"CC-BY-4.0", "CC-BY-3.0", "CC0-1.0", "OFL-1.1", "Unlicense":
+		return "ok"
+	case "CC-BY-NC-4.0", "CC-BY-NC-3.0", "CC-BY-NC-SA-4.0":
+		return "err"
+	case "unknown", "":
+		return "unk"
+	}
+	return "warn"
+}
+
+func (h *handler) patchProject(c *gin.Context) {
+	lib := getLibrary(c)
+	u := auth.GetUser(c)
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var req projectWriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond400(c, err)
+		return
+	}
+	var out models.Project
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var p models.Project
+		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&p).Error; err != nil {
+			return err
+		}
+		before := map[string]any{
+			"name": p.Name, "description": p.Description,
+			"target_distribution": p.TargetDistribution, "glyph": p.Glyph, "glyph_color": p.GlyphColor,
+		}
+		if name := strings.TrimSpace(req.Name); name != "" {
+			p.Name = name
+		}
+		if req.Description != "" {
+			p.Description = req.Description
+		}
+		if req.TargetDistribution != "" {
+			if !allowedDistributions[req.TargetDistribution] {
+				return asError("invalid target_distribution")
+			}
+			p.TargetDistribution = req.TargetDistribution
+		}
+		if req.Glyph != "" {
+			p.Glyph = req.Glyph
+		}
+		if req.GlyphColor != "" {
+			p.GlyphColor = req.GlyphColor
+		}
+		if err := tx.Save(&p).Error; err != nil {
+			return err
+		}
+		out = p
+		after := map[string]any{
+			"name": p.Name, "description": p.Description,
+			"target_distribution": p.TargetDistribution, "glyph": p.Glyph, "glyph_color": p.GlyphColor,
+		}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "project.update",
+			TargetType: "project",
+			TargetID:   &p.ID,
+			Diff:       audit.Updated(before, after),
+		})
+	})
+	if err != nil {
+		if isNotFound(err) {
+			respond404(c, "project not found")
+			return
+		}
+		if _, ok := err.(stringError); ok {
+			respond400(c, err)
+			return
+		}
+		respond500(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":                  out.ID,
+		"name":                out.Name,
+		"description":         out.Description,
+		"target_distribution": out.TargetDistribution,
+		"glyph":               out.Glyph,
+		"glyph_color":         out.GlyphColor,
+	})
+}
+
+func (h *handler) deleteProject(c *gin.Context) {
+	lib := getLibrary(c)
+	u := auth.GetUser(c)
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var p models.Project
+		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&p).Error; err != nil {
+			return err
+		}
+		// Explicit pin cleanup — SQLite test path doesn't honour the FK
+		// cascade that Postgres enforces, so belt-and-braces delete pins
+		// first. Idempotent in both engines.
+		if err := tx.Where("project_id = ?", p.ID).Delete(&models.ProjectAssetPin{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&p).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "project.delete",
+			TargetType: "project",
+			TargetID:   &p.ID,
+			Diff:       audit.Deleted(map[string]any{"id": p.ID, "name": p.Name}),
+		})
+	})
+	if err != nil {
+		if isNotFound(err) {
+			respond404(c, "project not found")
+			return
+		}
+		respond500(c)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type pinRequest struct {
+	AssetID   uint  `json:"asset_id" binding:"required"`
+	VersionID *uint `json:"version_id,omitempty"`
+}
+
+// postProjectPin pins an asset-version into a project. If VersionID is
+// omitted, pins the asset's current_version_id. Idempotent: re-pinning the
+// same (project, asset) updates the pinned_version_id (that's the "upgrade"
+// path).
+func (h *handler) postProjectPin(c *gin.Context) {
+	lib := getLibrary(c)
+	u := auth.GetUser(c)
+	projID, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var req pinRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond400(c, err)
+		return
+	}
+	var pin models.ProjectAssetPin
+	var before *uint
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var p models.Project
+		if err := tx.Where("id = ? AND library_id = ?", projID, lib.ID).First(&p).Error; err != nil {
+			return err
+		}
+		var asset models.Asset
+		if err := tx.Where("id = ? AND library_id = ?", req.AssetID, lib.ID).First(&asset).Error; err != nil {
+			return err
+		}
+		versionID := req.VersionID
+		if versionID == nil {
+			if asset.CurrentVersionID == nil {
+				return asError("asset has no current version")
+			}
+			versionID = asset.CurrentVersionID
+		}
+		// Verify the version belongs to the asset.
+		var v models.AssetVersion
+		if err := tx.Where("id = ? AND asset_id = ?", *versionID, asset.ID).First(&v).Error; err != nil {
+			return asError("version does not belong to asset")
+		}
+		// Existing pin?
+		var existing models.ProjectAssetPin
+		err := tx.Where("project_id = ? AND asset_id = ?", p.ID, asset.ID).First(&existing).Error
+		if err != nil && !isNotFound(err) {
+			return err
+		}
+		if isNotFound(err) {
+			pin = models.ProjectAssetPin{
+				ProjectID:       p.ID,
+				AssetID:         asset.ID,
+				PinnedVersionID: *versionID,
+				PinnedAt:        time.Now().UTC(),
+				PinnedByUserID:  &u.ID,
+			}
+			if err := tx.Create(&pin).Error; err != nil {
+				return err
+			}
+			return audit.Write(tx, audit.Entry{
+				LibraryID:  &lib.ID,
+				UserID:     &u.ID,
+				ActionType: "project.pin",
+				TargetType: "project",
+				TargetID:   &p.ID,
+				Diff:       audit.Created(map[string]any{"asset_id": asset.ID, "version_id": *versionID}),
+			})
+		}
+		pin = existing
+		if pin.PinnedVersionID == *versionID {
+			return nil // idempotent no-op
+		}
+		prev := pin.PinnedVersionID
+		before = &prev
+		pin.PinnedVersionID = *versionID
+		pin.PinnedAt = time.Now().UTC()
+		pin.PinnedByUserID = &u.ID
+		if err := tx.Save(&pin).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "project.pin.upgrade",
+			TargetType: "project",
+			TargetID:   &p.ID,
+			Diff: audit.Updated(
+				map[string]any{"asset_id": asset.ID, "version_id": prev},
+				map[string]any{"asset_id": asset.ID, "version_id": *versionID}),
+		})
+	})
+	if err != nil {
+		if isNotFound(err) {
+			respond404(c, "project or asset not found")
+			return
+		}
+		if _, ok := err.(stringError); ok {
+			respond400(c, err)
+			return
+		}
+		respond500(c)
+		return
+	}
+	_ = before
+	c.JSON(http.StatusOK, gin.H{
+		"pin_id":            pin.ID,
+		"project_id":        pin.ProjectID,
+		"asset_id":          pin.AssetID,
+		"pinned_version_id": pin.PinnedVersionID,
+	})
+}
+
+func (h *handler) deleteProjectPin(c *gin.Context) {
+	lib := getLibrary(c)
+	u := auth.GetUser(c)
+	projID, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	pinID, ok := parseIDParam(c, "pinId")
+	if !ok {
+		return
+	}
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var p models.Project
+		if err := tx.Where("id = ? AND library_id = ?", projID, lib.ID).First(&p).Error; err != nil {
+			return err
+		}
+		var pin models.ProjectAssetPin
+		if err := tx.Where("id = ? AND project_id = ?", pinID, p.ID).First(&pin).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&pin).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "project.unpin",
+			TargetType: "project",
+			TargetID:   &p.ID,
+			Diff:       audit.Deleted(map[string]any{"asset_id": pin.AssetID, "version_id": pin.PinnedVersionID}),
+		})
+	})
+	if err != nil {
+		if isNotFound(err) {
+			respond404(c, "project or pin not found")
+			return
+		}
+		respond500(c)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
