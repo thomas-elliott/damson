@@ -11,12 +11,16 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
-const libraryContextKey = "damson.library"
+const (
+	libraryContextKey    = "damson.library"
+	membershipContextKey = "damson.library_membership"
+)
 
 // requireLibrary ensures the authenticated user has a current library AND
-// is a member of it. On success, the Library row is attached to the Gin
-// context for handlers to read via getLibrary. Failures surface as 403 —
-// never 404 — so membership existence isn't leaked.
+// is a member of it. On success, the Library and LibraryMembership rows are
+// attached to the Gin context for handlers to read via getLibrary /
+// getMembership. Failures surface as 403 — never 404 — so membership
+// existence isn't leaked.
 //
 // Library-scoped routes (assets, projects, collections, tags, etc.) mount
 // this middleware in addition to auth.Middleware.
@@ -52,6 +56,7 @@ func (h *handler) requireLibrary() gin.HandlerFunc {
 		}
 
 		c.Set(libraryContextKey, &lib)
+		c.Set(membershipContextKey, &mem)
 		c.Next()
 	}
 }
@@ -65,4 +70,16 @@ func getLibrary(c *gin.Context) *models.Library {
 	}
 	lib, _ := v.(*models.Library)
 	return lib
+}
+
+// getMembership returns the membership row resolved by requireLibrary — used
+// by handlers that need the user's role in the current library (e.g. gating
+// library-admin actions).
+func getMembership(c *gin.Context) *models.LibraryMembership {
+	v, ok := c.Get(membershipContextKey)
+	if !ok {
+		return nil
+	}
+	m, _ := v.(*models.LibraryMembership)
+	return m
 }
