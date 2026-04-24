@@ -163,9 +163,9 @@ func (h *handler) postImport(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 			return
 		}
+		defer blob.Close()
 		ex := &extract.UnityExtractor{Storage: h.storage}
 		res, xerr := ex.Extract(c.Request.Context(), blob)
-		_ = blob.Close()
 		if xerr != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + xerr.Error()})
 			return
@@ -302,9 +302,9 @@ func (h *handler) postReExtract(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
+	defer blob.Close()
 	ex := &extract.UnityExtractor{Storage: h.storage}
 	result, err := ex.Extract(c.Request.Context(), blob)
-	_ = blob.Close()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + err.Error()})
 		return
