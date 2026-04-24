@@ -3,7 +3,6 @@
 export const queryKeys = {
   authMode: ["authMode"] as const,
   me: ["me"] as const,
-  libraries: ["libraries"] as const,
   assets: (filters?: Record<string, string | number>) =>
     filters ? (["assets", filters] as const) : (["assets"] as const),
 } as const;

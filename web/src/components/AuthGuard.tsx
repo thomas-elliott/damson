@@ -38,6 +38,13 @@ export function AuthGuard() {
         } else {
           setState("ready");
         }
+      })
+      .catch((err) => {
+        // Corrupted userStore or oidc-client-ts state machine error —
+        // bounce into the login flow rather than stalling on the spinner.
+        if (cancelled) return;
+        console.error("OIDC getUser failed", err);
+        void getUserManager().signinRedirect();
       });
     return () => {
       cancelled = true;
