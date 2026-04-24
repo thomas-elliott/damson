@@ -1,20 +1,30 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, Check, UploadCloud } from "lucide-react";
 
 import { uploadFile } from "@/api";
+import {
+  DropOverlay,
+  ProgressBar,
+  cn,
+  formatBytes,
+} from "@/design-system";
 import { queryKeys } from "@/lib/queryKeys";
 
 interface UploadState {
   filename: string;
+  size: number;
   progress: number; // 0–1
   error?: string;
   done?: boolean;
 }
 
-// Wraps its children with a drop target. Drops anywhere inside fire uploads;
-// the target is also clickable. Minimal progress tray shown inline; this is
-// first-pass UX — a persistent global tray is post-MVP polish.
+/**
+ * Drop-target wrapper for the library grid. Drops anywhere inside fire
+ * uploads; the target is also clickable. A compact progress tray shows
+ * per-file status in the bottom-right while uploads are in flight.
+ */
 export function DropZone({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [uploads, setUploads] = useState<UploadState[]>([]);
@@ -24,7 +34,7 @@ export function DropZone({ children }: { children: React.ReactNode }) {
       if (files.length === 0) return;
       setUploads((prev) => [
         ...prev,
-        ...files.map((f) => ({ filename: f.name, progress: 0 })),
+        ...files.map((f) => ({ filename: f.name, size: f.size, progress: 0 })),
       ]);
       files.forEach(async (file, idx) => {
         const myIndex = uploads.length + idx;
@@ -68,36 +78,55 @@ export function DropZone({ children }: { children: React.ReactNode }) {
   return (
     <div
       {...getRootProps()}
-      className={`relative flex min-h-full flex-1 flex-col outline-none ${
-        isDragActive ? "bg-accent/5" : ""
-      }`}
+      className={cn(
+        "relative flex min-h-full flex-1 flex-col outline-none",
+        "focus-visible:ring-2 focus-visible:ring-accent-ring",
+      )}
     >
       <input {...getInputProps()} />
       {children}
-      {isDragActive && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center border-2 border-dashed border-accent bg-bg/70 text-sm">
-          Drop to import
-        </div>
-      )}
+      <DropOverlay active={isDragActive} />
       {uploads.length > 0 && (
-        <ul className="absolute bottom-4 right-4 flex max-w-xs flex-col gap-1 rounded-md border border-line bg-surface p-2 text-xs shadow-lg">
+        <ul className="absolute bottom-4 right-4 z-selbar flex w-[280px] flex-col gap-2 rounded-md border border-line bg-panel p-2.5 shadow-elevated">
           {uploads.map((u, i) => (
-            <li key={`${u.filename}-${i}`} className="flex flex-col gap-0.5">
-              <div className="flex items-center justify-between gap-4">
-                <span className="truncate font-mono">{u.filename}</span>
-                <span className="text-text-3">
-                  {u.error ? "error" : u.done ? "done" : `${Math.round(u.progress * 100)}%`}
+            <li key={`${u.filename}-${i}`} className="flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-3 text-xs-plus">
+                <span className="truncate font-medium text-text">
+                  {u.filename}
+                </span>
+                <span
+                  className={cn(
+                    "flex items-center gap-1 font-mono text-xs tabular-nums",
+                    u.error ? "text-err" : u.done ? "text-ok" : "text-text-3",
+                  )}
+                >
+                  {u.error ? (
+                    <AlertCircle size={12} />
+                  ) : u.done ? (
+                    <Check size={12} />
+                  ) : (
+                    <UploadCloud size={12} />
+                  )}
+                  {u.error
+                    ? "error"
+                    : u.done
+                      ? "done"
+                      : `${Math.round(u.progress * 100)}%`}
                 </span>
               </div>
               {!u.error && (
-                <div className="h-1 w-full overflow-hidden rounded bg-panel">
-                  <div
-                    className="h-full bg-accent transition-all"
-                    style={{ width: `${u.progress * 100}%` }}
-                  />
-                </div>
+                <ProgressBar
+                  value={u.progress * 100}
+                  aria-label={`${u.filename} ${Math.round(u.progress * 100)}%`}
+                  tone={u.done ? "ok" : "accent"}
+                />
               )}
-              {u.error && <span className="text-err">{u.error}</span>}
+              {u.error && (
+                <span className="text-xs text-err">{u.error}</span>
+              )}
+              <span className="font-mono text-2xs text-text-3">
+                {formatBytes(u.size)}
+              </span>
             </li>
           ))}
         </ul>
