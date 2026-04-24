@@ -48,6 +48,7 @@ The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in
 - **Frontend API discipline.** Never call `fetch` directly from components — go through `fetchJson` / `fetchMaybeJson` in `src/api.ts` so bearer-token attachment, 401 renewal, and `ApiError` shape stay uniform. Query keys live in `lib/queryKeys.ts` only. Data-fetching hooks wrap TanStack Query in `hooks/useDataQueries.ts` and return the normalized `{ data, loading, error, reload }` shape.
 - **Never log tokens or raw session values.** Applies to `slog` debug output, error wraps, anything that might end up in a log collector.
 - **Mirror existing patterns; don't refactor unrelated code.** Focused changes only. Read `docs/` before architectural changes.
+- **Taskfile shell.** `Taskfile.yml` commands run under mvdan/sh (Task's embedded interpreter), not bash. Bash-isms like `trap INT TERM`, process substitution, and `set -o pipefail` fail silently or with confusing errors — wrap in `bash -c '...'` when you need them.
 
 ## Architecture
 
@@ -100,6 +101,7 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 - One feature per file (`assets.go`, `library.go`, …); all handlers are receiver methods on the shared unexported `handler` struct.
 - Construction: `api.New(api.Deps{...})` in `main.go`; tests call `newTestHandler(t)` which wires an in-memory SQLite + a `LocalFS` storage rooted in `t.TempDir()`.
 - Errors: `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`. Generic `"internal error"` for 500 — don't leak internals.
+- Log server-side at failure sites. `main.go` installs a custom `requestLogger()` (not `gin.Logger()`), so every response gets a status/path line. But 4xx handlers that carry diagnostic detail (extractor errors, validation beyond the binding layer) should `slog.Warn` the underlying error *before* `AbortWithStatusJSON` — the JSON body alone won't appear in logs.
 
 ### The damson.go quirk
 
@@ -114,6 +116,7 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 3. In **local mode**: `AuthGuard` reads the stored JWT from localStorage (`damson.local.token`); missing/expired → `<Navigate to="/login">`.
 4. `lib/token.ts:getAccessToken()` provides the bearer to `api.ts:fetchJson` regardless of mode.
 5. On 401, `api.ts` tries silent renew (OIDC only) or throws `AuthRedirectError` so the app can bounce to login. Local mode has no refresh endpoint yet.
+6. **Two auth-mode caches exist.** `lib/authMode.ts` holds a module-level `cached` singleton; `useAuthMode()` also goes through TanStack Query. Post-bootstrap code must invalidate both (`invalidateAuthMode()` *then* `queryClient.invalidateQueries`) — and `AuthGuard` only consults `needsBootstrap` when the session is absent, to sidestep the race this duplication creates. Candidate for cleanup: collapse to TanStack alone.
 
 ## Environment variables
 
