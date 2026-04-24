@@ -5,7 +5,7 @@ doc tracks what's **actually in the tree** against that plan and calls out
 what's been skipped or deferred so later slices don't assume foundations
 that aren't there.
 
-Last audited: 2026-04-24 — M0/M1/M2 re-verified against the tree; no milestone-level changes since the 2026-04-23 audit.
+Last audited: 2026-04-24 — M0/M1/M2 re-verified against the tree. Since the 2026-04-23 audit the defaults flipped to `AUTH_MODE=local` + `STORAGE_MODE=local`, and local-mode bootstrap gained an HTTP path (`POST /api/auth/bootstrap` + `needs_bootstrap` on `/api/auth/mode` + the `/bootstrap` SPA page). Env-seeded bootstrap (`SeedLocalAdmin`) stays as an optional fallback. No milestone rows change — this is zero-config-dev polish on the M0 skeleton.
 
 ## Legend
 
