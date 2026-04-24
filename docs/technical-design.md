@@ -193,7 +193,7 @@ audit_log
   index(action_type, created_at desc)
 ```
 
-`users.subject` is OIDC-issued; the application never stores passwords. First-run bootstrap: on first OIDC sign-in where the user's email matches `DAMSON_BOOTSTRAP_ADMIN_EMAILS` and no libraries exist, the server creates the user with `role='sysadmin'`, creates a default library ("Personal"), makes the user its admin member, and sets `current_library_id`. Thereafter new users require an invitation (`library_memberships` row created by a library admin) before any non-identity API call succeeds.
+`users.subject` is either an OIDC `sub` claim or a synthetic `"local:<email>"` in local-auth mode. Passwords, when present (local mode only), live in `users.password_hash` as bcrypt hashes. First-run bootstrap (either mode — see §8.1): the first qualifying user is created with `role='sysadmin'`, a default library ("Personal") is created, the user becomes its admin member, and `current_library_id` is set. Thereafter new users require an invitation (`library_memberships` row created by a library admin) before any non-identity API call succeeds.
 
 **Current library context.** Every authenticated request operates against the user's `current_library_id`. The user switches library via `POST /api/me/current-library`, which updates the column and the next request picks it up. Stateless enough (the context is a single DB column read per request, cached with the user), bookmarkable (library-scoped URLs remain valid within the user's session), and avoids threading library IDs through every path. Multi-library users whose two browser tabs want different libraries are out of v1 scope — revisit with a `X-Damson-Library` header override later if it matters.
 
@@ -417,20 +417,25 @@ Deferring now. The product design permits indefinite retention. A later job (nig
 
 ## 8. Authentication and authorisation
 
-### 8.1 OIDC
+### 8.1 Auth modes
 
-Per conventions: `coreos/go-oidc` + `oauth2`. The backend validates bearer tokens on every API call; the SPA handles the interactive login flow with `oidc-client-ts` and attaches `Authorization: Bearer <access_token>` on every fetch.
+Exactly one authenticator is active per deployment, picked at startup by `DAMSON_AUTH_MODE`. Both present the same `Authenticator` interface to the rest of the server (see `internal/auth/auth.go`); the middleware doesn't know which is in play.
 
-Env-configured (prod):
+**`local` (default).** Server-issued HS256 JWTs against users stored in Postgres with bcrypt password hashes.
 
-```
-DAMSON_OIDC_ISSUER_URL
-DAMSON_OIDC_CLIENT_ID
-DAMSON_OIDC_AUDIENCE              # expected aud claim
-DAMSON_OIDC_JWKS_CACHE_TTL        # default 10m
-```
+- `DAMSON_JWT_SIGNING_KEY` (≥ 32 bytes) is the only always-required var.
+- First-user bootstrap has two paths:
+  1. **HTTP bootstrap (zero-config).** If no users exist, `GET /api/auth/mode` reports `needs_bootstrap=true` and the SPA renders a "create first admin" page. `POST /api/auth/bootstrap` creates the user, promotes them to `sysadmin` via `BootstrapFirstAdmin`, creates the default "Personal" library with them as its admin member, and returns a logged-in JWT. The endpoint 409s once any user exists, so it's safe to leave wired in perpetuity.
+  2. **Env seed (ops setups).** If both `DAMSON_LOCAL_ADMIN_EMAIL` and `DAMSON_LOCAL_ADMIN_PASSWORD` are set, the same transaction runs at startup — useful for scripted provisioning. Seed is a no-op if any user already exists.
+- Token TTL: 1 hour (`auth.LocalTokenTTL`). No refresh endpoint in v1 — an expired token forces a fresh login. `users.tokens_valid_after` is a revocation watermark: JWTs with `iat` before it are rejected.
 
-Frontend (Vite):
+**`oidc`.** Identity-provider-issued bearer tokens validated per request via `coreos/go-oidc`.
+
+- Requires `DAMSON_OIDC_ISSUER_URL`, `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`.
+- First user whose email matches `DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV) is promoted via the same `BootstrapFirstAdmin` path on their first sign-in.
+- The SPA runs the interactive login flow with `oidc-client-ts`; `automaticSilentRenew` keeps the bearer fresh.
+
+Frontend env (Vite-time, OIDC only):
 
 ```
 VITE_OIDC_AUTHORITY
@@ -441,7 +446,7 @@ VITE_OIDC_SILENT_REDIRECT_URI
 VITE_OIDC_POST_LOGOUT_REDIRECT_URI
 ```
 
-On first sign-in, the server upserts the user from the `sub`/`email`/`name` claims.
+On first sign-in (either mode), the server upserts the user and the shared `BootstrapFirstAdmin` transaction runs if the user qualifies.
 
 ### 8.2 Authorisation model (v1)
 
@@ -656,10 +661,18 @@ The only always-required variable is the Postgres DSN. Everything else either de
 | `DAMSON_BASE_URL` | optional | `http://localhost:8080` |
 | `DAMSON_LOG_LEVEL` | optional | `info` |
 | `DAMSON_BOOTSTRAP_ADMIN_EMAILS` | optional | empty — comma-separated emails promoted to sysadmin on first sign-in |
-| `DAMSON_AUTH_MODE` | optional | `oidc` — also accepts `local` |
-| `DAMSON_STORAGE_MODE` | optional | `s3` — also accepts `local` |
+| `DAMSON_AUTH_MODE` | optional | `local` — also accepts `oidc` |
+| `DAMSON_STORAGE_MODE` | optional | `local` — also accepts `s3` |
 
-**`DAMSON_AUTH_MODE=oidc`** (the default) additionally requires:
+**`DAMSON_AUTH_MODE=local`** (the default; see §8.1 local mode) additionally requires:
+
+| Var | Required? | Default |
+|---|---|---|
+| `DAMSON_JWT_SIGNING_KEY` | required | — (≥ 32 bytes, HS256 signing key) |
+| `DAMSON_LOCAL_ADMIN_EMAIL` | optional | unset — when both this and `_PASSWORD` are set, seeds the initial sysadmin at startup; otherwise the first browser hit lands on the in-app bootstrap page (§8.1) |
+| `DAMSON_LOCAL_ADMIN_PASSWORD` | optional | unset |
+
+**`DAMSON_AUTH_MODE=oidc`** additionally requires:
 
 | Var | Required? |
 |---|---|
@@ -667,15 +680,13 @@ The only always-required variable is the Postgres DSN. Everything else either de
 | `DAMSON_OIDC_CLIENT_ID` | required |
 | `DAMSON_OIDC_AUDIENCE` | required |
 
-**`DAMSON_AUTH_MODE=local`** (see §8.1 local mode) additionally requires:
+**`DAMSON_STORAGE_MODE=local`** (the default) additionally reads:
 
-| Var | Required? |
-|---|---|
-| `DAMSON_JWT_SIGNING_KEY` | required — ≥ 32 bytes, HS256 signing key |
-| `DAMSON_LOCAL_ADMIN_EMAIL` | required — seeds the initial local admin if no users exist |
-| `DAMSON_LOCAL_ADMIN_PASSWORD` | required |
+| Var | Required? | Default |
+|---|---|---|
+| `DAMSON_STORAGE_LOCAL_PATH` | optional | `./data/blobs` |
 
-**`DAMSON_STORAGE_MODE=s3`** (the default) additionally requires:
+**`DAMSON_STORAGE_MODE=s3`** additionally requires:
 
 | Var | Required? | Default |
 |---|---|---|
@@ -685,12 +696,6 @@ The only always-required variable is the Postgres DSN. Everything else either de
 | `DAMSON_S3_ACCESS_KEY` | required | — |
 | `DAMSON_S3_SECRET_KEY` | required | — |
 | `DAMSON_S3_FORCE_PATH_STYLE` | optional | `true` |
-
-**`DAMSON_STORAGE_MODE=local`** additionally reads:
-
-| Var | Required? | Default |
-|---|---|---|
-| `DAMSON_STORAGE_LOCAL_PATH` | optional | `./data/blobs` |
 
 Loaded once at startup by `internal/config`. Missing required values cause `MustGetEnv`-style panics (matches the conventions' startup-panic rule).
 
@@ -773,6 +778,11 @@ REST-ish JSON under `/api`. Not exhaustive; indicative for review.
 All library-scoped endpoints (everything below `# Assets`) operate against the authenticated user's `current_library_id` and are wrapped by the library middleware described in §8.2. Cross-library operations go through the dedicated `/api/libraries/...` paths.
 
 ```
+# Auth (public)
+GET    /api/auth/mode                 # { mode, needs_bootstrap } — SPA boots with this
+POST   /api/auth/login                # local mode only — email+password → JWT
+POST   /api/auth/bootstrap            # local mode only — creates first sysadmin; 409 once any user exists
+
 # Session / user
 GET    /api/me                        # user + current library summary
 POST   /api/me/current-library        # { library_id } — switches active library
@@ -902,11 +912,15 @@ Deployment target: a reverse proxy (Caddy/Traefik) fronting the container. TLS i
 
 ### 19.1 First-run flow
 
-1. Start the container with env vars set.
+1. Start the container. `DAMSON_POSTGRES_DSN` is the only always-required env var; `DAMSON_JWT_SIGNING_KEY` is also required in the default local auth mode.
 2. Migrations run on startup (inside a DB-level advisory lock to prevent parallel-startup races).
-3. The first OIDC sign-in with an email in `DAMSON_BOOTSTRAP_ADMIN_EMAILS` creates the user with `role='sysadmin'`, creates a default `"Personal"` library, grants the user library admin membership, and sets `current_library_id`.
-4. The user lands on an empty library with the drop-zone empty state.
-5. Subsequent non-bootstrap OIDC sign-ins succeed (user record is created) but any library-scoped API call returns 403 until a library admin grants membership. The SPA shows a "No library access yet — ask your admin for an invite" state.
+3. First browser hit → `GET /api/auth/mode` returns `{ mode: "local", needs_bootstrap: true }`, and the SPA renders the "create first admin" page.
+4. The new user submits email + password → `POST /api/auth/bootstrap` creates the user with `role='sysadmin'`, creates the default `"Personal"` library, grants the user library admin membership, sets `current_library_id`, and returns a logged-in JWT. The SPA stores the token and redirects to the library.
+5. Subsequent sign-ins (local) or first sign-ins (OIDC with email not in `DAMSON_BOOTSTRAP_ADMIN_EMAILS`) succeed but land on "No library access yet — ask your admin for an invite" until a library admin grants membership.
+
+Alternative bootstrap paths:
+- **Env seed (local mode).** Setting both `DAMSON_LOCAL_ADMIN_EMAIL` and `DAMSON_LOCAL_ADMIN_PASSWORD` creates the first user at startup; step 3's bootstrap page is skipped because `needs_bootstrap` is already `false`.
+- **OIDC mode.** `DAMSON_AUTH_MODE=oidc` + `DAMSON_BOOTSTRAP_ADMIN_EMAILS` — first sign-in whose email matches the list runs the same `BootstrapFirstAdmin` transaction.
 
 ## 20. Non-MVP design hooks
 

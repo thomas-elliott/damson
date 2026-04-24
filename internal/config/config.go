@@ -63,14 +63,14 @@ type Config struct {
 }
 
 func Load() Config {
-	authMode := AuthMode(getenv("DAMSON_AUTH_MODE", string(AuthModeOIDC)))
+	authMode := AuthMode(getenv("DAMSON_AUTH_MODE", string(AuthModeLocal)))
 	switch authMode {
 	case AuthModeOIDC, AuthModeLocal:
 	default:
 		log.Panicf("config: DAMSON_AUTH_MODE must be 'oidc' or 'local', got %q", authMode)
 	}
 
-	storageMode := StorageMode(getenv("DAMSON_STORAGE_MODE", string(StorageModeS3)))
+	storageMode := StorageMode(getenv("DAMSON_STORAGE_MODE", string(StorageModeLocal)))
 	switch storageMode {
 	case StorageModeS3, StorageModeLocal:
 	default:
@@ -95,8 +95,11 @@ func Load() Config {
 		cfg.BootstrapAdmins = splitCSV(os.Getenv("DAMSON_BOOTSTRAP_ADMIN_EMAILS"))
 	case AuthModeLocal:
 		cfg.JWTSigningKey = []byte(mustGetEnv("DAMSON_JWT_SIGNING_KEY"))
-		cfg.LocalAdminEmail = mustGetEnv("DAMSON_LOCAL_ADMIN_EMAIL")
-		cfg.LocalAdminPassword = mustGetEnv("DAMSON_LOCAL_ADMIN_PASSWORD")
+		// Optional: if both are set, seed the first admin at startup. If
+		// unset, the first browser hit will see `needs_bootstrap=true` on
+		// /api/auth/mode and land on the in-app "create admin" page.
+		cfg.LocalAdminEmail = os.Getenv("DAMSON_LOCAL_ADMIN_EMAIL")
+		cfg.LocalAdminPassword = os.Getenv("DAMSON_LOCAL_ADMIN_PASSWORD")
 	}
 
 	switch storageMode {
