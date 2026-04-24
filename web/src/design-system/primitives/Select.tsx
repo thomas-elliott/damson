@@ -36,7 +36,7 @@ export const SelectContent = forwardRef<
   React.ElementRef<typeof RadixSelect.Content>,
   ComponentPropsWithoutRef<typeof RadixSelect.Content>
 >(function SelectContent(
-  { className, position = "popper", sideOffset = 4, ...props },
+  { className, position = "popper", sideOffset = 4, style, ...props },
   ref,
 ) {
   return (
@@ -45,8 +45,14 @@ export const SelectContent = forwardRef<
         ref={ref}
         position={position}
         sideOffset={sideOffset}
+        // Force z-index inline so the Select floats above a Radix Dialog
+        // (which sits at z:500). Using the class alone failed to win the
+        // stacking war in practice — Radix Popper applies its own inline
+        // style on the same element, and any future change to merge/order
+        // could silently drop the `z-popover` class. Inline wins.
+        style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-tooltip overflow-hidden rounded-md border border-line bg-panel text-sm-plus text-text-2 shadow-elevated",
+          "z-popover overflow-hidden rounded-md border border-line bg-panel text-sm-plus text-text-2 shadow-elevated",
           "data-[state=open]:animate-fade-in",
           position === "popper" &&
             "min-w-[var(--radix-select-trigger-width)]",

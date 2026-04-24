@@ -18,12 +18,16 @@ import (
 )
 
 type assetGridRow struct {
-	ID          uint      `json:"id"`
-	Name        string    `json:"name"`
-	FileCount   int       `json:"file_count"`
-	SizeBytes   int64     `json:"size_bytes"`
-	NeedsReview bool      `json:"needs_review"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID                 uint      `json:"id"`
+	Name               string    `json:"name"`
+	FileCount          int       `json:"file_count"`
+	SizeBytes          int64     `json:"size_bytes"`
+	NeedsReview        bool      `json:"needs_review"`
+	CreatedAt          time.Time `json:"created_at"`
+	ThumbnailObjectKey string    `json:"thumbnail_object_key,omitempty"`
+	LicenceSPDX        string    `json:"licence_spdx,omitempty"`
+	LicenceStatus      string    `json:"licence_status,omitempty"`
+	PackageKind        string    `json:"package_kind,omitempty"`
 }
 
 type assetListResponse struct {
@@ -39,64 +43,192 @@ const (
 	packageKindUnityPackage = "unitypackage"
 )
 
-// getAssets lists assets in the current library, newest first, paginated.
-// Deliberately minimal for the first-pass end-to-end slice — no filter, no
-// search, no licence pill. Those join in at M3/M5 per docs/technical-design.md §21.
+// assetListFilters carries the decoded query params for getAssets. Empty
+// zero values mean "no filter for this dimension".
+type assetListFilters struct {
+	Query         string // full-text / LIKE fallback
+	TagID         *uint  // matches asset via asset_tags OR descendants by path
+	TagPath       string // alternative to TagID — match by `path LIKE '<p>%'`
+	LicenceStatus string // ok|warn|err|unk
+	LicenceSPDX   string // exact SPDX id
+	ProjectID     *uint  // asset is pinned in this project
+	CollectionID  *uint  // asset is a member of this collection
+	SourceHost    string // exact-match host portion of source_url
+	NeedsReview   *bool  // unreviewed-only when true
+	PackageKind   string
+}
+
+func parseAssetFilters(c *gin.Context) assetListFilters {
+	f := assetListFilters{
+		Query:         strings.TrimSpace(c.Query("q")),
+		TagPath:       strings.TrimSpace(c.Query("tag_path")),
+		LicenceStatus: strings.TrimSpace(c.Query("licence_status")),
+		LicenceSPDX:   strings.TrimSpace(c.Query("licence_spdx")),
+		SourceHost:    strings.TrimSpace(c.Query("source_host")),
+		PackageKind:   strings.TrimSpace(c.Query("package_kind")),
+	}
+	if s := c.Query("tag_id"); s != "" {
+		if n, err := strconv.ParseUint(s, 10, 64); err == nil && n > 0 {
+			v := uint(n)
+			f.TagID = &v
+		}
+	}
+	if s := c.Query("project_id"); s != "" {
+		if n, err := strconv.ParseUint(s, 10, 64); err == nil && n > 0 {
+			v := uint(n)
+			f.ProjectID = &v
+		}
+	}
+	if s := c.Query("collection_id"); s != "" {
+		if n, err := strconv.ParseUint(s, 10, 64); err == nil && n > 0 {
+			v := uint(n)
+			f.CollectionID = &v
+		}
+	}
+	if s := c.Query("needs_review"); s != "" {
+		if s == "true" || s == "1" {
+			t := true
+			f.NeedsReview = &t
+		} else if s == "false" || s == "0" {
+			fl := false
+			f.NeedsReview = &fl
+		}
+	}
+	return f
+}
+
+// applyAssetFilters builds the shared WHERE/JOIN shape used by both the
+// list endpoint and the search endpoint. Callers get a GORM query they can
+// extend (pagination, ordering). Returns the `bool` `usedTsvector` so the
+// caller knows whether a tsvector-rank ORDER BY is valid.
+func (h *handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters) *gorm.DB {
+	q := db.Table("assets AS a").Where("a.library_id = ?", libID)
+
+	if f.NeedsReview != nil {
+		q = q.Where("a.needs_review = ?", *f.NeedsReview)
+	}
+	if f.PackageKind != "" {
+		q = q.Joins("JOIN asset_versions cv ON cv.id = a.current_version_id").
+			Where("cv.package_kind = ?", f.PackageKind)
+	}
+	if f.SourceHost != "" {
+		// LIKE host match; source_url may not be parsed to host yet, so
+		// match substring. Good enough for v1; URL parsing is a future
+		// refinement.
+		q = q.Where("a.source_url LIKE ?", "%"+f.SourceHost+"%")
+	}
+	if f.LicenceSPDX != "" || f.LicenceStatus != "" {
+		q = q.Joins("LEFT JOIN licences l ON l.id = a.licence_id")
+		if f.LicenceSPDX != "" {
+			q = q.Where("l.detected_type = ?", f.LicenceSPDX)
+		}
+	}
+	if f.TagID != nil {
+		q = q.Joins("JOIN asset_tags atf ON atf.asset_id = a.id").
+			Where("atf.tag_id = ?", *f.TagID)
+	} else if f.TagPath != "" {
+		// Match tag + descendants.
+		path := normaliseTagPath(f.TagPath)
+		q = q.Joins("JOIN asset_tags atf ON atf.asset_id = a.id").
+			Joins("JOIN tags tf ON tf.id = atf.tag_id").
+			Where("tf.library_id = ? AND (tf.path = ? OR tf.path LIKE ?)", libID, path, path+"/%")
+	}
+	if f.ProjectID != nil {
+		q = q.Joins("JOIN project_asset_pins pf ON pf.asset_id = a.id").
+			Where("pf.project_id = ?", *f.ProjectID)
+	}
+	if f.CollectionID != nil {
+		q = q.Joins("JOIN collection_assets caf ON caf.asset_id = a.id").
+			Where("caf.collection_id = ?", *f.CollectionID)
+	}
+	if f.Query != "" {
+		// SQLite fallback: LIKE over name/description. Postgres: use
+		// plainto_tsquery against the search_vector column. DB driver name
+		// is the switch.
+		if db.Dialector.Name() == "postgres" {
+			q = q.Where("a.search_vector @@ plainto_tsquery('simple', ?)", f.Query)
+		} else {
+			like := "%" + f.Query + "%"
+			q = q.Where("(a.name LIKE ? OR a.description LIKE ?)", like, like)
+		}
+	}
+	return q
+}
+
+// getAssets lists assets in the current library with optional filter and
+// search. Composable: every filter param ANDs with the others.
 func (h *handler) getAssets(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c)
 		return
 	}
 	limit, offset := parsePagination(c)
+	f := parseAssetFilters(c)
+
+	base := h.applyAssetFilters(h.db.WithContext(c.Request.Context()), lib.ID, f)
 
 	var total int64
-	if err := h.db.WithContext(c.Request.Context()).
-		Model(&models.Asset{}).
-		Where("library_id = ?", lib.ID).
-		Count(&total).Error; err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+	// Clone before adding SELECT/GROUP so Count runs cleanly.
+	if err := base.Session(&gorm.Session{}).Distinct("a.id").Count(&total).Error; err != nil {
+		respond500(c)
 		return
 	}
 
-	// One query, joined to asset_files via the asset's current version, so
-	// file_count / size_bytes are computed in SQL rather than N+1 lookups.
 	type row struct {
-		ID          uint
-		Name        string
-		NeedsReview bool
-		CreatedAt   time.Time
-		FileCount   int
-		SizeBytes   int64
+		ID                 uint
+		Name               string
+		NeedsReview        bool
+		CreatedAt          time.Time
+		ThumbnailObjectKey string
+		FileCount          int
+		SizeBytes          int64
+		PackageKind        string
+		LicenceSPDX        string
 	}
 	var rows []row
-	err := h.db.WithContext(c.Request.Context()).
-		Table("assets AS a").
-		Select(`a.id, a.name, a.needs_review, a.created_at,
-			COALESCE(COUNT(f.id), 0) AS file_count,
-			COALESCE(SUM(f.size_bytes), 0) AS size_bytes`).
-		Joins("LEFT JOIN asset_files f ON f.asset_version_id = a.current_version_id").
-		Where("a.library_id = ?", lib.ID).
-		Group("a.id").
+	err := base.Session(&gorm.Session{}).
+		Select(`a.id, a.name, a.needs_review, a.created_at, a.thumbnail_object_key,
+			COALESCE(COUNT(DISTINCT ffc.id), 0) AS file_count,
+			COALESCE(SUM(DISTINCT ffc.size_bytes), 0) AS size_bytes,
+			COALESCE(cv2.package_kind, '') AS package_kind,
+			COALESCE(l2.detected_type, '') AS licence_spdx`).
+		Joins("LEFT JOIN asset_files ffc ON ffc.asset_version_id = a.current_version_id").
+		Joins("LEFT JOIN asset_versions cv2 ON cv2.id = a.current_version_id").
+		Joins("LEFT JOIN licences l2 ON l2.id = a.licence_id").
+		Group("a.id, cv2.package_kind, l2.detected_type").
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows).Error
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c)
 		return
 	}
 
-	out := make([]assetGridRow, len(rows))
-	for i, r := range rows {
-		out[i] = assetGridRow{
-			ID:          r.ID,
-			Name:        r.Name,
-			FileCount:   r.FileCount,
-			SizeBytes:   r.SizeBytes,
-			NeedsReview: r.NeedsReview,
-			CreatedAt:   r.CreatedAt,
+	out := make([]assetGridRow, 0, len(rows))
+	for _, r := range rows {
+		status := ""
+		if r.LicenceSPDX != "" {
+			status = quickLicenceStatus(r.LicenceSPDX)
 		}
+		if f.LicenceStatus != "" && status != f.LicenceStatus {
+			// Post-filter by status: cheap enough at list-page size, and
+			// avoids adding a derived column to the schema.
+			continue
+		}
+		out = append(out, assetGridRow{
+			ID:                 r.ID,
+			Name:               r.Name,
+			FileCount:          r.FileCount,
+			SizeBytes:          r.SizeBytes,
+			NeedsReview:        r.NeedsReview,
+			CreatedAt:          r.CreatedAt,
+			ThumbnailObjectKey: r.ThumbnailObjectKey,
+			PackageKind:        r.PackageKind,
+			LicenceSPDX:        r.LicenceSPDX,
+			LicenceStatus:      status,
+		})
 	}
 
 	c.JSON(http.StatusOK, assetListResponse{Assets: out, Total: total})
