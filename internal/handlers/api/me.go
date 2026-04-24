@@ -1,9 +1,11 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 )
@@ -51,12 +53,20 @@ func (h *handler) getMe(c *gin.Context) {
 			Joins("JOIN libraries l ON l.id = lm.library_id").
 			Where("lm.library_id = ? AND lm.user_id = ?", *u.CurrentLibraryID, u.ID).
 			Take(&r).Error
-		if err == nil {
+		switch {
+		case err == nil:
 			resp.CurrentLibrary = &currentLibrary{
 				ID:   *u.CurrentLibraryID,
 				Name: r.Name,
 				Role: r.Role,
 			}
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			// User's current_library points at a library they've been removed
+			// from. Omit the block so the SPA surfaces the "no library access
+			// yet" state.
+		default:
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
 		}
 	}
 

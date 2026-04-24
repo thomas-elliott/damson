@@ -65,16 +65,18 @@ Implications:
 
 `internal/auth` defines `Authenticator` with two concrete impls, picked at startup by `DAMSON_AUTH_MODE`:
 
+- **Local** (default; `local.go`) — bcrypt password hashes in `users.password_hash`, issues HS256 JWTs (1h TTL, `jwtIssuer = "damson-local"`). `users.tokens_valid_after` acts as a revocation watermark: JWTs with `iat` before that instant are rejected. Synthetic subject `"local:<email>"` so the `users.subject` unique index still works.
 - **OIDC** (`oidc.go`) — validates IdP bearer tokens, upserts the user from claims. `BootstrapFirstAdmin` runs on the first user whose email matches `DAMSON_BOOTSTRAP_ADMIN_EMAILS`.
-- **Local** (`local.go`) — bcrypt password hashes in `users.password_hash`, issues HS256 JWTs (1h TTL, `jwtIssuer = "damson-local"`). `users.tokens_valid_after` acts as a revocation watermark: JWTs with `iat` before that instant are rejected. Synthetic subject `"local:<email>"` so the `users.subject` unique index still works.
 
 Both modes share one bootstrap path (`BootstrapFirstAdmin`): first user + "Personal" library + admin membership + `current_library_id`, all in one transaction.
+
+Local-mode bootstrap has two entry points: the env-seeded startup path (`SeedLocalAdmin`, active when both `DAMSON_LOCAL_ADMIN_EMAIL` and `_PASSWORD` are set) and the HTTP path (`POST /api/auth/bootstrap`, reachable when no users exist). The latter is what `GET /api/auth/mode`'s `needs_bootstrap` flag signals to the SPA.
 
 ### Pluggable storage
 
 `internal/services/storage.Service` has two impls, picked by `DAMSON_STORAGE_MODE`:
 
-- `LocalFS` — content-addressed under `<root>/blobs/<hh>/<hash>` and `<root>/thumbs/<hh>/<hash>`. Atomic rename, SHA-256 dedup.
+- `LocalFS` (default) — content-addressed under `<root>/blobs/<hh>/<hash>` and `<root>/thumbs/<hh>/<hash>`. Atomic rename, SHA-256 dedup.
 - `S3` — aws-sdk-go-v2 with endpoint override + path-style for MinIO. HEAD-before-PUT dedup.
 
 Layout matches between backends so a deployment can migrate with a plain copy.
@@ -115,8 +117,7 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 
 ## Environment variables
 
-Loaded in `internal/config/config.go`. Required regardless of mode:
-`DAMSON_BASE_URL`, `DAMSON_POSTGRES_DSN`.
+Loaded in `internal/config/config.go`. The only always-required var is `DAMSON_POSTGRES_DSN`. `DAMSON_JWT_SIGNING_KEY` is optional in local mode — if unset, `internal/auth.LoadOrCreateJWTKey` generates 32 random bytes on first boot and persists them to `./data/jwt.key` (overridable via `DAMSON_JWT_KEY_FILE`). Defaults worth knowing: `DAMSON_LISTEN_ADDR=:8080`, `DAMSON_BASE_URL=http://localhost:8080`, `DAMSON_LOG_LEVEL=info`, `DAMSON_AUTH_MODE=local`, `DAMSON_STORAGE_MODE=local`, `DAMSON_STORAGE_LOCAL_PATH=./data/blobs`.
 
 Mode-dependent:
 - `DAMSON_AUTH_MODE=oidc` → `DAMSON_OIDC_ISSUER_URL`, `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`, optional `DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV).

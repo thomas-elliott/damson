@@ -1,21 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/api";
-import { fetchAuthMode, type AuthMode } from "@/lib/authMode";
+import { fetchAuthMode, type AuthModeInfo } from "@/lib/authMode";
 import { HOUR, MINUTE } from "@/lib/cachePolicy";
 import { queryKeys } from "@/lib/queryKeys";
 
 // -- /api/auth/mode ---------------------------------------------------------
 
 export function useAuthMode() {
-  const q = useQuery<AuthMode>({
+  const q = useQuery<AuthModeInfo>({
     queryKey: queryKeys.authMode,
     queryFn: fetchAuthMode,
     staleTime: Infinity, // doesn't change between page loads
     gcTime: Infinity,
   });
   return {
-    mode: q.data ?? null,
+    mode: q.data?.mode ?? null,
+    needsBootstrap: q.data?.needs_bootstrap ?? false,
     loading: q.isPending,
     error: q.error,
   };

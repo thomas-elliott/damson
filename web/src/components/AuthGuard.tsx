@@ -14,7 +14,7 @@ type AuthState = "checking" | "ready" | "needs-login";
 //           signinRedirect (browser leaves the SPA entirely).
 //   - Local: read the stored JWT; if missing/expired, bounce to /login.
 export function AuthGuard() {
-  const { mode, loading: modeLoading } = useAuthMode();
+  const { mode, needsBootstrap, loading: modeLoading } = useAuthMode();
   const location = useLocation();
   const [state, setState] = useState<AuthState>("checking");
 
@@ -38,6 +38,13 @@ export function AuthGuard() {
         } else {
           setState("ready");
         }
+      })
+      .catch((err) => {
+        // Corrupted userStore or oidc-client-ts state machine error —
+        // bounce into the login flow rather than stalling on the spinner.
+        if (cancelled) return;
+        console.error("OIDC getUser failed", err);
+        void getUserManager().signinRedirect();
       });
     return () => {
       cancelled = true;
@@ -50,6 +57,9 @@ export function AuthGuard() {
         Authenticating…
       </div>
     );
+  }
+  if (mode === "local" && needsBootstrap) {
+    return <Navigate to="/bootstrap" replace />;
   }
   if (state === "needs-login") {
     return <Navigate to="/login" replace state={{ from: location }} />;

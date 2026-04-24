@@ -50,3 +50,24 @@ export async function localLogin(email: string, password: string): Promise<Local
   storeLocalSession(body.token, body.expires_at);
   return { token: body.token, expiresAt: new Date(body.expires_at) };
 }
+
+// localBootstrap creates the very first admin user. Safe to call only when
+// /api/auth/mode reported `needs_bootstrap=true` — the server returns 409
+// once any user exists.
+export async function localBootstrap(email: string, password: string): Promise<LocalSession> {
+  const res = await fetch("/api/auth/bootstrap", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (res.status === 409) {
+    throw new Error("already bootstrapped — go to the login page");
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `bootstrap failed (${res.status})`);
+  }
+  const body = (await res.json()) as { token: string; expires_at: string };
+  storeLocalSession(body.token, body.expires_at);
+  return { token: body.token, expiresAt: new Date(body.expires_at) };
+}

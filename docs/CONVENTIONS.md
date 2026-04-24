@@ -4,7 +4,8 @@ Coding standards, conventions, and setup for go/react repositories.
 
 This document complements:
 - `AGENTS.md` — shorter quick-start rules for agentic coding
-- `docs/` — deeper architecture notes (testing, ingest, whatsync, etc.)
+- `docs/product-design-doc.md`, `docs/ui-design.md`, `docs/technical-design.md` — product scope, UI brief, architecture
+- `docs/progress.md` — milestone-by-milestone status of what's actually in the tree
 
 ---
 
@@ -50,9 +51,7 @@ All workflows run through `task` (see `Taskfile.yml`).
 | `task web:test` | Vitest run (frontend) |
 | `task web:test:watch` | Vitest watch mode |
 | `task pre-release-checks` | fmt + vet + tests (Go & web) |
-| `task docker-build` / `docker-push` | Container image |
-| `task release VERSION=vX.Y.Z` | Tag and push release |
-| `task release-patch` / `release-minor` / `release-major` | Bumped releases |
+| `task docker-build` | Container image |
 
 Running single Go tests:
 ```
@@ -71,7 +70,7 @@ go test ./internal/handlers/api -run '^TestName$/SubtestName$'
 - Package names: lowercase, short, descriptive. File names snake_case when needed.
 
 ### Handler structure
-API handlers are receiver methods on a shared `handler` struct that carries dependencies (`*gorm.DB`, `*services.S3Service`, `*whatsync.ObservabilityHub`, `*whatsync.RuntimeController`). Routes are registered in `internal/handlers/api/routes.go` via `AddRoutes(...)`. One file per feature (`people.go`, `messages.go`, `documents.go`, etc.).
+API handlers are receiver methods on a shared unexported `handler` struct that carries its dependencies (`*gorm.DB`, `config.AuthMode`, `*auth.LocalAuthenticator`, `storage.Service`). Routes are registered in `internal/handlers/api/handler.go` via `AddRoutes(...)`. One file per feature (`assets.go`, `library.go`, `me.go`, etc.).
 
 Access the current user with `auth.GetUser(c)`.
 
@@ -84,24 +83,25 @@ Use `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`.
 - `409` — conflict
 - `500` — internal error — use the generic string `"internal error"`, don't leak internals
 
-Return early on error. Log with `log.Printf` including operation context. Don't panic for request-level failures; reserve panics for startup config (`MustGetEnv`).
+Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic for request-level failures; reserve panics for startup config (`MustGetEnv`).
 
 ### Database patterns
-- GORM models live in `internal/models/`. Each model with a non-default table name implements `TableName() string` (e.g. `Person` → `people`).
+- GORM models live in `internal/models/`. Each model implements `TableName() string` so the production table name is explicit and survives a struct rename (e.g. `Asset` → `assets`, `LibraryMembership` → `library_memberships`).
 - IDs are `uint` with `gorm:"primarykey;auto_increment;not_null"`.
 - Timestamps are `time.Time` fields populated by GORM.
-- Response shapes that differ from DB rows (enriched views, joins) use dedicated view models — see `MessageView`, `MessageWithMedia`, `adminPerson` and similar.
+- Response shapes that differ from DB rows (enriched views, joins) use dedicated view models — see `assetGridRow` / `meResponse` / `libraryMembershipView` and similar.
 - Prefer the GORM query builder (`Find`, `Where`, `Preload`, `Joins`, `Scan`); use `Table` + `Select` for joins. Raw SQL only when necessary.
 - Complex queries use **lateral joins + batch loading**: fetch IDs first, then load relations in bulk to avoid N+1.
 
 ### Tests
-Tests live alongside handlers (`people_test.go` next to `people.go`). Shared helpers are in `internal/handlers/api/api_test.go`:
+Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers are in `internal/handlers/api/api_test.go`:
 
-- `newTestHandler(t)` — returns `(*handler, *gorm.DB)` backed by in-memory SQLite with `AutoMigrate` applied to all models
-- `setupRouter(h)` — registers routes under `/api`
+- `newTestHandler(t)` — returns `(*handler, *gorm.DB)` backed by in-memory SQLite (OIDC mode) with `AutoMigrate` applied to all models and a `LocalFS` storage rooted in `t.TempDir()`
+- `newTestHandlerLocal(t)` — same but in local-auth mode, with a `*auth.LocalAuthenticator` returned alongside
+- `setupRouter(h, asUser)` — registers routes under `/api`; bypasses real auth by injecting `asUser` via `auth.SetUserForTest`
 - `performGET(r, path)`, `performRequest(r, method, path, body)` — issue requests
-- `requireStatus(t, w, code)`, `jsonResponse`, `jsonArrayResponse` — assertions
-- `seedPerson`, `seedChat`, `seedMessage`, `seedIdentity`, `seedProvider` — seed data
+- `requireStatus(t, w, code)`, `jsonResponse[T]` — assertions
+- `seedUser`, `seedLocalUser`, `seedLibrary`, `seedMembership`, `seedLibraryAndSwitch` — seed data
 
 Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 
@@ -118,20 +118,22 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Query keys live in `lib/queryKeys.ts` — a factory-style object. Never hand-roll query keys in components.
   ```ts
   export const queryKeys = {
-    people: ["people"] as const,
-    personProfile: (id: number) => ["person", id, "profile"] as const,
-  };
+    authMode: ["authMode"] as const,
+    me: ["me"] as const,
+    assets: (filters?: Record<string, string | number>) =>
+      filters ? (["assets", filters] as const) : (["assets"] as const),
+  } as const;
   ```
-- Custom hooks live in `hooks/useDataQueries.ts` and wrap `useQuery` / `useInfiniteQuery`, returning a normalized `{ data, loading, error, reload, ... }` shape.
-- Cache policy uses constants from `lib/cachePolicy` (`MINUTE`, `HOUR`, `DAY`). Set `staleTime` and `gcTime` explicitly per endpoint.
+- Custom hooks live in `hooks/useDataQueries.ts` and wrap `useQuery`, returning a normalized `{ data, loading, error, reload }` shape.
+- Cache policy uses constants from `lib/cachePolicy` (`SECOND`, `MINUTE`, `HOUR`, `DAY`). Set `staleTime` and `gcTime` explicitly per endpoint.
 - Client config in `lib/queryClient.ts`: 5 min default stale, no refetch on focus.
-- Paginated lists use `useInfiniteQuery` + the `InfiniteScrollList` component with `limit`/`offset` URL params.
+- Paginated lists: `limit`/`offset` query params on the server; a `useInfiniteQuery` hook lands when the list surfaces it (M5).
 
 ### API layer (`src/api.ts`)
 - `fetchJson<T>(url, options)` is the main wrapper: attaches bearer token, handles 401 via silent token renewal with single-flight deduping, retries once, parses JSON, and throws `ApiError` on non-2xx.
-- `fetchMaybeJson<T>` permits empty bodies.
+- `uploadFile(url, file, onProgress?)` handles multipart uploads with XHR progress events (fetch lacks upload progress).
 - Error types: `ApiError` (with status), `AuthRedirectError` (401 after renewal fails — triggers redirect to login). Narrow with `isAuthRedirectError(err)`.
-- Don't call `fetch` directly from components; always go through these helpers so auth/renewal behavior is consistent.
+- Don't call `fetch` directly from components; always go through these helpers so auth/renewal behavior is consistent. (Two exceptions in `lib/authMode.ts` and `lib/localAuth.ts` — they're public, pre-auth endpoints that can't depend on the wrapper.)
 
 ### Auth / OIDC
 - Env vars (Vite): `VITE_OIDC_AUTHORITY`, `VITE_OIDC_CLIENT_ID`, `VITE_OIDC_SCOPE`, `VITE_OIDC_REDIRECT_URI`, `VITE_OIDC_SILENT_REDIRECT_URI`, `VITE_OIDC_POST_LOGOUT_REDIRECT_URI`.
@@ -155,24 +157,23 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 ## Database Migrations
 
 - Location: `database/migrations/`.
-- Naming: `NNN_descriptive_name.sql` (zero-padded 3-digit sequence). Example: `007_add_message_revisions.sql`.
+- Naming: `NNN_descriptive_name.sql` (zero-padded 3-digit sequence). Example: `007_asset_versions.sql`.
 - Each migration is wrapped in `BEGIN; ... COMMIT;`.
 - Use `IF NOT EXISTS` for idempotency.
-- Primary keys: `generated always as identity`. Timestamps: `timestamptz default now()`.
-- Migrations are SQL-only — no Go migration framework.
+- Primary keys: `bigserial PRIMARY KEY`. Timestamps: `timestamptz NOT NULL DEFAULT now()`.
+- Migrations are SQL-only — no Go migration framework. See `internal/db/migrate.go` for the runner (advisory lock + `schema_migrations` tracking).
+- Schema changes must land in BOTH the SQL migration AND the corresponding GORM struct tag — tests use `AutoMigrate` against the models, production uses the SQL. See AGENTS.md "Migrations vs tests".
 
 ## Docker & Release
 
-**Dockerfile** (multi-stage):
-1. Node — build SPA
-2. Go with `build-base` / `vips` — build binary
+**Dockerfile** (three-stage, no CGo):
+1. `node:24-alpine` — `npm ci` + `vite build` → `web/static/`
+2. `golang:1.26-alpine` — `CGO_ENABLED=0 go build` with `-ldflags="-s -w"`, embedding the built SPA via `go:embed`
+3. `alpine:3.20` runtime — `ca-certificates` + `tzdata`, non-root `damson` user, `HEALTHCHECK` hitting `/api/health`
 
-**Releases** use `task release VERSION=vX.Y.Z`:
-- Runs `pre-release-checks` (fmt, vet, Go tests, web tests)
-- Fails if the working tree is dirty or the tag exists
-- Tags and pushes to origin
+**Releases** are automated via GitHub Actions (`.github/workflows/release.yml`): pushing a tag matching `v*.*.*` builds and pushes the image to `ghcr.io/<owner>/damson` with `{version}`, `{major}.{minor}`, and `{major}` tags. `main-build.yml` builds `main-<sha>` on every push to `main`. Locally, `task pre-release-checks` runs fmt + vet + Go tests + web tests before tagging.
 
-Don't commit `web/static/` build output unless explicitly asked.
+Don't commit `web/static/` build output — it's gitignored except for the `.gitkeep` placeholder that lets `//go:embed` succeed when the SPA hasn't been built yet.
 
 ## When in Doubt
 
