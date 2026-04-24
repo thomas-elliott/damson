@@ -645,50 +645,52 @@ Per UI design §6: **env vars for bootstrap/secrets only; everything else in DB,
 
 ### 14.1 Env vars (bootstrap)
 
-Always required:
+The only always-required variable is the Postgres DSN. Everything else either defaults or is only needed when its mode is selected.
 
-```
-DAMSON_LISTEN_ADDR                    :8080
-DAMSON_BASE_URL                       https://damson.local
-DAMSON_POSTGRES_DSN
-DAMSON_AUTH_MODE                      oidc | local
-DAMSON_STORAGE_MODE                   s3  | local
-DAMSON_LOG_LEVEL                      info
-```
+**Always:**
 
-`DAMSON_AUTH_MODE=oidc` adds:
+| Var | Required? | Default |
+|---|---|---|
+| `DAMSON_POSTGRES_DSN` | **required** | — |
+| `DAMSON_LISTEN_ADDR` | optional | `:8080` |
+| `DAMSON_BASE_URL` | optional | `http://localhost:8080` |
+| `DAMSON_LOG_LEVEL` | optional | `info` |
+| `DAMSON_BOOTSTRAP_ADMIN_EMAILS` | optional | empty — comma-separated emails promoted to sysadmin on first sign-in |
+| `DAMSON_AUTH_MODE` | optional | `oidc` — also accepts `local` |
+| `DAMSON_STORAGE_MODE` | optional | `s3` — also accepts `local` |
 
-```
-DAMSON_OIDC_ISSUER_URL
-DAMSON_OIDC_CLIENT_ID
-DAMSON_OIDC_AUDIENCE
-DAMSON_BOOTSTRAP_ADMIN_EMAILS         comma-separated — seeds initial sysadmin(s)
-```
+**`DAMSON_AUTH_MODE=oidc`** (the default) additionally requires:
 
-`DAMSON_AUTH_MODE=local` adds (see §8.1 local mode):
+| Var | Required? |
+|---|---|
+| `DAMSON_OIDC_ISSUER_URL` | required |
+| `DAMSON_OIDC_CLIENT_ID` | required |
+| `DAMSON_OIDC_AUDIENCE` | required |
 
-```
-DAMSON_JWT_SIGNING_KEY                ≥ 32 bytes, HS256 signing key
-DAMSON_LOCAL_ADMIN_EMAIL
-DAMSON_LOCAL_ADMIN_PASSWORD
-```
+**`DAMSON_AUTH_MODE=local`** (see §8.1 local mode) additionally requires:
 
-`DAMSON_STORAGE_MODE=s3` adds:
+| Var | Required? |
+|---|---|
+| `DAMSON_JWT_SIGNING_KEY` | required — ≥ 32 bytes, HS256 signing key |
+| `DAMSON_LOCAL_ADMIN_EMAIL` | required — seeds the initial local admin if no users exist |
+| `DAMSON_LOCAL_ADMIN_PASSWORD` | required |
 
-```
-DAMSON_S3_ENDPOINT
-DAMSON_S3_REGION
-DAMSON_S3_BUCKET
-DAMSON_S3_ACCESS_KEY
-DAMSON_S3_SECRET_KEY
-DAMSON_S3_FORCE_PATH_STYLE            true
-```
+**`DAMSON_STORAGE_MODE=s3`** (the default) additionally requires:
 
-`DAMSON_STORAGE_MODE=local` adds:
+| Var | Required? | Default |
+|---|---|---|
+| `DAMSON_S3_ENDPOINT` | required | — |
+| `DAMSON_S3_REGION` | required | — |
+| `DAMSON_S3_BUCKET` | required | — |
+| `DAMSON_S3_ACCESS_KEY` | required | — |
+| `DAMSON_S3_SECRET_KEY` | required | — |
+| `DAMSON_S3_FORCE_PATH_STYLE` | optional | `true` |
 
-```
-DAMSON_STORAGE_LOCAL_PATH             ./data/blobs
-```
+**`DAMSON_STORAGE_MODE=local`** additionally reads:
+
+| Var | Required? | Default |
+|---|---|---|
+| `DAMSON_STORAGE_LOCAL_PATH` | optional | `./data/blobs` |
 
 Loaded once at startup by `internal/config`. Missing required values cause `MustGetEnv`-style panics (matches the conventions' startup-panic rule).
 
