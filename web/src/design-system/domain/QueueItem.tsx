@@ -1,0 +1,58 @@
+import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+
+import { cn } from "@/design-system/utils";
+import { ProgressBar } from "@/design-system/primitives/ProgressBar";
+
+export interface QueueItemProps extends HTMLAttributes<HTMLDivElement> {
+  /** Thumbnail content (icon, mini-thumb, etc.). */
+  thumb?: ReactNode;
+  name: string;
+  /** Short secondary line (detected type, size, timestamps). */
+  sub?: ReactNode;
+  /** 0–100 import progress. Omit when already-resolved. */
+  progress?: number;
+  /** Actions or status indicators on the right. */
+  actions?: ReactNode;
+}
+
+/**
+ * Single row in the import queue view. Fixed 56px thumbnail, flexible meta,
+ * optional progress bar on the bottom. Actions sit on the right.
+ */
+export const QueueItem = forwardRef<HTMLDivElement, QueueItemProps>(
+  function QueueItem(
+    { className, thumb, name, sub, progress, actions, ...props },
+    ref,
+  ) {
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "flex items-center gap-3.5 rounded-md border border-line bg-panel p-3.5 transition-colors duration-std ease hover:border-line-2",
+          className,
+        )}
+        {...props}
+      >
+        {thumb && (
+          <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-sm border border-line bg-surface text-text-3">
+            {thumb}
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="truncate text-sm-plus font-medium text-text">
+            {name}
+          </div>
+          {sub && (
+            <div className="flex items-center gap-2 text-xs-plus text-text-3">
+              {sub}
+            </div>
+          )}
+          {typeof progress === "number" && (
+            <ProgressBar value={progress} aria-label={`${Math.round(progress)}% uploaded`} />
+          )}
+        </div>
+        {actions && <div className="flex items-center gap-1">{actions}</div>}
+      </div>
+    );
+  },
+);

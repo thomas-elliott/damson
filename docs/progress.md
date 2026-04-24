@@ -5,7 +5,9 @@ doc tracks what's **actually in the tree** against that plan and calls out
 what's been skipped or deferred so later slices don't assume foundations
 that aren't there.
 
-Last audited: 2026-04-24 — M0/M1/M2 re-verified against the tree. Since the 2026-04-23 audit the defaults flipped to `AUTH_MODE=local` + `STORAGE_MODE=local`, and local-mode bootstrap gained an HTTP path (`POST /api/auth/bootstrap` + `needs_bootstrap` on `/api/auth/mode` + the `/bootstrap` SPA page). Env-seeded bootstrap (`SeedLocalAdmin`) stays as an optional fallback. No milestone rows change — this is zero-config-dev polish on the M0 skeleton.
+Last audited: 2026-04-25 — M2.5 (design system) landed. Frontend now has the full primitive + composition + domain library under `web/src/design-system/`, with Storybook + Vitest+Playwright + axe-core a11y enforcement. `LibraryPage`, `AssetGrid`, `DropZone`, `BootstrapPage`, `LoginPage` are migrated onto the new components; `LibraryHeader.tsx` was folded into the sidebar and deleted.
+
+2026-04-24 — M0/M1/M2 re-verified against the tree. Since the 2026-04-23 audit the defaults flipped to `AUTH_MODE=local` + `STORAGE_MODE=local`, and local-mode bootstrap gained an HTTP path (`POST /api/auth/bootstrap` + `needs_bootstrap` on `/api/auth/mode` + the `/bootstrap` SPA page). Env-seeded bootstrap (`SeedLocalAdmin`) stays as an optional fallback. No milestone rows change — this is zero-config-dev polish on the M0 skeleton.
 
 ## Legend
 
@@ -69,6 +71,46 @@ M1 is complete for the scope called out in §21. Notes:
 | Handler tests (Unity import, re-extract success, 409 on non-Unity version, 404 across libraries) | ✅ | `internal/handlers/api/assets_unity_test.go` |
 
 M2 is complete.
+
+## M2.5 — Design system
+
+A discrete phase inserted between M2 and M3 to land the frontend's tokens,
+primitives, shell compositions, and domain components before M3+ feature
+work begins. Not in the tech design's §21 ladder — added here because
+starting M3 without a consistent component base was setting the feature
+milestones up for a visual-rework cycle.
+
+| Item | Status | Where |
+|---|---|---|
+| OKLCH tokens (dark default, `data-theme="light"` override); Tailwind utilities map to them | ✅ | `web/src/design-system/tokens/tokens.css`, `web/tailwind.config.ts` |
+| Self-hosted Inter + JetBrains Mono via `@fontsource/*` | ✅ | `web/src/styles/globals.css` |
+| `cn()` helper with `extendTailwindMerge` for custom font-size groups | ✅ | `web/src/design-system/utils/cn.ts` |
+| 24 primitives built on Radix headless (Button, Input, Badge, Pill, Chip, Tag, Kbd, StatusDot, ProgressBar, Glyph, Checkbox, Slider, Separator, Tabs, Tooltip, DropdownMenu, Dialog, Popover, Select, ScrollArea, IconButton, SegmentedControl, SearchInput, Textarea) | ✅ | `web/src/design-system/primitives/` |
+| 12 shell compositions (AppShell, NavRail, ResizeHandle, FilterSidebar, Section, Toolbar, Breadcrumb, SelectionBar, DetailPanel, FullPageView, DropOverlay, EmptyState) | ✅ | `web/src/design-system/compositions/` |
+| 14 domain components (LicencePill, LicenceBar, AssetThumb with 9 sprite patterns + waveform + font, AssetCard, AssetListRow, ProjectGlyph, ProjectCard, ProjectListRow, CollectionCard, QueueItem, KeyValueList, FieldRow, VersionItem, ActivityRow) | ✅ | `web/src/design-system/domain/` |
+| Storybook 10 + `addon-a11y` + `addon-vitest` + `storybook-addon-pseudo-states` | ✅ | `web/.storybook/` |
+| Vitest 3 with `unit` + `storybook` projects (Playwright Chromium); `a11y.test = "error"` | ✅ | `web/vitest.config.ts` |
+| Migrate `LibraryPage`, `AssetGrid`, `DropZone`, `BootstrapPage`, `LoginPage` onto the new system | ✅ | `web/src/pages/`, `web/src/components/` |
+| Delete obsolete `LibraryHeader.tsx` (absorbed into FilterSidebar) | ✅ | removed |
+| `TooltipProvider` mounted at app root | ✅ | `web/src/main.tsx` |
+| `docs/design-system.md` canonical spec; `docs/CONVENTIONS.md` updated to drop shadcn/ui; `docs/ui-design.md` §9 open questions resolved | ✅ | `docs/` |
+| `task web:storybook`, `task web:test:stories`, `task web:test:all` | ✅ | `Taskfile.yml` |
+
+Decisions locked in during M2.5 that differ from earlier drafts:
+
+- **Accent is yellow only.** The mockup's blue/yellow theme-swap was dropped.
+- **shadcn/ui is not used.** Components are hand-rolled on Radix headless
+  primitives. This diverges from the previous `docs/CONVENTIONS.md` §5 note
+  that called for shadcn/ui, and from `docs/ui-design.md` §2 where it was
+  listed as the component library.
+- **Tokens are OKLCH, not HSL.** The pre-M2.5 `globals.css` used HSL; that
+  file now imports `tokens.css` and re-exports the OKLCH variables.
+- **Text-3/text-4 tiers were lifted** from the mockup's L=0.60/0.46 to 0.70/0.60
+  to meet WCAG AA on bg/panel. The mockup palette was designed visually; axe
+  flagged it during a11y test runs and the lift came from that.
+
+Verification: `task web:test:all` runs 68 tests (1 unit + 67 stories) in real
+Chromium, all passing with a11y set to error mode.
 
 ## Foundations the tech design assumes but hasn't been built yet
 

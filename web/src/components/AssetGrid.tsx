@@ -1,54 +1,47 @@
+import { FilePlus2 } from "lucide-react";
+
+import {
+  AssetCard,
+  EmptyState,
+  formatBytes,
+} from "@/design-system";
 import type { AssetRow } from "@/hooks/useDataQueries";
 
-function formatSize(bytes: number): string {
-  if (bytes === 0) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  let n = bytes;
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024;
-    i++;
-  }
-  return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
-}
-
-// First-pass grid: square thumbnails (icon fallback only — no real thumbs
-// until M6), name under each tile. Virtualisation is held until we actually
-// have asset volumes that justify it.
+/**
+ * Library grid — one AssetCard per row. Thumbnails are placeholders until M6
+ * lands real thumbnail rendering; for now every asset renders the unknown
+ * glyph.
+ */
 export function AssetGrid({ assets }: { assets: AssetRow[] }) {
   if (assets.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted">
-        Drop files here to begin, or click to select.
-      </div>
+      <EmptyState
+        icon={<FilePlus2 size={28} />}
+        title="No assets yet"
+        description="Drop .unitypackage files, sprites, audio, or fonts onto this view — or click to select. Damson extracts, hashes, and licence-tags each import."
+      />
     );
   }
   return (
-    <ul className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 p-4">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 p-3.5">
       {assets.map((a) => (
-        <li
+        <AssetCard
           key={a.id}
-          className="group flex flex-col overflow-hidden rounded-md border border-border bg-panel transition hover:border-accent"
-        >
-          <div className="aspect-square bg-elevated" aria-hidden>
-            {/* Icon fallback — real thumbnails arrive in M6. */}
-            <div className="flex h-full items-center justify-center text-xs text-muted">
-              {a.file_count} {a.file_count === 1 ? "file" : "files"}
-            </div>
-          </div>
-          <div className="flex flex-col gap-0.5 p-2 text-xs">
-            <div className="truncate font-medium text-foreground">{a.name}</div>
-            <div className="flex items-center justify-between text-muted">
-              <span>{formatSize(a.size_bytes)}</span>
-              {a.needs_review && (
-                <span className="rounded bg-accent/20 px-1.5 py-0.5 font-mono text-[10px] text-accent-foreground">
-                  review
-                </span>
+          name={a.name}
+          sub={
+            <>
+              <span className="font-mono">{formatBytes(a.size_bytes)}</span>
+              {a.file_count > 1 && (
+                <>
+                  <span className="text-text-4">·</span>
+                  <span className="font-mono">{a.file_count} files</span>
+                </>
               )}
-            </div>
-          </div>
-        </li>
+            </>
+          }
+          needsReview={a.needs_review}
+        />
       ))}
-    </ul>
+    </div>
   );
 }

@@ -64,6 +64,11 @@ function LicenceAttrs({ attrs }) {
 
 function DetailBody({ asset }) {
   const lic = LICENCES[asset.licence] || LICENCES.Unknown;
+  const ov = asset.overview || {};
+  const [teamNotes, setTeamNotes] = useStD(ov.teamNotes || '');
+  const [editingNotes, setEditingNotes] = useStD(false);
+  const hasGallery = ov.gallery && ov.gallery.length > 0;
+
   return (
     <div className="detail-scroll">
       <div className="detail-hero">
@@ -71,6 +76,11 @@ function DetailBody({ asset }) {
           <AssetThumb asset={asset}/>
         </div>
         <h2 className="detail-title">{asset.name}</h2>
+        {ov.tagline ? (
+          <div style={{ color: 'var(--text-2)', fontSize: 12.5, marginBottom: 8, lineHeight: 1.5 }}>
+            {ov.tagline}
+          </div>
+        ) : null}
         <div className="detail-sub">
           <span className="mono">v{asset.version || '—'}</span>
           <span className="sep">·</span>
@@ -87,6 +97,13 @@ function DetailBody({ asset }) {
               <span className="dot"/> Needs review
             </span>
           ) : null}
+          {ov.rating ? (
+            <span style={{ fontSize: 11, color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ color: 'var(--warn)' }}>★</span>
+              <span className="mono">{ov.rating.stars}</span>
+              <span style={{ color: 'var(--text-4)' }}>({ov.rating.count.toLocaleString()})</span>
+            </span>
+          ) : null}
         </div>
         <div className="tag-chips">
           {asset.tags.map(t => <span key={t} className="tag-chip">{t}</span>)}
@@ -94,7 +111,117 @@ function DetailBody({ asset }) {
         </div>
       </div>
 
-      <Section title="Versions" count={asset.versions.length}>
+      {hasGallery ? (
+        <Section title="Gallery" count={ov.gallery.length}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+            {ov.gallery.map((g, i) => (
+              <div key={i} style={{
+                aspectRatio: '4/3',
+                background: 'var(--bg)',
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--r-sm)',
+                overflow: 'hidden',
+                position: 'relative',
+                cursor: 'zoom-in',
+              }}>
+                <AssetThumb asset={{ thumb: g }}/>
+                <div style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0,
+                  padding: '14px 6px 4px',
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
+                  fontSize: 10.5, color: 'rgba(255,255,255,0.85)',
+                  fontFamily: 'var(--mono)',
+                }}>{g.caption}</div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
+      <Section title="Description">
+        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+          {ov.description || 'No description available.'}
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-4)' }}>
+          <I.Download size={10}/>
+          Scraped from source · <span className="mono">{formatDate(ov.archivedAt)}</span>
+          <span style={{ marginLeft: 'auto' }}>
+            <button className="tbtn" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+              <I.Download size={10}/> Re-scrape
+            </button>
+          </span>
+        </div>
+      </Section>
+
+      <Section title="Team notes">
+        {editingNotes ? (
+          <>
+            <textarea
+              autoFocus
+              value={teamNotes}
+              onChange={e => setTeamNotes(e.target.value)}
+              placeholder="Context for the team — why we picked this, caveats, who approved it…"
+              style={{
+                width: '100%', minHeight: 80,
+                background: 'var(--bg)',
+                border: '1px solid var(--line-2)',
+                borderRadius: 'var(--r-sm)',
+                padding: 8,
+                fontSize: 12.5, fontFamily: 'var(--sans)',
+                color: 'var(--text)',
+                resize: 'vertical', outline: 0,
+              }}/>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end' }}>
+              <button className="tbtn" onClick={() => { setTeamNotes(ov.teamNotes || ''); setEditingNotes(false); }}>Cancel</button>
+              <button className="tbtn primary" onClick={() => setEditingNotes(false)}>Save</button>
+            </div>
+          </>
+        ) : teamNotes ? (
+          <div
+            onClick={() => setEditingNotes(true)}
+            style={{
+              fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55,
+              padding: 8, margin: '-8px',
+              borderRadius: 'var(--r-sm)', cursor: 'text',
+            }}
+            className="hoverable">
+            {teamNotes}
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-4)' }}>
+              <span className="mono">thomas</span> · 2d ago — click to edit
+            </div>
+          </div>
+        ) : (
+          <button
+            className="tbtn"
+            onClick={() => setEditingNotes(true)}
+            style={{
+              width: '100%', border: '1px dashed var(--line-2)',
+              padding: '14px 10px', color: 'var(--text-4)',
+              justifyContent: 'center',
+            }}>
+            <I.Plus size={12}/> Add a note for your team
+          </button>
+        )}
+      </Section>
+
+      <Section title="Publisher" defaultOpen={false}>
+        {ov.publisher ? (
+          <div className="row-item" style={{ padding: 4 }}>
+            <span className="swatch">{ov.publisher.name[0]}</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ color: 'var(--text)', fontSize: 12.5 }}>{ov.publisher.name}</div>
+              {ov.publisher.url ? (
+                <a style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', fontFamily: 'var(--mono)' }}>
+                  {ov.publisher.url} ↗
+                </a>
+              ) : null}
+            </div>
+            {ov.publisher.assets ? <span className="row-meta">{ov.publisher.assets} assets</span> : null}
+          </div>
+        ) : <div style={{ fontSize: 12, color: 'var(--text-4)' }}>Unknown publisher.</div>}
+      </Section>
+
+      <Section title="Versions" count={asset.versions.length} defaultOpen={false}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {asset.versions.map(v => (
             <div key={v.v} className={`v-item ${v.current ? 'current' : ''}`}>
@@ -125,7 +252,7 @@ function DetailBody({ asset }) {
         </div>
       </Section>
 
-      <Section title="Licence">
+      <Section title="Licence" defaultOpen={false}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <LicencePill licence={asset.licence}/>
           <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-4)' }}>
@@ -165,11 +292,12 @@ function DetailBody({ asset }) {
           ))}
       </Section>
 
-      <Section title="Source" defaultOpen={false}>
+      <Section title="Source & archive" defaultOpen={false}>
         <dl className="kv">
           <dt>Origin</dt><dd className="mono" style={{ fontSize: 11 }}>{asset.source}</dd>
+          {ov.originUrl ? (<><dt>URL</dt><dd className="mono" style={{ fontSize: 11, color: 'var(--accent)', wordBreak: 'break-all' }}>{ov.originUrl}</dd></>) : null}
+          <dt>Archived</dt><dd className="mono" style={{ fontSize: 11 }}>{formatDate(ov.archivedAt)} · description, gallery & licence text saved locally</dd>
           <dt>Hash</dt><dd className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>sha256:{asset.id.padEnd(6, '0')}f4a2…e91c</dd>
-          <dt>Notes</dt><dd style={{ color: 'var(--text-4)', fontStyle: 'italic' }}>No notes yet.</dd>
         </dl>
       </Section>
 
