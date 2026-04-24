@@ -1,6 +1,8 @@
 # Digital Asset Manager — Frontend Design Brief
 
-**Status:** Draft v1 **Author:** Thomas **Last updated:** 2026-04-23 **Companion to:** asset-manager-design.md (product design document)
+**Status:** Draft v2 **Author:** Thomas **Last updated:** 2026-04-25 **Companion to:** `docs/product-design-doc.md`, `docs/design-system.md`
+
+> **v2 change:** Open questions from §9 resolved during the M2.5 design-system build. The authoritative implementation contract now lives in `docs/design-system.md`; this brief focuses on the *why* and the information architecture.
 
 ---
 
@@ -20,21 +22,30 @@ The closest visual reference is **Zed** — monochrome-leaning, restrained accen
 
 ### Palette and theming
 
-- **Dark and light modes**, user-selectable, dark as default
-- Dark mode is the "home" experience — asset thumbnails benefit from a dark surround, and the tool leans into that
-- Surfaces: three levels of elevation (background, panel, elevated surface) distinguished by a narrow luminance range rather than heavy contrast
-- Accent colour: blue or yellow, undecided; one accent only, used sparingly for interactive affordances, current-selection state, and licence status highlights
-- Licence status has its own small palette (compliant, needs-review, violation, unknown) — these are the only places colour carries semantic load beyond the accent
+- **Dark and light modes**, user-selectable, dark as default. Switching is driven by a `data-theme` attribute on `<html>`; tokens swap automatically via CSS custom properties.
+- Dark mode is the "home" experience — asset thumbnails benefit from a dark surround, and the tool leans into that.
+- Surfaces: four luminance tiers (`bg`, `panel`, `surface`, `surface-2`) in a narrow range rather than heavy contrast. Borders use two tiers (`line`, `line-2`).
+- Accent: **yellow, one accent only** (`oklch(0.82 0.15 86)` in dark mode). Used sparingly for interactive affordances, current-selection state, and the brand mark. No theme-swap variants.
+- Licence status has its own small palette: `ok` (green), `warn` (amber), `err` (red), `unk` (neutral grey) — each with a matching `-tint` for low-saturation backgrounds. These are the only places colour carries semantic load beyond the accent.
+- Text tiers are `text`, `text-2`, `text-3`, `text-4`. The tokens were tuned during M2.5 so `text-3` meets WCAG AA on `bg`/`panel` and `text-4` stays legible enough for decorative labels; see `docs/design-system.md` for the contrast matrix.
+- All colours are OKLCH; the token source is `web/src/design-system/tokens/tokens.css`.
 
 ### Typography
 
-- Sans-serif UI font (shadcn default is fine; something precise and neutral — Inter, Geist, or similar)
-- Monospace for hashes, file paths, version identifiers, licence SPDX IDs, and any "copy-exact" technical fragment
-- Restrained type scale: two or three sizes in general use, weight doing most of the hierarchy work
+- Inter for all UI text, JetBrains Mono for hashes, file paths, version identifiers, licence SPDX IDs, and any "copy-exact" technical fragment. Both fonts are self-hosted via `@fontsource/*`.
+- Body is 13px / 1.45 line-height. The full scale is 10.5/11/11.5/12/12.5/13/14/16/20/22 — dense, information-first, with weight doing most of the hierarchy work.
 
 ### Components
 
-Built on **shadcn/ui**. Components should be used with their defaults where possible, with minor token adjustments for the visual tone rather than heavy restyling. The design system's neutrality is an asset; the app's character comes from density, layout, and restraint rather than component styling.
+Custom components hand-rolled on **Radix UI headless primitives** (`@radix-ui/react-*`) for correct a11y / keyboard / focus behaviour, styled with Tailwind utilities over OKLCH tokens. Component variants use `class-variance-authority`; `cn()` composes classes through `tailwind-merge`.
+
+The component library is organised in three tiers under `web/src/design-system/`:
+
+- **Primitives** — Button, Input, Dialog, Tabs, Tooltip, etc. Atomic, no domain knowledge.
+- **Compositions** — AppShell, NavRail, FilterSidebar, Toolbar, DetailPanel, etc. Reusable shell frames.
+- **Domain** — LicencePill, AssetCard, ProjectCard, QueueItem, etc. Damson-specific vocabulary.
+
+See `docs/design-system.md` for the full inventory, variants, and props.
 
 ## 3. Information architecture
 
@@ -238,7 +249,7 @@ The design should remain legible to users who are not the primary author. Specif
 - **Empty states explain the concept, not just the action.** "No projects yet. A project is a game you're working on — it pins specific asset versions and tracks licence compliance." One sentence, not a wizard.
 - **Settings descriptions are explicit about what each toggle does.** Assume a user who has not read the design doc.
 - **Terminology is consistent.** Asset, version, project, collection, licence, grant, pin, import queue. These are the nouns; the UI uses them uniformly.
-- **No Thomas-specific aesthetic flourishes** — the restraint of the visual direction pays off here. Flat, subtle, shadcn-native makes the tool feel like a neutral utility rather than a personal artifact.
+- **No Thomas-specific aesthetic flourishes** — the restraint of the visual direction pays off here. Flat, subtle, monochrome-leaning makes the tool feel like a neutral utility rather than a personal artifact.
 
 ## 8. Out of scope for design (v1)
 
@@ -252,16 +263,19 @@ The design should remain legible to users who are not the primary author. Specif
 - Saved searches / filter presets
 - Plugin / extension UI (for later extension point work)
 
-## 9. Open design questions
+## 9. Resolved design questions
 
-To resolve during design work:
+Resolved during the M2.5 design-system build (2026-04-25). Implementation lives in the components listed.
 
-- Accent colour — blue vs. yellow, or explore both in mockups
-- Detail panel vs. full-page promotion — how distinct should the two modes be, or should the panel always be the dominant pattern?
-- Import queue visibility — badge only, or a persistent indicator even at zero?
-- Versions UI within asset detail — linear list, timeline, or something richer?
-- Licence attribute presentation — checkboxes, pill toggles, or a matrix?
-- Dark/light mode toggle placement — settings only, or a quick toggle somewhere persistent?
-- Grid thumbnail aspect ratio when the underlying asset has strong non-square character (wide banners, tall sprites) — crop, letterbox, or adapt?
+- **Accent colour** → **yellow only** (`oklch(0.82 0.15 86)`). No theme-swap variants. Tokens: `--ds-accent`, `--ds-accent-2`, `--ds-accent-tint`, `--ds-accent-ring`.
+- **Detail panel vs. full-page** → right slide-in is the dominant pattern; full-page is a promoted route for deep work. Both share the same section structure. Components: `DetailPanel` (`overlay` / `flush` variants) and `FullPageView`.
+- **Import queue visibility** → badge on the nav rail, visible only when count > 0. Component: `NavRailItem` `badge` prop.
+- **Versions UI** → linear list with current-version highlight (accent left bar + tint). Component: `VersionItem` with `current` prop.
+- **Licence attribute presentation** → structured attribute rows inside the Licence section of the detail panel; `KeyValueList` pattern with boolean values rendered as `StatusDot` + label. Pill toggles rejected (too easy to mis-click for something with legal weight).
+- **Dark/light toggle** → quick toggle in Settings surface and via a future global tweaks menu (M6). Storybook already provides a per-view toolbar toggle for design work.
+- **Grid thumbnail aspect ratio** → square tiles with object-cover (crop). Preserving aspect ratios in a grid caused too much vertical jitter; the detail panel's full-preview area is the place for true ratios. Waveform, sprite, and font thumbnails all render square.
 
-These are worth trying in Figma rather than pre-deciding.
+### Still open
+
+- Licence attribute matrix — how to present commercial/modification/redistribution/attribution/share-alike/open-source in the detail panel. Currently falls out of the structured-attribute-rows decision above, but the exact row-vs-icon-grid question is deferred to the M3 licence-editor slice.
+- Saved searches / filter presets — still out of scope for v1 per §8.

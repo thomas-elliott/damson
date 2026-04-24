@@ -2,14 +2,21 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
+import {
+  Button,
+  FieldRow,
+  Input,
+} from "@/design-system";
 import { invalidateAuthMode } from "@/lib/authMode";
 import { localBootstrap } from "@/lib/localAuth";
 import { queryKeys } from "@/lib/queryKeys";
 
-// BootstrapPage is shown on a fresh local-mode deployment where no users
-// exist yet. It creates the first admin via POST /api/auth/bootstrap and
-// logs them straight in. Once any user exists the server flips
-// needs_bootstrap → false and this page is no longer reachable.
+/**
+ * BootstrapPage is shown on a fresh local-mode deployment where no users
+ * exist yet. It creates the first admin via POST /api/auth/bootstrap and
+ * logs them straight in. Once any user exists the server flips
+ * needs_bootstrap → false and this page is no longer reachable.
+ */
 export function BootstrapPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -18,15 +25,20 @@ export function BootstrapPage() {
   const [confirm, setConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    password?: string;
+    confirm?: string;
+  }>({});
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFieldErrors({});
     if (password !== confirm) {
-      setError("passwords don't match");
+      setFieldErrors({ confirm: "Passwords don't match." });
       return;
     }
     if (password.length < 8) {
-      setError("password must be at least 8 characters");
+      setFieldErrors({ password: "Password must be at least 8 characters." });
       return;
     }
     setSubmitting(true);
@@ -37,74 +49,83 @@ export function BootstrapPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.authMode });
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "bootstrap failed");
+      setError(err instanceof Error ? err.message : "Bootstrap failed.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-md border border-line bg-panel p-6"
-      >
-        <h1 className="mb-1 text-lg font-semibold">Create the first admin</h1>
-        <p className="mb-6 text-xs text-text-3">
-          Damson hasn't been set up yet. The account you create here becomes the
-          server's first sysadmin.
-        </p>
-
-        <label className="mb-3 block text-xs font-medium text-text-3">
-          Email
-          <input
+    <AuthCard
+      title="Create the first admin"
+      description="Damson hasn't been set up yet. The account you create here becomes the server's first sysadmin."
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
+        <FieldRow label="Email">
+          <Input
             type="email"
             autoComplete="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 block w-full rounded border border-line bg-surface px-3 py-2 text-sm text-text placeholder:text-text-4 focus:border-accent focus:outline-none"
           />
-        </label>
-
-        <label className="mb-3 block text-xs font-medium text-text-3">
-          Password
-          <input
+        </FieldRow>
+        <FieldRow
+          label="Password"
+          hint="At least 8 characters."
+          error={fieldErrors.password}
+        >
+          <Input
             type="password"
             autoComplete="new-password"
             required
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full rounded border border-line bg-surface px-3 py-2 text-sm text-text placeholder:text-text-4 focus:border-accent focus:outline-none"
           />
-        </label>
-
-        <label className="mb-4 block text-xs font-medium text-text-3">
-          Confirm password
-          <input
+        </FieldRow>
+        <FieldRow label="Confirm password" error={fieldErrors.confirm}>
+          <Input
             type="password"
             autoComplete="new-password"
             required
             minLength={8}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            className="mt-1 block w-full rounded border border-line bg-surface px-3 py-2 text-sm text-text placeholder:text-text-4 focus:border-accent focus:outline-none"
           />
-        </label>
-
-        {error && (
-          <p className="mb-3 text-xs text-err">{error}</p>
-        )}
-
-        <button
+        </FieldRow>
+        {error && <p className="text-xs-plus text-err">{error}</p>}
+        <Button
           type="submit"
+          variant="primary"
           disabled={submitting}
-          className="w-full rounded bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-60"
+          className="mt-1 w-full"
         >
           {submitting ? "Creating account…" : "Create account"}
-        </button>
+        </Button>
       </form>
+    </AuthCard>
+  );
+}
+
+function AuthCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid min-h-screen place-items-center bg-bg px-4">
+      <div className="w-full max-w-sm rounded-lg border border-line bg-panel p-6 shadow-elevated">
+        <h1 className="text-md font-semibold text-text">{title}</h1>
+        {description && (
+          <p className="mt-1 text-xs-plus text-text-3">{description}</p>
+        )}
+        <div className="mt-5">{children}</div>
+      </div>
     </div>
   );
 }
