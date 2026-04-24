@@ -76,6 +76,7 @@
   --ds-z-selbar: 30;
   --ds-z-tooltip: 100;
   --ds-z-dialog: 500;
+  --ds-z-popover: 600; /* Select/Dropdown/Popover content inside a dialog. */
   --ds-z-tweaks: 1000;
 }
 

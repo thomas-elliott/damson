@@ -60,7 +60,58 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *handler
 	// Authenticated + library-scoped
 	scoped := authed.Group("")
 	scoped.Use(h.requireLibrary())
+
+	// Assets
 	scoped.GET("/assets", h.getAssets)
+	scoped.GET("/assets/:id", h.getAssetDetail)
+	scoped.PATCH("/assets/:id", h.patchAsset)
+	scoped.DELETE("/assets/:id", h.deleteAsset)
+	scoped.POST("/assets/:id/review", h.postAssetReview)
+
+	// Imports
 	scoped.POST("/imports", h.postImport)
 	scoped.POST("/assets/:id/versions/:vid/reextract", h.postReExtract)
+
+	// Files / thumbnails
+	scoped.GET("/files/:objectKey", h.getFile)
+	scoped.GET("/thumbs/:objectKey", h.getThumb)
+
+	// Tags (M3)
+	scoped.GET("/tags", h.getTags)
+	scoped.POST("/tags", h.postTag)
+	scoped.DELETE("/tags/:id", h.deleteTag)
+	scoped.POST("/assets/:id/tags", h.postAssetTag)
+	scoped.DELETE("/assets/:id/tags/:tagId", h.deleteAssetTag)
+
+	// Licences (M3)
+	scoped.GET("/assets/:id/licence", h.getLicence)
+	scoped.PUT("/assets/:id/licence", h.putLicence)
+	scoped.POST("/assets/:id/licence/review", h.postLicenceReview)
+	scoped.POST("/licences/detect", h.postDetectLicence)
+	scoped.GET("/assets/:id/licence/detect", h.getDetectLicenceFromFiles)
+
+	// Projects (M4)
+	scoped.GET("/projects", h.getProjects)
+	scoped.POST("/projects", h.postProject)
+	scoped.GET("/projects/:id", h.getProject)
+	scoped.PATCH("/projects/:id", h.patchProject)
+	scoped.DELETE("/projects/:id", h.deleteProject)
+	scoped.POST("/projects/:id/pins", h.postProjectPin)
+	scoped.DELETE("/projects/:id/pins/:pinId", h.deleteProjectPin)
+
+	// Collections (M5)
+	scoped.GET("/collections", h.getCollections)
+	scoped.POST("/collections", h.postCollection)
+	scoped.GET("/collections/:id", h.getCollection)
+	scoped.PATCH("/collections/:id", h.patchCollection)
+	scoped.DELETE("/collections/:id", h.deleteCollection)
+	scoped.POST("/collections/:id/assets", h.postCollectionAsset)
+	scoped.DELETE("/collections/:id/assets/:assetId", h.deleteCollectionAsset)
+
+	// Search — convenience alias over /assets that always expects `q`.
+	scoped.GET("/search", h.getAssets)
+
+	// Library settings (M5)
+	scoped.GET("/settings", h.getLibrarySettings)
+	scoped.PATCH("/settings", h.patchLibrarySettings)
 }

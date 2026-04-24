@@ -15,7 +15,7 @@ export const DropdownMenuContent = forwardRef<
   React.ElementRef<typeof RadixDropdown.Content>,
   ComponentPropsWithoutRef<typeof RadixDropdown.Content>
 >(function DropdownMenuContent(
-  { className, sideOffset = 4, ...props },
+  { className, sideOffset = 4, style, ...props },
   ref,
 ) {
   return (
@@ -23,8 +23,9 @@ export const DropdownMenuContent = forwardRef<
       <RadixDropdown.Content
         ref={ref}
         sideOffset={sideOffset}
+        style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-tooltip min-w-[10rem] rounded-md border border-line bg-panel p-1 text-sm-plus text-text-2 shadow-elevated",
+          "z-popover min-w-[10rem] rounded-md border border-line bg-panel p-1 text-sm-plus text-text-2 shadow-elevated",
           "data-[state=open]:animate-fade-in",
           className,
         )}

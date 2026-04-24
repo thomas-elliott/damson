@@ -59,10 +59,14 @@ export function DialogHeader({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
+  // Stack the title + description vertically and reserve space on the right
+  // for the absolute-positioned close button in DialogContent (24px button +
+  // 12px inset). Using justify-between used to squish a long title against
+  // the description.
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-b border-line px-4 py-3",
+        "flex flex-col gap-1 border-b border-line px-4 py-3 pr-10",
         className,
       )}
       {...props}

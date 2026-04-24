@@ -64,6 +64,15 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&models.AssetVersion{},
 		&models.AssetFile{},
 		&models.AssetImport{},
+		&models.Tag{},
+		&models.AssetTag{},
+		&models.Licence{},
+		&models.Project{},
+		&models.ProjectAssetPin{},
+		&models.Collection{},
+		&models.CollectionAsset{},
+		&models.LibrarySettings{},
+		&models.ServerSettings{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

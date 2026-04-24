@@ -1,6 +1,8 @@
-import { type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { cn } from "@/design-system/utils";
+
+import { ResizeHandle } from "./ResizeHandle";
 
 export interface AppShellProps {
   rail: ReactNode;
@@ -8,24 +10,58 @@ export interface AppShellProps {
   main: ReactNode;
   /** Override the default sidebar width (px). Defaults to `--ds-sidebar-w`. */
   sidebarWidth?: number;
+  /** Allow the sidebar to be resized with a drag handle. Width is
+   * persisted to localStorage under `damson.sidebar.w`. */
+  resizableSidebar?: boolean;
+  /** Clamp bounds for the resizable sidebar. */
+  sidebarMin?: number;
+  sidebarMax?: number;
   className?: string;
 }
 
+const SIDEBAR_W_KEY = "damson.sidebar.w";
+const DEFAULT_SIDEBAR_W = 248;
+
 /**
- * Three-column app frame: rail (52px) | sidebar (resizable, default 248px) | main (fills).
- * Heights track the viewport; horizontal overflow is clipped so only the main
- * panel scrolls internally.
+ * Three-column app frame: rail (52px) | sidebar (optionally resizable,
+ * default 248px) | main (fills). Heights track the viewport; horizontal
+ * overflow is clipped so only the main panel scrolls internally.
+ *
+ * When `resizableSidebar` is set, a 4px drag handle floats over the
+ * sidebar/main boundary and persists width in localStorage.
  */
 export function AppShell({
   rail,
   sidebar,
   main,
   sidebarWidth,
+  resizableSidebar,
+  sidebarMin = 200,
+  sidebarMax = 480,
   className,
 }: AppShellProps) {
-  const sidebarCol = sidebar
-    ? `${sidebarWidth ?? "var(--ds-sidebar-w)"}${typeof sidebarWidth === "number" ? "px" : ""}`
-    : "0px";
+  const [stateW, setStateW] = useState<number>(() => {
+    if (!resizableSidebar) return sidebarWidth ?? DEFAULT_SIDEBAR_W;
+    if (typeof window === "undefined") return sidebarWidth ?? DEFAULT_SIDEBAR_W;
+    const stored = window.localStorage.getItem(SIDEBAR_W_KEY);
+    const parsed = stored ? Number(stored) : NaN;
+    if (Number.isFinite(parsed) && parsed >= sidebarMin && parsed <= sidebarMax) {
+      return parsed;
+    }
+    return sidebarWidth ?? DEFAULT_SIDEBAR_W;
+  });
+
+  useEffect(() => {
+    if (!resizableSidebar) return;
+    window.localStorage.setItem(SIDEBAR_W_KEY, String(stateW));
+  }, [resizableSidebar, stateW]);
+
+  const onResize = useCallback((next: number) => setStateW(next), []);
+
+  const sidebarColPx = sidebar ? stateW : 0;
+  const gridTemplate = sidebar
+    ? `var(--ds-rail-w) ${sidebarColPx}px 1fr`
+    : `var(--ds-rail-w) 0px 1fr`;
 
   return (
     <div
@@ -33,13 +69,24 @@ export function AppShell({
         "grid h-screen min-h-[640px] overflow-hidden bg-bg text-text",
         className,
       )}
-      style={{
-        gridTemplateColumns: `var(--ds-rail-w) ${sidebarCol} 1fr`,
-      }}
+      style={{ gridTemplateColumns: gridTemplate }}
     >
       <div className="border-r border-line bg-panel">{rail}</div>
       {sidebar ? (
-        <div className="border-r border-line bg-panel">{sidebar}</div>
+        <div className="relative border-r border-line bg-panel">
+          {sidebar}
+          {resizableSidebar && (
+            <div className="absolute right-[-2px] top-0 z-resizer h-full w-1">
+              <ResizeHandle
+                value={stateW}
+                onChange={onResize}
+                min={sidebarMin}
+                max={sidebarMax}
+                aria-label="Resize sidebar"
+              />
+            </div>
+          )}
+        </div>
       ) : (
         <div />
       )}

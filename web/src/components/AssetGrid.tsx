@@ -3,6 +3,7 @@ import { FilePlus2 } from "lucide-react";
 import {
   AssetCard,
   EmptyState,
+  LicencePill,
   formatBytes,
 } from "@/design-system";
 import type { AssetRow } from "@/hooks/useDataQueries";
@@ -10,9 +11,17 @@ import type { AssetRow } from "@/hooks/useDataQueries";
 /**
  * Library grid — one AssetCard per row. Thumbnails are placeholders until M6
  * lands real thumbnail rendering; for now every asset renders the unknown
- * glyph.
+ * glyph unless the server sent a thumbnail_object_key.
  */
-export function AssetGrid({ assets }: { assets: AssetRow[] }) {
+export function AssetGrid({
+  assets,
+  onOpen,
+  selectedId,
+}: {
+  assets: AssetRow[];
+  onOpen?: (id: number) => void;
+  selectedId?: number | null;
+}) {
   if (assets.length === 0) {
     return (
       <EmptyState
@@ -28,6 +37,8 @@ export function AssetGrid({ assets }: { assets: AssetRow[] }) {
         <AssetCard
           key={a.id}
           name={a.name}
+          selected={selectedId === a.id}
+          onSelect={() => onOpen?.(a.id)}
           sub={
             <>
               <span className="font-mono">{formatBytes(a.size_bytes)}</span>
@@ -38,6 +49,14 @@ export function AssetGrid({ assets }: { assets: AssetRow[] }) {
                 </>
               )}
             </>
+          }
+          trailing={
+            a.licence_spdx ? (
+              <LicencePill
+                status={a.licence_status ?? "unk"}
+                spdx={a.licence_spdx}
+              />
+            ) : undefined
           }
           needsReview={a.needs_review}
         />

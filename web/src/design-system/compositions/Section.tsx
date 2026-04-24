@@ -59,7 +59,7 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
           aria-controls={bodyId}
           onClick={() => setOpen(!open)}
           className={cn(
-            "flex flex-1 items-center gap-1.5 px-4 py-3 text-left text-sm-plus text-text-2 transition-colors duration-std ease",
+            "flex flex-1 items-center gap-1.5 px-3 py-3 text-left text-sm-plus text-text-2 transition-colors duration-std ease",
             "hover:text-text",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
           )}
@@ -73,10 +73,10 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
           />
           <span className="font-medium">{title}</span>
         </button>
-        {accessory && <div className="px-4">{accessory}</div>}
+        {accessory && <div className="px-3">{accessory}</div>}
       </div>
       {open && (
-        <div id={bodyId} className="px-4 pb-3 pt-0">
+        <div id={bodyId} className="px-3 pb-3 pt-0">
           {children}
         </div>
       )}
