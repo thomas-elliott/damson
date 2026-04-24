@@ -1,33 +1,19 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@import "@/design-system/tokens/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Light mode — three surface tiers in a narrow luminance range. */
-    --background: 0 0% 99%;
-    --foreground: 0 0% 10%;
-    --panel: 0 0% 96%;
-    --elevated: 0 0% 100%;
-    --border: 0 0% 88%;
-    --muted: 0 0% 42%;
-
-    /* Yellow accent — Damson's single semantic accent. */
-    --accent: 44 95% 52%;
-    --accent-foreground: 44 30% 12%;
-  }
-
-  .dark {
-    /* Dark mode is the home experience — asset thumbnails prefer dark. */
-    --background: 0 0% 9%;
-    --foreground: 0 0% 93%;
-    --panel: 0 0% 12%;
-    --elevated: 0 0% 15%;
-    --border: 0 0% 20%;
-    --muted: 0 0% 58%;
-
-    --accent: 44 95% 58%;
-    --accent-foreground: 44 30% 10%;
+  * {
+    box-sizing: border-box;
   }
 
   html,
@@ -37,8 +23,40 @@
   }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    margin: 0;
+    font-family: var(--ds-font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--ds-text);
+    background: var(--ds-bg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     font-feature-settings: "cv11", "ss01";
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ds-accent-ring);
+    outline-offset: 1px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background: var(--ds-accent-tint);
   }
 }

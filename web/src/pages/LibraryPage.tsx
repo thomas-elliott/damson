@@ -10,7 +10,7 @@ export function LibraryPage() {
 
   if (meLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted">
+      <div className="flex min-h-screen items-center justify-center text-sm text-text-3">
         Loading…
       </div>
     );
@@ -23,9 +23,9 @@ export function LibraryPage() {
       <div className="flex min-h-screen flex-col">
         <LibraryHeader me={me} />
         <div className="flex flex-1 items-center justify-center">
-          <div className="max-w-md rounded-md border border-border bg-panel p-6 text-sm">
-            <p className="mb-2 font-medium text-foreground">No library access yet</p>
-            <p className="text-muted">
+          <div className="max-w-md rounded-md border border-line bg-panel p-6 text-sm">
+            <p className="mb-2 font-medium text-text">No library access yet</p>
+            <p className="text-text-3">
               You're signed in as <span className="font-mono">{me.email}</span>, but
               you haven't been added to a library. Ask a Damson administrator to
               invite you.
@@ -41,7 +41,7 @@ export function LibraryPage() {
       <LibraryHeader me={me} />
       <DropZone>
         {assetsLoading ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted">
+          <div className="flex flex-1 items-center justify-center text-sm text-text-3">
             Loading assets…
           </div>
         ) : (

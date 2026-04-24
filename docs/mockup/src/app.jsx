@@ -4,6 +4,8 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 function App() {
   const [tweaks, setTweaks] = useState(window.TWEAKS);
   const [route, setRoute] = useState('library');
+  const [openProjectId, setOpenProjectId] = useState(null);
+  const [activeCollection, setActiveCollection] = useState(null);
   const [view, setView] = useState('grid');
   const [sort, setSort] = useState('imported');
   const [query, setQuery] = useState('');
@@ -17,14 +19,17 @@ function App() {
   const [queue, setQueue] = useState(window.QUEUE_SEED);
   const [dropActive, setDropActive] = useState(false);
   const [sidebarW, setSidebarW] = useState(tweaks.sidebarWidth);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [showNewCollection, setShowNewCollection] = useState(false);
+  const [projectsLayout, setProjectsLayout] = useState(tweaks.projectsLayout || 'list');
   const mainRef = useRef(null);
 
-  // Apply theme + accent + sidebar width to <html>
   useEffect(() => {
     document.documentElement.dataset.theme = tweaks.theme;
     document.documentElement.dataset.accent = tweaks.accent;
     document.documentElement.style.setProperty('--sidebar-w', tweaks.sidebarWidth + 'px');
     setSidebarW(tweaks.sidebarWidth);
+    if (tweaks.projectsLayout) setProjectsLayout(tweaks.projectsLayout);
   }, [tweaks]);
 
   const toggleFilter = (group, id) => {
@@ -34,10 +39,15 @@ function App() {
       return n;
     });
   };
-  const clearFilters = () => setFilters({
-    licence: new Set(), type: new Set(), tag: new Set(),
-    project: new Set(), collection: new Set(), source: new Set(),
-  });
+  const clearFilters = () => {
+    setFilters({
+      licence: new Set(), type: new Set(), tag: new Set(),
+      project: new Set(), collection: new Set(), source: new Set(),
+    });
+    setActiveCollection(null);
+  };
+
+  const activeCollectionObj = activeCollection ? COLLECTIONS.find(c => c.id === activeCollection) : null;
 
   const activeChips = useMemo(() => {
     const chips = [];
@@ -54,10 +64,6 @@ function App() {
       const p = PROJECTS.find(x => x.id === id);
       if (p) chips.push({ key: `proj-${id}`, group: 'Project', label: p.name, group_k: 'project', id });
     });
-    filters.collection.forEach(id => {
-      const c = COLLECTIONS.find(x => x.id === id);
-      if (c) chips.push({ key: `col-${id}`, group: 'Collection', label: c.name, group_k: 'collection', id });
-    });
     filters.source.forEach(id => {
       const s = SOURCES.find(x => x.id === id);
       if (s) chips.push({ key: `src-${id}`, group: 'Source', label: s.label, group_k: 'source', id });
@@ -73,7 +79,11 @@ function App() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let out = ASSETS.filter(a => {
+    // Base set — narrowed by active collection first
+    let base = ASSETS;
+    if (activeCollectionObj) base = collectionAssets(activeCollectionObj);
+
+    let out = base.filter(a => {
       if (filters.licence.size) {
         const st = (LICENCES[a.licence] || LICENCES.Unknown).status;
         if (!filters.licence.has(st)) return false;
@@ -92,14 +102,14 @@ function App() {
     if (sort === 'name') out = [...out].sort((a, b) => a.name.localeCompare(b.name));
     else out = [...out].sort((a, b) => (b.imported || '').localeCompare(a.imported || ''));
     return out;
-  }, [filters, query, sort]);
+  }, [filters, query, sort, activeCollectionObj]);
 
   const openAsset = useCallback((a) => {
     setOpenId(a.id);
     setSelected(new Set([a.id]));
     setFullPage(false);
   }, []);
-  const shiftSelect = (a, e) => {
+  const shiftSelect = (a) => {
     setSelected(s => {
       const n = new Set(s);
       if (n.has(a.id)) n.delete(a.id); else n.add(a.id);
@@ -120,14 +130,13 @@ function App() {
     setSelected(new Set([next.id]));
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
         if (fullPage) { setFullPage(false); return; }
         setOpenId(null); setSelected(new Set());
       }
-      if (e.target.matches('input, textarea')) return;
+      if (e.target.matches('input, textarea, select')) return;
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); step(1); }
       if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
     };
@@ -135,21 +144,18 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [fullPage, openIdx, filtered]);
 
-  // Drag-drop simulation — any file drop pushes new queue items + flips to queue view
   useEffect(() => {
     const el = mainRef.current;
     if (!el) return;
     let depth = 0;
     const onOver = (e) => { e.preventDefault(); };
     const onEnter = (e) => {
-      e.preventDefault();
-      depth++;
+      e.preventDefault(); depth++;
       if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) setDropActive(true);
     };
     const onLeave = () => { depth--; if (depth <= 0) { depth = 0; setDropActive(false); } };
     const onDrop = (e) => {
-      e.preventDefault();
-      depth = 0; setDropActive(false);
+      e.preventDefault(); depth = 0; setDropActive(false);
       const files = e.dataTransfer && e.dataTransfer.files;
       if (!files || !files.length) return;
       const nowItems = [...files].slice(0, 3).map((f, i) => ({
@@ -162,7 +168,6 @@ function App() {
       }));
       setQueue(q => [...nowItems, ...q]);
       setRoute('queue');
-      // Animate progress
       nowItems.forEach((it, i) => {
         setTimeout(() => setQueue(q => q.map(x => x.id === it.id ? { ...x, progress: 100, imported: 'just now' } : x)), 900 + i * 300);
       });
@@ -177,9 +182,10 @@ function App() {
       el.removeEventListener('dragleave', onLeave);
       el.removeEventListener('drop', onDrop);
     };
-  }, []);
+  }, [route]);
 
-  // Sidebar resizer drag
+  const sidebarWRef = useRef(sidebarW);
+  useEffect(() => { sidebarWRef.current = sidebarW; }, [sidebarW]);
   const onResizerDown = (e) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -196,23 +202,42 @@ function App() {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
       setTweaks(t => {
-        const next = { ...t, sidebarWidth: sidebarWRef.current };
         window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { sidebarWidth: sidebarWRef.current } }, '*');
-        return next;
+        return { ...t, sidebarWidth: sidebarWRef.current };
       });
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   };
-  const sidebarWRef = useRef(sidebarW);
-  useEffect(() => { sidebarWRef.current = sidebarW; }, [sidebarW]);
 
   const queueCount = queue.filter(q => q.progress >= 100).length;
+
+  const gotoLibraryWithCollection = (cid) => {
+    setRoute('library');
+    setActiveCollection(cid);
+    setOpenProjectId(null);
+  };
+
+  const onCreateProject = (p) => {
+    // Prototype — just close the dialog and show a toast-like effect by jumping to the projects page.
+    setShowNewProject(false);
+    setRoute('projects');
+  };
+  const onCreateCollection = (c) => {
+    setShowNewCollection(false);
+  };
 
   return (
     <>
       <div className="app">
-        <NavRail route={route} setRoute={(r) => { setRoute(r); setOpenId(null); setFullPage(false); }} queueCount={queueCount}/>
+        <NavRail
+          route={route}
+          setRoute={(r) => {
+            setRoute(r);
+            setOpenId(null); setFullPage(false); setOpenProjectId(null);
+            if (r !== 'library') setActiveCollection(null);
+          }}
+          queueCount={queueCount}/>
 
         {route === 'library' ? (
           <>
@@ -220,10 +245,19 @@ function App() {
               query={query} setQuery={setQuery}
               filters={filters} toggleFilter={toggleFilter} clearFilters={clearFilters}
               width={sidebarW}
-              onResizerDown={onResizerDown}/>
+              onResizerDown={onResizerDown}
+              activeCollection={activeCollection}
+              setActiveCollection={setActiveCollection}
+              onNewCollection={() => setShowNewCollection(true)}/>
             <main className="main" ref={mainRef}>
+              {activeCollectionObj ? (
+                <CollectionHeader
+                  collection={activeCollectionObj}
+                  onBack={() => setActiveCollection(null)}
+                  onEdit={() => {}}/>
+              ) : null}
               <Toolbar
-                count={filtered.length} total={ASSETS.length}
+                count={filtered.length} total={activeCollectionObj ? collectionAssets(activeCollectionObj).length : ASSETS.length}
                 view={view} setView={setView}
                 sort={sort} setSort={setSort}
                 activeChips={activeChips} removeChip={removeChip} clearAll={() => { clearFilters(); setQuery(''); }}/>
@@ -251,39 +285,119 @@ function App() {
                   onExpand={() => setFullPage(true)}/>
               ) : null}
               {openAsset_obj && fullPage ? (
-                <FullPage
-                  asset={openAsset_obj}
+                <FullPage asset={openAsset_obj}
                   onClose={() => { setFullPage(false); setOpenId(null); }}
                   onCollapse={() => setFullPage(false)}/>
               ) : null}
               <SelectionBar count={selected.size} onClear={() => setSelected(new Set())}/>
             </main>
           </>
+        ) : route === 'projects' ? (
+          <>
+            <div style={{ gridColumn: '2 / 3', display: 'none' }}/>
+            <main className="main" ref={mainRef} style={{ gridColumn: '2 / 4' }}>
+              {openProjectId ? (
+                <ProjectDetail
+                  projectId={openProjectId}
+                  onBack={() => setOpenProjectId(null)}
+                  onOpenAsset={(a) => { setRoute('library'); openAsset(a); }}/>
+              ) : (
+                <>
+                  <div className="toolbar">
+                    <div className="breadcrumb">Projects <span className="count">{PROJECTS.length}</span></div>
+                    <div className="toolbar-spacer"/>
+                    <div className="seg">
+                      <button className={projectsLayout === 'list' ? 'on' : ''} onClick={() => { setProjectsLayout('list'); window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { projectsLayout: 'list' } }, '*'); }} title="List"><I.List size={13}/></button>
+                      <button className={projectsLayout === 'cards' ? 'on' : ''} onClick={() => { setProjectsLayout('cards'); window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { projectsLayout: 'cards' } }, '*'); }} title="Cards"><I.Grid size={13}/></button>
+                    </div>
+                    <span className="divider-v"/>
+                    <button className="tbtn primary" onClick={() => setShowNewProject(true)}><I.Plus size={12}/> New project</button>
+                  </div>
+                  <div className="grid-wrap">
+                    <div className="page-head" style={{ maxWidth: 1100 }}>
+                      <h1>Projects</h1>
+                      <p>A project pins specific asset versions to a game. Damson writes a manifest to your repo so builds always pull the right files.</p>
+                    </div>
+                    {projectsLayout === 'cards'
+                      ? <ProjectsCards onOpen={setOpenProjectId}/>
+                      : <ProjectsList onOpen={setOpenProjectId}/>}
+                  </div>
+                </>
+              )}
+            </main>
+          </>
+        ) : route === 'collections' ? (
+          <>
+            <div style={{ gridColumn: '2 / 3', display: 'none' }}/>
+            <main className="main" ref={mainRef} style={{ gridColumn: '2 / 4' }}>
+              <div className="toolbar">
+                <div className="breadcrumb">Collections <span className="count">{COLLECTIONS.length}</span></div>
+                <div className="toolbar-spacer"/>
+                <button className="tbtn primary" onClick={() => setShowNewCollection(true)}><I.Plus size={12}/> New collection</button>
+              </div>
+              <div className="grid-wrap">
+                <div className="page-head" style={{ maxWidth: 1100 }}>
+                  <h1>Collections</h1>
+                  <p>Group assets across projects. Smart collections save a filter query and auto-update.</p>
+                </div>
+                <div className="proj-cards" style={{ maxWidth: 1100, margin: '0 auto' }}>
+                  {COLLECTIONS.map(c => {
+                    const items = collectionAssets(c);
+                    return (
+                      <div key={c.id} className="proj-card" onClick={() => gotoLibraryWithCollection(c.id)}>
+                        <div className="proj-card-head">
+                          <span className="proj-glyph lg" style={{ background: c.kind === 'smart' ? 'var(--accent-tint)' : 'var(--surface-2)', color: c.kind === 'smart' ? 'var(--accent)' : 'var(--text-2)' }}>
+                            {c.kind === 'smart' ? <I.Sliders size={15}/> : <I.Folder size={15}/>}
+                          </span>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div className="proj-name" style={{ fontSize: 14 }}>{c.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>
+                              {c.kind === 'smart' ? 'Smart collection' : 'Manual collection'}
+                            </div>
+                          </div>
+                          {c.kind === 'smart' ? <span className="smart-badge"><I.Sliders size={10}/> Smart</span> : null}
+                        </div>
+                        <div className="proj-card-desc" style={{ minHeight: 36 }}>
+                          {c.kind === 'smart'
+                            ? <span className="mono" style={{ fontSize: 11 }}>{describeSmart(c.query)}</span>
+                            : <span style={{ color: 'var(--text-4)' }}>{items.length} {items.length === 1 ? 'asset' : 'assets'}</span>}
+                        </div>
+                        <div className="proj-card-stats">
+                          <div><span className="mono">{items.length}</span><span className="muted">&nbsp;assets</span></div>
+                          <div><span className="mono">{formatSize(items.reduce((s, a) => s + a.size, 0))}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="proj-card new" onClick={() => setShowNewCollection(true)}>
+                    <div style={{ textAlign: 'center' }}><I.Plus size={20}/><div style={{ fontSize: 12, marginTop: 6 }}>New collection</div></div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </>
         ) : route === 'queue' ? (
           <>
-            <div style={{ gridColumn: '2 / 3' }}/>
+            <div style={{ gridColumn: '2 / 3', display: 'none' }}/>
             <main className="main" ref={mainRef} style={{ gridColumn: '2 / 4' }}>
               <div className="toolbar">
                 <div className="breadcrumb">Import queue <span className="count">{queue.length} items</span></div>
                 <div className="toolbar-spacer"/>
                 <button className="tbtn"><I.Check size={12}/> Confirm all ready</button>
               </div>
-              <QueueView queue={queue} onReview={(it) => { setRoute('library'); }}/>
-              {dropActive ? (
-                <div className="drop-overlay"><div className="inner"><I.Upload size={22}/><div style={{ marginTop: 8 }}>Drop to import</div></div></div>
-              ) : null}
+              <QueueView queue={queue} onReview={() => setRoute('library')}/>
+              {dropActive ? <div className="drop-overlay"><div className="inner"><I.Upload size={22}/><div style={{ marginTop: 8 }}>Drop to import</div></div></div> : null}
             </main>
           </>
         ) : (
           <>
-            <div style={{ gridColumn: '2 / 3' }}/>
+            <div style={{ gridColumn: '2 / 3', display: 'none' }}/>
             <main className="main" style={{ gridColumn: '2 / 4' }}>
               <div className="toolbar">
                 <div className="breadcrumb">{route[0].toUpperCase() + route.slice(1)}</div>
               </div>
               <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-3)' }}>
                 <div style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 4 }}>Not in this prototype</div>
-                <div style={{ fontSize: 12 }}>Library and Import queue are the two surfaces in this pass.</div>
                 <button className="tbtn" style={{ marginTop: 14, border: '1px solid var(--line)' }} onClick={() => setRoute('library')}>
                   <I.Library size={12}/> Back to library
                 </button>
@@ -293,6 +407,8 @@ function App() {
         )}
       </div>
       <Tweaks tweaks={tweaks} setTweaks={setTweaks}/>
+      <NewProjectDialog open={showNewProject} onClose={() => setShowNewProject(false)} onCreate={onCreateProject}/>
+      <NewCollectionDialog open={showNewCollection} onClose={() => setShowNewCollection(false)} onCreate={onCreateCollection}/>
     </>
   );
 }
