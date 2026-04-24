@@ -1,18 +1,62 @@
-import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
+
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Two projects:
+//   - unit      jsdom-based unit tests under src/**/*.{test,spec}.{ts,tsx}
+//   - storybook real-browser Chromium run over every *.stories.tsx
 export default defineConfig({
-  plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@": path.resolve(dirname, "src"),
     },
   },
   test: {
-    globals: true,
-    environment: "jsdom",
-    setupFiles: ["./src/test/setupTests.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    projects: [
+      {
+        extends: true,
+        plugins: [react()],
+        test: {
+          name: "unit",
+          globals: true,
+          environment: "jsdom",
+          setupFiles: ["./src/test/setupTests.ts"],
+          include: ["src/**/*.{test,spec}.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        plugins: [
+          storybookTest({
+            configDir: path.join(dirname, ".storybook"),
+          }),
+        ],
+        optimizeDeps: {
+          include: [
+            "react/jsx-dev-runtime",
+            "react/jsx-runtime",
+            "react",
+            "react-dom",
+            "react-dom/client",
+          ],
+        },
+        test: {
+          name: "storybook",
+          browser: {
+            enabled: true,
+            provider: "playwright",
+            headless: true,
+            instances: [{ browser: "chromium" }],
+          },
+          setupFiles: ["./.storybook/vitest.setup.ts"],
+        },
+      },
+    ],
   },
 });
