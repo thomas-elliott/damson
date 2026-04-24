@@ -46,7 +46,7 @@ export const SelectContent = forwardRef<
         position={position}
         sideOffset={sideOffset}
         className={cn(
-          "z-tooltip overflow-hidden rounded-md border border-line bg-panel text-sm-plus text-text-2 shadow-elevated",
+          "z-popover overflow-hidden rounded-md border border-line bg-panel text-sm-plus text-text-2 shadow-elevated",
           "data-[state=open]:animate-fade-in",
           position === "popper" &&
             "min-w-[var(--radix-select-trigger-width)]",

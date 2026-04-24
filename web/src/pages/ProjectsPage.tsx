@@ -8,6 +8,7 @@ import {
   BreadcrumbItem,
   Button,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -153,7 +154,7 @@ function NewProjectDialog({
             Projects pin specific asset versions and track licence compatibility with a distribution target.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <DialogBody>
           <FieldRow label="Name">
             <Input
               value={name}
@@ -187,7 +188,7 @@ function NewProjectDialog({
             </Select>
           </FieldRow>
           {error && <div className="text-xs text-err">{error}</div>}
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel

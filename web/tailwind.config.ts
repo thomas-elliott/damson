@@ -103,6 +103,7 @@ export default {
         selbar: "30",
         tooltip: "100",
         dialog: "500",
+        popover: "600",
         tweaks: "1000",
       },
 

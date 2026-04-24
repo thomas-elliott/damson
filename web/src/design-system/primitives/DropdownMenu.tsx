@@ -24,7 +24,7 @@ export const DropdownMenuContent = forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         className={cn(
-          "z-tooltip min-w-[10rem] rounded-md border border-line bg-panel p-1 text-sm-plus text-text-2 shadow-elevated",
+          "z-popover min-w-[10rem] rounded-md border border-line bg-panel p-1 text-sm-plus text-text-2 shadow-elevated",
           "data-[state=open]:animate-fade-in",
           className,
         )}

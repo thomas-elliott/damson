@@ -4,7 +4,7 @@ import { LogOut, Search, UploadCloud } from "lucide-react";
 
 import { AssetGrid } from "@/components/AssetGrid";
 import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
-import { DropZone } from "@/components/DropZone";
+import { DropZone, useDropZoneOpen } from "@/components/DropZone";
 import { LibraryFilterSidebar } from "@/components/LibraryFilterSidebar";
 import { Shell } from "@/components/Shell";
 import {
@@ -74,7 +74,7 @@ export function LibraryPage() {
       sidebar={hasLibrary ? <LibraryFilterSidebar me={me} filters={filters} /> : <SignedOutSidebar me={me} />}
       main={
         hasLibrary ? (
-          <>
+          <DropZone>
             <Toolbar>
               <Breadcrumb count={`${total} assets`}>
                 <BreadcrumbItem current>Library</BreadcrumbItem>
@@ -88,21 +88,17 @@ export function LibraryPage() {
                 />
               </div>
               <ToolbarSpacer />
-              <Button variant="primary" leadingIcon={<UploadCloud size={12} />}>
-                Upload
-              </Button>
+              <UploadButton />
             </Toolbar>
-            <DropZone>
-              {loading ? (
-                <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
-                  Loading assets…
-                </div>
-              ) : (
-                <AssetGrid assets={assets} onOpen={onOpenAsset} selectedId={assetId} />
-              )}
-            </DropZone>
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+                Loading assets…
+              </div>
+            ) : (
+              <AssetGrid assets={assets} onOpen={onOpenAsset} selectedId={assetId} />
+            )}
             <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} />
-          </>
+          </DropZone>
         ) : (
           <EmptyState
             icon={<LibraryIcon size={32} />}
@@ -119,6 +115,20 @@ export function LibraryPage() {
         )
       }
     />
+  );
+}
+
+function UploadButton() {
+  const dz = useDropZoneOpen();
+  return (
+    <Button
+      variant="primary"
+      leadingIcon={<UploadCloud size={12} />}
+      onClick={() => dz?.open()}
+      disabled={!dz}
+    >
+      Upload
+    </Button>
   );
 }
 

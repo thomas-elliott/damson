@@ -10,6 +10,7 @@ import {
   BreadcrumbSeparator,
   Button,
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -299,7 +300,7 @@ function PinAssetDialog({
         <DialogHeader>
           <DialogTitle>Pin an asset</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <DialogBody>
           <FieldRow label="Asset">
             <Select value={selected} onValueChange={setSelected}>
               <SelectTrigger aria-label="Asset">
@@ -314,7 +315,7 @@ function PinAssetDialog({
               </SelectContent>
             </Select>
           </FieldRow>
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
