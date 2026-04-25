@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -146,6 +147,76 @@ func createLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) 
 	}
 	return &u, nil
 }
+
+// CreateLocalUser creates a local-auth user with a pre-set password.
+// Returns ErrUserExists when the email is taken. Intended for admin-driven
+// member invites (see internal/handlers/api/members.go) — distinct from
+// CreateFirstLocalAdmin in that it does NOT bootstrap a library or promote
+// the user to sysadmin.
+//
+// Display name defaults to email when empty.
+func CreateLocalUser(ctx context.Context, db *gorm.DB, email, displayName, password string) (*models.User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" || password == "" {
+		return nil, errors.New("email and password are required")
+	}
+	if displayName == "" {
+		displayName = email
+	}
+	subject := localSubject(email)
+
+	var existing models.User
+	err := db.WithContext(ctx).Where("subject = ? OR email = ?", subject, email).First(&existing).Error
+	if err == nil {
+		return &existing, ErrUserExists
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("lookup user: %w", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+	hashStr := string(hash)
+	u := models.User{
+		Subject:      subject,
+		Email:        email,
+		DisplayName:  displayName,
+		Role:         "user",
+		PasswordHash: &hashStr,
+	}
+	if err := db.WithContext(ctx).Create(&u).Error; err != nil {
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+	return &u, nil
+}
+
+// SetLocalUserPassword rotates an existing user's password and bumps
+// tokens_valid_after so existing JWTs are revoked. Used by admins from
+// the members editor when a user needs a credential reset.
+func SetLocalUserPassword(ctx context.Context, db *gorm.DB, userID uint, password string) error {
+	if password == "" {
+		return errors.New("password is required")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+	hashStr := string(hash)
+	now := time.Now().UTC()
+	return db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]any{
+			"password_hash":      hashStr,
+			"tokens_valid_after": &now,
+		}).Error
+}
+
+// ErrUserExists is returned by CreateLocalUser when a user with the same
+// email or subject is already present.
+var ErrUserExists = errors.New("user already exists")
 
 func emailInList(email string, list []string) bool {
 	for _, e := range list {

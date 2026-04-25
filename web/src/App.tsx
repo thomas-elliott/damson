@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import { AdminAuditPage } from "@/pages/AdminAuditPage";
+import { AuditPage } from "@/pages/AuditPage";
 import { AuthGuard } from "@/components/AuthGuard";
 import { BootstrapPage } from "@/pages/BootstrapPage";
 import { CollectionDetailPage } from "@/pages/CollectionDetailPage";
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/collections/:id" element={<CollectionDetailPage />} />
+        <Route path="/audit" element={<AuditPage />} />
+        <Route path="/admin/audit" element={<AdminAuditPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>

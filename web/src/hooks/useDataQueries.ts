@@ -385,3 +385,233 @@ export function useLibrarySettings(enabled: boolean = true) {
     reload: q.refetch,
   };
 }
+
+// -- /api/audit -------------------------------------------------------------
+
+export interface AuditEntry {
+  id: number;
+  library_id?: number;
+  user_id?: number;
+  user_display_name?: string;
+  user_email?: string;
+  action_type: string;
+  target_type: string;
+  target_id?: number;
+  diff?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditFilters {
+  user_id?: number;
+  action_type?: string;
+  target_type?: string;
+  target_id?: number;
+  since?: string;
+  until?: string;
+  limit?: number;
+  offset?: number;
+}
+
+interface AuditListResponse {
+  entries: AuditEntry[];
+  total: number;
+}
+
+function auditQuery(f?: AuditFilters): string {
+  if (!f) return "";
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (v === undefined || v === "" || v === null) continue;
+    params.set(k, String(v));
+  }
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
+export function useLibraryAudit(filters?: AuditFilters, enabled: boolean = true) {
+  const keyed = filters && Object.keys(filters).length > 0
+    ? (Object.fromEntries(
+        Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
+      ) as Record<string, string | number | boolean>)
+    : undefined;
+  const q = useQuery({
+    queryKey: queryKeys.audit(keyed),
+    queryFn: () => fetchJson<AuditListResponse>(`/api/audit${auditQuery(filters)}`),
+    staleTime: 30 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.entries ?? [],
+    total: q.data?.total ?? 0,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+export function useAdminAudit(filters?: AuditFilters, enabled: boolean = true) {
+  const keyed = filters && Object.keys(filters).length > 0
+    ? (Object.fromEntries(
+        Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
+      ) as Record<string, string | number | boolean>)
+    : undefined;
+  const q = useQuery({
+    queryKey: queryKeys.adminAudit(keyed),
+    queryFn: () => fetchJson<AuditListResponse>(`/api/admin/audit${auditQuery(filters)}`),
+    staleTime: 30 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.entries ?? [],
+    total: q.data?.total ?? 0,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+export function useAssetAudit(assetId: number | null) {
+  const q = useQuery({
+    queryKey: assetId ? queryKeys.assetAudit(assetId) : ["asset", "none", "audit"],
+    queryFn: () => fetchJson<AuditListResponse>(`/api/assets/${assetId}/audit`),
+    staleTime: 30 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled: assetId != null,
+  });
+  return {
+    data: q.data?.entries ?? [],
+    total: q.data?.total ?? 0,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+export function useProjectAudit(projectId: number | null) {
+  const q = useQuery({
+    queryKey: projectId ? queryKeys.projectAudit(projectId) : ["project", "none", "audit"],
+    queryFn: () => fetchJson<AuditListResponse>(`/api/projects/${projectId}/audit`),
+    staleTime: 30 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled: projectId != null,
+  });
+  return {
+    data: q.data?.entries ?? [],
+    total: q.data?.total ?? 0,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/imports -----------------------------------------------------------
+
+export interface ImportRow {
+  id: number;
+  asset_id: number;
+  asset_name: string;
+  stage: "uploaded" | "extracting" | "detecting" | "thumbnailing" | "done" | "failed";
+  error?: string;
+  updated_at: string;
+  created_at: string;
+  needs_review: boolean;
+}
+
+interface ImportListResponse {
+  imports: ImportRow[];
+  total: number;
+}
+
+export function useImports(stage: "in_flight" | "all" | "done" | "failed" = "in_flight", enabled: boolean = true) {
+  const search = stage === "in_flight" ? "" : `?stage=${stage}`;
+  const q = useQuery({
+    queryKey: [...queryKeys.imports, stage],
+    queryFn: () => fetchJson<ImportListResponse>(`/api/imports${search}`),
+    staleTime: 15 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.imports ?? [],
+    total: q.data?.total ?? 0,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/libraries/:id/members --------------------------------------------
+
+export interface MemberView {
+  user_id: number;
+  email: string;
+  display_name: string;
+  role: "admin" | "member";
+  global_role: "user" | "sysadmin";
+}
+
+export function useLibraryMembers(libraryId: number | null) {
+  const q = useQuery({
+    queryKey: libraryId ? queryKeys.libraryMembers(libraryId) : ["libraries", "none", "members"],
+    queryFn: () => fetchJson<{ members: MemberView[] }>(`/api/libraries/${libraryId}/members`),
+    staleTime: 30 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled: libraryId != null,
+  });
+  return {
+    data: q.data?.members ?? [],
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/admin/users -------------------------------------------------------
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  display_name: string;
+  role: "user" | "sysadmin";
+}
+
+export function useAdminUsers(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.adminUsers,
+    queryFn: () => fetchJson<{ users: AdminUser[] }>(`/api/admin/users`),
+    staleTime: 30 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.users ?? [],
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/admin/settings ----------------------------------------------------
+
+export interface ServerSettings {
+  max_upload_bytes: number;
+  licence_kb_auto_update: boolean;
+}
+
+export function useServerSettings(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.adminSettings,
+    queryFn: () => fetchJson<ServerSettings>(`/api/admin/settings`),
+    staleTime: 5 * MINUTE,
+    gcTime: 1 * HOUR,
+    enabled,
+  });
+  return {
+    data: q.data ?? null,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}

@@ -15,7 +15,9 @@ import {
   VersionItem,
   formatBytes,
 } from "@/design-system";
+import { AuditList } from "@/components/AuditList";
 import {
+  useAssetAudit,
   useAssetDetail,
   type AssetDetailView,
 } from "@/hooks/useDataQueries";
@@ -270,6 +272,11 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
         )}
       </Section>
 
+      {/* Audit */}
+      <Section title="Audit" defaultOpen={false}>
+        <AssetAuditSection assetId={asset.id} />
+      </Section>
+
       {/* Footer actions */}
       <div className="mt-2 flex items-center justify-between border-t border-line pt-3">
         <Button
@@ -290,5 +297,19 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
         )}
       </div>
     </div>
+  );
+}
+
+function AssetAuditSection({ assetId }: { assetId: number }) {
+  const { data: entries, loading } = useAssetAudit(assetId);
+  if (loading) {
+    return <div className="text-xs-plus text-text-4">Loading…</div>;
+  }
+  return (
+    <AuditList
+      entries={entries.slice(0, 25)}
+      emptyTitle="No activity yet"
+      emptyDescription="Edits to this asset will show up here."
+    />
   );
 }

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { FilePlus2 } from "lucide-react";
 
 import {
@@ -9,9 +10,9 @@ import {
 import type { AssetRow } from "@/hooks/useDataQueries";
 
 /**
- * Library grid — one AssetCard per row. Thumbnails are placeholders until M6
- * lands real thumbnail rendering; for now every asset renders the unknown
- * glyph unless the server sent a thumbnail_object_key.
+ * Library grid — one AssetCard per row. Each card is a focusable button so
+ * keyboard navigation (handled by the parent page) can scroll the
+ * highlighted card into view via aria-current matching.
  */
 export function AssetGrid({
   assets,
@@ -22,6 +23,19 @@ export function AssetGrid({
   onOpen?: (id: number) => void;
   selectedId?: number | null;
 }) {
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // When `selectedId` changes from outside (keyboard navigation), make sure
+  // the matching card is in view. AssetCard renders its outer wrapper as
+  // the click target, so we look up via a data attribute we attach below.
+  useEffect(() => {
+    if (selectedId == null || !gridRef.current) return;
+    const node = gridRef.current.querySelector(`[data-asset-id="${selectedId}"]`);
+    if (node && "scrollIntoView" in node) {
+      (node as HTMLElement).scrollIntoView({ block: "nearest" });
+    }
+  }, [selectedId]);
+
   if (assets.length === 0) {
     return (
       <EmptyState
@@ -32,11 +46,15 @@ export function AssetGrid({
     );
   }
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 p-3.5">
+    <div
+      ref={gridRef}
+      className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 p-3.5"
+    >
       {assets.map((a) => (
         <AssetCard
           key={a.id}
           name={a.name}
+          data-asset-id={a.id}
           selected={selectedId === a.id}
           onSelect={() => onOpen?.(a.id)}
           sub={
