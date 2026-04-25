@@ -41,7 +41,7 @@ type importListResponse struct {
 // "in flight or failed" — `done` rows are kept for debugging but the
 // queue UI doesn't surface them. Set `?stage=done` to get the historical
 // view; `?stage=all` returns everything.
-func (h *handler) getImports(c *gin.Context) {
+func (h *Handler) getImports(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
 		respond500(c)
@@ -109,7 +109,7 @@ func (h *handler) getImports(c *gin.Context) {
 }
 
 // getImport returns one import row by id, library-gated via the linked asset.
-func (h *handler) getImport(c *gin.Context) {
+func (h *Handler) getImport(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
 		respond500(c)
@@ -162,7 +162,7 @@ func (h *handler) getImport(c *gin.Context) {
 // rejected with 409. Idempotency: each retry creates a fresh asset_import
 // row rather than mutating the existing one — easier to reason about and
 // keeps the failure history visible.
-func (h *handler) postImportRetry(c *gin.Context) {
+func (h *Handler) postImportRetry(c *gin.Context) {
 	if h.storage == nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
 		return
@@ -216,10 +216,21 @@ func (h *handler) postImportRetry(c *gin.Context) {
 		return
 	}
 
-	var sourceKey, sourceFilename, sourceCT string
-	if verr == nil && version.OriginalPackageObjectKey != "" {
+	// Pick a source blob to retry against. The Unity case retains the
+	// original archive on the version row; the non-Unity case requires an
+	// existing asset_files row — without one the upload bytes are gone (the
+	// failed import never wrote a manifest) and re-running the pipeline
+	// would create a corrupt empty version.
+	var (
+		sourceKey      string
+		sourceFilename string
+		sourceCT       string
+		isUnity        bool
+	)
+	if verr == nil && version.PackageKind == packageKindUnityPackage && version.OriginalPackageObjectKey != "" {
 		sourceKey = version.OriginalPackageObjectKey
 		sourceFilename = asset.Name + ".unitypackage"
+		isUnity = true
 	} else if verr == nil {
 		var f models.AssetFile
 		if err := h.db.WithContext(c.Request.Context()).
@@ -228,6 +239,7 @@ func (h *handler) postImportRetry(c *gin.Context) {
 			sourceKey = f.ObjectKey
 			sourceFilename = f.RelativePath
 			sourceCT = f.DetectedType
+			isUnity = strings.EqualFold(filepath.Ext(sourceFilename), ".unitypackage")
 		}
 	}
 	if sourceKey == "" {
@@ -238,7 +250,6 @@ func (h *handler) postImportRetry(c *gin.Context) {
 	// Re-run the pipeline against the source blob. Treat it as a fresh
 	// import: existing asset stays, but we get a new version + thumbnail
 	// generation if applicable.
-	isUnity := strings.EqualFold(filepath.Ext(sourceFilename), ".unitypackage")
 	var extracted *extract.UnityResult
 	if isUnity {
 		blob, gerr := h.storage.GetBlob(c.Request.Context(), sourceKey)
@@ -345,7 +356,7 @@ func (h *handler) postImportRetry(c *gin.Context) {
 // failure is itself an event worth recording; we don't want to roll it back
 // just because a downstream call also failed. Errors here are logged and
 // swallowed — failing to record a failure shouldn't escalate the failure.
-func (h *handler) markImportFailed(c *gin.Context, assetID uint, reason string) {
+func (h *Handler) markImportFailed(c *gin.Context, assetID uint, reason string) {
 	imp := models.AssetImport{
 		AssetID:   assetID,
 		Stage:     "failed",

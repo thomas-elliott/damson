@@ -22,7 +22,7 @@ type tagView struct {
 // getTags returns the library's tag tree with per-tag asset counts. The tree
 // is flat on the wire; the client assembles the hierarchy from `path` (`/`
 // separated).
-func (h *handler) getTags(c *gin.Context) {
+func (h *Handler) getTags(c *gin.Context) {
 	lib := getLibrary(c)
 	type row struct {
 		ID         uint
@@ -57,7 +57,7 @@ type createTagRequest struct {
 // postTag creates a tag (and any missing ancestor rows) for the library.
 // Paths are `/`-separated; `environment/trees/deciduous` creates/returns
 // three rows if they didn't already exist.
-func (h *handler) postTag(c *gin.Context) {
+func (h *Handler) postTag(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	var req createTagRequest
@@ -116,7 +116,7 @@ func (h *handler) postTag(c *gin.Context) {
 
 // deleteTag removes a tag and all its descendants (path prefix match).
 // asset_tags rows cascade via FK.
-func (h *handler) deleteTag(c *gin.Context) {
+func (h *Handler) deleteTag(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -143,11 +143,7 @@ func (h *handler) deleteTag(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "tag not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "tag not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -162,7 +158,7 @@ type assetTagsRequest struct {
 // postAssetTag attaches a tag to an asset. Accepts either an existing
 // tag_id or a path (which is created via the same `postTag` logic if it
 // doesn't exist yet).
-func (h *handler) postAssetTag(c *gin.Context) {
+func (h *Handler) postAssetTag(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	assetID, ok := parseIDParam(c, "id")
@@ -189,7 +185,7 @@ func (h *handler) postAssetTag(c *gin.Context) {
 		} else {
 			path := normaliseTagPath(req.Path)
 			if path == "" {
-				return asError("tag_id or path required")
+				return errBadRequestf("tag_id or path required (or path exceeds %d bytes)", maxTagPathLength)
 			}
 			// Reuse if present, else create with ancestors.
 			segs := strings.Split(path, "/")
@@ -228,22 +224,14 @@ func (h *handler) postAssetTag(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset or tag not found")
-			return
-		}
-		if _, ok := err.(stringError); ok {
-			respond400(c, err)
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "asset or tag not found")
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"asset_id": assetID, "tag_id": tagID})
 }
 
 // deleteAssetTag detaches a tag from an asset.
-func (h *handler) deleteAssetTag(c *gin.Context) {
+func (h *Handler) deleteAssetTag(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	assetID, ok := parseIDParam(c, "id")
@@ -281,18 +269,20 @@ func (h *handler) deleteAssetTag(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset or tag not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "asset or tag not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
+// maxTagPathLength caps the byte length of a normalised tag path. Generous
+// enough to fit any legitimate hierarchy; tight enough that a malicious
+// caller can't paste megabytes into the column.
+const maxTagPathLength = 1024
+
 // normaliseTagPath trims whitespace, lowercases, collapses multiple slashes,
-// strips leading/trailing slashes.
+// strips leading/trailing slashes. Returns "" when the result exceeds
+// maxTagPathLength so callers surface a 400.
 func normaliseTagPath(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.ReplaceAll(s, "\\", "/")
@@ -310,5 +300,9 @@ func normaliseTagPath(s string) string {
 			out = append(out, p)
 		}
 	}
-	return strings.Join(out, "/")
+	joined := strings.Join(out, "/")
+	if len(joined) > maxTagPathLength {
+		return ""
+	}
+	return joined
 }

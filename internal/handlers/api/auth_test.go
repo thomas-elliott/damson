@@ -163,3 +163,14 @@ func TestBootstrap_BadRequest_MissingFields(t *testing.T) {
 	})
 	requireStatus(t, w, http.StatusBadRequest)
 }
+
+func TestBootstrap_BadRequest_PasswordTooShort(t *testing.T) {
+	h, _, _ := newTestHandlerLocal(t)
+	r := setupRouter(h, nil)
+
+	w := performRequest(r, http.MethodPost, "/api/auth/bootstrap", loginRequest{
+		Email:    "thomas@datch.io",
+		Password: "short", // < 8 chars
+	})
+	requireStatus(t, w, http.StatusBadRequest)
+}

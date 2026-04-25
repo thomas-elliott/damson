@@ -14,7 +14,7 @@ import (
 // libraryContextShim attaches a library + membership to every request in the
 // same way requireLibrary would for an authenticated user. Used for tests
 // that skip the full chain.
-func seedLibraryAndSwitch(t *testing.T, h *handler, u *models.User) *models.Library {
+func seedLibraryAndSwitch(t *testing.T, h *Handler, u *models.User) *models.Library {
 	t.Helper()
 	lib := seedLibrary(t, h.db, "Personal")
 	seedMembership(t, h.db, lib.ID, u.ID, "admin")

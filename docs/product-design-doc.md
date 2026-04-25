@@ -179,6 +179,8 @@ File storage in S3 is content-addressed: the object key is the SHA-256 of the fi
 
 ## 6. Architecture
 
+**Authentication.** OIDC and a local-credentials mode are both supported; OIDC is the recommended path for any deployment where account security matters. Local mode (email + bcrypt password + server-issued JWT) exists for development, testing, and simple single-user installs — it's intentionally less defended than a real IdP (no MFA, password floor of 8 chars, in-memory rate limiting only). See `technical-design.md` §8.1 for the full matrix.
+
 ### Backend (Go)
 
 A single Go binary exposing a REST-ish JSON API. Suggested module layout:
