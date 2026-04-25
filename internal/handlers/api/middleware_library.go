@@ -1,11 +1,10 @@
 package api
 
 import (
-	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
@@ -24,7 +23,10 @@ const (
 //
 // Library-scoped routes (assets, projects, collections, tags, etc.) mount
 // this middleware in addition to auth.Middleware.
-func (h *handler) requireLibrary() gin.HandlerFunc {
+//
+// Implementation note: a single JOIN fetches both rows in one round-trip.
+// This is a hot path — every library-scoped endpoint runs through it.
+func (h *Handler) requireLibrary() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		u := auth.GetUser(c)
 		if u == nil {
@@ -36,27 +38,51 @@ func (h *handler) requireLibrary() gin.HandlerFunc {
 			return
 		}
 
-		var mem models.LibraryMembership
-		err := h.db.WithContext(c.Request.Context()).
-			Where("library_id = ? AND user_id = ?", *u.CurrentLibraryID, u.ID).
-			First(&mem).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "not a member of the current library"})
-			return
+		type joinedRow struct {
+			LibraryID          uint
+			LibraryName        string
+			LibraryDescription string
+			LibraryCreatedAt   time.Time
+			LibraryUpdatedAt   time.Time
+			MembershipID       uint
+			MembershipRole     string
+			MembershipCreated  time.Time
 		}
+		var row joinedRow
+		err := h.db.WithContext(c.Request.Context()).
+			Table("library_memberships AS m").
+			Select(`l.id AS library_id, l.name AS library_name, l.description AS library_description,
+				l.created_at AS library_created_at, l.updated_at AS library_updated_at,
+				m.id AS membership_id, m.role AS membership_role, m.created_at AS membership_created`).
+			Joins("JOIN libraries l ON l.id = m.library_id").
+			Where("m.library_id = ? AND m.user_id = ?", *u.CurrentLibraryID, u.ID).
+			Limit(1).
+			Scan(&row).Error
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 			return
 		}
-
-		var lib models.Library
-		if err := h.db.WithContext(c.Request.Context()).First(&lib, *u.CurrentLibraryID).Error; err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		if row.LibraryID == 0 {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "not a member of the current library"})
 			return
 		}
 
-		c.Set(libraryContextKey, &lib)
-		c.Set(membershipContextKey, &mem)
+		lib := &models.Library{
+			ID:          row.LibraryID,
+			Name:        row.LibraryName,
+			Description: row.LibraryDescription,
+			CreatedAt:   row.LibraryCreatedAt,
+			UpdatedAt:   row.LibraryUpdatedAt,
+		}
+		mem := &models.LibraryMembership{
+			ID:        row.MembershipID,
+			LibraryID: row.LibraryID,
+			UserID:    u.ID,
+			Role:      row.MembershipRole,
+			CreatedAt: row.MembershipCreated,
+		}
+		c.Set(libraryContextKey, lib)
+		c.Set(membershipContextKey, mem)
 		c.Next()
 	}
 }

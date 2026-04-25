@@ -5,10 +5,8 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"image/color"
 	"image/jpeg"
 	"image/png"
-	"io"
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp" // webp decode registration
@@ -117,17 +115,4 @@ func hasTransparency(img image.Image) bool {
 		}
 	}
 	return false
-}
-
-// discardReader drains r so the caller's deferred Close can release
-// resources without the underlying stream holding on to bytes. Used when a
-// decoder errors partway through and we still want to free the reader.
-func discardReader(r io.Reader) { _, _ = io.Copy(io.Discard, r) }
-
-// solidRGBA returns a paletted 1x1 used as a last-resort fallback. Kept
-// small and allocation-free to simplify tests.
-func solidRGBA(c color.RGBA) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	img.SetRGBA(0, 0, c)
-	return img
 }
