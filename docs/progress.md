@@ -5,11 +5,20 @@ doc tracks what's **actually in the tree** against that plan and calls out
 what's been skipped or deferred so later slices don't assume foundations
 that aren't there.
 
-Last audited: 2026-04-26 — M3, M4, and M5 landed as a single pass. The
+Last audited: 2026-04-25 — M6 and M7 landed as a single pass to close out
+the §21 ladder. Backend gains a real thumbnail service (raster / audio
+waveform / font sample) wired into the import pipeline, audit viewers
+(library + per-asset + per-project + sysadmin), import list/retry,
+subset-version action, library members API, and sysadmin user/server
+settings. Frontend gains the editable settings page, dark/light toggle in
+the nav rail, audit pages, queue v2 with retry + nav-rail badge, members
+editor, and the §5.3 keyboard shortcuts.
+
+2026-04-26 — M3, M4, and M5 landed as a single pass. The
 tree now has tags + licences + projects + collections + search + library
 settings, with a shared audit writer, files/thumbs streaming, and a
 detail-panel + projects/collections pages on the frontend built against the
-design system. See the new M3/M4/M5 sections below.
+design system. See the M3/M4/M5 sections below.
 
 2026-04-25 — M2.5 (design system) landed. Frontend now has the full primitive + composition + domain library under `web/src/design-system/`, with Storybook + Vitest+Playwright + axe-core a11y enforcement. `LibraryPage`, `AssetGrid`, `DropZone`, `BootstrapPage`, `LoginPage` are migrated onto the new components; `LibraryHeader.tsx` was folded into the sidebar and deleted.
 
@@ -198,6 +207,92 @@ M5 is complete for the §21 scope. Notes:
   for non-admins with 403 so the editor can light up any time without
   schema or authz changes.
 
+## M6 — Thumbnails
+
+| Item | Status | Where |
+|---|---|---|
+| `thumbnail.Generator` with category dispatch (raster / audio / font) | ✅ | `internal/services/thumbnail/thumbnail.go` |
+| Raster worker: stdlib `image` + `golang.org/x/image/webp`, Catmull-Rom resample to 512px, JPEG-vs-PNG picker per §11.1 | ✅ | `internal/services/thumbnail/raster.go` |
+| Audio worker: in-tree WAV decoder (PCM int 8/16/24/32 + IEEE float), `github.com/hajimehoshi/go-mp3`, `github.com/jfreymuth/oggvorbis`; peak-binned waveform PNG | ✅ | `internal/services/thumbnail/audio.go` |
+| Font worker: `golang.org/x/image/font/opentype` rendering "The quick brown fox…" sample to PNG | ✅ | `internal/services/thumbnail/font.go` |
+| Wired into `postImport` after extraction; honours `library_settings.thumbnails_*` toggles; failures log+swallow (icon fallback) | ✅ | `internal/handlers/api/assets.go` |
+| Generator tests (PNG, JPEG-picker, toggles-off, WAV waveform, classify, unknown category, decode error) | ✅ | `internal/services/thumbnail/thumbnail_test.go` |
+| Handler tests (raster import generates a thumbnail, raster toggle off skips it) | ✅ | `internal/handlers/api/assets_thumbnail_test.go` |
+| Settings page editable for admins (theme/grid SegmentedControls, thumbnail Checkboxes, audit retention Input) | ✅ | `web/src/pages/SettingsPage.tsx` |
+| `usePatchLibrarySettings` mutation hook with TanStack invalidation | ✅ | `web/src/hooks/useMutations.ts` |
+| Dark/light toggle as an icon in the nav rail (bottom-left, above Settings); persists to `localStorage`, seeded from `library_settings.theme_default` | ✅ | `web/src/components/Shell.tsx`, `web/src/hooks/useTheme.ts`, `web/src/lib/theme.ts` |
+| Pre-React boot in `main.tsx` applies stored theme so light-mode users don't see a dark flash | ✅ | `web/src/main.tsx` |
+
+M6 is complete for §21 scope. Notes:
+
+- **Audio decoders are pure-Go.** WAV is parsed in-tree (no external lib);
+  MP3 uses `hajimehoshi/go-mp3`; OGG Vorbis uses `jfreymuth/oggvorbis`.
+  These ship as transitive deps; no CGo is added. Decoders that need an
+  `io.ReadSeeker` (mp3 / ogg) buffer the upload — bounded by the upload
+  size cap.
+- **JPEG-vs-PNG picker** is conservative: only inputs decoded as JPEG or
+  WebP that have no transparent pixels become JPEG output. Everything else
+  is PNG, mirroring §11.1's "JPEG for photographic, PNG for everything else".
+- **Failures are non-fatal.** A broken decoder logs at warn and the asset
+  imports without a thumbnail; the SPA falls back to the existing icon.
+  Per-type toggles are read once per import via `loadOrCreateLibrarySettings`.
+- **Theme toggle decision:** UI §9 left "global tweaks menu" open as an
+  alternative location. Closed in favour of nav-rail-only per Thomas's
+  call during the M6 plan.
+
+## M7 — Audit, queue, polish
+
+| Item | Status | Where |
+|---|---|---|
+| Audit endpoints: `GET /api/audit`, `/api/assets/:id/audit`, `/api/projects/:id/audit`, `/api/admin/audit` (sysadmin-only) | ✅ | `internal/handlers/api/audit.go` |
+| Shared `applyAuditFilters` + `loadAuditPage` helpers; user join inline so the SPA renders without N+1 | ✅ | same |
+| `requireSysadmin(c)` helper (counterpart to `requireAdmin`) | ✅ | same |
+| `GET /api/imports`, `GET /api/imports/:id`, `POST /api/imports/:id/retry` (in-flight + failed by default; `?stage=all` for the historical view) | ✅ | `internal/handlers/api/imports.go` |
+| Failure-path stage write: extract failures persist a stub asset + `stage='failed'` import row so the queue surface can retry | ✅ | `internal/handlers/api/assets.go` (`recordFailedUploadImport`) |
+| `POST /api/assets/:id/versions/:vid/subset` — reuses object keys, validates `file_ids` belong to the source version, audits as `asset.version.subset` | ✅ | `internal/handlers/api/subset.go` |
+| Library member endpoints: list, invite (creates local-mode user when missing + admin-supplied password), role change, remove. Last-admin guard on demote/remove | ✅ | `internal/handlers/api/members.go` |
+| `auth.CreateLocalUser` + `auth.SetLocalUserPassword` — non-bootstrap counterparts to `CreateFirstLocalAdmin` for admin-driven invites + password resets | ✅ | `internal/auth/bootstrap.go` |
+| Admin endpoints: `GET/PATCH /api/admin/users/:id` (role + password reset), `GET/PATCH /api/admin/settings`, last-sysadmin guard | ✅ | `internal/handlers/api/admin.go` |
+| `PATCH /api/libraries/:id` for the library profile editor | ✅ | `internal/handlers/api/library.go` |
+| Handler tests: audit (filters, scope, sysadmin-only), members (invite/duplicate/remove/last-admin), imports (filter, retry-precondition), subset (happy path + cross-version reject), failed-upload-stub | ✅ | `*_test.go` |
+| Frontend audit page (`/audit`) with action chip filter + user search + activity rows | ✅ | `web/src/pages/AuditPage.tsx` |
+| Frontend admin audit (`/admin/audit`) sysadmin-gated with redirect for non-sysadmins | ✅ | `web/src/pages/AdminAuditPage.tsx` |
+| Audit sections inside `AssetDetailPanel` and `ProjectDetailPage` (last 25 entries each) | ✅ | `web/src/components/detail/AssetDetailPanel.tsx`, `web/src/pages/ProjectDetailPage.tsx` |
+| Reusable `AuditList` + `auditFormat` formatter (verb map, actor, target, timestamp) | ✅ | `web/src/components/AuditList.tsx`, `web/src/lib/auditFormat.ts` |
+| Queue v2 backed by `/api/imports` with retry, status badge, error inline | ✅ | `web/src/pages/QueuePage.tsx` |
+| Nav-rail queue badge wired to in-flight count (count > 0) | ✅ | `web/src/components/Shell.tsx` |
+| Members editor (invite dialog with auth-mode-aware password field, role select, remove) | ✅ | `web/src/components/settings/LibraryMembersSection.tsx` |
+| Library profile editor (name + description) | ✅ | `web/src/components/settings/LibraryProfileSection.tsx` |
+| Sysadmin server-admin section (server settings + users list with role + password reset) | ✅ | `web/src/components/settings/ServerAdminSection.tsx` |
+| Keyboard shortcuts (`useKeyboardShortcuts` hook) on `LibraryPage`: `/` and `cmd+k` focus search, arrow keys navigate grid, `enter` opens, `escape` closes | ✅ | `web/src/hooks/useKeyboardShortcuts.ts`, `web/src/pages/LibraryPage.tsx` |
+| `AssetGrid` scroll-into-view for keyboard-selected card | ✅ | `web/src/components/AssetGrid.tsx` |
+| Routes added: `/audit`, `/admin/audit`. Disabled audit nav-rail entry replaced with the live link | ✅ | `web/src/App.tsx`, `web/src/components/Shell.tsx` |
+| New TanStack hooks + queryKeys: `useLibraryAudit`, `useAdminAudit`, `useAssetAudit`, `useProjectAudit`, `useImports`, `useLibraryMembers`, `useAdminUsers`, `useServerSettings` | ✅ | `web/src/hooks/useDataQueries.ts`, `web/src/lib/queryKeys.ts` |
+| Mutation hooks: `usePatchLibrarySettings`, `useRetryImport`, `useInviteMember`, `usePatchMember`, `useRemoveMember`, `useCreateSubsetVersion`, `usePatchUserRole`, `useResetUserPassword`, `usePatchServerSettings`, `usePatchLibrary` | ✅ | `web/src/hooks/useMutations.ts` |
+
+M7 is complete for §21 scope. Notes:
+
+- **SSE import progress stays deferred.** Imports are still synchronous;
+  the queue surfaces only `failed` rows (and any other non-`done` stages
+  if/when the pipeline goes async). The `imports.failed` path needed for
+  retry is real, but `extracting`/`detecting`/`thumbnailing` are not
+  emitted until the backend goes async — see `docs/technical-design.md` §9.1.
+- **Local-mode invites assume admin-set-password.** OIDC invites require
+  the user to have signed in at least once before the membership can be
+  attached — there's no "create identity in IdP" path. Both modes share the
+  same membership write once the user row exists.
+- **Library audit endpoint returns library-scoped events only.** The
+  sysadmin `/api/admin/audit` returns `library_id IS NULL` events. We do
+  not yet merge cross-library library-scoped events into the sysadmin
+  feed; tech-design §13 mentioned that as a possible v2 view but it isn't
+  needed for v1.
+- **Last-admin and last-sysadmin guards are server-side only.** The
+  members editor and admin users list rely on the server returning 409;
+  the SPA doesn't disable the offending UI.
+- **Subset action is wired but not surfaced in the SPA yet.** The handler
+  + mutation hook exist; the detail-panel "create subset version" button
+  is a follow-up so we don't bloat M7 with a file-picker UI.
+
 ## Foundations the tech design assumes but hasn't been built yet
 
 These are not "late" — they belong to later milestones per §21 — but listing
@@ -206,18 +301,28 @@ don't assume something exists and then discover it doesn't.
 
 | Missing thing | Needed by | Expected home |
 |---|---|---|
-| SSE broadcaster + `/api/imports/events` + `/api/imports/:id/events` | Once imports take long enough to be worth streaming; kept synchronous for M1–M2. Blocks a richer queue UI but not the M7 audit viewers themselves | `internal/services/events/` (or alongside audit) + `internal/handlers/api/imports.go` |
-| `/api/imports`, `/api/imports/:id`, `/api/imports/:id/retry` — list + detail + retry | Required for the full queue/review UI before M7 | `internal/handlers/api/imports.go` |
-| Real thumbnail pipeline (raster/audio/font/Unity preview) + per-type toggles honoured | M6 | `internal/services/thumbnail/` |
-| Audit viewers (per-asset, per-project, library-wide, server-wide) | M7 | frontend + `GET /api/audit` family |
-| Library admin settings editor, user/membership management | M7 frontend | `web/src/pages/SettingsPage.tsx` (PATCH wired; editor TBD) |
-| Asset-version subset action (§9.3) | M7 alongside the queue surface | `internal/handlers/api/assets.go` + a button in the detail panel |
-| Thumbnail content-type picking for JPEG vs. PNG per category (§11) | M6 | `internal/services/thumbnail/` |
+| SSE broadcaster + `/api/imports/events` + `/api/imports/:id/events` | Once imports go async (background pipeline) | `internal/services/events/` (or alongside audit) + `internal/handlers/api/imports.go` |
+| Detail-panel "create subset version" picker | UX completion of the subset endpoint that M7 wired backend-only | `web/src/components/detail/AssetDetailPanel.tsx` (file checkbox tree + dialog) |
+| Library deletion (`DELETE /api/libraries/:id`) | Library-admin lifecycle UI | `internal/handlers/api/library.go` + a danger-zone in Settings |
+| Real-Postgres integration tier exercising tsvector + advisory locks (§22 decision 5) | Verifying the search-vector trigger + GIN behaviour the SQLite tests can't see | A new test target / Docker-Compose Postgres fixture |
 
-**Delivered since the previous audit (landed with M3/M4/M5):**
+**Delivered since the previous audit (landed with M6/M7):**
 
-- Audit writer (`internal/services/audit/audit.go`) — now a prerequisite
-  met, not a gap.
+- Real thumbnail pipeline (`internal/services/thumbnail/`) — raster, audio
+  waveform, font sample. Wired into `postImport`, honours toggles.
+- `/api/imports`, `/api/imports/:id`, `/api/imports/:id/retry` — list +
+  detail + retry against a retained source blob.
+- Audit viewers (`/api/audit`, `/api/assets/:id/audit`,
+  `/api/projects/:id/audit`, `/api/admin/audit`) + the matching SPA pages.
+- Library admin settings editor + members management + library profile +
+  sysadmin server-settings + sysadmin user role/password editor.
+- Asset-version subset action (§9.3) — backend handler + mutation hook
+  (UI picker still TODO; see new gap row).
+- Keyboard shortcuts per UI §5.3 (`/`, `cmd+k`, arrows, `enter`, `escape`).
+
+**Delivered with M3/M4/M5 (kept for context):**
+
+- Audit writer (`internal/services/audit/audit.go`).
 - Tags tree + `asset_tags` (migration 002, models, handlers, filters).
 - Licences model + detection service + editor UI (migration 002,
   `internal/services/licence/`, licence handlers, detail-panel editor).
