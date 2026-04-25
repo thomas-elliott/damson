@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronLeft, Plus, Trash2 } from "lucide-react";
 
+import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import {
   Badge,
@@ -32,6 +33,7 @@ import {
 import {
   useAssets,
   useProject,
+  useProjectAudit,
   type LicenceStatus,
 } from "@/hooks/useDataQueries";
 import {
@@ -188,6 +190,13 @@ export function ProjectDetailPage() {
                   </table>
                 )}
               </section>
+
+              <section>
+                <h2 className="mb-2 text-sm-plus font-medium text-text">
+                  Recent activity
+                </h2>
+                <ProjectAuditPanel projectId={project.id} />
+              </section>
             </div>
           )}
 
@@ -261,6 +270,20 @@ function ProjectPinRow({
         </Button>
       </td>
     </tr>
+  );
+}
+
+function ProjectAuditPanel({ projectId }: { projectId: number }) {
+  const { data: entries, loading } = useProjectAudit(projectId);
+  if (loading) {
+    return <div className="text-xs-plus text-text-4">Loading…</div>;
+  }
+  return (
+    <AuditList
+      entries={entries.slice(0, 25)}
+      emptyTitle="No activity yet"
+      emptyDescription="Pinning, upgrading, and project edits will show up here."
+    />
   );
 }
 

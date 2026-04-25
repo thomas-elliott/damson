@@ -60,6 +60,24 @@ tasks:
     cmds:
       - go vet ./...
 
+  mod:tidy:check:
+    desc: Verify go.mod / go.sum are tidy (matches CI)
+    cmds:
+      - |
+        bash -c '
+          cp go.mod go.mod.bak
+          cp go.sum go.sum.bak
+          go mod tidy
+          if ! cmp -s go.mod go.mod.bak || ! cmp -s go.sum go.sum.bak; then
+            echo "go.mod / go.sum are not tidy. Run: go mod tidy && git add go.mod go.sum" >&2
+            diff -u go.mod.bak go.mod >&2 || true
+            mv go.mod.bak go.mod
+            mv go.sum.bak go.sum
+            exit 1
+          fi
+          rm -f go.mod.bak go.sum.bak
+        '
+
   test:
     desc: go test
     cmds:
@@ -119,10 +137,11 @@ tasks:
       - npm test
 
   pre-release-checks:
-    desc: fmt + vet + tests (Go & web)
+    desc: fmt + vet + mod-tidy + tests (Go & web)
     cmds:
       - task: fmt
       - task: vet
+      - task: mod:tidy:check
       - task: test
       - task: web:test
 

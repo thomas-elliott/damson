@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { LogOut, Search, UploadCloud } from "lucide-react";
 
@@ -21,9 +21,11 @@ import {
   useAssets,
   useMe,
   type AssetFilters,
+  type AssetRow,
   type LicenceStatus,
   type Me,
 } from "@/hooks/useDataQueries";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 export function LibraryPage() {
   const { data: me } = useMe();
@@ -67,6 +69,68 @@ export function LibraryPage() {
     navigate(`/library${search.toString() ? `?${search}` : ""}`);
   };
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Per UI §5.3: `/` and `cmd+k` focus the library search; arrow keys move
+  // selection in the grid; enter opens the highlighted asset; escape
+  // closes the panel. We compute the next selected id from `assets` +
+  // `assetId`, then push the id through the same routing path used by
+  // mouse clicks so the URL stays the source of truth.
+  const moveSelection = (delta: number) => moveByOffset(assets, assetId, delta, onOpenAsset);
+  useKeyboardShortcuts(
+    useMemo(
+      () => [
+        {
+          key: "/",
+          handler: (e) => {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          },
+        },
+        {
+          key: "k",
+          meta: true,
+          handler: (e) => {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          },
+        },
+        {
+          key: "k",
+          ctrl: true,
+          handler: (e) => {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          },
+        },
+        { key: "Escape", handler: () => assetId != null && onCloseDetail() },
+        { key: "ArrowRight", handler: (e) => { e.preventDefault(); moveSelection(1); } },
+        { key: "ArrowLeft", handler: (e) => { e.preventDefault(); moveSelection(-1); } },
+        {
+          key: "ArrowDown",
+          handler: (e) => {
+            e.preventDefault();
+            moveSelection(estimateColumnCount());
+          },
+        },
+        {
+          key: "ArrowUp",
+          handler: (e) => {
+            e.preventDefault();
+            moveSelection(-estimateColumnCount());
+          },
+        },
+        {
+          key: "Enter",
+          handler: () => {
+            if (assetId == null && assets[0]) onOpenAsset(assets[0].id);
+          },
+        },
+      ],
+      [assets, assetId],
+    ),
+  );
+
   if (!me) return null;
 
   return (
@@ -81,9 +145,10 @@ export function LibraryPage() {
               </Breadcrumb>
               <div className="min-w-[220px] max-w-[360px] flex-1">
                 <SearchInput
+                  ref={searchInputRef}
                   value={search.get("q") ?? ""}
                   onChange={(e) => onSearchChange(e.currentTarget.value)}
-                  placeholder="Search assets"
+                  placeholder="Search assets ( / )"
                   aria-label="Search assets"
                 />
               </div>
@@ -116,6 +181,36 @@ export function LibraryPage() {
       }
     />
   );
+}
+
+// moveByOffset shifts the highlighted asset by `delta` and pushes the new id
+// through the supplied open handler so the URL routing stays the source of
+// truth. Bounded so wrap-around doesn't accidentally jump from the start
+// to the end.
+function moveByOffset(
+  assets: AssetRow[],
+  selected: number | null,
+  delta: number,
+  open: (id: number) => void,
+) {
+  if (assets.length === 0) return;
+  const i = selected != null ? assets.findIndex((a) => a.id === selected) : -1;
+  let next = i < 0 ? 0 : i + delta;
+  if (next < 0) next = 0;
+  if (next >= assets.length) next = assets.length - 1;
+  const target = assets[next];
+  if (target) open(target.id);
+}
+
+// estimateColumnCount infers how many cards fit per row from the grid's
+// declared min cell width (180px) plus gap (12px). Cheap heuristic that
+// avoids a layout-effect read; close enough for arrow-down semantics.
+function estimateColumnCount(): number {
+  if (typeof window === "undefined") return 4;
+  const cellWithGap = 180 + 12;
+  const main = window.document.querySelector("main");
+  const width = main?.clientWidth ?? window.innerWidth;
+  return Math.max(1, Math.floor(width / cellWithGap));
 }
 
 function UploadButton() {
