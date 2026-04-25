@@ -15,6 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
+	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
 type assetGridRow struct {
@@ -274,6 +275,8 @@ func (h *handler) postImport(c *gin.Context) {
 
 	objectKey, size, err := h.storage.PutBlob(c.Request.Context(), src)
 	if err != nil {
+		// No asset_id yet — log only; the user gets a 500 and will retry.
+		slog.Warn("storage put failed", "err", err, "library_id", lib.ID)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage put failed"})
 		return
 	}
@@ -301,10 +304,56 @@ func (h *handler) postImport(c *gin.Context) {
 		res, xerr := ex.Extract(c.Request.Context(), blob)
 		if xerr != nil {
 			slog.Warn("unity extract failed", "err", xerr, "filename", filename, "size", size, "library_id", lib.ID)
+			// Record the failure as a stub asset + failed import so the
+			// queue surface can show + retry it. Without an asset_id we'd
+			// have nowhere to attach the row, so create a minimal asset
+			// pointing at the retained archive blob.
+			h.recordFailedUploadImport(c, lib.ID, &u.ID, filename, objectKey, true, "extract: "+xerr.Error())
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + xerr.Error()})
 			return
 		}
 		extracted = res
+	}
+
+	// M6 thumbnail pipeline. Unity packages already harvest preview.png during
+	// extraction (services/extract); only run the generator if no preview was
+	// found. Loose uploads always go through the generator with the file's
+	// reported content type and filename. Failures are logged and ignored —
+	// thumbnails are never mandatory; the SPA falls back to a file-type icon.
+	thumbKey, thumbType := "", ""
+	if extracted != nil {
+		thumbKey = extracted.ThumbObjectKey
+		thumbType = extracted.ThumbContentType
+	}
+	if thumbKey == "" {
+		settings, sErr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID)
+		if sErr != nil {
+			slog.Warn("thumbnail: load settings", "err", sErr, "library_id", lib.ID)
+		} else if !isUnity || settings.ThumbnailsUnityPreview {
+			toggles := thumbnail.Toggles{
+				Raster: settings.ThumbnailsRasterEnabled,
+				Audio:  settings.ThumbnailsAudioEnabled,
+				Font:   settings.ThumbnailsFontEnabled,
+			}
+			blob, bErr := h.storage.GetBlob(c.Request.Context(), objectKey)
+			if bErr != nil {
+				slog.Warn("thumbnail: get blob", "err", bErr, "object_key", objectKey)
+			} else {
+				gen := &thumbnail.Generator{Storage: h.storage}
+				tres, tErr := gen.Generate(c.Request.Context(), thumbnail.Input{
+					Reader:      blob,
+					Filename:    filename,
+					ContentType: fh.Header.Get("Content-Type"),
+				}, toggles)
+				blob.Close()
+				if tErr != nil {
+					slog.Warn("thumbnail: generate", "err", tErr, "filename", filename)
+				} else if tres.ObjectKey != "" {
+					thumbKey = tres.ObjectKey
+					thumbType = tres.ContentType
+				}
+			}
+		}
 	}
 
 	var resp importResponse
@@ -315,9 +364,9 @@ func (h *handler) postImport(c *gin.Context) {
 			NeedsReview:     true,
 			CreatedByUserID: &u.ID,
 		}
-		if extracted != nil && extracted.ThumbObjectKey != "" {
-			asset.ThumbnailObjectKey = extracted.ThumbObjectKey
-			asset.ThumbnailContentType = extracted.ThumbContentType
+		if thumbKey != "" {
+			asset.ThumbnailObjectKey = thumbKey
+			asset.ThumbnailContentType = thumbType
 		}
 		if err := tx.Create(&asset).Error; err != nil {
 			return err
@@ -494,6 +543,50 @@ func (h *handler) postReExtract(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, resp)
+}
+
+// recordFailedUploadImport persists a stub asset + a failed import row when
+// an upload makes it to storage but the post-upload pipeline (Unity extract,
+// validation, etc.) bombs out before any asset_files exist. The row gives
+// the queue UI something to show and a handle for retry. Failures here are
+// best-effort logged: the user is already getting an error response, so we
+// don't escalate further.
+func (h *handler) recordFailedUploadImport(c *gin.Context, libID uint, userID *uint, filename, objectKey string, isUnity bool, reason string) {
+	tx := h.db.WithContext(c.Request.Context())
+	asset := models.Asset{
+		LibraryID:       libID,
+		Name:            assetNameFromFilename(filename),
+		NeedsReview:     true,
+		CreatedByUserID: userID,
+	}
+	if err := tx.Create(&asset).Error; err != nil {
+		slog.Warn("record failed import: create asset", "err", err)
+		return
+	}
+	v := models.AssetVersion{
+		AssetID:         asset.ID,
+		VersionLabel:    "v1",
+		ImportDate:      time.Now().UTC(),
+		CreatedByUserID: userID,
+	}
+	if isUnity {
+		v.PackageKind = packageKindUnityPackage
+		v.OriginalPackageObjectKey = objectKey
+	} else {
+		v.PackageKind = packageKindLoose
+	}
+	if err := tx.Create(&v).Error; err != nil {
+		slog.Warn("record failed import: create version", "err", err)
+	}
+	imp := models.AssetImport{
+		AssetID:   asset.ID,
+		Stage:     "failed",
+		Error:     reason,
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := tx.Create(&imp).Error; err != nil {
+		slog.Warn("record failed import: create import row", "err", err)
+	}
 }
 
 // writeAssetFiles creates asset_files rows for a version. If extracted is

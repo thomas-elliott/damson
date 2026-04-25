@@ -3,12 +3,14 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/audit"
 )
 
 type libraryMembershipView struct {
@@ -63,6 +65,85 @@ func (h *handler) getLibraries(c *gin.Context) {
 
 type setCurrentLibraryRequest struct {
 	LibraryID uint `json:"library_id" binding:"required"`
+}
+
+type patchLibraryRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+// patchLibrary updates the library's name and/or description. Library
+// admins (or sysadmins) may call this — gated via userCanAdminLibrary.
+// Empty `name` is rejected; description can be cleared to empty string.
+func (h *handler) patchLibrary(c *gin.Context) {
+	libID, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	if !h.userCanAdminLibrary(c, libID) {
+		respondForbidden(c, "library admin required")
+		return
+	}
+	var req patchLibraryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond400(c, err)
+		return
+	}
+	var lib models.Library
+	if err := h.db.WithContext(c.Request.Context()).First(&lib, libID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			respond404(c, "library not found")
+			return
+		}
+		respond500(c)
+		return
+	}
+	before := struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}{lib.Name, lib.Description}
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			respond400(c, asError("name must not be blank"))
+			return
+		}
+		lib.Name = name
+	}
+	if req.Description != nil {
+		lib.Description = *req.Description
+	}
+	actor := auth.GetUser(c)
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&lib).Error; err != nil {
+			return err
+		}
+		var actorID *uint
+		if actor != nil {
+			actorID = &actor.ID
+		}
+		after := struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}{lib.Name, lib.Description}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &libID,
+			UserID:     actorID,
+			ActionType: "library.update",
+			TargetType: "library",
+			TargetID:   &libID,
+			Diff:       audit.Updated(before, after),
+		})
+	})
+	if err != nil {
+		respond500(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":          lib.ID,
+		"name":        lib.Name,
+		"description": lib.Description,
+	})
 }
 
 // postCurrentLibrary switches the authenticated user's active library. The
