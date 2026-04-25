@@ -31,14 +31,14 @@ func init() {
 // /api/auth/login should call newTestHandlerLocal. A local-FS storage
 // backend rooted in t.TempDir is attached so import tests work without a
 // mock.
-func newTestHandler(t *testing.T) (*handler, *gorm.DB) {
+func newTestHandler(t *testing.T) (*Handler, *gorm.DB) {
 	t.Helper()
 	db := newTestDB(t)
 	store := newTestStorage(t)
 	return New(Deps{DB: db, AuthMode: config.AuthModeOIDC, Storage: store}), db
 }
 
-func newTestHandlerLocal(t *testing.T) (*handler, *gorm.DB, *auth.LocalAuthenticator) {
+func newTestHandlerLocal(t *testing.T) (*Handler, *gorm.DB, *auth.LocalAuthenticator) {
 	t.Helper()
 	db := newTestDB(t)
 	la, err := auth.NewLocalAuthenticator(db, []byte("test-signing-key-at-least-thirty-two-bytes"))
@@ -90,7 +90,7 @@ func newTestStorage(t *testing.T) storage.Service {
 
 // setupRouter mounts /api under a fresh Gin engine, wrapping authed routes
 // with a middleware that attaches asUser (or nil) to the context.
-func setupRouter(h *handler, asUser *models.User) *gin.Engine {
+func setupRouter(h *Handler, asUser *models.User) *gin.Engine {
 	r := gin.New()
 	apiGroup := r.Group("/api")
 	AddRoutes(apiGroup, func(c *gin.Context) {

@@ -5,14 +5,89 @@ doc tracks what's **actually in the tree** against that plan and calls out
 what's been skipped or deferred so later slices don't assume foundations
 that aren't there.
 
-Last audited: 2026-04-25 — M6 and M7 landed as a single pass to close out
-the §21 ladder. Backend gains a real thumbnail service (raster / audio
-waveform / font sample) wired into the import pipeline, audit viewers
-(library + per-asset + per-project + sysadmin), import list/retry,
-subset-version action, library members API, and sysadmin user/server
-settings. Frontend gains the editable settings page, dark/light toggle in
-the nav rail, audit pages, queue v2 with retry + nav-rail badge, members
-editor, and the §5.3 keyboard shortcuts.
+Last audited: 2026-04-25 — pre-alpha hardening pass on top of M6/M7. No new
+milestone scope; everything in this round is from the architecture review.
+
+**Backend security & robustness**
+
+- `cmd/server/main.go` now installs `securityHeaders` (CSP /
+  X-Content-Type-Options / X-Frame-Options / Referrer-Policy), a
+  `jsonBodyCap` middleware (1 MiB cap on non-multipart bodies), and full
+  server timeouts (`Read{Header}Timeout`, `WriteTimeout`, `IdleTimeout`).
+- `GET /api/files/:objectKey` is now `Content-Type: application/octet-stream`
+  + `Content-Disposition: attachment` + `Content-Length`; `GET /api/thumbs/`
+  forces an allow-listed Content-Type. Stored XSS via uploaded HTML/SVG can
+  no longer reach the SPA's localStorage token.
+- `assets_crud.go` validates `source_url` against `http(s)` schemes (rejects
+  `javascript:` / `data:` / `file:`).
+- `auth/local.go` issues per-deployment `iss` / `aud` derived from
+  `DAMSON_BASE_URL`; `auth.LocalAuthenticator.Login` is gated by
+  `auth.LoginThrottle` (per-IP + per-email; 5 burst, 1/min refill);
+  `POST /api/auth/bootstrap` is throttled per-IP.
+- All password write paths (`SeedLocalAdmin`, `CreateFirstLocalAdmin`,
+  `CreateLocalUser`, `SetLocalUserPassword`) enforce
+  `auth.MinPasswordLength = 8`, surfaced to handlers as
+  `auth.ErrPasswordTooShort`.
+- Removing a library member bumps `users.tokens_valid_after` so an open SPA
+  tab is forced to log in on its next request rather than silently sliding
+  into "no library access yet".
+- OIDC mode warns at startup when `DAMSON_BOOTSTRAP_ADMIN_EMAILS` is empty —
+  the silent "no library ever created" failure mode is now visible.
+
+**Backend correctness**
+
+- `applyAssetFilters` translates `licence_status` into an SPDX `IN (…)`
+  predicate so `Total` and the page actually agree, including the "no
+  licence row → unk" branch.
+- `source_host` filter now escapes `%` / `_` (`LIKE … ESCAPE '\'`).
+- `tags.go` caps tag-path length at 1 KiB; `localfs.go` enforces hex-only
+  inside `pathFor` so a bug at the HTTP boundary can't escalate to a path
+  traversal.
+- `imports.go` retry path requires an `asset_files` row for non-Unity
+  imports (Unity case still uses the retained `original_package_object_key`).
+  Stops the retry from creating a manifest-empty asset version when the
+  upload bytes were never persisted.
+- `requireLibrary()` now does a single JOIN instead of two SELECTs; field
+  layout matches the previous behaviour exactly.
+- `helpers.go` adds `respondGORM(c, err, msg)` plus `errBadRequestf` /
+  `errConflictf` sentinels. Every transaction-returning handler uses the
+  shared mapper; `stringError` / `asError` are gone (apart from `asError`
+  living on as a thin `errors.New` wrapper for direct 400s).
+- All `PATCH /api/...` handlers issue `Updates(map)` with only the changed
+  columns instead of `Save(&row)` rewriting every field.
+- `_ = before` in `postProjectPin` is gone; the upgrade audit diff now
+  carries the previous version.
+
+**Frontend**
+
+- `AssetGrid.tsx` switches to `@tanstack/react-virtual` so large libraries
+  don't render every card. Column count comes from a `ResizeObserver`-driven
+  hook; keyboard selection scrolls into view via `virtualizer.scrollToIndex`.
+- `LibraryPage.tsx` keyboard shortcut bindings are stable across renders —
+  handlers read state from a ref instead of being re-created on every
+  refetch, so `useKeyboardShortcuts` no longer rebinds on each paint.
+
+**API package**
+
+- `Handler` is exported (was unexported `handler`). `Deps.LoginThrottle` is
+  optional and defaults to a sensible bucket. `internal/handlers/api/*.go`
+  receivers are `*Handler`.
+
+**Doc updates**
+
+- `docs/technical-design.md` §16 refreshed to mirror `handler.go` exactly,
+  with a "documented but not yet implemented" appendix for the deferred
+  endpoints.
+- `docs/technical-design.md` §8.1 promotes the local-auth HTTP bootstrap
+  flow, password floor, throttle, and per-deployment iss/aud; §8.3 (new)
+  documents the HTTP security posture (CSP, body cap, timeouts, file
+  download hardening, source_url validation, SPA token storage caveat).
+- `docs/product-design-doc.md` §6 calls out OIDC vs local explicitly and
+  notes local mode is for development / single-user installs.
+- `README.md` Layout calls out `damson.go` and the `web/static/.gitkeep`
+  placeholder.
+
+Earlier history below.
 
 2026-04-26 — M3, M4, and M5 landed as a single pass. The
 tree now has tags + licences + projects + collections + search + library

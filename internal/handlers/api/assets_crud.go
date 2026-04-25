@@ -1,7 +1,9 @@
 package api
 
 import (
+	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -71,7 +73,7 @@ type collectionRefView struct {
 // getAssetDetail returns everything the detail panel renders — asset +
 // current-version files + all versions + tags + licence + project pins +
 // collections.
-func (h *handler) getAssetDetail(c *gin.Context) {
+func (h *Handler) getAssetDetail(c *gin.Context) {
 	lib := getLibrary(c)
 	id, ok := parseIDParam(c, "id")
 	if !ok {
@@ -261,7 +263,7 @@ type assetPatchRequest struct {
 
 // patchAsset updates editable fields on an asset. Writes an audit row in
 // the same transaction.
-func (h *handler) patchAsset(c *gin.Context) {
+func (h *Handler) patchAsset(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -277,6 +279,14 @@ func (h *handler) patchAsset(c *gin.Context) {
 		respond400(c, asError("name must not be blank"))
 		return
 	}
+	if req.SourceURL != nil {
+		if cleaned, err := validateSourceURL(*req.SourceURL); err != nil {
+			respond400(c, err)
+			return
+		} else {
+			req.SourceURL = &cleaned
+		}
+	}
 
 	var out models.Asset
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
@@ -284,44 +294,45 @@ func (h *handler) patchAsset(c *gin.Context) {
 		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&asset).Error; err != nil {
 			return err
 		}
-		before := map[string]any{
-			"name":        asset.Name,
-			"description": asset.Description,
-			"source_url":  asset.SourceURL,
-		}
+		// Build the column-set map from set fields only — keeps writes
+		// narrow so audit diffs reflect intent rather than full-row rewrites.
+		before := map[string]any{}
+		updates := map[string]any{}
 		if req.Name != nil {
+			before["name"] = asset.Name
 			asset.Name = strings.TrimSpace(*req.Name)
+			updates["name"] = asset.Name
 		}
 		if req.Description != nil {
+			before["description"] = asset.Description
 			asset.Description = *req.Description
+			updates["description"] = asset.Description
 		}
 		if req.SourceURL != nil {
+			before["source_url"] = asset.SourceURL
 			asset.SourceURL = strings.TrimSpace(*req.SourceURL)
+			updates["source_url"] = asset.SourceURL
 		}
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-		after := map[string]any{
-			"name":        asset.Name,
-			"description": asset.Description,
-			"source_url":  asset.SourceURL,
+		if len(updates) > 0 {
+			if err := tx.Model(&asset).Updates(updates).Error; err != nil {
+				return err
+			}
 		}
 		out = asset
+		if len(updates) == 0 {
+			return nil
+		}
 		return audit.Write(tx, audit.Entry{
 			LibraryID:  &lib.ID,
 			UserID:     &u.ID,
 			ActionType: "asset.update",
 			TargetType: "asset",
 			TargetID:   &asset.ID,
-			Diff:       audit.Updated(before, after),
+			Diff:       audit.Updated(before, updates),
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "asset not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -334,7 +345,7 @@ func (h *handler) patchAsset(c *gin.Context) {
 
 // deleteAsset removes an asset and all its versions/files/tags/pins. Blob
 // storage is untouched — content-addressed, GC is a later job.
-func (h *handler) deleteAsset(c *gin.Context) {
+func (h *Handler) deleteAsset(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -399,18 +410,14 @@ func (h *handler) deleteAsset(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "asset not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
 // postAssetReview marks an asset reviewed (clears needs_review). Idempotent.
-func (h *handler) postAssetReview(c *gin.Context) {
+func (h *Handler) postAssetReview(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -441,19 +448,39 @@ func (h *handler) postAssetReview(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "asset not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-// asError wraps a string into an error; used because respond400 takes error.
-type stringError string
+// asError wraps a string into an error so handler call sites stay terse:
+//
+//	respond400(c, asError("name must not be blank"))
+//
+// Returns a plain errors.New value — nothing to type-check against.
+func asError(s string) error { return errors.New(s) }
 
-func (e stringError) Error() string { return string(e) }
-
-func asError(s string) error { return stringError(s) }
+// validateSourceURL trims, accepts the empty string ("clear the field"), and
+// otherwise requires an absolute http(s) URL. javascript:, data:, and other
+// scheme attacks land here as a 400 — the field is rendered as an <a href>
+// in the SPA so an unfiltered scheme is a stored XSS vector.
+func validateSourceURL(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", nil
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return "", asError("source_url is not a valid URL")
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+	default:
+		return "", asError("source_url must be http(s)")
+	}
+	if u.Host == "" {
+		return "", asError("source_url must include a host")
+	}
+	return s, nil
+}

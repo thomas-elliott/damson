@@ -22,7 +22,7 @@ type adminUserView struct {
 
 // getAdminUsers lists every user on the server. Sysadmin only — sensitive
 // surface that shouldn't be exposed to library members.
-func (h *handler) getAdminUsers(c *gin.Context) {
+func (h *Handler) getAdminUsers(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
 	}
@@ -53,7 +53,7 @@ type patchUserRequest struct {
 // patchAdminUser changes a user's role and/or resets their password
 // (local-mode only). Refuses to demote the last sysadmin so a server
 // can't end up sysadmin-less.
-func (h *handler) patchAdminUser(c *gin.Context) {
+func (h *Handler) patchAdminUser(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
 	}
@@ -166,7 +166,7 @@ type serverSettingsView struct {
 	LicenceKBAutoUpdate bool  `json:"licence_kb_auto_update"`
 }
 
-func (h *handler) getServerSettings(c *gin.Context) {
+func (h *Handler) getServerSettings(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
 	}
@@ -186,7 +186,7 @@ type serverSettingsPatchRequest struct {
 	LicenceKBAutoUpdate *bool  `json:"licence_kb_auto_update,omitempty"`
 }
 
-func (h *handler) patchServerSettings(c *gin.Context) {
+func (h *Handler) patchServerSettings(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
 	}

@@ -31,3 +31,5 @@ Required env vars are listed in `docs/technical-design.md` §14.1.
 - `database/migrations/` — SQL migrations applied at startup
 - `web/` — React SPA (Vite build output at `web/static/`)
 - `docs/` — design documents
+- `damson.go` — module-root file holding the `//go:embed` directives for migrations and SPA assets. Lives at the root because `//go:embed` can't traverse upward from `internal/`.
+- `web/static/.gitkeep` — placeholder that lets `//go:embed all:web/static` succeed before the SPA has been built. Don't delete it; don't commit anything else into `web/static/`.

@@ -144,7 +144,11 @@ func (l *LocalFS) statHashed(prefix, key string) (int64, bool, error) {
 }
 
 func (l *LocalFS) pathFor(prefix, key string) (string, error) {
-	if len(key) < 2 || !isHexKey(key) {
+	// Defense in depth: callers at the HTTP boundary already enforce a
+	// 64-hex-char shape, but the storage layer rejects anything that could
+	// climb out of `root` regardless. Empty keys, separators, ".."
+	// components, and non-hex bytes all land here.
+	if len(key) < 2 || len(key) > 128 || !isHexKey(key) {
 		return "", fmt.Errorf("invalid object key %q", key)
 	}
 	return filepath.Join(l.root, prefix, key[:2], key), nil

@@ -1,9 +1,11 @@
 // Package api holds HTTP handlers for the /api surface. Each feature lives in
 // its own file (assets.go, projects.go, …); all handlers are receiver methods
-// on the shared handler struct, per docs/CONVENTIONS.md.
+// on the shared Handler struct, per docs/CONVENTIONS.md.
 package api
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -12,13 +14,15 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
-// handler carries dependencies used by every API handler. Unexported so
-// callers go through New.
-type handler struct {
-	db       *gorm.DB
-	authMode config.AuthMode
-	local    *auth.LocalAuthenticator // non-nil only in local mode
-	storage  storage.Service          // nil in tests that don't exercise uploads
+// Handler carries dependencies used by every API handler. Construct with
+// New(Deps{...}); register routes with AddRoutes. Exported so cmd/server (and
+// out-of-tree tests) can hold a typed handle without leaking the field set.
+type Handler struct {
+	db        *gorm.DB
+	authMode  config.AuthMode
+	local     *auth.LocalAuthenticator // non-nil only in local mode
+	storage   storage.Service          // nil in tests that don't exercise uploads
+	loginRate *auth.LoginThrottle
 }
 
 type Deps struct {
@@ -26,14 +30,23 @@ type Deps struct {
 	AuthMode config.AuthMode
 	Local    *auth.LocalAuthenticator
 	Storage  storage.Service
+	// LoginThrottle is consulted on POST /api/auth/login and
+	// /api/auth/bootstrap. Optional — a nil value installs the default
+	// throttle (5 burst, one token per minute).
+	LoginThrottle *auth.LoginThrottle
 }
 
-func New(d Deps) *handler {
-	return &handler{
-		db:       d.DB,
-		authMode: d.AuthMode,
-		local:    d.Local,
-		storage:  d.Storage,
+func New(d Deps) *Handler {
+	throttle := d.LoginThrottle
+	if throttle == nil {
+		throttle = auth.NewLoginThrottle(5, time.Minute)
+	}
+	return &Handler{
+		db:        d.DB,
+		authMode:  d.AuthMode,
+		local:     d.Local,
+		storage:   d.Storage,
+		loginRate: throttle,
 	}
 }
 
@@ -41,7 +54,7 @@ func New(d Deps) *handler {
 // directly; authenticated routes go through the auth middleware passed in.
 // Library-scoped routes layer on the library middleware that verifies the
 // user's membership in their current library.
-func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *handler) {
+func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler) {
 	// Public
 	root.GET("/health", h.getHealth)
 	root.GET("/auth/mode", h.getAuthMode)

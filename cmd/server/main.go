@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -64,6 +65,9 @@ func main() {
 		}
 		authenticator = oa
 		slog.Info("auth mode", "mode", "oidc", "issuer", cfg.OIDCIssuerURL)
+		if len(cfg.BootstrapAdmins) == 0 {
+			slog.Warn("oidc: DAMSON_BOOTSTRAP_ADMIN_EMAILS is empty — no first-sign-in user will be promoted to sysadmin or get a default library; new users will land on 'no library access yet' with no path forward")
+		}
 
 	case config.AuthModeLocal:
 		signingKey := cfg.JWTSigningKey
@@ -75,7 +79,7 @@ func main() {
 			}
 			signingKey = k
 		}
-		la, err := auth.NewLocalAuthenticator(gormDB, signingKey)
+		la, err := auth.NewLocalAuthenticatorWithIssuer(gormDB, signingKey, cfg.BaseURL)
 		if err != nil {
 			slog.Error("local auth init", "err", err)
 			os.Exit(1)
@@ -99,6 +103,8 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
+	r.Use(securityHeaders())
+	r.Use(jsonBodyCap(maxJSONBodyBytes))
 
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
@@ -114,10 +120,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Timeouts:
+	//   ReadHeaderTimeout — defends against slow-loris on the request line.
+	//   ReadTimeout       — covers the body too; uploads can be large so this
+	//                       is generous. Per-handler control happens via
+	//                       request context cancellation.
+	//   WriteTimeout      — bounds long-running responses (file streams).
+	//   IdleTimeout       — keeps keep-alive connections from accruing.
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           r,
 		ReadHeaderTimeout: 30 * time.Second,
+		ReadTimeout:       30 * time.Minute,
+		WriteTimeout:      30 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
 	}
 
 	errCh := make(chan error, 1)
@@ -143,6 +159,51 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown", "err", err)
+	}
+}
+
+// maxJSONBodyBytes caps the body Gin will read on JSON-shaped requests.
+// Multipart uploads (POST /api/imports) are exempt — they handle their own
+// streaming pipeline, see internal/handlers/api/assets.go. 1 MiB is well above
+// any reasonable JSON payload (the largest is a licence's original_text) and
+// well below the threshold at which a malicious client can OOM the process.
+const maxJSONBodyBytes = 1 << 20
+
+// securityHeaders applies a conservative set of response headers to every
+// request. CSP locks the SPA to its own origin so a stored XSS in a served
+// blob can't reach back into damson's UI. X-Frame-Options blocks clickjacking;
+// X-Content-Type-Options stops the browser sniffing past our declared types.
+// Referrer-Policy keeps internal paths out of upstream Referer headers.
+func securityHeaders() gin.HandlerFunc {
+	const csp = "default-src 'self'; " +
+		"script-src 'self'; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data: blob:; " +
+		"font-src 'self' data:; " +
+		"connect-src 'self'; " +
+		"object-src 'none'; " +
+		"base-uri 'self'; " +
+		"frame-ancestors 'none';"
+	return func(c *gin.Context) {
+		c.Header("Content-Security-Policy", csp)
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Referrer-Policy", "no-referrer")
+		c.Next()
+	}
+}
+
+// jsonBodyCap wraps the request body in http.MaxBytesReader for routes that
+// don't stream a multipart upload. The exemption keeps POST /api/imports
+// streaming-capable while every other endpoint gains a hard ceiling on body
+// reads. 413 surfaces if the limit trips.
+func jsonBodyCap(limit int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ct := c.Request.Header.Get("Content-Type")
+		if c.Request.Body != nil && !strings.HasPrefix(ct, "multipart/") {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		}
+		c.Next()
 	}
 }
 
