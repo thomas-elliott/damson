@@ -255,3 +255,189 @@ export function useRemoveAssetFromCollection() {
     },
   });
 }
+
+export interface LibrarySettingsPatch {
+  theme_default?: "dark" | "light";
+  grid_density_default?: "small" | "medium" | "large";
+  retain_original_packages?: boolean;
+  dedupe_enabled?: boolean;
+  thumbnails_raster_enabled?: boolean;
+  thumbnails_audio_enabled?: boolean;
+  thumbnails_font_enabled?: boolean;
+  thumbnails_unity_preview?: boolean;
+  audit_retention_days?: number | null;
+}
+
+export function usePatchLibrarySettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: LibrarySettingsPatch) => {
+      return fetchJson<unknown>(`/api/settings`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.librarySettings });
+    },
+  });
+}
+
+export function useRetryImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      return fetchJson<{ asset_id: number; import_id: number }>(
+        `/api/imports/${id}/retry`,
+        { method: "POST" },
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.imports });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
+  });
+}
+
+export function useInviteMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      libraryId: number;
+      email: string;
+      display_name?: string;
+      role: "admin" | "member";
+      password?: string;
+    }) => {
+      const { libraryId, ...body } = input;
+      return fetchJson<{ user_id: number }>(`/api/libraries/${libraryId}/members`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.libraryMembers(v.libraryId) });
+    },
+  });
+}
+
+export function usePatchMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      libraryId: number;
+      userId: number;
+      role: "admin" | "member";
+    }) => {
+      const { libraryId, userId, role } = input;
+      return fetchJson<unknown>(`/api/libraries/${libraryId}/members/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      });
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.libraryMembers(v.libraryId) });
+    },
+  });
+}
+
+export function useRemoveMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { libraryId: number; userId: number }) => {
+      await fetchMaybeJson(
+        `/api/libraries/${input.libraryId}/members/${input.userId}`,
+        { method: "DELETE" },
+      );
+      return input;
+    },
+    onSuccess: (v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.libraryMembers(v.libraryId) });
+    },
+  });
+}
+
+export function useCreateSubsetVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      assetId: number;
+      versionId: number;
+      file_ids: number[];
+      version_label?: string;
+    }) => {
+      const { assetId, versionId, ...body } = input;
+      return fetchJson<{ asset_version_id: number }>(
+        `/api/assets/${assetId}/versions/${versionId}/subset`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.assetId) });
+    },
+  });
+}
+
+export function usePatchUserRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { userId: number; role: "user" | "sysadmin" }) => {
+      return fetchJson<unknown>(`/api/admin/users/${input.userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role: input.role }),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminUsers });
+    },
+  });
+}
+
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: async (input: { userId: number; password: string }) => {
+      return fetchJson<unknown>(`/api/admin/users/${input.userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ password: input.password }),
+      });
+    },
+  });
+}
+
+export function usePatchServerSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      max_upload_bytes?: number;
+      licence_kb_auto_update?: boolean;
+    }) => {
+      return fetchJson<unknown>(`/api/admin/settings`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminSettings });
+    },
+  });
+}
+
+export function usePatchLibrary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      libraryId: number;
+      name?: string;
+      description?: string;
+    }) => {
+      const { libraryId, ...body } = input;
+      return fetchJson<unknown>(`/api/libraries/${libraryId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+    },
+  });
+}

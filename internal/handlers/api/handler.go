@@ -57,6 +57,22 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *handler
 	authed.GET("/libraries", h.getLibraries)
 	authed.POST("/me/current-library", h.postCurrentLibrary)
 
+	// Library member management — gated by membership/admin checks inside the
+	// handlers because these routes don't share the current_library_id
+	// requirement (a sysadmin can administer any library).
+	authed.PATCH("/libraries/:id", h.patchLibrary)
+	authed.GET("/libraries/:id/members", h.getLibraryMembers)
+	authed.POST("/libraries/:id/members", h.postLibraryMember)
+	authed.PATCH("/libraries/:id/members/:userId", h.patchLibraryMember)
+	authed.DELETE("/libraries/:id/members/:userId", h.deleteLibraryMember)
+
+	// Server admin (sysadmin only — gated inside each handler)
+	authed.GET("/admin/users", h.getAdminUsers)
+	authed.PATCH("/admin/users/:id", h.patchAdminUser)
+	authed.GET("/admin/settings", h.getServerSettings)
+	authed.PATCH("/admin/settings", h.patchServerSettings)
+	authed.GET("/admin/audit", h.getAdminAudit)
+
 	// Authenticated + library-scoped
 	scoped := authed.Group("")
 	scoped.Use(h.requireLibrary())
@@ -70,7 +86,11 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *handler
 
 	// Imports
 	scoped.POST("/imports", h.postImport)
+	scoped.GET("/imports", h.getImports)
+	scoped.GET("/imports/:id", h.getImport)
+	scoped.POST("/imports/:id/retry", h.postImportRetry)
 	scoped.POST("/assets/:id/versions/:vid/reextract", h.postReExtract)
+	scoped.POST("/assets/:id/versions/:vid/subset", h.postAssetVersionSubset)
 
 	// Files / thumbnails
 	scoped.GET("/files/:objectKey", h.getFile)
@@ -114,4 +134,9 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *handler
 	// Library settings (M5)
 	scoped.GET("/settings", h.getLibrarySettings)
 	scoped.PATCH("/settings", h.patchLibrarySettings)
+
+	// Audit (M7)
+	scoped.GET("/audit", h.getLibraryAudit)
+	scoped.GET("/assets/:id/audit", h.getAssetAudit)
+	scoped.GET("/projects/:id/audit", h.getProjectAudit)
 }
