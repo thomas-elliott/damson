@@ -49,6 +49,7 @@ The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in
 - **Never log tokens or raw session values.** Applies to `slog` debug output, error wraps, anything that might end up in a log collector.
 - **Mirror existing patterns; don't refactor unrelated code.** Focused changes only. Read `docs/` before architectural changes.
 - **Taskfile shell.** `Taskfile.yml` commands run under mvdan/sh (Task's embedded interpreter), not bash. Bash-isms like `trap INT TERM`, process substitution, and `set -o pipefail` fail silently or with confusing errors — wrap in `bash -c '...'` when you need them.
+- **`go mod tidy` is enforced in CI.** `.github/workflows/ci.yml` runs `go mod tidy` then `git diff --exit-code -- go.mod go.sum` and fails the build on any drift. Whenever you add an import — especially when a previously-indirect dep becomes a direct require because new code uses it — run `task mod:tidy:check` (or `go mod tidy` + diff) before committing. `task pre-release-checks` includes this step; running it locally before pushing avoids CI-only failures.
 
 ## Architecture
 
