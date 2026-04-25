@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2 } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import {
   AssetCard,
@@ -9,10 +10,18 @@ import {
 } from "@/design-system";
 import type { AssetRow } from "@/hooks/useDataQueries";
 
+// Cell sizing matches the Tailwind class `minmax(180px, 1fr)` used previously
+// — the virtualiser needs concrete pixel sizes to estimate row height. The
+// grid auto-fills as many cells as fit, so we recompute on resize.
+const MIN_CELL_WIDTH = 180;
+const CELL_HEIGHT = 220; // card body + footer; tuned to AssetCard's CSS.
+const GAP = 12;
+
 /**
- * Library grid — one AssetCard per row. Each card is a focusable button so
- * keyboard navigation (handled by the parent page) can scroll the
- * highlighted card into view via aria-current matching.
+ * Library grid — virtualised with @tanstack/react-virtual so multi-thousand
+ * asset libraries don't render every card to the DOM. Each visible row is a
+ * CSS subgrid of N cards; N is derived from the container width so the grid
+ * still feels responsive.
  */
 export function AssetGrid({
   assets,
@@ -23,18 +32,32 @@ export function AssetGrid({
   onOpen?: (id: number) => void;
   selectedId?: number | null;
 }) {
-  const gridRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const columns = useColumnCount(scrollRef);
 
-  // When `selectedId` changes from outside (keyboard navigation), make sure
-  // the matching card is in view. AssetCard renders its outer wrapper as
-  // the click target, so we look up via a data attribute we attach below.
-  useEffect(() => {
-    if (selectedId == null || !gridRef.current) return;
-    const node = gridRef.current.querySelector(`[data-asset-id="${selectedId}"]`);
-    if (node && "scrollIntoView" in node) {
-      (node as HTMLElement).scrollIntoView({ block: "nearest" });
+  const rows = useMemo(() => {
+    const out: AssetRow[][] = [];
+    for (let i = 0; i < assets.length; i += columns) {
+      out.push(assets.slice(i, i + columns));
     }
-  }, [selectedId]);
+    return out;
+  }, [assets, columns]);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => CELL_HEIGHT + GAP,
+    overscan: 4,
+  });
+
+  // Keep the keyboard-selected card in view. We compute the row that
+  // contains `selectedId` and ask the virtualiser to scroll to it.
+  useEffect(() => {
+    if (selectedId == null) return;
+    const i = assets.findIndex((a) => a.id === selectedId);
+    if (i < 0) return;
+    virtualizer.scrollToIndex(Math.floor(i / columns), { align: "auto" });
+  }, [selectedId, assets, columns, virtualizer]);
 
   if (assets.length === 0) {
     return (
@@ -45,40 +68,83 @@ export function AssetGrid({
       />
     );
   }
+
   return (
-    <div
-      ref={gridRef}
-      className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 p-3.5"
-    >
-      {assets.map((a) => (
-        <AssetCard
-          key={a.id}
-          name={a.name}
-          data-asset-id={a.id}
-          selected={selectedId === a.id}
-          onSelect={() => onOpen?.(a.id)}
-          sub={
-            <>
-              <span className="font-mono">{formatBytes(a.size_bytes)}</span>
-              {a.file_count > 1 && (
-                <>
-                  <span className="text-text-4">·</span>
-                  <span className="font-mono">{a.file_count} files</span>
-                </>
-              )}
-            </>
-          }
-          trailing={
-            a.licence_spdx ? (
-              <LicencePill
-                status={a.licence_status ?? "unk"}
-                spdx={a.licence_spdx}
-              />
-            ) : undefined
-          }
-          needsReview={a.needs_review}
-        />
-      ))}
+    <div ref={scrollRef} className="flex-1 overflow-auto p-3.5">
+      <div
+        style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}
+      >
+        {virtualizer.getVirtualItems().map((vRow) => {
+          const row = rows[vRow.index];
+          return (
+            <div
+              key={vRow.key}
+              data-row-index={vRow.index}
+              className="grid"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${vRow.start}px)`,
+                gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                gap: GAP,
+              }}
+            >
+              {row.map((a) => (
+                <AssetCard
+                  key={a.id}
+                  name={a.name}
+                  data-asset-id={a.id}
+                  selected={selectedId === a.id}
+                  onSelect={() => onOpen?.(a.id)}
+                  sub={
+                    <>
+                      <span className="font-mono">{formatBytes(a.size_bytes)}</span>
+                      {a.file_count > 1 && (
+                        <>
+                          <span className="text-text-4">·</span>
+                          <span className="font-mono">{a.file_count} files</span>
+                        </>
+                      )}
+                    </>
+                  }
+                  trailing={
+                    a.licence_spdx ? (
+                      <LicencePill
+                        status={a.licence_status ?? "unk"}
+                        spdx={a.licence_spdx}
+                      />
+                    ) : undefined
+                  }
+                  needsReview={a.needs_review}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
+}
+
+// useColumnCount tracks the number of cards per row based on the scroll
+// container's measured width. Recomputes on resize so density toggles and
+// window resizes both work.
+function useColumnCount(ref: React.RefObject<HTMLDivElement>): number {
+  const [cols, setCols] = useState(4);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const compute = () => {
+      const w = el.clientWidth;
+      const next = Math.max(1, Math.floor((w + GAP) / (MIN_CELL_WIDTH + GAP)));
+      setCols(next);
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return cols;
 }

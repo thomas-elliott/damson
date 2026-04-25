@@ -102,7 +102,7 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 // list endpoint and the search endpoint. Callers get a GORM query they can
 // extend (pagination, ordering). Returns the `bool` `usedTsvector` so the
 // caller knows whether a tsvector-rank ORDER BY is valid.
-func (h *handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters) *gorm.DB {
+func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters) *gorm.DB {
 	q := db.Table("assets AS a").Where("a.library_id = ?", libID)
 
 	if f.NeedsReview != nil {
@@ -115,13 +115,34 @@ func (h *handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 	if f.SourceHost != "" {
 		// LIKE host match; source_url may not be parsed to host yet, so
 		// match substring. Good enough for v1; URL parsing is a future
-		// refinement.
-		q = q.Where("a.source_url LIKE ?", "%"+f.SourceHost+"%")
+		// refinement. Escape `%` and `_` so user input doesn't become
+		// an unintended wildcard. ESCAPE clause works on Postgres + SQLite.
+		q = q.Where(`a.source_url LIKE ? ESCAPE '\'`, "%"+escapeLikePattern(f.SourceHost)+"%")
 	}
 	if f.LicenceSPDX != "" || f.LicenceStatus != "" {
 		q = q.Joins("LEFT JOIN licences l ON l.id = a.licence_id")
 		if f.LicenceSPDX != "" {
 			q = q.Where("l.detected_type = ?", f.LicenceSPDX)
+		}
+		if f.LicenceStatus != "" {
+			// Translate the requested status into the matching SPDX set so
+			// the filter runs in SQL. Keeps Total honest and stops pages
+			// shrinking after pagination has been applied. quickLicenceStatus
+			// only depends on detected_type, so the mapping is deterministic
+			// without JSONB inspection.
+			ok, errSet, unkExtras := licenceStatusSPDXBuckets()
+			switch f.LicenceStatus {
+			case "ok":
+				q = q.Where("l.detected_type IN ?", ok)
+			case "err":
+				q = q.Where("l.detected_type IN ?", errSet)
+			case "unk":
+				// no licence row OR detected_type is unknown/empty
+				q = q.Where("l.detected_type IS NULL OR l.detected_type = '' OR l.detected_type IN ?", unkExtras)
+			case "warn":
+				// licence row exists, type is set, and not in ok/err/unk lists.
+				q = q.Where("l.detected_type IS NOT NULL AND l.detected_type <> '' AND l.detected_type NOT IN ? AND l.detected_type NOT IN ? AND l.detected_type NOT IN ?", ok, errSet, unkExtras)
+			}
 		}
 	}
 	if f.TagID != nil {
@@ -158,7 +179,7 @@ func (h *handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 
 // getAssets lists assets in the current library with optional filter and
 // search. Composable: every filter param ANDs with the others.
-func (h *handler) getAssets(c *gin.Context) {
+func (h *Handler) getAssets(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
 		respond500(c)
@@ -209,15 +230,9 @@ func (h *handler) getAssets(c *gin.Context) {
 
 	out := make([]assetGridRow, 0, len(rows))
 	for _, r := range rows {
-		status := ""
-		if r.LicenceSPDX != "" {
-			status = quickLicenceStatus(r.LicenceSPDX)
-		}
-		if f.LicenceStatus != "" && status != f.LicenceStatus {
-			// Post-filter by status: cheap enough at list-page size, and
-			// avoids adding a derived column to the schema.
-			continue
-		}
+		// Status is derived for display; the SQL filter (above) has already
+		// picked the matching rows. Empty SPDX → "unk".
+		status := quickLicenceStatus(r.LicenceSPDX)
 		out = append(out, assetGridRow{
 			ID:                 r.ID,
 			Name:               r.Name,
@@ -249,7 +264,7 @@ type importResponse struct {
 // extracted in-process: every inner file becomes an asset_files row, the
 // original archive is retained, and an embedded preview.png (if any) is
 // harvested as the asset's thumbnail.
-func (h *handler) postImport(c *gin.Context) {
+func (h *Handler) postImport(c *gin.Context) {
 	if h.storage == nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
 		return
@@ -429,7 +444,7 @@ func (h *handler) postImport(c *gin.Context) {
 // .unitypackage archive that was retained when the source version was
 // imported. The previous version's rows are untouched; the asset's
 // current_version_id switches to the new version.
-func (h *handler) postReExtract(c *gin.Context) {
+func (h *Handler) postReExtract(c *gin.Context) {
 	if h.storage == nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
 		return
@@ -551,7 +566,7 @@ func (h *handler) postReExtract(c *gin.Context) {
 // the queue UI something to show and a handle for retry. Failures here are
 // best-effort logged: the user is already getting an error response, so we
 // don't escalate further.
-func (h *handler) recordFailedUploadImport(c *gin.Context, libID uint, userID *uint, filename, objectKey string, isUnity bool, reason string) {
+func (h *Handler) recordFailedUploadImport(c *gin.Context, libID uint, userID *uint, filename, objectKey string, isUnity bool, reason string) {
 	tx := h.db.WithContext(c.Request.Context())
 	asset := models.Asset{
 		LibraryID:       libID,
@@ -663,6 +678,36 @@ func parsePagination(c *gin.Context) (limit, offset int) {
 			offset = n
 		}
 	}
+	return
+}
+
+// escapeLikePattern doubles up `%` and `_` characters and the escape `\` so
+// raw user input passed into a `LIKE ? ESCAPE '\'` clause matches literally.
+// Both Postgres and SQLite recognise the explicit ESCAPE clause.
+func escapeLikePattern(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '%' || c == '_' || c == '\\' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+// licenceStatusSPDXBuckets returns the SPDX-id sets that map to "ok", "err",
+// and "unk" status respectively. Mirrors quickLicenceStatus / projects.go's
+// status switch — keep these in sync. "warn" is the complement of the
+// other three; the SQL filter expresses it as "not in any of these".
+func licenceStatusSPDXBuckets() (ok, errSet, unkExtras []string) {
+	ok = []string{
+		"MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "Zlib", "ISC",
+		"CC-BY-4.0", "CC-BY-3.0", "CC0-1.0", "OFL-1.1", "Unlicense",
+	}
+	errSet = []string{"CC-BY-NC-4.0", "CC-BY-NC-3.0", "CC-BY-NC-SA-4.0"}
+	unkExtras = []string{"unknown"}
 	return
 }
 

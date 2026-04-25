@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -28,7 +29,7 @@ type memberListResponse struct {
 
 // getLibraryMembers lists every membership in the path's library. Library
 // members can read this; admin gating only applies to writes.
-func (h *handler) getLibraryMembers(c *gin.Context) {
+func (h *Handler) getLibraryMembers(c *gin.Context) {
 	libID, ok := parseIDParam(c, "id")
 	if !ok {
 		return
@@ -86,7 +87,7 @@ type addMemberRequest struct {
 //
 // Library admins can invite. Sysadmins can invite anywhere. Duplicate
 // memberships are 409.
-func (h *handler) postLibraryMember(c *gin.Context) {
+func (h *Handler) postLibraryMember(c *gin.Context) {
 	libID, ok := parseIDParam(c, "id")
 	if !ok {
 		return
@@ -130,6 +131,10 @@ func (h *handler) postLibraryMember(c *gin.Context) {
 		if cErr != nil {
 			if errors.Is(cErr, auth.ErrUserExists) {
 				respond409(c, "user already exists")
+				return
+			}
+			if errors.Is(cErr, auth.ErrPasswordTooShort) {
+				respond400(c, cErr)
 				return
 			}
 			respond500(c)
@@ -202,7 +207,7 @@ type patchMemberRequest struct {
 
 // patchLibraryMember changes a member's role. Refuses to demote the last
 // admin so a library can't end up adminless.
-func (h *handler) patchLibraryMember(c *gin.Context) {
+func (h *Handler) patchLibraryMember(c *gin.Context) {
 	libID, ok := parseIDParam(c, "id")
 	if !ok {
 		return
@@ -283,7 +288,7 @@ func (h *handler) patchLibraryMember(c *gin.Context) {
 // deleteLibraryMember removes a membership. Same last-admin guard as the
 // patch path. A user removing themselves is allowed if they're not the
 // last admin — this matches typical "leave" behaviour.
-func (h *handler) deleteLibraryMember(c *gin.Context) {
+func (h *Handler) deleteLibraryMember(c *gin.Context) {
 	libID, ok := parseIDParam(c, "id")
 	if !ok {
 		return
@@ -329,6 +334,17 @@ func (h *handler) deleteLibraryMember(c *gin.Context) {
 		if err := tx.Delete(&mem).Error; err != nil {
 			return err
 		}
+		// Bump tokens_valid_after so any open session for this user is
+		// invalidated immediately. Combined with current_library_id clearing
+		// below, the next API call from a stale tab fails 401 → SPA bounces
+		// to login. Without this the tab keeps reading "no library access"
+		// indefinitely.
+		now := time.Now().UTC()
+		if err := tx.Model(&models.User{}).
+			Where("id = ?", userID).
+			Update("tokens_valid_after", &now).Error; err != nil {
+			return err
+		}
 		// If the removed user had this library as their current library,
 		// clear it so their next request lands on requireLibrary's "no
 		// current library" path rather than 403-on-membership.
@@ -359,7 +375,7 @@ func (h *handler) deleteLibraryMember(c *gin.Context) {
 
 // userCanAdminLibrary returns true when the authenticated user is either
 // a sysadmin or a library admin of libID.
-func (h *handler) userCanAdminLibrary(c *gin.Context, libID uint) bool {
+func (h *Handler) userCanAdminLibrary(c *gin.Context, libID uint) bool {
 	u := auth.GetUser(c)
 	if u == nil {
 		return false
@@ -376,7 +392,7 @@ func (h *handler) userCanAdminLibrary(c *gin.Context, libID uint) bool {
 
 // userIsLibraryMember returns true when the user has any membership in
 // libID. Sysadmins bypass the check.
-func (h *handler) userIsLibraryMember(c *gin.Context, libID uint) bool {
+func (h *Handler) userIsLibraryMember(c *gin.Context, libID uint) bool {
 	u := auth.GetUser(c)
 	if u == nil {
 		return false

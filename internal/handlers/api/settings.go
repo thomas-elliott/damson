@@ -42,7 +42,7 @@ func settingsViewFrom(s *models.LibrarySettings) librarySettingsView {
 // getLibrarySettings returns the current library's settings, creating the
 // row with defaults if it's missing (it shouldn't be after migration 005,
 // but callers get a sensible response either way).
-func (h *handler) getLibrarySettings(c *gin.Context) {
+func (h *Handler) getLibrarySettings(c *gin.Context) {
 	lib := getLibrary(c)
 	s, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID)
 	if err != nil {
@@ -65,7 +65,7 @@ type librarySettingsPatchRequest struct {
 }
 
 // patchLibrarySettings is library-admin-only. Members get 403.
-func (h *handler) patchLibrarySettings(c *gin.Context) {
+func (h *Handler) patchLibrarySettings(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
 	}

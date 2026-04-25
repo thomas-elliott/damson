@@ -75,6 +75,26 @@ func BootstrapFirstAdmin(ctx context.Context, db *gorm.DB, u *models.User, boots
 // — it simply stops succeeding once bootstrap is done.
 var ErrAlreadyBootstrapped = errors.New("already bootstrapped")
 
+// MinPasswordLength is the minimum length we accept for a local-auth
+// password. Local auth is a development/testing-grade credential — see
+// docs/technical-design.md §8.1; OIDC remains the recommended path for any
+// deployment where account security matters. Eight characters reflects that
+// floor without making the bootstrap flow unusable.
+const MinPasswordLength = 8
+
+// ErrPasswordTooShort is returned by the password-write paths when the
+// supplied password is below MinPasswordLength.
+var ErrPasswordTooShort = errors.New("password is too short")
+
+// validatePassword enforces the project-wide password floor. Callers should
+// surface ErrPasswordTooShort as a 400 with err.Error() per the convention.
+func validatePassword(password string) error {
+	if len(password) < MinPasswordLength {
+		return ErrPasswordTooShort
+	}
+	return nil
+}
+
 // SeedLocalAdmin creates the initial local-auth admin user if no users exist
 // yet. Runs at startup in local auth mode when DAMSON_LOCAL_ADMIN_EMAIL /
 // DAMSON_LOCAL_ADMIN_PASSWORD are both set. Missing credentials is not an
@@ -87,6 +107,9 @@ var ErrAlreadyBootstrapped = errors.New("already bootstrapped")
 func SeedLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) error {
 	if email == "" || password == "" {
 		return nil
+	}
+	if err := validatePassword(password); err != nil {
+		return fmt.Errorf("seed local admin: %w", err)
 	}
 
 	var count int64
@@ -109,6 +132,9 @@ func CreateFirstLocalAdmin(ctx context.Context, db *gorm.DB, email, password str
 	email = strings.TrimSpace(email)
 	if email == "" || password == "" {
 		return nil, errors.New("email and password are required")
+	}
+	if err := validatePassword(password); err != nil {
+		return nil, err
 	}
 
 	var count int64
@@ -160,6 +186,9 @@ func CreateLocalUser(ctx context.Context, db *gorm.DB, email, displayName, passw
 	if email == "" || password == "" {
 		return nil, errors.New("email and password are required")
 	}
+	if err := validatePassword(password); err != nil {
+		return nil, err
+	}
 	if displayName == "" {
 		displayName = email
 	}
@@ -198,6 +227,9 @@ func CreateLocalUser(ctx context.Context, db *gorm.DB, email, displayName, passw
 func SetLocalUserPassword(ctx context.Context, db *gorm.DB, userID uint, password string) error {
 	if password == "" {
 		return errors.New("password is required")
+	}
+	if err := validatePassword(password); err != nil {
+		return err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

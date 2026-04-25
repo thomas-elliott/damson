@@ -23,7 +23,7 @@ type subsetRequest struct {
 // re-upload); the new version simply references the same blobs. Any
 // `file_ids` that don't belong to the source version are rejected with 400
 // — this catches both stale UI state and cross-asset spoofing attempts.
-func (h *handler) postAssetVersionSubset(c *gin.Context) {
+func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	if lib == nil || u == nil {
