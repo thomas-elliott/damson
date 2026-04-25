@@ -116,4 +116,3 @@ func hasTransparency(img image.Image) bool {
 	}
 	return false
 }
-
