@@ -22,7 +22,7 @@ type collectionView struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-func (h *handler) getCollections(c *gin.Context) {
+func (h *Handler) getCollections(c *gin.Context) {
 	lib := getLibrary(c)
 	type row struct {
 		ID          uint
@@ -61,7 +61,7 @@ type collectionWriteRequest struct {
 	Description string `json:"description,omitempty"`
 }
 
-func (h *handler) postCollection(c *gin.Context) {
+func (h *Handler) postCollection(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	var req collectionWriteRequest
@@ -83,7 +83,7 @@ func (h *handler) postCollection(c *gin.Context) {
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var existing models.Collection
 		if err := tx.Where("library_id = ? AND LOWER(name) = LOWER(?)", lib.ID, name).First(&existing).Error; err == nil {
-			return asError("collection name already exists")
+			return errConflictf("collection name already exists")
 		} else if !isNotFound(err) {
 			return err
 		}
@@ -100,11 +100,7 @@ func (h *handler) postCollection(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if _, ok := err.(stringError); ok {
-			respond409(c, err.Error())
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "collection not found")
 		return
 	}
 	c.JSON(http.StatusCreated, collectionView{
@@ -113,7 +109,7 @@ func (h *handler) postCollection(c *gin.Context) {
 	})
 }
 
-func (h *handler) getCollection(c *gin.Context) {
+func (h *Handler) getCollection(c *gin.Context) {
 	lib := getLibrary(c)
 	id, ok := parseIDParam(c, "id")
 	if !ok {
@@ -144,7 +140,7 @@ func (h *handler) getCollection(c *gin.Context) {
 	})
 }
 
-func (h *handler) patchCollection(c *gin.Context) {
+func (h *Handler) patchCollection(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -162,33 +158,38 @@ func (h *handler) patchCollection(c *gin.Context) {
 		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&coll).Error; err != nil {
 			return err
 		}
-		before := map[string]any{"name": coll.Name, "description": coll.Description}
+		before := map[string]any{}
+		updates := map[string]any{}
 		if name := strings.TrimSpace(req.Name); name != "" {
+			before["name"] = coll.Name
 			coll.Name = name
+			updates["name"] = name
 		}
 		if req.Description != "" {
+			before["description"] = coll.Description
 			coll.Description = req.Description
+			updates["description"] = req.Description
 		}
-		if err := tx.Save(&coll).Error; err != nil {
-			return err
+		if len(updates) > 0 {
+			if err := tx.Model(&coll).Updates(updates).Error; err != nil {
+				return err
+			}
 		}
 		out = coll
-		after := map[string]any{"name": coll.Name, "description": coll.Description}
+		if len(updates) == 0 {
+			return nil
+		}
 		return audit.Write(tx, audit.Entry{
 			LibraryID:  &lib.ID,
 			UserID:     &u.ID,
 			ActionType: "collection.update",
 			TargetType: "collection",
 			TargetID:   &coll.ID,
-			Diff:       audit.Updated(before, after),
+			Diff:       audit.Updated(before, updates),
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "collection not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "collection not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -198,7 +199,7 @@ func (h *handler) patchCollection(c *gin.Context) {
 	})
 }
 
-func (h *handler) deleteCollection(c *gin.Context) {
+func (h *Handler) deleteCollection(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -226,11 +227,7 @@ func (h *handler) deleteCollection(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "collection not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "collection not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -240,7 +237,7 @@ type collectionAssetRequest struct {
 	AssetID uint `json:"asset_id" binding:"required"`
 }
 
-func (h *handler) postCollectionAsset(c *gin.Context) {
+func (h *Handler) postCollectionAsset(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -290,7 +287,7 @@ func (h *handler) postCollectionAsset(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *handler) deleteCollectionAsset(c *gin.Context) {
+func (h *Handler) deleteCollectionAsset(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -324,16 +321,8 @@ func (h *handler) deleteCollectionAsset(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "collection not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "collection not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
-
-// silence unused-import lint when building without the trx path for certain
-// older deliberately kept helpers.
-var _ = gorm.ErrRecordNotFound

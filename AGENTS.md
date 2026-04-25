@@ -43,7 +43,7 @@ cd web && npm test -- src/path/to/file.test.tsx --run
 
 The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in mind while editing:
 
-- **Error responses.** `400` includes `err.Error()`; `404` / `409` used where they fit; `500` always returns the generic `"internal error"` string — don't leak internals. Shape: `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`.
+- **Error responses.** `400` includes `err.Error()`; `404` / `409` used where they fit; `500` always returns the generic `"internal error"` string — don't leak internals. Shape: `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`. Inside a `Transaction(func)` use the sentinel constructors (`errBadRequestf`, `errConflictf`) and let the outer handler call `respondGORM(c, err, "<entity> not found")` once — single source of truth for the status mapping.
 - **Migration shape.** `NNN_descriptive_name.sql` (zero-padded 3-digit sequence), wrapped in `BEGIN; … COMMIT;`, `IF NOT EXISTS` throughout. Timestamps are `timestamptz NOT NULL DEFAULT now()`. Any schema change must land in BOTH a new SQL migration AND the model struct tags (see "Migrations vs tests" below for why).
 - **Frontend API discipline.** Never call `fetch` directly from components — go through `fetchJson` / `fetchMaybeJson` in `src/api.ts` so bearer-token attachment, 401 renewal, and `ApiError` shape stay uniform. Query keys live in `lib/queryKeys.ts` only. Data-fetching hooks wrap TanStack Query in `hooks/useDataQueries.ts` and return the normalized `{ data, loading, error, reload }` shape.
 - **Never log tokens or raw session values.** Applies to `slog` debug output, error wraps, anything that might end up in a log collector.

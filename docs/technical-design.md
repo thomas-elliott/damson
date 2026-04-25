@@ -411,11 +411,16 @@ Exactly one authenticator is active per deployment, picked at startup by `DAMSON
 
 **`local` (default).** Server-issued HS256 JWTs against users stored in Postgres with bcrypt password hashes.
 
+> **Recommended for development and small single-user installs only.** Local mode is the zero-config path for getting Damson up; OIDC is the recommended deployment for anything where account security matters. Local mode lacks MFA, depends on an in-memory rate limiter (no shared store across replicas), and enforces only a minimum-length password floor — not the full password-policy surface a real IdP gives you. The product-design-doc and the SPA both surface this caveat.
+
 - Signing key: `DAMSON_JWT_SIGNING_KEY` is honoured verbatim when set. When unset, `internal/auth.LoadOrCreateJWTKey` generates 32 random bytes on first boot and persists them atomically to `DAMSON_JWT_KEY_FILE` (default `./data/jwt.key`, mode 0600). Subsequent boots read the same file, so sessions survive restarts. The generated-file path is ideal for single-node dev; production deployments should still set `DAMSON_JWT_SIGNING_KEY` via the normal secret-injection path so the key rotates with the rest of the config.
+- JWT `iss` and `aud` are set to `DAMSON_BASE_URL` (or the literal `damson-local` when no base URL is configured). Per-deployment claims mean a token leaked from one Damson can't be replayed against another that happens to share a key.
+- Password floor: 8 characters at every write site (`POST /api/auth/bootstrap`, env seed, admin-driven invite, admin password reset). Anything shorter is rejected with 400 `password is too short`.
+- Login throttle: in-memory token bucket keyed on (a) the caller's IP and (b) the email being attempted. Default 5-burst with one token refilled per minute, so a legitimate user gets 5 attempts before brief throttling and an attacker is bounded to ~60 attempts per hour per (ip, email) bucket. 429 surfaces when the bucket is empty. `POST /api/auth/bootstrap` shares the same IP bucket. The throttle is in-memory only — replica-shared rate-limiting belongs at the proxy.
 - First-user bootstrap has two paths:
   1. **HTTP bootstrap (zero-config).** If no users exist, `GET /api/auth/mode` reports `needs_bootstrap=true` and the SPA renders a "create first admin" page. `POST /api/auth/bootstrap` creates the user, promotes them to `sysadmin` via `BootstrapFirstAdmin`, creates the default "Personal" library with them as its admin member, and returns a logged-in JWT. The endpoint 409s once any user exists, so it's safe to leave wired in perpetuity.
   2. **Env seed (ops setups).** If both `DAMSON_LOCAL_ADMIN_EMAIL` and `DAMSON_LOCAL_ADMIN_PASSWORD` are set, the same transaction runs at startup — useful for scripted provisioning. Seed is a no-op if any user already exists.
-- Token TTL: 1 hour (`auth.LocalTokenTTL`). No refresh endpoint in v1 — an expired token forces a fresh login. `users.tokens_valid_after` is a revocation watermark: JWTs with `iat` before it are rejected.
+- Token TTL: 1 hour (`auth.LocalTokenTTL`). No refresh endpoint in v1 — an expired token forces a fresh login. `users.tokens_valid_after` is a revocation watermark: JWTs with `iat` before it are rejected. Removing a member from a library bumps `tokens_valid_after` so any open SPA tab is forced back to login on the next request.
 
 **`oidc`.** Identity-provider-issued bearer tokens validated per request via `coreos/go-oidc`.
 
@@ -462,7 +467,25 @@ A user who is not a member of their `current_library_id` cannot read or write it
 
 This gives us three guarantees: library-scoped data never escapes the library by accident; cross-library reads require an explicit sysadmin handler (none in MVP); and every handler's authorisation story is readable at the route-definition site.
 
-### 8.3 Audit attribution
+### 8.3 HTTP security posture
+
+A small set of headers + middleware layered into `cmd/server/main.go`:
+
+- `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';` — the SPA, embedded fonts, and inline-style usage from the design system all need to load; nothing else does.
+- `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
+- TLS / HSTS is the proxy's responsibility (Caddy/Traefik in front of the container).
+- `http.Server` carries explicit `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout`, and `IdleTimeout` so a slow-loris connection can't tie up an extraction goroutine indefinitely.
+- A `jsonBodyCap` middleware wraps every non-multipart request body in `http.MaxBytesReader(1MiB)` so unbounded JSON payloads can't OOM the process. Multipart uploads (`POST /api/imports`) bypass this — they have their own streaming pipeline.
+
+**Served file content is treated as hostile.** `GET /api/files/:objectKey` always responds with `Content-Type: application/octet-stream` + `Content-Disposition: attachment; filename="…"`, so a member who imports an HTML or SVG file containing a `<script>` can't get the browser to render it inline and exfiltrate another member's JWT (currently kept in `localStorage`). `GET /api/thumbs/:objectKey` is restricted to a small Content-Type allow-list (`image/png`, `image/jpeg`, `image/webp`, `image/gif`); anything else is forced to `application/octet-stream`. Both endpoints set `X-Content-Type-Options: nosniff` via the global header middleware.
+
+**SPA token storage.** The OIDC client and the local-mode session both keep the bearer token in `localStorage`. This is a pragmatic choice for a self-hosted tool — bearer-in-Authorization-header sidesteps CSRF concerns that an `httpOnly` cookie design would force us to add — but it depends on the served-file hardening above to keep XSS from being an exfil channel. If a future migration moves tokens into an `httpOnly; SameSite=Strict; Secure` cookie, CSRF protection (header check / double-submit token) lands in the same change.
+
+**`source_url` validation.** Asset `source_url` is a free-form text field that the SPA renders as an `<a href>`. The PATCH handler rejects any value whose scheme isn't `http(s)` and any value with a missing host, so `javascript:` / `data:` / `file:` URLs can't reach the rendering site.
+
+**Object keys.** All HTTP entry points enforce `^[0-9a-f]{64}$` on `objectKey` parameters; the LocalFS storage layer re-checks the hex constraint inside `pathFor` so a bug in the HTTP layer can't escalate to a path-traversal in storage.
+
+### 8.4 Audit attribution
 
 Every write handler derives the user via `auth.GetUser(c)` and passes it into the service call, which writes the audit row as part of the same DB transaction as the domain mutation. Audit writes that would fail should fail the enclosing action — audit is not best-effort.
 
@@ -628,7 +651,7 @@ Product design §8 raises similarity/embeddings. Deferred — noted here so that
 - `diff_json` is a JSON object `{ "before": {...}, "after": {...} }` for updates; `{ "created": {...} }` for creates; `{ "deleted": {...} }` for deletes.
 - `library_id` populated for library-scoped events; `NULL` for server-level events (library created/deleted, user role changed, server settings updated).
 - Querying: indexed by `(library_id, created_at desc)`, `(library_id, target_type, target_id, created_at desc)`, `(user_id, created_at desc)`, `(action_type, created_at desc)`.
-- Retention: unbounded in v1; policy value carried in library settings but not yet enforced.
+- Retention: unbounded in v1; `library_settings.audit_retention_days` is settable (and audited) but no purge job consumes it. Wiring a job is a follow-up — implement when an actual deployment hits an audit-volume problem rather than speculatively.
 - UI surfaces:
   - Per-asset / per-project view (inside the current library).
   - Library audit (all events with matching `library_id`).
@@ -712,7 +735,7 @@ library_settings
   thumbnails_audio_enabled    bool default true
   thumbnails_font_enabled     bool default true
   thumbnails_unity_preview    bool default true
-  audit_retention_days        int                      -- null = unbounded
+  audit_retention_days        int                      -- null = unbounded; column is editable but no purge job runs today (see §13)
   updated_at                  timestamptz default now()
   updated_by_user_id          bigint references users(id)
 ```
@@ -764,81 +787,79 @@ The grid is designed for many thousands of assets. `@tanstack/react-virtual` wit
 
 ## 16. API surface
 
-REST-ish JSON under `/api`. Not exhaustive; indicative for review.
+REST-ish JSON under `/api`. The list below mirrors `internal/handlers/api/handler.go` exactly — endpoints marked **TODO** are documented in `progress.md` "Foundations the tech design assumes but hasn't been built yet" and are listed here so consumers know what's planned.
 
-All library-scoped endpoints (everything below `# Assets`) operate against the authenticated user's `current_library_id` and are wrapped by the library middleware described in §8.2. Cross-library operations go through the dedicated `/api/libraries/...` paths.
+Library-scoped endpoints operate against the authenticated user's `current_library_id` and are wrapped by the library middleware described in §8.2. The `/api/libraries/:id/...` family is the cross-library surface and is gated inside each handler (sysadmin or library-admin as appropriate) rather than via `requireLibrary()`.
 
 ```
 # Auth (public)
 GET    /api/auth/mode                 # { mode, needs_bootstrap } — SPA boots with this
-POST   /api/auth/login                # local mode only — email+password → JWT
-POST   /api/auth/bootstrap            # local mode only — creates first sysadmin; 409 once any user exists
+POST   /api/auth/login                # local mode only — email+password → JWT (rate-limited)
+POST   /api/auth/bootstrap            # local mode only — creates first sysadmin; 409 once any user exists (rate-limited)
+
+# Health (public)
+GET    /api/health
 
 # Session / user
 GET    /api/me                        # user + current library summary
+GET    /api/libraries                 # libraries the user is a member of (membership-filtered)
 POST   /api/me/current-library        # { library_id } — switches active library
 
-# Libraries (membership-gated; reads any library the user is a member of)
-GET    /api/libraries                 # libraries the user can see (membership-filtered)
-POST   /api/libraries                 # sysadmin only
-GET    /api/libraries/:id
-PATCH  /api/libraries/:id             # library admin
-DELETE /api/libraries/:id             # library admin
+# Libraries (cross-library; gated inside each handler)
+PATCH  /api/libraries/:id             # library admin: name, description
 GET    /api/libraries/:id/members
-POST   /api/libraries/:id/members     # library admin — invite by email
-PATCH  /api/libraries/:id/members/:userId   # change role
-DELETE /api/libraries/:id/members/:userId   # remove
-GET    /api/libraries/:id/settings
-PATCH  /api/libraries/:id/settings    # library admin
-GET    /api/libraries/:id/audit       # library-scoped audit
+POST   /api/libraries/:id/members     # library admin — invite by email; supplies password in local mode
+PATCH  /api/libraries/:id/members/:userId   # library admin — change role; last-admin guard
+DELETE /api/libraries/:id/members/:userId   # library admin — remove; bumps tokens_valid_after
 
-# Server admin (sysadmin only)
+# Server admin (sysadmin only — gated per handler)
 GET    /api/admin/users
-PATCH  /api/admin/users/:id           # set role, etc.
+PATCH  /api/admin/users/:id           # role, password reset (local mode); last-sysadmin guard
 GET    /api/admin/settings
 PATCH  /api/admin/settings
-GET    /api/admin/audit               # server-level events (library.create, user.role.change, ...)
+GET    /api/admin/audit               # library_id IS NULL events
 
-# Assets
-GET    /api/assets                    # list with filters
-POST   /api/assets                    # rarely used — most assets come via imports
-GET    /api/assets/:id
-PATCH  /api/assets/:id                # name, description, source, needs_review
+# Assets (library-scoped)
+GET    /api/assets                    # list with filters (q, tag_id/path, licence_status/spdx, project_id, collection_id, source_host, needs_review, package_kind)
+GET    /api/assets/:id                # detail view
+PATCH  /api/assets/:id                # name, description, source_url (http(s) only)
 DELETE /api/assets/:id
-POST   /api/assets/:id/review         # mark reviewed
-GET    /api/assets/:id/versions
-POST   /api/assets/:id/versions/:vid/subset    # create subset version
-POST   /api/assets/:id/versions/:vid/pin       # pin to project (convenience)
-
-# Imports
-POST   /api/imports                   # multipart upload; returns asset_id + import id
-GET    /api/imports                   # list in-flight + failed
-GET    /api/imports/:id               # stage, error, progress
-POST   /api/imports/:id/retry
-
-# Licences
+POST   /api/assets/:id/review         # mark reviewed (idempotent)
+GET    /api/assets/:id/audit
 GET    /api/assets/:id/licence
-PUT    /api/assets/:id/licence        # full replacement (keeps original_text)
-POST   /api/assets/:id/licence/review # mark licence reviewed
-
-# Tags
-GET    /api/tags                      # tree
-POST   /api/tags
-DELETE /api/tags/:id
+PUT    /api/assets/:id/licence        # create or replace (keeps original_text)
+POST   /api/assets/:id/licence/review
+GET    /api/assets/:id/licence/detect # detect licence from current-version manifest
 POST   /api/assets/:id/tags
 DELETE /api/assets/:id/tags/:tagId
+POST   /api/assets/:id/versions/:vid/reextract   # Unity packages only
+POST   /api/assets/:id/versions/:vid/subset       # subset version (re-uses object keys)
 
-# Projects
+# Imports (library-scoped)
+POST   /api/imports                   # multipart upload; returns asset_id + import id
+GET    /api/imports                   # default: in-flight + failed; ?stage=all for everything
+GET    /api/imports/:id
+POST   /api/imports/:id/retry         # 409 if not in failed state or no source blob
+
+# Tags (library-scoped)
+GET    /api/tags
+POST   /api/tags
+DELETE /api/tags/:id
+
+# Licences detection (library-scoped, no asset binding)
+POST   /api/licences/detect           # preview detection on supplied text
+
+# Projects (library-scoped)
 GET    /api/projects
 POST   /api/projects
 GET    /api/projects/:id
 PATCH  /api/projects/:id
 DELETE /api/projects/:id
-POST   /api/projects/:id/pins         # pin an asset-version
-PATCH  /api/projects/:id/pins/:pinId  # upgrade
+GET    /api/projects/:id/audit
+POST   /api/projects/:id/pins         # pin OR upgrade (idempotent on the same version)
 DELETE /api/projects/:id/pins/:pinId
 
-# Collections
+# Collections (library-scoped)
 GET    /api/collections
 POST   /api/collections
 GET    /api/collections/:id
@@ -847,24 +868,39 @@ DELETE /api/collections/:id
 POST   /api/collections/:id/assets
 DELETE /api/collections/:id/assets/:assetId
 
-# Search
-GET    /api/search?q=&filters=…       # convenience; same result shape as GET /api/assets
+# Search (library-scoped) — alias of GET /api/assets
+GET    /api/search?q=…&…
 
-# Files (download/preview)
-GET    /api/files/:objectKey          # streamed (302 to presigned URL, or direct pipe)
-GET    /api/thumbs/:objectKey         # streamed, long cache headers
-
-# Audit
-GET    /api/audit                     # global, filterable
-GET    /api/assets/:id/audit
-GET    /api/projects/:id/audit
-
-# Settings (admin)
+# Library settings (library-scoped; PATCH gated to library admin)
 GET    /api/settings
 PATCH  /api/settings
+
+# Files (library-scoped, blob references checked against current library)
+GET    /api/files/:objectKey          # served as application/octet-stream + Content-Disposition: attachment
+GET    /api/thumbs/:objectKey         # server-generated; Content-Type from a small allowlist
+
+# Audit (library-scoped)
+GET    /api/audit
 ```
 
-Shape conventions from `CONVENTIONS.md`: handlers on a shared `handler` struct in `internal/handlers/api`, receiver methods, `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})` for errors, log with `log.Printf`.
+**Endpoints documented above but not yet implemented** (tracked in `progress.md`):
+
+```
+POST   /api/libraries                 # sysadmin: create library — TODO
+GET    /api/libraries/:id             # — TODO
+DELETE /api/libraries/:id             # library admin: delete library — TODO
+GET    /api/libraries/:id/audit       # currently library-scoped via /api/audit — TODO if a sysadmin "any-library audit" view becomes useful
+GET    /api/libraries/:id/settings    # currently /api/settings against current library — TODO if a sysadmin cross-library editor surfaces
+PATCH  /api/libraries/:id/settings    # — TODO (paired)
+POST   /api/assets                    # manual asset create (everything goes through imports today) — TODO
+GET    /api/assets/:id/versions       # versions are returned inline by GET /api/assets/:id — TODO if the SPA needs the standalone surface
+POST   /api/assets/:id/versions/:vid/pin  # convenience for /api/projects/:pid/pins — TODO
+PATCH  /api/projects/:id/pins/:pinId  # explicit upgrade endpoint; today re-POST /pins is the upgrade path — TODO
+GET    /api/imports/events            # SSE broadcaster; backend goes async first — TODO
+GET    /api/imports/:id/events        # — TODO (paired)
+```
+
+Shape conventions from `CONVENTIONS.md`: handlers on a shared `Handler` struct in `internal/handlers/api`, receiver methods, `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})` for errors, `slog` for log lines. Errors that funnel through GORM transactions use the sentinel constructors `errBadRequestf` / `errConflictf` and the shared `respondGORM(c, err, "<entity> not found")` mapper.
 
 ## 17. Error handling and observability
 

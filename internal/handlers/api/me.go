@@ -24,7 +24,7 @@ type meResponse struct {
 	CurrentLibrary *currentLibrary `json:"current_library,omitempty"`
 }
 
-func (h *handler) getMe(c *gin.Context) {
+func (h *Handler) getMe(c *gin.Context) {
 	u := auth.GetUser(c)
 	if u == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
