@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { LogOut, Search, UploadCloud } from "lucide-react";
 
@@ -72,38 +72,37 @@ export function LibraryPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Per UI §5.3: `/` and `cmd+k` focus the library search; arrow keys move
-  // selection in the grid; enter opens the highlighted asset; escape
-  // closes the panel. We compute the next selected id from `assets` +
-  // `assetId`, then push the id through the same routing path used by
-  // mouse clicks so the URL stays the source of truth.
-  const moveSelection = (delta: number) => moveByOffset(assets, assetId, delta, onOpenAsset);
+  // selection in the grid; enter opens the highlighted asset; escape closes
+  // the panel. We keep the bindings array stable across renders by reading
+  // current state through refs inside the handlers — re-creating the array
+  // every time `assets` refetches caused useKeyboardShortcuts to rebind on
+  // every paint.
+  const stateRef = useRef({ assets, assetId, onOpenAsset, onCloseDetail });
+  useEffect(() => {
+    stateRef.current = { assets, assetId, onOpenAsset, onCloseDetail };
+  });
+
+  const focusSearch = (e: KeyboardEvent) => {
+    e.preventDefault();
+    searchInputRef.current?.focus();
+  };
+  const moveSelection = (delta: number) => {
+    const s = stateRef.current;
+    moveByOffset(s.assets, s.assetId, delta, s.onOpenAsset);
+  };
   useKeyboardShortcuts(
     useMemo(
       () => [
+        { key: "/", handler: focusSearch },
+        { key: "k", meta: true, handler: focusSearch },
+        { key: "k", ctrl: true, handler: focusSearch },
         {
-          key: "/",
-          handler: (e) => {
-            e.preventDefault();
-            searchInputRef.current?.focus();
+          key: "Escape",
+          handler: () => {
+            const s = stateRef.current;
+            if (s.assetId != null) s.onCloseDetail();
           },
         },
-        {
-          key: "k",
-          meta: true,
-          handler: (e) => {
-            e.preventDefault();
-            searchInputRef.current?.focus();
-          },
-        },
-        {
-          key: "k",
-          ctrl: true,
-          handler: (e) => {
-            e.preventDefault();
-            searchInputRef.current?.focus();
-          },
-        },
-        { key: "Escape", handler: () => assetId != null && onCloseDetail() },
         { key: "ArrowRight", handler: (e) => { e.preventDefault(); moveSelection(1); } },
         { key: "ArrowLeft", handler: (e) => { e.preventDefault(); moveSelection(-1); } },
         {
@@ -123,11 +122,12 @@ export function LibraryPage() {
         {
           key: "Enter",
           handler: () => {
-            if (assetId == null && assets[0]) onOpenAsset(assets[0].id);
+            const s = stateRef.current;
+            if (s.assetId == null && s.assets[0]) s.onOpenAsset(s.assets[0].id);
           },
         },
       ],
-      [assets, assetId],
+      [],
     ),
   );
 

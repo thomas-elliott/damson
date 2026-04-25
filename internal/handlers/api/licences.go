@@ -71,7 +71,7 @@ func LicenceStatusFor(detectedType string, attrs licence.Attributes) string {
 }
 
 // getLicence returns the current licence row for an asset, or 404.
-func (h *handler) getLicence(c *gin.Context) {
+func (h *Handler) getLicence(c *gin.Context) {
 	lib := getLibrary(c)
 	id, ok := parseIDParam(c, "id")
 	if !ok {
@@ -118,7 +118,7 @@ type putLicenceRequest struct {
 // putLicence creates or replaces an asset's licence record. Always preserves
 // original_text verbatim; attributes can come from the client (override) or
 // from the detector (use_detected=true, detected_type blank).
-func (h *handler) putLicence(c *gin.Context) {
+func (h *Handler) putLicence(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -209,18 +209,14 @@ func (h *handler) putLicence(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset not found")
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "asset not found")
 		return
 	}
 	c.JSON(http.StatusOK, licenceViewFrom(&out))
 }
 
 // postLicenceReview marks the asset's current licence as reviewed.
-func (h *handler) postLicenceReview(c *gin.Context) {
+func (h *Handler) postLicenceReview(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	id, ok := parseIDParam(c, "id")
@@ -233,7 +229,7 @@ func (h *handler) postLicenceReview(c *gin.Context) {
 			return err
 		}
 		if asset.LicenceID == nil {
-			return asError("asset has no licence")
+			return errBadRequestf("asset has no licence")
 		}
 		var l models.Licence
 		if err := tx.First(&l, *asset.LicenceID).Error; err != nil {
@@ -255,15 +251,7 @@ func (h *handler) postLicenceReview(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset not found")
-			return
-		}
-		if _, ok := err.(stringError); ok {
-			respond400(c, err)
-			return
-		}
-		respond500(c)
+		respondGORM(c, err, "asset not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -272,7 +260,7 @@ func (h *handler) postLicenceReview(c *gin.Context) {
 // postDetectLicence runs the detector against client-supplied text without
 // persisting anything — used by the licence editor to preview detection
 // before the user commits.
-func (h *handler) postDetectLicence(c *gin.Context) {
+func (h *Handler) postDetectLicence(c *gin.Context) {
 	var req struct {
 		Text string `json:"text" binding:"required"`
 	}
@@ -293,7 +281,7 @@ func (h *handler) postDetectLicence(c *gin.Context) {
 // detectLicenceFromFiles scans an asset's current-version file manifest for
 // candidate LICENSE-like filenames, reads the first match from storage, and
 // runs detection. Returns {} when no candidate is found.
-func (h *handler) getDetectLicenceFromFiles(c *gin.Context) {
+func (h *Handler) getDetectLicenceFromFiles(c *gin.Context) {
 	lib := getLibrary(c)
 	id, ok := parseIDParam(c, "id")
 	if !ok {
@@ -389,7 +377,3 @@ func lastPathSegment(p string) string {
 func segmentDepth(p string) int {
 	return strings.Count(p, "/")
 }
-
-// noopGORMUnused keeps gorm imported consistently with other files that use
-// tx helpers — remove if lint complains.
-var _ = gorm.ErrRecordNotFound

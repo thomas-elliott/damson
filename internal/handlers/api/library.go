@@ -24,7 +24,7 @@ type libraryMembershipView struct {
 // getLibraries returns the libraries the authenticated user is a member of,
 // with their role per library. This is the list that populates the library
 // switcher in the SPA.
-func (h *handler) getLibraries(c *gin.Context) {
+func (h *Handler) getLibraries(c *gin.Context) {
 	u := auth.GetUser(c)
 	if u == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -75,7 +75,7 @@ type patchLibraryRequest struct {
 // patchLibrary updates the library's name and/or description. Library
 // admins (or sysadmins) may call this — gated via userCanAdminLibrary.
 // Empty `name` is rejected; description can be cleared to empty string.
-func (h *handler) patchLibrary(c *gin.Context) {
+func (h *Handler) patchLibrary(c *gin.Context) {
 	libID, ok := parseIDParam(c, "id")
 	if !ok {
 		return
@@ -98,41 +98,42 @@ func (h *handler) patchLibrary(c *gin.Context) {
 		respond500(c)
 		return
 	}
-	before := struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-	}{lib.Name, lib.Description}
+	before := map[string]any{}
+	updates := map[string]any{}
 	if req.Name != nil {
 		name := strings.TrimSpace(*req.Name)
 		if name == "" {
 			respond400(c, asError("name must not be blank"))
 			return
 		}
+		before["name"] = lib.Name
 		lib.Name = name
+		updates["name"] = name
 	}
 	if req.Description != nil {
+		before["description"] = lib.Description
 		lib.Description = *req.Description
+		updates["description"] = lib.Description
 	}
 	actor := auth.GetUser(c)
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&lib).Error; err != nil {
+		if len(updates) == 0 {
+			return nil
+		}
+		if err := tx.Model(&lib).Updates(updates).Error; err != nil {
 			return err
 		}
 		var actorID *uint
 		if actor != nil {
 			actorID = &actor.ID
 		}
-		after := struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		}{lib.Name, lib.Description}
 		return audit.Write(tx, audit.Entry{
 			LibraryID:  &libID,
 			UserID:     actorID,
 			ActionType: "library.update",
 			TargetType: "library",
 			TargetID:   &libID,
-			Diff:       audit.Updated(before, after),
+			Diff:       audit.Updated(before, updates),
 		})
 	})
 	if err != nil {
@@ -148,7 +149,7 @@ func (h *handler) patchLibrary(c *gin.Context) {
 
 // postCurrentLibrary switches the authenticated user's active library. The
 // request fails with 403 if the user isn't a member of the target library.
-func (h *handler) postCurrentLibrary(c *gin.Context) {
+func (h *Handler) postCurrentLibrary(c *gin.Context) {
 	u := auth.GetUser(c)
 	if u == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})

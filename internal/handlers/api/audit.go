@@ -157,7 +157,7 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 // getLibraryAudit returns audit entries for the current library. Library
 // members can see this; admins gating happens elsewhere if it ever needs
 // tightening.
-func (h *handler) getLibraryAudit(c *gin.Context) {
+func (h *Handler) getLibraryAudit(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
 		respond500(c)
@@ -180,7 +180,7 @@ func (h *handler) getLibraryAudit(c *gin.Context) {
 // getAssetAudit returns audit entries scoped to one asset. The asset must
 // belong to the current library; otherwise the per-asset query returns 404
 // to avoid leaking cross-library existence.
-func (h *handler) getAssetAudit(c *gin.Context) {
+func (h *Handler) getAssetAudit(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
 		respond500(c)
@@ -218,7 +218,7 @@ func (h *handler) getAssetAudit(c *gin.Context) {
 
 // getProjectAudit returns audit entries scoped to one project. Same
 // library-scope guard as the asset variant.
-func (h *handler) getProjectAudit(c *gin.Context) {
+func (h *Handler) getProjectAudit(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
 		respond500(c)
@@ -258,7 +258,7 @@ func (h *handler) getProjectAudit(c *gin.Context) {
 // Restricted to sysadmin per docs/technical-design.md §13. We don't merge
 // in cross-library library-scoped events for v1 — the library audit page
 // covers those, and a "global ledger" view is a v2 concern.
-func (h *handler) getAdminAudit(c *gin.Context) {
+func (h *Handler) getAdminAudit(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
 	}

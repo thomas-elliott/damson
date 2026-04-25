@@ -18,9 +18,11 @@ import (
 // enough that typical user sessions don't need to refresh constantly.
 const LocalTokenTTL = time.Hour
 
-// jwtIssuer is the value stamped into iss/aud so tokens issued by another
-// service (or an old key ring) are rejected.
-const jwtIssuer = "damson-local"
+// defaultJWTIssuer is the fallback iss/aud value when NewLocalAuthenticator
+// is called without an explicit issuer. Per-deployment callers should pass a
+// stable identifier (e.g. DAMSON_BASE_URL) so a token signed for one Damson
+// can't be replayed against another that happens to share a key.
+const defaultJWTIssuer = "damson-local"
 
 // LocalAuthenticator issues and verifies server-signed JWTs for users whose
 // credentials live in the database. All users carry a PasswordHash and
@@ -29,16 +31,28 @@ const jwtIssuer = "damson-local"
 type LocalAuthenticator struct {
 	db         *gorm.DB
 	signingKey []byte
+	issuer     string           // iss + aud claim value
 	now        func() time.Time // injectable for tests
 }
 
 func NewLocalAuthenticator(db *gorm.DB, signingKey []byte) (*LocalAuthenticator, error) {
+	return NewLocalAuthenticatorWithIssuer(db, signingKey, defaultJWTIssuer)
+}
+
+// NewLocalAuthenticatorWithIssuer is the explicit-issuer variant. The empty
+// string falls back to defaultJWTIssuer so a missing-config call doesn't
+// silently produce unverifiable tokens.
+func NewLocalAuthenticatorWithIssuer(db *gorm.DB, signingKey []byte, issuer string) (*LocalAuthenticator, error) {
 	if len(signingKey) < 32 {
 		return nil, errors.New("DAMSON_JWT_SIGNING_KEY must be at least 32 bytes")
+	}
+	if issuer == "" {
+		issuer = defaultJWTIssuer
 	}
 	return &LocalAuthenticator{
 		db:         db,
 		signingKey: signingKey,
+		issuer:     issuer,
 		now:        time.Now,
 	}, nil
 }
@@ -50,7 +64,7 @@ func (a *LocalAuthenticator) Authenticate(ctx context.Context, rawToken string) 
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return a.signingKey, nil
-	}, jwt.WithIssuer(jwtIssuer), jwt.WithAudience(jwtIssuer), jwt.WithExpirationRequired())
+	}, jwt.WithIssuer(a.issuer), jwt.WithAudience(a.issuer), jwt.WithExpirationRequired())
 	if err != nil || !tok.Valid {
 		return nil, ErrUnauthenticated
 	}
@@ -113,8 +127,8 @@ func (a *LocalAuthenticator) issueToken(u *models.User) (string, time.Time, erro
 	now := a.now()
 	exp := now.Add(LocalTokenTTL)
 	claims := jwt.RegisteredClaims{
-		Issuer:    jwtIssuer,
-		Audience:  jwt.ClaimStrings{jwtIssuer},
+		Issuer:    a.issuer,
+		Audience:  jwt.ClaimStrings{a.issuer},
 		Subject:   fmt.Sprintf("%d", u.ID),
 		IssuedAt:  jwt.NewNumericDate(now),
 		NotBefore: jwt.NewNumericDate(now),
