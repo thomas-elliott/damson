@@ -1,22 +1,20 @@
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
-// The design system uses custom font-size keys (2xs, xs-plus, sm-plus, base,
-// md) that are not in tailwind-merge's default groups. Teach tailwind-merge
-// about them so utilities like `text-sm-plus` aren't mistaken for colour
-// classes and accidentally deduplicated against `text-accent-fg`.
+// The design system uses a two-layer font-size system: 3 size primitives
+// (body/ui/small) and 19 composed semantic tokens (text-title, text-mono,
+// text-caption, etc.) that are not in tailwind-merge's default groups.
+// Teach tailwind-merge about them so e.g. `text-mono` isn't mistaken for a
+// colour and accidentally deduplicated against `text-accent-fg`.
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
       "font-size": [
         {
           text: [
-            // Layer 1 — size primitives (new system).
             "body",
             "ui",
             "small",
-
-            // Layer 2 — composed semantic tokens (new system).
             "title",
             "title-reg",
             "title-medium",
@@ -39,18 +37,6 @@ const twMerge = extendTailwindMerge({
             "table-row",
             "table-header",
             "list-row",
-
-            // OLD tokens — kept until Task 12.
-            "2xs",
-            "xs",
-            "xs-plus",
-            "sm",
-            "sm-plus",
-            "base",
-            "md",
-            "lg",
-            "xl",
-            "2xl",
           ],
         },
       ],
