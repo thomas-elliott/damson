@@ -51,7 +51,7 @@ export const CollectionCard = forwardRef<HTMLButtonElement, CollectionCardProps>
             <span className="grid h-7 w-7 place-items-center rounded-md bg-surface text-text-3">
               {icon ?? (kind === "smart" ? <Sliders size={14} /> : <Folder size={14} />)}
             </span>
-            <div className="text-sm-plus font-medium text-text">{name}</div>
+            <div className="text-ui font-medium text-text">{name}</div>
           </div>
           {kind === "smart" && (
             <Pill tone="accent" size="sm">
@@ -60,11 +60,11 @@ export const CollectionCard = forwardRef<HTMLButtonElement, CollectionCardProps>
           )}
         </div>
         {queryDescription && (
-          <div className="rounded-sm border border-line-2 bg-bg px-2 py-1.5 font-mono text-xs text-text-3">
+          <div className="rounded-sm border border-line-2 bg-bg px-2 py-1.5 text-mono text-text-3">
             {queryDescription}
           </div>
         )}
-        <div className="text-xs text-text-3">
+        <div className="text-small text-text-3">
           <span className="font-mono tabular-nums text-text-2">{count}</span>
           <span> assets</span>
         </div>
