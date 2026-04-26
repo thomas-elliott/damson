@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router";
 
 import { useAuthMode } from "@/hooks/useDataQueries";
 import { readLocalSession } from "@/lib/localAuth";

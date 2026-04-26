@@ -23,7 +23,7 @@ export const Slider = forwardRef<
       </RadixSlider.Track>
       <RadixSlider.Thumb
         aria-label="Value"
-        className="block h-3 w-3 rounded-full border-2 border-panel bg-accent outline-none focus-visible:ring-2 focus-visible:ring-accent-ring"
+        className="block h-3 w-3 rounded-full border-2 border-panel bg-accent outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring"
       />
     </RadixSlider.Root>
   );
