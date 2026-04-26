@@ -15,7 +15,7 @@ export interface VersionItemProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const baseClasses =
-  "flex w-full items-start gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-2 text-left text-xs-plus transition-colors duration-std ease";
+  "flex w-full items-start gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-2 text-left text-small transition-colors duration-std ease";
 const currentClasses = "border-accent bg-accent-tint";
 
 /**
@@ -37,11 +37,11 @@ export function VersionItem({
     <>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm-plus font-medium text-text">
+          <span className="font-mono text-list-row font-medium text-text">
             {version}
           </span>
           {current && (
-            <span className="text-2xs uppercase tracking-wider text-accent">
+            <span className="text-label text-accent">
               Current
             </span>
           )}
@@ -49,11 +49,11 @@ export function VersionItem({
         {notes && <div className="mt-0.5 text-text-2">{notes}</div>}
       </div>
       <div className="flex flex-col items-end gap-0.5 text-right">
-        <span className="font-mono text-xs tabular-nums text-text-3">
+        <span className="text-mono tabular-nums text-text-3">
           {date}
         </span>
         {meta && (
-          <span className="font-mono text-xs tabular-nums text-text-3">
+          <span className="text-mono tabular-nums text-text-3">
             {meta}
           </span>
         )}

@@ -28,7 +28,7 @@ export function KeyValueList({
   return (
     <dl
       className={cn(
-        "grid gap-x-3 gap-y-1.5 text-xs-plus",
+        "grid gap-x-3 gap-y-1.5 text-small",
         className,
       )}
       style={{ gridTemplateColumns: `${labelWidth} 1fr` }}
