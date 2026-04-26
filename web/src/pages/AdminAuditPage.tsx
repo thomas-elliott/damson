@@ -23,7 +23,7 @@ export function AdminAuditPage() {
     return (
       <Shell
         main={
-          <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+          <div className="flex flex-1 items-center justify-center text-ui text-text-3">
             Loading…
           </div>
         }
@@ -48,7 +48,7 @@ export function AdminAuditPage() {
           </Toolbar>
           <div className="mx-auto w-full max-w-[960px] p-3">
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+              <div className="flex flex-1 items-center justify-center text-ui text-text-3">
                 Loading…
               </div>
             ) : (

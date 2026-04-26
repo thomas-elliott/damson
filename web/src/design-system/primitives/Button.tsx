@@ -42,8 +42,8 @@ const button = cva(
         ],
       },
       size: {
-        sm: "h-6 px-2 text-xs",
-        md: "h-7 px-2.5 text-sm-plus",
+        sm: "h-6 px-2 text-small",
+        md: "h-7 px-2.5 text-ui",
       },
     },
     defaultVariants: { variant: "secondary", size: "md" },

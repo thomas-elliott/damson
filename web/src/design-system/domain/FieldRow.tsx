@@ -41,11 +41,11 @@ export function FieldRow({
     [descId, hintId, errorId].filter(Boolean).join(" ") || undefined;
   return (
     <div className={cn("flex flex-col gap-1.5", className)} {...props}>
-      <label htmlFor={controlId} className="text-xs-plus text-text-3">
+      <label htmlFor={controlId} className="text-small text-text-3">
         {label}
       </label>
       {description && (
-        <p id={descId} className="text-xs text-text-3">
+        <p id={descId} className="text-caption">
           {description}
         </p>
       )}
@@ -55,12 +55,12 @@ export function FieldRow({
         "aria-invalid": error ? true : undefined,
       })}
       {hint && (
-        <p id={hintId} className="text-xs text-text-4">
+        <p id={hintId} className="text-small text-text-4">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} className="text-xs text-err">
+        <p id={errorId} className="text-small text-err">
           {error}
         </p>
       )}

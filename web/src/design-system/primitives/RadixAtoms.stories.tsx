@@ -16,22 +16,22 @@ export const Checkboxes: Story = {
     const [checked, setChecked] = useState(false);
     return (
       <div className="flex flex-col gap-2">
-        <label className="flex cursor-pointer items-center gap-2 text-sm-plus">
+        <label className="flex cursor-pointer items-center gap-2 text-ui">
           <Checkbox
             checked={checked}
             onCheckedChange={(v) => setChecked(v === true)}
           />
           <span>Controlled checkbox</span>
         </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm-plus">
+        <label className="flex cursor-pointer items-center gap-2 text-ui">
           <Checkbox defaultChecked />
           <span>Default checked</span>
         </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm-plus">
+        <label className="flex cursor-pointer items-center gap-2 text-ui">
           <Checkbox checked="indeterminate" />
           <span>Indeterminate</span>
         </label>
-        <label className="flex cursor-not-allowed items-center gap-2 text-sm-plus opacity-70">
+        <label className="flex cursor-not-allowed items-center gap-2 text-ui opacity-70">
           <Checkbox disabled />
           <span>Disabled</span>
         </label>
@@ -53,7 +53,7 @@ export const Sliders: Story = {
           step={1}
           aria-label="Density"
         />
-        <div className="font-mono text-xs text-text-3">value: {v[0]}</div>
+        <div className="text-mono text-text-3">value: {v[0]}</div>
       </div>
     );
   },
@@ -62,14 +62,14 @@ export const Sliders: Story = {
 export const Separators: Story = {
   render: () => (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-ui">
         <span>One</span>
         <Separator orientation="vertical" />
         <span>Two</span>
         <Separator orientation="vertical" />
         <span>Three</span>
       </div>
-      <div className="flex min-w-[280px] flex-col gap-2 text-sm">
+      <div className="flex min-w-[280px] flex-col gap-2 text-ui">
         <span>Top</span>
         <Separator />
         <span>Middle</span>

@@ -16,7 +16,7 @@ export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
     <span
       ref={ref}
       className={cn(
-        "inline-flex h-[22px] items-center gap-1 rounded-pill border border-line bg-panel pl-2 pr-0.5 text-xs text-text-2",
+        "inline-flex h-[22px] items-center gap-1 rounded-pill border border-line bg-panel pl-2 pr-0.5 text-small text-text-2",
         className,
       )}
       {...props}

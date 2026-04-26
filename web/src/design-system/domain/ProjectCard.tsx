@@ -41,11 +41,11 @@ export const ProjectCard = forwardRef<HTMLButtonElement, ProjectCardProps>(
         <div className="flex items-start gap-3">
           <ProjectGlyph size="md" glyph={glyph} color={color} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm-plus font-medium text-text">
+            <div className="truncate text-ui font-medium text-text">
               {name}
             </div>
             {(path || engine) && (
-              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-text-3">
+              <div className="mt-0.5 flex items-center gap-1.5 text-caption">
                 {engine && <span>{engine}</span>}
                 {engine && path && <span className="text-text-3">·</span>}
                 {path && (
@@ -79,7 +79,7 @@ export function ProjectCardNew({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-line-2 bg-transparent p-4 text-sm-plus text-text-3 transition-colors duration-std ease",
+        "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-line-2 bg-transparent p-4 text-ui text-text-3 transition-colors duration-std ease",
         "hover:border-text-4 hover:text-text-2",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
         className,

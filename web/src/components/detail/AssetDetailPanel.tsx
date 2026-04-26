@@ -112,7 +112,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
           <button
             type="button"
             onClick={() => setEditingName(true)}
-            className="group flex items-center gap-2 text-left text-xl font-medium text-text"
+            className="group flex items-center gap-2 text-left text-heading-medium text-text"
           >
             <span className="truncate">{asset.name}</span>
             <Pencil size={12} className="opacity-0 transition-opacity duration-std ease group-hover:opacity-100 text-text-3" />
@@ -126,7 +126,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
             <button
               type="button"
               onClick={() => review.mutate(asset.id)}
-              className="inline-flex items-center gap-1 rounded-pill border border-warn-tint bg-warn-tint px-2 py-0.5 font-mono text-xs text-warn"
+              className="inline-flex items-center gap-1 rounded-pill border border-warn-tint bg-warn-tint px-2 py-0.5 text-mono text-warn"
             >
               <StatusDot tone="warn" /> Needs review
               <Check size={11} />
@@ -190,7 +190,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
             }}
             placeholder="environment/trees"
             aria-label="New tag path"
-            className="h-7 w-[180px] text-xs"
+            className="h-7 w-[180px] text-small"
           />
         </div>
       </Section>
@@ -217,16 +217,16 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
           {asset.files.slice(0, 50).map((f) => (
             <li
               key={f.id}
-              className="flex items-center justify-between gap-3 rounded-sm px-1.5 py-1 text-xs-plus hover:bg-surface"
+              className="flex items-center justify-between gap-3 rounded-sm px-1.5 py-1 text-small hover:bg-surface"
             >
               <span className="truncate font-mono text-text-2" title={f.relative_path}>
                 {f.relative_path}
               </span>
-              <span className="font-mono text-xs text-text-3">{formatBytes(f.size_bytes)}</span>
+              <span className="text-mono text-text-3">{formatBytes(f.size_bytes)}</span>
             </li>
           ))}
           {asset.files.length > 50 && (
-            <li className="px-1.5 py-1 text-xs text-text-3">
+            <li className="px-1.5 py-1 text-caption">
               … {asset.files.length - 50} more files
             </li>
           )}
@@ -245,7 +245,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
       {/* Projects using this asset */}
       <Section title="Projects" accessory={`${asset.projects.length}`} defaultOpen={false}>
         {asset.projects.length === 0 ? (
-          <div className="text-xs-plus text-text-4">Not pinned to any project yet</div>
+          <div className="text-small text-text-4">Not pinned to any project yet</div>
         ) : (
           <KeyValueList
             entries={asset.projects.map((p) => ({
@@ -262,9 +262,9 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
       {/* Collections */}
       <Section title="Collections" accessory={`${asset.collections.length}`} defaultOpen={false}>
         {asset.collections.length === 0 ? (
-          <div className="text-xs-plus text-text-4">Not in any collections</div>
+          <div className="text-small text-text-4">Not in any collections</div>
         ) : (
-          <ul className="flex flex-col gap-0.5 text-xs-plus text-text-2">
+          <ul className="flex flex-col gap-0.5 text-small text-text-2">
             {asset.collections.map((c) => (
               <li key={c.collection_id}>{c.collection_name}</li>
             ))}
@@ -303,7 +303,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
 function AssetAuditSection({ assetId }: { assetId: number }) {
   const { data: entries, loading } = useAssetAudit(assetId);
   if (loading) {
-    return <div className="text-xs-plus text-text-4">Loading…</div>;
+    return <div className="text-small text-text-4">Loading…</div>;
   }
   return (
     <AuditList

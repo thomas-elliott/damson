@@ -82,7 +82,7 @@ export function AuditPage() {
                 type="button"
                 onClick={() => setParam("action", f.value)}
                 className={cn(
-                  "h-[22px] rounded-pill border px-2.5 text-xs transition-colors duration-std ease",
+                  "h-[22px] rounded-pill border px-2.5 text-small transition-colors duration-std ease",
                   action === f.value
                     ? "border-accent bg-accent-tint text-text"
                     : "border-line bg-panel text-text-2 hover:text-text",
@@ -94,7 +94,7 @@ export function AuditPage() {
           </div>
           <div className="mx-auto w-full max-w-[960px] p-3">
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+              <div className="flex flex-1 items-center justify-center text-ui text-text-3">
                 Loading…
               </div>
             ) : (

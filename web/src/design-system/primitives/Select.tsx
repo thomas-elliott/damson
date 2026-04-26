@@ -16,7 +16,7 @@ export const SelectTrigger = forwardRef<
     <RadixSelect.Trigger
       ref={ref}
       className={cn(
-        "inline-flex h-7 items-center justify-between gap-2 rounded-sm border border-line bg-bg px-2 text-sm-plus text-text transition-colors duration-std ease",
+        "inline-flex h-7 items-center justify-between gap-2 rounded-sm border border-line bg-bg px-2 text-ui text-text transition-colors duration-std ease",
         "hover:border-line-2",
         "data-[state=open]:border-transparent data-[state=open]:outline data-[state=open]:outline-2 data-[state=open]:outline-accent-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
@@ -52,7 +52,7 @@ export const SelectContent = forwardRef<
         // could silently drop the `z-popover` class. Inline wins.
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover overflow-hidden rounded-md border border-line bg-panel text-sm-plus text-text-2 shadow-elevated",
+          "z-popover overflow-hidden rounded-md border border-line bg-panel text-ui text-text-2 shadow-elevated",
           "data-[state=open]:animate-fade-in",
           position === "popper" &&
             "min-w-[var(--radix-select-trigger-width)]",
@@ -82,7 +82,7 @@ export const SelectItem = forwardRef<
     <RadixSelect.Item
       ref={ref}
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-1.5 pl-7 pr-2 text-sm-plus outline-none transition-colors duration-std ease",
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-1.5 pl-7 pr-2 text-ui outline-none transition-colors duration-std ease",
         "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
         "data-[highlighted]:bg-surface data-[highlighted]:text-text",
         className,
@@ -107,7 +107,7 @@ export const SelectLabel = forwardRef<
     <RadixSelect.Label
       ref={ref}
       className={cn(
-        "px-2 py-1 text-2xs uppercase tracking-wider text-text-4",
+        "px-2 py-1 text-label text-text-4",
         className,
       )}
       {...props}
