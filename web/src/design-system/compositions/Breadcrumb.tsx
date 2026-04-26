@@ -22,11 +22,11 @@ export function Breadcrumb({
       className={cn("flex items-center gap-2", className)}
       {...props}
     >
-      <div className="flex items-center gap-1.5 text-sm-plus font-medium text-text">
+      <div className="flex items-center gap-1.5 text-ui font-medium text-text">
         {children}
       </div>
       {count !== undefined && (
-        <span className="font-mono text-xs tabular-nums text-text-3">
+        <span className="text-mono tabular-nums text-text-3">
           {count}
         </span>
       )}

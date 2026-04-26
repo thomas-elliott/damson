@@ -59,7 +59,7 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
           aria-controls={bodyId}
           onClick={() => setOpen(!open)}
           className={cn(
-            "flex flex-1 items-center gap-1.5 px-3 py-3 text-left text-sm-plus text-text-2 transition-colors duration-std ease",
+            "flex flex-1 items-center gap-1.5 px-3 py-3 text-left text-ui text-text-2 transition-colors duration-std ease",
             "hover:text-text",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
           )}
