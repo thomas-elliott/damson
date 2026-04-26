@@ -1,12 +1,31 @@
 # E2E Flow Roadmap
 
-**Status:** v1 (proposed) **Last updated:** 2026-04-26
+**Status:** v1 (tier 1 implemented; tier 2 + 3 pending) **Last updated:** 2026-04-26
 
-The Playwright scaffold (PR #11) lands two starter specs — boot smoke and
-local login. This document captures the next set of E2E flows worth
-investing in, why each one matters, and a concrete sketch of how to build
-it with the current scaffold. Treat the tiering as a sequencing
-recommendation, not a hard contract.
+The Playwright scaffold (PR #11) now includes the full tier-1 set, backed
+by a dedicated SQLite-driven test binary (`cmd/e2e-server`) that mirrors
+the production wiring. This document captures what's covered, what's
+intentionally deferred, and the design principles guiding both. Treat the
+tiering as a sequencing recommendation, not a hard contract.
+
+## Implementation status
+
+- **Real-backend harness:** `cmd/e2e-server` (test-only Go binary, SQLite +
+  AutoMigrate, `/api/test/reset` to drop+remigrate between tests). Built
+  via `task web:e2e:build`; Playwright launches it alongside `vite dev`
+  via the `webServer` array.
+- **Tier 1 specs** in `web/e2e/tests/`: bootstrap routing, local login
+  (happy + 401), library renders with seeded asset, full UI import via
+  dropzone. 6 tests pass; 1 marked `test.fixme` because it surfaces a
+  real SPA bug — the bootstrap form posts `/api/auth/bootstrap`
+  successfully (server confirms 201) but the subsequent
+  `navigate("/")` in `BootstrapPage.onSubmit` never fires. The trace
+  shows zero further API calls. Suspected cause: the
+  `await queryClient.invalidateQueries(...)` step hangs under React 19
+  + React Query 5 when the `authMode` query has no active subscriber.
+  The failing test stays in the tree as living documentation; un-fixme
+  once the SPA bug is fixed.
+- **Tier 2 + 3:** not yet implemented; sketched below.
 
 Companions:
 - `docs/CONVENTIONS.md` — testing libraries, fixtures, coverage expectations
