@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { cn, cva, type VariantProps } from "@/design-system/utils";
 
 const tag = cva(
-  "inline-flex h-[22px] items-center gap-1 rounded-pill px-2 text-xs transition-colors duration-std ease",
+  "inline-flex h-[22px] items-center gap-1 rounded-pill px-2 text-small transition-colors duration-std ease",
   {
     variants: {
       variant: {

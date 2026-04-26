@@ -19,8 +19,8 @@ const badge = cva(
         pill: "rounded-pill",
       },
       size: {
-        sm: "h-[18px] px-1.5 text-2xs",
-        md: "h-5 px-2 text-xs",
+        sm: "h-[20px] px-1.5 text-small",
+        md: "h-5 px-2 text-small",
       },
       mono: { true: "font-mono", false: "" },
     },

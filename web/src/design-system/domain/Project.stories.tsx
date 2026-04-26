@@ -36,7 +36,7 @@ export const Cards: Story = {
           engine={p.engine}
         >
           <LicenceBar counts={{ ok: 110, warn: 12, err: 0, unk: 6 }} />
-          <div className="flex justify-between font-mono text-xs text-text-3">
+          <div className="flex justify-between text-mono text-text-3">
             <span>{p.assets} assets</span>
             <span>{p.updated}</span>
           </div>
@@ -61,11 +61,11 @@ export const List: Story = {
             gridTemplateColumns: "2fr 1fr 1.5fr 1fr",
           }}
           cells={[
-            <span className="font-mono text-xs text-text-3">{p.engine}</span>,
-            <span className="truncate font-mono text-xs text-text-3">
+            <span className="text-mono text-text-3">{p.engine}</span>,
+            <span className="truncate text-mono text-text-3">
               {p.path}
             </span>,
-            <span className="font-mono text-xs text-text-3">
+            <span className="text-mono text-text-3">
               {p.assets} assets · {p.updated}
             </span>,
           ]}

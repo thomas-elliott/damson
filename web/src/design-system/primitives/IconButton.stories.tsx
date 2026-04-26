@@ -63,7 +63,7 @@ export const AllStates: Story = {
         { label: "Active", cls: "pseudo-active-all" },
       ].map((row) => (
         <div key={row.label} className="flex items-center gap-3">
-          <span className="w-20 font-mono text-2xs uppercase tracking-wider text-text-3">
+          <span className="w-20 font-mono text-label text-text-3">
             {row.label}
           </span>
           <div className={row.cls}>
@@ -82,7 +82,7 @@ export const AllStates: Story = {
         </div>
       ))}
       <div className="flex items-center gap-3">
-        <span className="w-20 font-mono text-2xs uppercase tracking-wider text-text-3">
+        <span className="w-20 font-mono text-label text-text-3">
           Disabled
         </span>
         <div className="flex items-center gap-1">

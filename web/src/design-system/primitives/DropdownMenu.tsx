@@ -25,7 +25,7 @@ export const DropdownMenuContent = forwardRef<
         sideOffset={sideOffset}
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover min-w-[10rem] rounded-md border border-line bg-panel p-1 text-sm-plus text-text-2 shadow-elevated",
+          "z-popover min-w-[10rem] rounded-md border border-line bg-panel p-1 text-ui text-text-2 shadow-elevated",
           "data-[state=open]:animate-fade-in",
           className,
         )}
@@ -36,7 +36,7 @@ export const DropdownMenuContent = forwardRef<
 });
 
 const itemClasses =
-  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm-plus outline-none transition-colors duration-std ease data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-surface data-[highlighted]:text-text";
+  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-none transition-colors duration-std ease data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-surface data-[highlighted]:text-text";
 
 export const DropdownMenuItem = forwardRef<
   React.ElementRef<typeof RadixDropdown.Item>,
@@ -103,7 +103,7 @@ export const DropdownMenuLabel = forwardRef<
     <RadixDropdown.Label
       ref={ref}
       className={cn(
-        "px-2 py-1 text-2xs uppercase tracking-wider text-text-4",
+        "px-2 py-1 text-label text-text-4",
         className,
       )}
       {...props}
@@ -130,7 +130,7 @@ export const DropdownMenuShortcut = ({
 }: React.HTMLAttributes<HTMLSpanElement>) => (
   <span
     className={cn(
-      "ml-auto font-mono text-2xs text-text-4",
+      "ml-auto text-mono text-text-4",
       className,
     )}
     {...props}

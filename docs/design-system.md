@@ -100,23 +100,49 @@ informational.
 
 - `--ds-font-sans`: Inter (self-hosted via `@fontsource/inter`)
 - `--ds-font-mono`: JetBrains Mono (self-hosted via `@fontsource/jetbrains-mono`)
-- Body: 13px / 1.45 line-height, `cv11 + ss01` OpenType features.
+- Body: 15px / 1.5 line-height, `cv11 + ss01` OpenType features.
 
-Tailwind font-size scale (all tokens registered with `tailwind-merge` so
-they don't collide with colour classes):
+The font-size scale is two-layered: raw size primitives compose into
+role-named semantic tokens. Authors should reach for the role tokens
+(`text-title`, `text-label`, etc.) by default; the size primitives exist
+for the rare cases where role tokens don't fit.
 
-| Utility | px / line-height |
-|---|---|
-| `text-2xs` | 10.5 / 1.3 |
-| `text-xs` | 11 / 1.35 |
-| `text-xs-plus` | 11.5 / 1.4 |
-| `text-sm` | 12 / 1.4 |
-| `text-sm-plus` | 12.5 / 1.45 |
-| `text-base` | 13 / 1.45 |
-| `text-md` | 14 / 1.45 |
-| `text-lg` | 16 / 1.4 |
-| `text-xl` | 20 / 1.3 |
-| `text-2xl` | 22 / 1.25 |
+**Layer 1 — size primitives** (Tailwind `fontSize` entries; size +
+line-height only)
+
+| Utility | px / line-height | Used for |
+|---|---|---|
+| `text-body` | 15 / 1.5 | Default running text. Also the `<body>` default. |
+| `text-ui` | 14 / 1.4 | Buttons, inputs, list rows, table cells, chip / tag / badge text. |
+| `text-small` | 12 / 1.4 | Captions, labels, mono hashes, kbd hints. |
+
+**Layer 2 — composed semantic tokens** (declared in `globals.css` under
+`@layer components`; bake in size + weight + transform + tracking + family)
+
+Headings (each has 4 weight variants; the bare alias = `-semibold`):
+
+| Token | px / line-height | Pairs with |
+|---|---|---|
+| `text-title-{reg,medium,semibold,bold}` | 22 / 1.25 | `<h1>` (page heading) |
+| `text-heading-{reg,medium,semibold,bold}` | 20 / 1.3 | `<h2>` (section heading) |
+| `text-subhead-{reg,medium,semibold,bold}` | 18 / 1.35 | `<h3>` (dialog title, asset detail title) |
+
+Generic role tokens:
+
+| Token | Composes | Used for |
+|---|---|---|
+| `text-label` | `text-small font-medium uppercase tracking-wide` | Section labels, kbd-row labels. |
+| `text-mono` | `font-mono text-small` | Sha hashes, IDs, file paths, short code refs. |
+| `text-caption` | `text-small text-text-3` | Helper text under inputs, muted captions. |
+| `text-num` | `text-ui font-mono` + tabular numerals | Inline numeric data. |
+
+View-specific role tokens:
+
+| Token | Composes | Used for |
+|---|---|---|
+| `text-table-row` | `text-ui` | Body cells in `<table>`. |
+| `text-table-header` | `text-ui font-medium` | `<thead>` cells. |
+| `text-list-row` | `text-ui` | Rows of dense list views (e.g. `AssetListRow`). |
 
 ### Sizing, radii, motion, z-index
 

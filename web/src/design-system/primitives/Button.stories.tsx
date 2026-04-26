@@ -79,7 +79,7 @@ function StateRow({
 }: React.PropsWithChildren<StateRowProps>) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-20 font-mono text-2xs uppercase tracking-wider text-text-3">
+      <span className="w-20 font-mono text-label text-text-3">
         {label}
       </span>
       <div className={pseudoClass}>{children}</div>

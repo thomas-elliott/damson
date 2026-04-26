@@ -33,7 +33,7 @@ The closest visual reference is **Zed** — monochrome-leaning, restrained accen
 ### Typography
 
 - Inter for all UI text, JetBrains Mono for hashes, file paths, version identifiers, licence SPDX IDs, and any "copy-exact" technical fragment. Both fonts are self-hosted via `@fontsource/*`.
-- Body is 13px / 1.45 line-height. The full scale is 10.5/11/11.5/12/12.5/13/14/16/20/22 — dense, information-first, with weight doing most of the hierarchy work.
+- Body is 15px / 1.5 line-height. The font-size scale is 12/14/15/18/20/22 — three size primitives (`text-small`/`text-ui`/`text-body`) plus role-named semantic tokens (`text-title`/`text-heading`/`text-subhead`/`text-label`/`text-mono`/`text-caption`/`text-num`/`text-table-row`/`text-table-header`/`text-list-row`).
 
 ### Components
 

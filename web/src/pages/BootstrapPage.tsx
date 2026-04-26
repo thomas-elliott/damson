@@ -94,7 +94,7 @@ export function BootstrapPage() {
             onChange={(e) => setConfirm(e.target.value)}
           />
         </FieldRow>
-        {error && <p className="text-xs-plus text-err">{error}</p>}
+        {error && <p className="text-small text-err">{error}</p>}
         <Button
           type="submit"
           variant="primary"
@@ -120,9 +120,9 @@ function AuthCard({
   return (
     <div className="grid min-h-screen place-items-center bg-bg px-4">
       <div className="w-full max-w-sm rounded-lg border border-line bg-panel p-6 shadow-elevated">
-        <h1 className="text-md font-semibold text-text">{title}</h1>
+        <h1 className="text-subhead text-text">{title}</h1>
         {description && (
-          <p className="mt-1 text-xs-plus text-text-3">{description}</p>
+          <p className="mt-1 text-caption">{description}</p>
         )}
         <div className="mt-5">{children}</div>
       </div>

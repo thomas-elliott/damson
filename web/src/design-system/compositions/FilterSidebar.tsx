@@ -71,7 +71,7 @@ export function FilterRow({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-sm-plus text-text-2 transition-colors duration-std ease",
+        "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-ui text-text-2 transition-colors duration-std ease",
         "hover:bg-surface hover:text-text",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
         "aria-[pressed=true]:bg-accent-tint aria-[pressed=true]:text-text",
@@ -84,7 +84,7 @@ export function FilterRow({
       {icon && <span className="grid place-items-center text-text-3">{icon}</span>}
       <span className="flex-1 text-left">{label}</span>
       {count !== undefined && (
-        <span className="font-mono text-xs tabular-nums text-text-3">
+        <span className="text-mono tabular-nums text-text-3">
           {count}
         </span>
       )}

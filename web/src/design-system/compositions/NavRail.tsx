@@ -74,7 +74,7 @@ export const NavRailItem = forwardRef<HTMLButtonElement, NavRailItemProps>(
           )}
           {icon}
           {badge !== undefined && (
-            <span className="absolute -right-0.5 -top-0.5 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-pill bg-accent px-1 font-mono text-[9px] font-semibold text-accent-fg">
+            <span className="absolute -right-0.5 -top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-pill bg-accent px-1 text-mono font-semibold text-accent-fg">
               {badge}
             </span>
           )}

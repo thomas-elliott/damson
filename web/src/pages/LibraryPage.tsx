@@ -156,7 +156,7 @@ export function LibraryPage() {
               <UploadButton />
             </Toolbar>
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+              <div className="flex flex-1 items-center justify-center text-ui text-text-3">
                 Loading assets…
               </div>
             ) : (
@@ -230,7 +230,7 @@ function UploadButton() {
 function SignedOutSidebar({ me }: { me: Me }) {
   return (
     <div className="flex h-full flex-col justify-end border-r border-line bg-panel p-3">
-      <div className="flex items-center justify-between gap-2 text-xs">
+      <div className="flex items-center justify-between gap-2 text-small">
         <span className="truncate font-mono text-text-3" title={me.email}>
           {me.email}
         </span>

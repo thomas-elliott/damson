@@ -39,11 +39,11 @@ export const QueueItem = forwardRef<HTMLDivElement, QueueItemProps>(
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div className="truncate text-sm-plus font-medium text-text">
+          <div className="truncate text-list-row font-medium text-text">
             {name}
           </div>
           {sub && (
-            <div className="flex items-center gap-2 text-xs-plus text-text-3">
+            <div className="flex items-center gap-2 text-small text-text-3">
               {sub}
             </div>
           )}
