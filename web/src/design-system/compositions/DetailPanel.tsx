@@ -56,7 +56,7 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(
         {...props}
       >
         <header className="flex shrink-0 items-center gap-2 border-b border-line px-3.5 py-2.5">
-          <div className="flex-1 truncate text-md font-semibold text-text">
+          <div className="flex-1 truncate text-subhead text-text">
             {title}
           </div>
           {actions && <div className="flex items-center gap-1">{actions}</div>}
