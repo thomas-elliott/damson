@@ -29,7 +29,7 @@ export const TabsTrigger = forwardRef<
     <RadixTabs.Trigger
       ref={ref}
       className={cn(
-        "-mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm-plus text-text-3 transition-colors duration-std ease hover:text-text",
+        "-mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-ui text-text-3 transition-colors duration-std ease hover:text-text",
         "data-[state=active]:border-accent data-[state=active]:text-accent",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
@@ -44,7 +44,7 @@ export const TabsContent = RadixTabs.Content;
 /** Small count badge to sit alongside a TabsTrigger label. */
 export function TabCount({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-[18px] items-center rounded-pill bg-surface px-1.5 font-mono text-2xs text-text-3">
+    <span className="inline-flex h-[20px] items-center rounded-pill bg-surface px-1.5 text-mono text-text-3">
       {children}
     </span>
   );

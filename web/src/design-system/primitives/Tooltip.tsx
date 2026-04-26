@@ -29,7 +29,7 @@ export const TooltipContent = forwardRef<
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          "z-tooltip rounded-sm border border-line bg-surface-2 px-2 py-1 font-mono text-2xs text-text",
+          "z-tooltip rounded-sm border border-line bg-surface-2 px-2 py-1 text-mono text-text",
           "animate-fade-in data-[state=closed]:animate-none",
           className,
         )}
