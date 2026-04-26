@@ -4,8 +4,10 @@ Coding standards, conventions, and setup for go/react repositories.
 
 This document complements:
 - `AGENTS.md` — shorter quick-start rules for agentic coding
-- `docs/product-design-doc.md`, `docs/ui-design.md`, `docs/technical-design.md` — product scope, UI brief, architecture
+- `docs/architecture.md` — current architecture, data model, API surface, shipped decisions
+- `docs/design-system.md` — frontend design system spec
 - `docs/progress.md` — milestone-by-milestone status of what's actually in the tree
+- `docs/archive/` — original product / technical / UI design docs, kept for historical reference
 
 ---
 

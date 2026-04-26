@@ -25,7 +25,7 @@ func init() {
 // newTestHandler returns an api handler backed by in-memory SQLite with all
 // models migrated via AutoMigrate. Postgres-specific features (tsvector,
 // advisory locks) are absent — SQL-migration-based tests need a real
-// Postgres; see docs/technical-design.md §18.
+// Postgres; see docs/archive/technical-design.md §18.
 //
 // Auth defaults to oidc mode (no local authenticator); tests that need
 // /api/auth/login should call newTestHandlerLocal. A local-FS storage

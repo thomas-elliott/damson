@@ -1,6 +1,6 @@
 // Package audit writes audit_log rows. Every library-scoped write handler
 // from M3 onwards calls Write in the same transaction as its domain
-// mutation — audit is mandatory per docs/technical-design.md §8.3.
+// mutation — audit is mandatory per docs/archive/technical-design.md §8.3.
 package audit
 
 import (

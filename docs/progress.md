@@ -1,9 +1,11 @@
 # Implementation progress
 
-Source of truth for milestone scope is `docs/technical-design.md` §21; this
-doc tracks what's **actually in the tree** against that plan and calls out
-what's been skipped or deferred so later slices don't assume foundations
-that aren't there.
+Source of truth for milestone scope is the archived
+`docs/archive/technical-design.md` §21 ladder; the current architecture
+of what shipped lives in `docs/architecture.md`. This doc tracks what's
+**actually in the tree** against that plan and calls out what's been
+skipped or deferred so later slices don't assume foundations that
+aren't there.
 
 Last audited: 2026-04-25 — pre-alpha hardening pass on top of M6/M7. No new
 milestone scope; everything in this round is from the architecture review.
@@ -75,14 +77,14 @@ milestone scope; everything in this round is from the architecture review.
 
 **Doc updates**
 
-- `docs/technical-design.md` §16 refreshed to mirror `handler.go` exactly,
+- `docs/archive/technical-design.md` §16 refreshed to mirror `handler.go` exactly,
   with a "documented but not yet implemented" appendix for the deferred
   endpoints.
-- `docs/technical-design.md` §8.1 promotes the local-auth HTTP bootstrap
+- `docs/archive/technical-design.md` §8.1 promotes the local-auth HTTP bootstrap
   flow, password floor, throttle, and per-deployment iss/aud; §8.3 (new)
   documents the HTTP security posture (CSP, body cap, timeouts, file
   download hardening, source_url validation, SPA token storage caveat).
-- `docs/product-design-doc.md` §6 calls out OIDC vs local explicitly and
+- `docs/archive/product-design-doc.md` §6 calls out OIDC vs local explicitly and
   notes local mode is for development / single-user installs.
 - `README.md` Layout calls out `damson.go` and the `web/static/.gitkeep`
   placeholder.
@@ -183,7 +185,7 @@ milestones up for a visual-rework cycle.
 | Migrate `LibraryPage`, `AssetGrid`, `DropZone`, `BootstrapPage`, `LoginPage` onto the new system | ✅ | `web/src/pages/`, `web/src/components/` |
 | Delete obsolete `LibraryHeader.tsx` (absorbed into FilterSidebar) | ✅ | removed |
 | `TooltipProvider` mounted at app root | ✅ | `web/src/main.tsx` |
-| `docs/design-system.md` canonical spec; `docs/CONVENTIONS.md` updated to drop shadcn/ui; `docs/ui-design.md` §9 open questions resolved | ✅ | `docs/` |
+| `docs/design-system.md` canonical spec; `docs/CONVENTIONS.md` updated to drop shadcn/ui; `docs/archive/ui-design.md` §9 open questions resolved | ✅ | `docs/` |
 | `task web:storybook`, `task web:test:stories`, `task web:test:all` | ✅ | `Taskfile.yml` |
 
 Decisions locked in during M2.5 that differ from earlier drafts:
@@ -191,7 +193,7 @@ Decisions locked in during M2.5 that differ from earlier drafts:
 - **Accent is yellow only.** The mockup's blue/yellow theme-swap was dropped.
 - **shadcn/ui is not used.** Components are hand-rolled on Radix headless
   primitives. This diverges from the previous `docs/CONVENTIONS.md` §5 note
-  that called for shadcn/ui, and from `docs/ui-design.md` §2 where it was
+  that called for shadcn/ui, and from `docs/archive/ui-design.md` §2 where it was
   listed as the component library.
 - **Tokens are OKLCH, not HSL.** The pre-M2.5 `globals.css` used HSL; that
   file now imports `tokens.css` and re-exports the OKLCH variables.
@@ -351,7 +353,7 @@ M7 is complete for §21 scope. Notes:
   the queue surfaces only `failed` rows (and any other non-`done` stages
   if/when the pipeline goes async). The `imports.failed` path needed for
   retry is real, but `extracting`/`detecting`/`thumbnailing` are not
-  emitted until the backend goes async — see `docs/technical-design.md` §9.1.
+  emitted until the backend goes async — see `docs/archive/technical-design.md` §9.1.
 - **Local-mode invites assume admin-set-password.** OIDC invites require
   the user to have signed in at least once before the membership can be
   attached — there's no "create identity in IdP" path. Both modes share the
@@ -428,7 +430,7 @@ blocks on them rather than speculatively.
   The tech design only described OIDC; the product-design doc also only
   mentioned OIDC. The two are kept mutually exclusive at startup, which
   matches the "exclusive modes" framing in AGENTS.md but is not yet spelled
-  out in `docs/technical-design.md`. Worth folding into §8.1 on the next
+  out in `docs/archive/technical-design.md`. Worth folding into §8.1 on the next
   design-doc pass.
 - **`importResponse` reports `file_count` + `package_kind` instead of a
   single-file `file_id`.** The M1 shape assumed one file per import; M2 made

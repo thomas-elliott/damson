@@ -1,5 +1,5 @@
 // Package thumbnail generates preview images for imported assets per
-// docs/technical-design.md §11. One worker per input category:
+// docs/archive/technical-design.md §11. One worker per input category:
 //
 //   - Raster (image/*): decode + resample to 512px long edge + re-encode as
 //     JPEG (photographic) or PNG (palette/alpha/rendered).

@@ -13,7 +13,7 @@ import (
 )
 
 // resampleMaxEdge is the long-edge size of generated thumbnails. 512 matches
-// docs/technical-design.md §11.1.
+// docs/archive/technical-design.md §11.1.
 const resampleMaxEdge = 512
 
 // jpegQuality is the encoder quality for photographic thumbnails; PNG is

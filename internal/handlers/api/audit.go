@@ -255,7 +255,7 @@ func (h *Handler) getProjectAudit(c *gin.Context) {
 }
 
 // getAdminAudit returns server-level audit entries (library_id IS NULL).
-// Restricted to sysadmin per docs/technical-design.md §13. We don't merge
+// Restricted to sysadmin per docs/archive/technical-design.md §13. We don't merge
 // in cross-library library-scoped events for v1 — the library audit page
 // covers those, and a "global ledger" view is a v2 concern.
 func (h *Handler) getAdminAudit(c *gin.Context) {
