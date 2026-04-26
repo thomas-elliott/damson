@@ -60,7 +60,7 @@ export const NavRailItem = forwardRef<HTMLButtonElement, NavRailItemProps>(
           className={cn(
             "relative grid h-[34px] w-[34px] place-items-center rounded-sm text-text-3 transition-colors duration-std ease",
             "hover:bg-surface hover:text-text",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
+            "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
             "aria-[current=page]:bg-surface aria-[current=page]:text-text",
             className,
           )}

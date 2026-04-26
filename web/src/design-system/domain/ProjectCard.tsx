@@ -33,7 +33,7 @@ export const ProjectCard = forwardRef<HTMLButtonElement, ProjectCardProps>(
         className={cn(
           "flex flex-col gap-3 rounded-md border border-line bg-panel p-3.5 text-left transition-colors duration-std ease",
           "hover:border-line-2",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
+          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
           className,
         )}
         {...props}
@@ -81,7 +81,7 @@ export function ProjectCardNew({
       className={cn(
         "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-line-2 bg-transparent p-4 text-ui text-text-3 transition-colors duration-std ease",
         "hover:border-text-4 hover:text-text-2",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
         className,
       )}
     >

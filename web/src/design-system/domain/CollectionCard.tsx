@@ -41,7 +41,7 @@ export const CollectionCard = forwardRef<HTMLButtonElement, CollectionCardProps>
         className={cn(
           "flex flex-col gap-3 rounded-md border border-line bg-panel p-3.5 text-left transition-colors duration-std ease",
           "hover:border-line-2",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
+          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
           className,
         )}
         {...props}

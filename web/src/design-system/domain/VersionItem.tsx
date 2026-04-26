@@ -68,7 +68,7 @@ export function VersionItem({
         onClick={onSelect}
         className={cn(
           baseClasses,
-          "cursor-pointer hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
+          "cursor-pointer hover:bg-surface focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
           current && currentClasses,
           className,
         )}

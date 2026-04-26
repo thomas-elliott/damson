@@ -101,7 +101,7 @@ export function ResizeHandle({
         "group relative h-full w-1 cursor-col-resize bg-transparent transition-colors duration-std ease",
         "hover:bg-accent-ring/30",
         "data-[dragging=true]:bg-accent",
-        "focus-visible:bg-accent-ring/50 focus-visible:outline-none",
+        "focus-visible:bg-accent-ring/50 focus-visible:outline-hidden",
         className,
       )}
     >
