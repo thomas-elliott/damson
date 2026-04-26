@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { AlertTriangle, Inbox, Loader2, RotateCw } from "lucide-react";
 
 import { Shell } from "@/components/Shell";
