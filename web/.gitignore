@@ -3,6 +3,13 @@ dist/
 storybook-static/
 *.local
 
+# Playwright E2E artifacts
+playwright-report/
+test-results/
+playwright/.cache/
+e2e/.bin/
+e2e/.e2e-data/
+
 # tsc --composite emits from tsconfig.node.json. Vite/Vitest/Tailwind load
 # the .ts sources directly, so these artefacts are build noise.
 *.tsbuildinfo
