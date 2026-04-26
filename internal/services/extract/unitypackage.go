@@ -2,7 +2,7 @@
 // suitable for storage as asset_files. The first entry is .unitypackage;
 // .zip support lives alongside it when added.
 //
-// See docs/technical-design.md §9.2 for the format description.
+// See docs/archive/technical-design.md §9.2 for the format description.
 package extract
 
 import (
