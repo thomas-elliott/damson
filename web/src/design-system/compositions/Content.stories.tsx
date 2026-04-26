@@ -74,12 +74,12 @@ export const ToolbarExample: Story = {
               {
                 value: "grid",
                 "aria-label": "Grid view",
-                icon: <span className="font-mono text-xs">▦</span>,
+                icon: <span className="text-mono">▦</span>,
               },
               {
                 value: "list",
                 "aria-label": "List view",
-                icon: <span className="font-mono text-xs">☰</span>,
+                icon: <span className="text-mono">☰</span>,
               },
             ]}
           />
@@ -118,7 +118,7 @@ export const DetailPanelExample: Story = {
             <Tag>ui/icons</Tag>
             <Tag variant="add">Add tag</Tag>
           </div>
-          <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2 text-xs-plus">
+          <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2 text-small">
             <dt className="text-text-3">Source</dt>
             <dd className="text-text-2">itch.io · craftpix</dd>
             <dt className="text-text-3">Imported</dt>
@@ -169,7 +169,7 @@ export const FullPageViewExample: Story = {
               <Tag>sprites</Tag>
               <Tag>ui/icons</Tag>
             </div>
-            <p className="text-sm-plus text-text-2">
+            <p className="text-ui text-text-2">
               A 128-file sprite pack with 2× and 3× variants. Compliant for
               commercial use with attribution.
             </p>
@@ -183,7 +183,7 @@ export const FullPageViewExample: Story = {
 export const DropOverlayExample: Story = {
   parameters: { layout: "centered" },
   render: () => (
-    <div className="relative h-[320px] w-[520px] overflow-hidden border border-line bg-bg p-4 text-sm-plus text-text-3">
+    <div className="relative h-[320px] w-[520px] overflow-hidden border border-line bg-bg p-4 text-ui text-text-3">
       Dropping files would show:
       <DropOverlay active caption="Drop files to import" />
     </div>
@@ -195,7 +195,7 @@ export const SelectionBarExample: Story = {
   render: () => {
     const [count, setCount] = useState(3);
     return (
-      <div className="relative h-[240px] w-[640px] overflow-hidden border border-line bg-bg p-4 text-sm-plus text-text-3">
+      <div className="relative h-[240px] w-[640px] overflow-hidden border border-line bg-bg p-4 text-ui text-text-3">
         <div className="flex items-center gap-2">
           <Button onClick={() => setCount((c) => c + 1)}>Select more</Button>
           <Button onClick={() => setCount(0)}>Clear selection</Button>

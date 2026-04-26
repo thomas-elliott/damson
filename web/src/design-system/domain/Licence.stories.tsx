@@ -36,19 +36,19 @@ export const Bar: Story = {
   render: () => (
     <div className="flex min-w-[360px] flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <div className="text-xs text-text-3">Balanced library</div>
+        <div className="text-caption">Balanced library</div>
         <LicenceBar counts={{ ok: 120, warn: 18, err: 3, unk: 42 }} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <div className="text-xs text-text-3">Mostly compliant</div>
+        <div className="text-caption">Mostly compliant</div>
         <LicenceBar counts={{ ok: 248, warn: 4, err: 0, unk: 12 }} size="md" />
       </div>
       <div className="flex flex-col gap-1.5">
-        <div className="text-xs text-text-3">Unknown-heavy</div>
+        <div className="text-caption">Unknown-heavy</div>
         <LicenceBar counts={{ ok: 10, warn: 2, err: 0, unk: 188 }} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <div className="text-xs text-text-3">Empty</div>
+        <div className="text-caption">Empty</div>
         <LicenceBar counts={{ ok: 0, warn: 0, err: 0, unk: 0 }} />
       </div>
     </div>

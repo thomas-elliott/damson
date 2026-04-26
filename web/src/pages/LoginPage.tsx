@@ -37,10 +37,10 @@ export function LoginPage() {
     <div className="grid min-h-screen place-items-center bg-bg px-4">
       <div className="w-full max-w-sm rounded-lg border border-line bg-panel p-6 shadow-elevated">
         <div className="mb-5 flex items-center gap-2.5">
-          <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-sm-plus font-bold text-accent-fg">
+          <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-ui font-bold text-accent-fg">
             D
           </div>
-          <h1 className="text-md font-semibold text-text">Damson</h1>
+          <h1 className="text-subhead text-text">Damson</h1>
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
           <FieldRow label="Email">
@@ -61,7 +61,7 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </FieldRow>
-          {error && <p className="text-xs-plus text-err">{error}</p>}
+          {error && <p className="text-small text-err">{error}</p>}
           <Button
             type="submit"
             variant="primary"
