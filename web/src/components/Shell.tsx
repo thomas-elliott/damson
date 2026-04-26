@@ -49,7 +49,7 @@ export function Shell({
 
 function LoadingShell() {
   return (
-    <div className="grid h-screen place-items-center bg-bg text-sm-plus text-text-3">
+    <div className="grid h-screen place-items-center bg-bg text-ui text-text-3">
       Loading…
     </div>
   );
@@ -109,7 +109,7 @@ function DamsonBrand() {
   return (
     <div
       aria-label="Damson"
-      className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-sm-plus font-bold text-accent-fg"
+      className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-ui font-bold text-accent-fg"
     >
       D
     </div>
