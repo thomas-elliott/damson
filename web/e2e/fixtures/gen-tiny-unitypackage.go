@@ -1,7 +1,8 @@
 //go:build ignore
 
 // Regenerate web/e2e/fixtures/tiny.unitypackage. Run from this directory:
-//   go run gen-tiny-unitypackage.go
+//
+//	go run gen-tiny-unitypackage.go
 //
 // The fixture is a minimal-but-valid Unity .unitypackage with one asset
 // (`Assets/E2EFixture.txt`). The format mirrors the test packages built
