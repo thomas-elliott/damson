@@ -81,11 +81,11 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(
         </div>
         <div className="flex items-start justify-between gap-2 px-0.5">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm-plus font-medium text-text">
+            <div className="truncate text-ui font-medium text-text">
               {name}
             </div>
             {sub && (
-              <div className="mt-0.5 flex items-center gap-1 text-xs text-text-3">
+              <div className="mt-0.5 flex items-center gap-1 text-caption">
                 {sub}
               </div>
             )}

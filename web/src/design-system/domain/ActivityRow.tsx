@@ -28,13 +28,13 @@ export function ActivityRow({
   return (
     <div
       className={cn(
-        "grid items-baseline gap-3 border-b border-line px-3.5 py-2 text-xs-plus last:border-b-0",
+        "grid items-baseline gap-3 border-b border-line px-3.5 py-2 text-list-row last:border-b-0",
         className,
       )}
       style={{ gridTemplateColumns: "96px 140px 1fr auto" }}
       {...props}
     >
-      <span className="font-mono text-xs tabular-nums text-text-3">
+      <span className="text-mono tabular-nums text-text-3">
         {timestamp}
       </span>
       <span className="truncate text-text-2">{actor}</span>
