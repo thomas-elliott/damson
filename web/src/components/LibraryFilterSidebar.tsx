@@ -38,7 +38,7 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
   return (
     <FilterSidebar
       header={
-        <div className="flex items-center gap-2 text-sm-plus">
+        <div className="flex items-center gap-2 text-ui">
           <span className="truncate font-medium text-text">{lib?.name ?? "No library"}</span>
           {lib && (
             <Badge size="sm" mono>
@@ -48,7 +48,7 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
         </div>
       }
       footer={
-        <div className="flex items-center justify-between gap-2 text-xs">
+        <div className="flex items-center justify-between gap-2 text-small">
           <span className="truncate font-mono text-text-3" title={me.email}>
             {me.email}
           </span>
@@ -107,7 +107,7 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
 
       <Section title="Projects" defaultOpen={false}>
         {projects.length === 0 ? (
-          <div className="text-xs-plus text-text-4">No projects yet</div>
+          <div className="text-small text-text-4">No projects yet</div>
         ) : (
           <ul className="flex flex-col gap-0.5">
             {projects.map((p) => (
@@ -131,7 +131,7 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
 
       <Section title="Tags" defaultOpen>
         {tags.length === 0 ? (
-          <div className="text-xs-plus text-text-4">No tags yet — add some from an asset detail panel</div>
+          <div className="text-small text-text-4">No tags yet — add some from an asset detail panel</div>
         ) : (
           <TagTree tags={tags} activePath={filters.tag_path} onPick={(p) => setParam("tag", filters.tag_path === p ? null : p)} />
         )}
@@ -159,7 +159,7 @@ function FilterRow({
       aria-pressed={active}
       onClick={onClick}
       className={
-        "flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-xs-plus transition-colors duration-std ease " +
+        "flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-small transition-colors duration-std ease " +
         "hover:bg-surface " +
         (active ? "bg-accent-tint text-text" : "text-text-2")
       }
@@ -169,7 +169,7 @@ function FilterRow({
         {label}
       </span>
       {count !== undefined && (
-        <span className="font-mono text-xs tabular-nums text-text-3">{count}</span>
+        <span className="text-mono tabular-nums text-text-3">{count}</span>
       )}
     </button>
   );
@@ -226,7 +226,7 @@ function TagNode({
     <li>
       <div
         className={
-          "flex items-center gap-1 rounded-sm px-1 py-1 text-xs-plus hover:bg-surface " +
+          "flex items-center gap-1 rounded-sm px-1 py-1 text-small hover:bg-surface " +
           (active ? "bg-accent-tint text-text" : "text-text-2")
         }
         style={{ paddingLeft: 6 + depth * 12 }}
@@ -243,7 +243,7 @@ function TagNode({
           aria-pressed={active}
         >
           <span className="truncate">{label}</span>
-          <span className="font-mono text-xs tabular-nums text-text-3">{tag.asset_count}</span>
+          <span className="text-mono tabular-nums text-text-3">{tag.asset_count}</span>
         </button>
       </div>
       {hasChildren && (

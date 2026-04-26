@@ -67,7 +67,7 @@ function ServerSettingsForm() {
   if (loading || !settings) {
     return (
       <Section title="Server settings" defaultOpen>
-        <div className="text-xs-plus text-text-3">Loading…</div>
+        <div className="text-caption">Loading…</div>
       </Section>
     );
   }
@@ -95,8 +95,8 @@ function ServerSettingsForm() {
       </FieldRow>
       <div className="flex items-center justify-between gap-4 py-2">
         <div className="flex flex-col">
-          <span className="text-sm-plus text-text">Auto-update licence knowledge base</span>
-          <span className="text-xs-plus text-text-3">
+          <span className="text-ui text-text">Auto-update licence knowledge base</span>
+          <span className="text-caption">
             When supported, periodically refresh the SPDX overlay from upstream.
           </span>
         </div>
@@ -120,7 +120,7 @@ function UsersSection() {
   return (
     <Section title={`Users (${users.length})`} defaultOpen>
       {loading ? (
-        <div className="text-xs-plus text-text-3">Loading…</div>
+        <div className="text-caption">Loading…</div>
       ) : users.length === 0 ? (
         <EmptyState title="No users yet" />
       ) : (
@@ -131,8 +131,8 @@ function UsersSection() {
               className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
             >
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm-plus text-text">{u.display_name}</div>
-                <div className="truncate text-xs-plus text-text-3">{u.email}</div>
+                <div className="truncate text-ui text-text">{u.display_name}</div>
+                <div className="truncate text-caption">{u.email}</div>
               </div>
               <Select
                 value={u.role}
@@ -192,7 +192,7 @@ function ResetPasswordDialog({
         </DialogHeader>
         <DialogBody>
           {user && (
-            <p className="text-sm-plus text-text-2">
+            <p className="text-ui text-text-2">
               Set a new password for <span className="font-mono">{user.email}</span>. Their
               existing sessions will be invalidated.
             </p>
