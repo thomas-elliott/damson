@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { LogOut, Search, UploadCloud } from "lucide-react";
 
 import { AssetGrid } from "@/components/AssetGrid";

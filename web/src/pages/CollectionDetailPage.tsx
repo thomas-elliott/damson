@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { ChevronLeft, Trash2 } from "lucide-react";
 
 import { AssetGrid } from "@/components/AssetGrid";

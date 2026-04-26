@@ -36,7 +36,7 @@ export const DropdownMenuContent = forwardRef<
 });
 
 const itemClasses =
-  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-none transition-colors duration-std ease data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-surface data-[highlighted]:text-text";
+  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-hidden transition-colors duration-std ease data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-surface data-[highlighted]:text-text";
 
 export const DropdownMenuItem = forwardRef<
   React.ElementRef<typeof RadixDropdown.Item>,

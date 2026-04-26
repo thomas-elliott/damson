@@ -32,7 +32,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       <input
         ref={ref}
         disabled={disabled}
-        className="min-w-0 flex-1 bg-transparent text-ui leading-none text-text outline-none placeholder:text-text-4 disabled:cursor-not-allowed"
+        className="min-w-0 flex-1 bg-transparent text-ui leading-none text-text outline-hidden placeholder:text-text-4 disabled:cursor-not-allowed"
         {...props}
       />
       {trailingSlot && (

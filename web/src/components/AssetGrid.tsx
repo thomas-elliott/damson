@@ -131,7 +131,7 @@ export function AssetGrid({
 // useColumnCount tracks the number of cards per row based on the scroll
 // container's measured width. Recomputes on resize so density toggles and
 // window resizes both work.
-function useColumnCount(ref: React.RefObject<HTMLDivElement>): number {
+function useColumnCount(ref: React.RefObject<HTMLDivElement | null>): number {
   const [cols, setCols] = useState(4);
   useLayoutEffect(() => {
     const el = ref.current;
