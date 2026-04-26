@@ -77,7 +77,7 @@ var ErrAlreadyBootstrapped = errors.New("already bootstrapped")
 
 // MinPasswordLength is the minimum length we accept for a local-auth
 // password. Local auth is a development/testing-grade credential — see
-// docs/technical-design.md §8.1; OIDC remains the recommended path for any
+// docs/archive/technical-design.md §8.1; OIDC remains the recommended path for any
 // deployment where account security matters. Eight characters reflects that
 // floor without making the bootstrap flow unusable.
 const MinPasswordLength = 8
