@@ -1,7 +1,7 @@
 // Package storage defines the content-addressed blob/thumbnail interface used
 // by the import pipeline and HTTP handlers. The production implementation
 // wraps the AWS SDK v2 against an S3-compatible endpoint; tests use an
-// in-memory fake. Both implementations land in M1 (see docs/technical-design.md §21).
+// in-memory fake. Both implementations land in M1 (see docs/archive/technical-design.md §21).
 package storage
 
 import (
