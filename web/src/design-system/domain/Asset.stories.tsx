@@ -69,14 +69,14 @@ export const ListView: Story = {
                   setSelected((prev) => (prev === a.id ? null : a.id))
                 }
                 cells={[
-                  <span className="font-mono text-xs text-text-3">
+                  <span className="text-mono text-text-3">
                     {a.type}
                   </span>,
                   <LicencePill status={a.licenceStatus} spdx={a.spdx} noDot />,
-                  <span className="font-mono text-xs text-text-3">
+                  <span className="text-mono text-text-3">
                     {formatBytes(a.size)}
                   </span>,
-                  <span className="font-mono text-xs text-text-3">
+                  <span className="text-mono text-text-3">
                     {a.imported}
                   </span>,
                 ]}

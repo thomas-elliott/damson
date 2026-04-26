@@ -33,7 +33,7 @@ export function QueuePage() {
             </Breadcrumb>
           </Toolbar>
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
               Loading queue…
             </div>
           ) : imports.length === 0 ? (

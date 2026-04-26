@@ -96,7 +96,7 @@ export function ProjectDetailPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
               Loading project…
             </div>
           ) : !project ? (
@@ -110,8 +110,8 @@ export function ProjectDetailPage() {
                   color={project.glyph_color || "oklch(0.4 0.14 260)"}
                 />
                 <div className="flex-1">
-                  <h1 className="text-xl font-semibold text-text">{project.name}</h1>
-                  <div className="mt-1 flex items-center gap-2 text-xs-plus text-text-3">
+                  <h1 className="text-heading text-text">{project.name}</h1>
+                  <div className="mt-1 flex items-center gap-2 text-caption">
                     <Badge size="sm" mono>
                       {project.target_distribution}
                     </Badge>
@@ -123,7 +123,7 @@ export function ProjectDetailPage() {
                     )}
                   </div>
                   {project.description && (
-                    <p className="mt-2 max-w-prose text-sm-plus text-text-2">
+                    <p className="mt-2 max-w-prose text-ui text-text-2">
                       {project.description}
                     </p>
                   )}
@@ -131,11 +131,11 @@ export function ProjectDetailPage() {
               </header>
 
               <section className="rounded-md border border-line bg-panel p-3">
-                <div className="mb-2 text-xs uppercase tracking-wider text-text-3">
+                <div className="mb-2 text-label text-text-3">
                   Licence mix
                 </div>
                 <LicenceBar counts={counts} size="md" />
-                <div className="mt-1 flex gap-3 text-xs text-text-3">
+                <div className="mt-1 flex gap-3 text-small text-text-3">
                   <span>
                     <span className="font-mono text-ok">{counts.ok}</span> compliant
                   </span>
@@ -152,7 +152,7 @@ export function ProjectDetailPage() {
               </section>
 
               <section>
-                <h2 className="mb-2 text-sm-plus font-medium text-text">
+                <h2 className="mb-2 text-ui font-medium text-text">
                   Pinned assets
                 </h2>
                 {project.pins.length === 0 ? (
@@ -170,9 +170,9 @@ export function ProjectDetailPage() {
                     }
                   />
                 ) : (
-                  <table className="w-full border-collapse text-sm-plus">
+                  <table className="w-full border-collapse text-table-row">
                     <thead>
-                      <tr className="border-b border-line text-left text-xs uppercase tracking-wider text-text-3">
+                      <tr className="border-b border-line text-left text-table-header text-text-3">
                         <th className="py-2 font-normal">Asset</th>
                         <th className="py-2 font-normal">Pinned</th>
                         <th className="py-2 font-normal">Latest</th>
@@ -192,7 +192,7 @@ export function ProjectDetailPage() {
               </section>
 
               <section>
-                <h2 className="mb-2 text-sm-plus font-medium text-text">
+                <h2 className="mb-2 text-ui font-medium text-text">
                   Recent activity
                 </h2>
                 <ProjectAuditPanel projectId={project.id} />
@@ -236,11 +236,11 @@ function ProjectPinRow({
         {pin.licence_spdx ? (
           <LicencePill status={pin.licence_status as LicenceStatus} spdx={pin.licence_spdx} />
         ) : (
-          <span className="text-xs text-text-4">—</span>
+          <span className="text-small text-text-4">—</span>
         )}
       </td>
       <td className="py-2 text-right font-mono text-text-2">{formatBytes(pin.size_bytes)}</td>
-      <td className="py-2 text-xs">
+      <td className="py-2 text-small">
         {pin.has_update ? (
           <button
             type="button"
@@ -276,7 +276,7 @@ function ProjectPinRow({
 function ProjectAuditPanel({ projectId }: { projectId: number }) {
   const { data: entries, loading } = useProjectAudit(projectId);
   if (loading) {
-    return <div className="text-xs-plus text-text-4">Loading…</div>;
+    return <div className="text-small text-text-4">Loading…</div>;
   }
   return (
     <AuditList

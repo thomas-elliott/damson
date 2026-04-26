@@ -56,7 +56,7 @@ export function ProjectsPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-sm-plus text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
               Loading projects…
             </div>
           ) : projects.length === 0 ? (
@@ -85,7 +85,7 @@ export function ProjectsPage() {
                   engine={p.target_distribution || undefined}
                   onOpen={() => navigate(`/projects/${p.id}`)}
                 >
-                  <div className="flex items-center justify-between gap-2 text-xs text-text-3">
+                  <div className="flex items-center justify-between gap-2 text-small text-text-3">
                     <span>
                       <span className="font-mono text-text-2">{p.asset_count}</span> assets
                     </span>
@@ -187,7 +187,7 @@ function NewProjectDialog({
               </SelectContent>
             </Select>
           </FieldRow>
-          {error && <div className="text-xs text-err">{error}</div>}
+          {error && <div className="text-small text-err">{error}</div>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

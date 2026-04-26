@@ -36,7 +36,7 @@ type Story = StoryObj;
 
 function DamsonBrand() {
   return (
-    <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-sm-plus font-bold text-accent-fg">
+    <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-ui font-bold text-accent-fg">
       D
     </div>
   );
@@ -107,7 +107,7 @@ function SidebarSample() {
         </div>
       </Section>
       <Section title="Tags" defaultOpen={false}>
-        <div className="text-xs-plus text-text-3">(no selected tags)</div>
+        <div className="text-caption">(no selected tags)</div>
       </Section>
     </FilterSidebar>
   );
@@ -137,7 +137,7 @@ export const AppShellWithSidebar: Story = {
             </div>
           }
           main={
-            <div className="grid h-full place-items-center text-sm-plus text-text-3">
+            <div className="grid h-full place-items-center text-ui text-text-3">
               Main content (route: {route}, sidebar: {sidebarW}px)
             </div>
           }
@@ -154,7 +154,7 @@ export const RailOnly: Story = {
       <AppShell
         rail={<RailSample route={route} setRoute={setRoute} />}
         main={
-          <div className="grid h-full place-items-center text-sm-plus text-text-3">
+          <div className="grid h-full place-items-center text-ui text-text-3">
             Main content only (route: {route})
           </div>
         }

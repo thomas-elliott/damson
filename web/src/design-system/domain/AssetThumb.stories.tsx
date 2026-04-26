@@ -43,7 +43,7 @@ export const AllPatterns: Story = {
               thumb={{ kind: "sprite", palette: SAMPLE_PALETTES[p], pattern: p }}
             />
           </div>
-          <div className="font-mono text-xs text-text-3">{p}</div>
+          <div className="text-mono text-text-3">{p}</div>
         </div>
       ))}
     </div>
@@ -58,7 +58,7 @@ export const Waveforms: Story = {
           <div className="aspect-square overflow-hidden rounded-md border border-line bg-panel">
             <AssetThumb thumb={{ kind: "waveform", seed }} />
           </div>
-          <div className="font-mono text-xs text-text-3">seed {seed}</div>
+          <div className="text-mono text-text-3">seed {seed}</div>
         </div>
       ))}
     </div>
@@ -80,7 +80,7 @@ export const Fonts: Story = {
               thumb={{ kind: "font", sample: s.sample, family: s.family }}
             />
           </div>
-          <div className="font-mono text-xs text-text-3">{s.family}</div>
+          <div className="text-mono text-text-3">{s.family}</div>
         </div>
       ))}
     </div>
