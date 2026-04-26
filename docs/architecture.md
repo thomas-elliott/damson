@@ -336,3 +336,195 @@ sees data.
   is a pragmatic choice for a self-hosted tool — bearer-in-header
   sidesteps CSRF — and depends on the served-file hardening above
   to keep XSS from being an exfil channel.
+
+---
+
+## 7. Request lifecycle
+
+`internal/handlers/api/handler.go` wires routes:
+
+1. Public group: `/api/auth/*`, `/api/health`.
+2. `authed` group: `auth.Middleware(authenticator)` runs first.
+3. `scoped` sub-group: layers `requireLibrary()`.
+4. Sysadmin endpoints: `requireSysadmin(c)` inside the handler.
+
+Handlers are receiver methods on a single `*Handler` struct
+(`internal/handlers/api/handler.go`), constructed via
+`api.New(api.Deps{...})` in `cmd/server/main.go`. Tests construct
+via `newTestHandler(t)` which wires in-memory SQLite + a `LocalFS`
+storage rooted in `t.TempDir()`. One file per feature
+(`assets.go`, `library.go`, `imports.go`, …).
+
+Errors use `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`.
+Inside `Transaction(func)` the sentinel constructors
+`errBadRequestf` / `errConflictf` plus the shared
+`respondGORM(c, err, "<entity> not found")` mapper are the single
+source of truth for status mapping. 500 always returns the generic
+`"internal error"` string — no leaked internals.
+
+Logging is `log/slog` (JSON in production, text in dev). A custom
+`requestLogger()` middleware (not `gin.Logger()`) emits a
+status/path line per response. Handlers carrying diagnostic detail
+(extractor errors, validation beyond the binding layer) `slog.Warn`
+the underlying error before `AbortWithStatusJSON` — the JSON body
+alone does not appear in logs.
+
+---
+
+## 8. Import pipeline
+
+Background-first by design, currently synchronous in code (M2+).
+Stage state is tracked in `asset_imports`; the queue surface
+filters non-`done`.
+
+```
+[1] Upload streamed to temp + SHA-256
+[2] PutBlob (skip if already present)
+[3] Create asset (needs_review=true) + first version
+[4] If .unitypackage → extract (gzipped tar or raw tar)
+      ├─ Stream each inner blob back to storage
+      ├─ Write asset_files rows (path, size, hash, unity_guid)
+      ├─ Harvest preview.png if present → thumbnail candidate
+      └─ Set package_kind='unitypackage', retain original
+    Otherwise → single file already persisted in [2]
+[5] Licence detection on candidate licence files
+[6] Thumbnail generation (raster / audio / font / icon fallback)
+[7] Update search_vector (Postgres trigger)
+[8] Emit audit entry: asset.import
+```
+
+Failure path: extract failures persist a stub asset +
+`stage='failed'` import row so the queue surface can retry via
+`POST /api/imports/:id/retry`. The retry path requires an
+`asset_files` row for non-Unity imports (Unity case still uses
+`original_package_object_key`) — stops the retry from creating a
+manifest-empty asset version when the upload bytes were never
+persisted.
+
+**Subset version** — `POST /api/assets/:id/versions/:vid/subset`
+creates a new version whose `asset_files` rows are a subset of the
+source version. Object keys are reused — no re-upload. Audited as
+`asset.version.subset`. Backend lands in M7; the file-picker UI is
+deferred.
+
+**Async pipeline** — currently deferred. SSE
+`/api/imports/events` and `/api/imports/:id/events` will land when
+the backend goes async; the SPA already tolerates a "thumbnail
+pending" state.
+
+### 8.1 Unity package extraction
+
+`internal/services/extract/unitypackage.go`. Sniffs the first two
+bytes: `1f 8b` → gzipped tar; otherwise raw tar. Each tar entry
+sits inside a directory named by a Unity GUID containing `asset`,
+`asset.meta`, `pathname`, optional `preview.png`. Bundles per
+GUID; for each complete bundle reads `pathname`, streams `asset`
+to storage, records `(guid, path, size, hash, object_key)`.
+
+Extraction safety: per-entry size cap, total uncompressed size
+cap, reject paths containing `..` or absolute prefixes
+(zip-slip). Re-extraction reads the retained original from
+storage and produces a new version.
+
+Zip-format `.unitypackage` (Unity Hub exports) is not supported
+yet — current uploads fail at import with a descriptive 400. See
+`progress.md` "Stretch goals".
+
+---
+
+## 9. Licence detection
+
+`internal/services/licence/detect.go`:
+
+1. Locate candidate licence text — root-level files (`LICENSE`,
+   `LICENSE.md`, `LICENSE.txt`, `COPYING`, `COPYING.LESSER`,
+   `UNLICENSE`), or `.unitypackage` Unity-paths matching the same.
+2. Run `google/licensecheck` on each candidate. Returns matched
+   SPDX identifiers with confidence and modification info.
+3. Fall back to a Unity Asset Store EULA fingerprint — a regex
+   on "Unity Asset Store" + "EULA"/"End User License Agreement"
+   in the first 4 KB. Not a canonical-text match.
+4. Otherwise → `detected_type='unknown'`; user enters attributes
+   manually in the detail panel.
+
+Result writes to `licences` with `original_text` verbatim,
+`canonical_diff` populated when modified, `attributes_json`
+filled from a built-in SPDX → attributes map. The shared
+`LicenceStatusFor` derives a status (`ok` / `warn` / `err` /
+`unk`) from detected type + attributes; reused by both the assets
+list and the projects view.
+
+---
+
+## 10. Thumbnails
+
+`internal/services/thumbnail/`. One worker per category,
+dispatched by detected type:
+
+- **Raster** — stdlib `image` + `golang.org/x/image/webp`,
+  resample to 512 px on the longer edge with
+  `golang.org/x/image/draw` and `draw.CatmullRom`. JPEG
+  (quality ~85) for inputs decoded as JPEG/WebP with no
+  transparent pixels; PNG otherwise.
+- **Audio** — in-tree WAV decoder (PCM int 8/16/24/32 + IEEE
+  float), `github.com/hajimehoshi/go-mp3`,
+  `github.com/jfreymuth/oggvorbis`. Peak-binned waveform PNG.
+  Decoders that need a `ReadSeeker` (mp3 / ogg) buffer the
+  upload — bounded by the upload-size cap.
+- **Font** — `golang.org/x/image/font/opentype` rendering "The
+  quick brown fox…" sample text → PNG.
+- **`.unitypackage`** — first harvested `preview.png` from the
+  extractor.
+- **Otherwise** — none; SPA renders a file-type icon.
+
+`assets.thumbnail_content_type` stored alongside
+`thumbnail_object_key` so the serving handler sets the right
+`Content-Type` without sniffing bytes. Honours
+`library_settings.thumbnails_*` toggles. Failures log+swallow —
+the SPA falls back to icons.
+
+---
+
+## 11. Search
+
+A `search_vector` column on `assets`, maintained by triggers on
+`assets` (`name`, `description`) and `asset_tags` (path
+aggregation). Postgres uses
+`search_vector @@ plainto_tsquery('simple', $1)` with a GIN index.
+
+The SQLite test tier falls back to `LIKE` on `name` /
+`description` — the handler dispatches on `db.Dialector.Name()`.
+SQLite-backed handler tests therefore exercise the `LIKE` branch;
+`search_vector` and triggers are validated only when a real-
+Postgres integration tier comes online.
+
+`applyAssetFilters` composes filters: `q` (search), `tag_id` /
+`tag_path` (matches descendants), `licence_status`,
+`licence_spdx`, `project_id`, `collection_id`, `source_host`
+(LIKE with `%` / `_` escaped), `needs_review`, `package_kind`.
+`/api/search` is an alias of `/api/assets`.
+
+`licence_status` is post-SQL: SQL returns rows matching the other
+filters, then the handler drops rows whose derived status doesn't
+match. At list-page size (limit ≤ 200) this is cheap and avoids
+adding a derived column.
+
+---
+
+## 12. Audit
+
+- Written in the same DB transaction as the domain mutation it
+  describes. The service panics on missing action / target type
+  rather than silently dropping the row.
+- `diff_json` is `{"before": …, "after": …}` for updates,
+  `{"created": …}` for creates, `{"deleted": …}` for deletes.
+- `library_id` populated for library-scoped events; `NULL` for
+  server-level events (library created/deleted, user role
+  changed, server settings updated).
+- Surfaces:
+  - Per-asset / per-project (inside the current library).
+  - Library audit (`/api/audit`).
+  - Server audit (sysadmin only; `/api/admin/audit`; events with
+    `library_id IS NULL`).
+- Retention: unbounded in v1. `library_settings.audit_retention_days`
+  is settable but no purge job consumes it yet.
