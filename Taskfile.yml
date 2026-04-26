@@ -116,11 +116,17 @@ tasks:
       - npm run test:all -- --run
 
   web:e2e:
-    desc: Playwright end-to-end tests (boots vite dev internally)
+    desc: Playwright end-to-end tests (boots e2e-server + vite dev internally)
+    deps: [web:deps, web:e2e:build]
     dir: "{{.WEB_DIR}}"
-    deps: [web:deps]
     cmds:
       - npm run e2e
+
+  web:e2e:build:
+    desc: Build the SQLite-backed test server (cmd/e2e-server) into web/e2e/.bin
+    cmds:
+      - mkdir -p {{.WEB_DIR}}/e2e/.bin
+      - go build -o {{.WEB_DIR}}/e2e/.bin/damson-e2e ./cmd/e2e-server
 
   web:e2e:install:
     desc: Install Playwright browser binaries (run once after npm install)

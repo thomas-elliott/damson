@@ -1,52 +1,34 @@
-import { test, expect, mockAuthMode } from "../fixtures";
+import {
+  test,
+  expect,
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
+  bootstrapAdmin,
+} from "../fixtures";
 
-// Local-mode login happy path. Asserts the form posts the expected payload
-// to /api/auth/login, stores the returned token, and lands the user on
-// /library. We don't opt into noConsoleErrors here because /library will
-// fire un-mocked data queries that surface as errors — out of scope for the
-// auth flow. Add /library page coverage in a separate spec with full
-// fixture data.
+// Tier-1 flow: local-mode login. Real backend, no mocks. Bootstraps an
+// admin via API in beforeEach so the form has someone to log in as.
 
 test.describe("Local login", () => {
-  test("happy path navigates to /library", async ({ page }) => {
-    await mockAuthMode(page, { mode: "local", needs_bootstrap: false });
+  test.beforeEach(async ({ request }) => {
+    await bootstrapAdmin(request);
+  });
 
-    let loginCalls = 0;
-    await page.route("**/api/auth/login", async (route) => {
-      loginCalls += 1;
-      const payload = JSON.parse(route.request().postData() ?? "{}") as {
-        email?: string;
-        password?: string;
-      };
-      expect(payload.email).toBe("admin@example.com");
-      expect(payload.password).toBe("hunter2hunter2");
-      await route.fulfill({
-        json: {
-          token: "test-token",
-          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        },
-      });
-    });
-
+  test("happy path navigates to /library", async ({ page, noConsoleErrors }) => {
     await page.goto("/login");
 
-    await page.getByLabel("Email").fill("admin@example.com");
-    await page.getByLabel("Password").fill("hunter2hunter2");
+    await page.getByLabel("Email").fill(ADMIN_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
 
     await expect(page).toHaveURL(/\/library$/);
-    expect(loginCalls).toBe(1);
   });
 
-  test("invalid credentials surface the error inline", async ({ page }) => {
-    await mockAuthMode(page, { mode: "local", needs_bootstrap: false });
-    await page.route("**/api/auth/login", (route) =>
-      route.fulfill({ status: 401, json: { error: "invalid credentials" } }),
-    );
-
+  test("invalid credentials surface the inline error", async ({ page }) => {
     await page.goto("/login");
-    await page.getByLabel("Email").fill("admin@example.com");
-    await page.getByLabel("Password").fill("wrong-password");
+
+    await page.getByLabel("Email").fill(ADMIN_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill("wrong-password");
     await page.getByRole("button", { name: /sign in/i }).click();
 
     await expect(page.getByText(/invalid credentials/i)).toBeVisible();
