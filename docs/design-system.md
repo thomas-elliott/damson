@@ -6,8 +6,10 @@ The authoritative implementation contract for Damson's frontend. The mockup at
 `docs/mockup/` is the visual reference; this document is what the code
 actually does.
 
-Companions: `docs/ui-design.md` (information architecture, interaction
-patterns), `docs/CONVENTIONS.md` (stack, developer commands).
+Companions: `docs/architecture.md` (architecture, data model, API),
+`docs/CONVENTIONS.md` (stack, developer commands),
+`docs/archive/ui-design.md` (the original information-architecture
+brief — kept for historical reference).
 
 ---
 

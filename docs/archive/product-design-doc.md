@@ -1,7 +1,12 @@
 
 # Digital Asset Manager — Product Design Document
 
-**Status:** Draft v1 **Author:** Thomas **Last updated:** 2026-04-23
+> **Archived 2026-04-26.** This document drove the M0–M7 build and is kept
+> as a historical reference. For the current product/architecture state see
+> [`docs/architecture.md`](../architecture.md). For milestone status see
+> [`docs/progress.md`](../progress.md).
+
+**Status:** Draft v1 (archived) **Author:** Thomas **Last updated:** 2026-04-23
 
 ---
 
