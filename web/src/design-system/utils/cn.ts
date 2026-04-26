@@ -11,6 +11,36 @@ const twMerge = extendTailwindMerge({
       "font-size": [
         {
           text: [
+            // Layer 1 — size primitives (new system).
+            "body",
+            "ui",
+            "small",
+
+            // Layer 2 — composed semantic tokens (new system).
+            "title",
+            "title-reg",
+            "title-medium",
+            "title-semibold",
+            "title-bold",
+            "heading",
+            "heading-reg",
+            "heading-medium",
+            "heading-semibold",
+            "heading-bold",
+            "subhead",
+            "subhead-reg",
+            "subhead-medium",
+            "subhead-semibold",
+            "subhead-bold",
+            "label",
+            "mono",
+            "caption",
+            "num",
+            "table-row",
+            "table-header",
+            "list-row",
+
+            // OLD tokens — kept until Task 12.
             "2xs",
             "xs",
             "xs-plus",
