@@ -62,6 +62,13 @@ export default {
       },
 
       fontSize: {
+        // Layer 1 — size primitives (new system; final state).
+        body: ["15px", "1.5"],
+        ui: ["14px", "1.4"],
+        small: ["12px", "1.4"],
+
+        // OLD tokens — kept temporarily so existing call sites compile during
+        // the migration. Removed in Task 12.
         "2xs": ["10.5px", "1.3"],
         xs: ["11px", "1.35"],
         "xs-plus": ["11.5px", "1.4"],
