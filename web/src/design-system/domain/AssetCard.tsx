@@ -53,7 +53,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(
         }}
         className={cn(
           "flex flex-col gap-2 rounded-md text-left",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
+          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
           className,
         )}
         {...props}

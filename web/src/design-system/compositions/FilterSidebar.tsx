@@ -73,7 +73,7 @@ export function FilterRow({
       className={cn(
         "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-ui text-text-2 transition-colors duration-std ease",
         "hover:bg-surface hover:text-text",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
         "aria-[pressed=true]:bg-accent-tint aria-[pressed=true]:text-text",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
