@@ -111,7 +111,7 @@ export const DialogTitle = forwardRef<
   return (
     <RadixDialog.Title
       ref={ref}
-      className={cn("text-md font-semibold text-text", className)}
+      className={cn("text-subhead text-text", className)}
       {...props}
     />
   );
@@ -124,7 +124,7 @@ export const DialogDescription = forwardRef<
   return (
     <RadixDialog.Description
       ref={ref}
-      className={cn("text-xs-plus text-text-3", className)}
+      className={cn("text-caption", className)}
       {...props}
     />
   );

@@ -73,8 +73,8 @@ export function LibraryMembersSection({
               className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
             >
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm-plus text-text">{m.display_name}</div>
-                <div className="truncate text-xs-plus text-text-3">{m.email}</div>
+                <div className="truncate text-ui text-text">{m.display_name}</div>
+                <div className="truncate text-caption">{m.email}</div>
               </div>
               {m.global_role === "sysadmin" && (
                 <Badge size="sm" tone="warn">sysadmin</Badge>
@@ -204,12 +204,12 @@ function InviteMemberDialog({
               />
             </FieldRow>
           ) : (
-            <p className="text-xs-plus text-text-3">
+            <p className="text-caption">
               In OIDC mode, the user must sign in once before being invited — Damson can't create
               identities in your provider.
             </p>
           )}
-          {error && <p className="text-xs-plus text-err">{error}</p>}
+          {error && <p className="text-small text-err">{error}</p>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

@@ -65,13 +65,13 @@ export const TabsExample: Story = {
           Activity <TabCount>7</TabCount>
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="assets" className="pt-4 text-sm-plus text-text-2">
+      <TabsContent value="assets" className="pt-4 text-ui text-text-2">
         Assets pinned to this project.
       </TabsContent>
-      <TabsContent value="manifest" className="pt-4 text-sm-plus text-text-2">
+      <TabsContent value="manifest" className="pt-4 text-ui text-text-2">
         The project manifest JSON.
       </TabsContent>
-      <TabsContent value="activity" className="pt-4 text-sm-plus text-text-2">
+      <TabsContent value="activity" className="pt-4 text-ui text-text-2">
         Recent activity.
       </TabsContent>
     </Tabs>
@@ -143,10 +143,10 @@ export const PopoverExample: Story = {
       </PopoverTrigger>
       <PopoverContent className="min-w-[240px]">
         <div className="flex flex-col gap-2">
-          <div className="text-2xs uppercase tracking-wider text-text-4">
+          <div className="text-label text-text-4">
             Quick info
           </div>
-          <p className="text-xs-plus text-text-2">
+          <p className="text-small text-text-2">
             Drop-in popover container. Use for rich content (filters, details)
             that needs more room than a dropdown menu.
           </p>
@@ -190,11 +190,11 @@ export const DialogExample: Story = {
             Projects group assets pinned to a specific game. You can always
             rename or move them later.
           </DialogDescription>
-          <label className="flex flex-col gap-1.5 text-xs-plus">
+          <label className="flex flex-col gap-1.5 text-small">
             <span className="text-text-4">Name</span>
             <Input placeholder="Crystal Quest" autoFocus />
           </label>
-          <label className="flex flex-col gap-1.5 text-xs-plus">
+          <label className="flex flex-col gap-1.5 text-small">
             <span className="text-text-4">Path</span>
             <Input placeholder="~/Dev/crystal-quest" />
           </label>

@@ -107,13 +107,13 @@ export function DropZone({ children }: { children: ReactNode }) {
           <ul className="absolute bottom-4 right-4 z-selbar flex w-[280px] flex-col gap-2 rounded-md border border-line bg-panel p-2.5 shadow-elevated">
             {uploads.map((u, i) => (
               <li key={`${u.filename}-${i}`} className="flex flex-col gap-1">
-                <div className="flex items-center justify-between gap-3 text-xs-plus">
+                <div className="flex items-center justify-between gap-3 text-small">
                   <span className="truncate font-medium text-text">
                     {u.filename}
                   </span>
                   <span
                     className={cn(
-                      "flex items-center gap-1 font-mono text-xs tabular-nums",
+                      "flex items-center gap-1 text-mono tabular-nums",
                       u.error ? "text-err" : u.done ? "text-ok" : "text-text-3",
                     )}
                   >
@@ -139,9 +139,9 @@ export function DropZone({ children }: { children: ReactNode }) {
                   />
                 )}
                 {u.error && (
-                  <span className="text-xs text-err">{u.error}</span>
+                  <span className="text-small text-err">{u.error}</span>
                 )}
-                <span className="font-mono text-2xs text-text-3">
+                <span className="text-mono text-text-3">
                   {formatBytes(u.size)}
                 </span>
               </li>

@@ -17,7 +17,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       data-invalid={invalid ? "true" : undefined}
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex items-center gap-1.5 rounded-sm border border-line bg-bg px-2 py-1.5 text-sm-plus text-text transition-colors duration-std ease",
+        "flex items-center gap-1.5 rounded-sm border border-line bg-bg px-2 py-1.5 text-ui text-text transition-colors duration-std ease",
         "focus-within:border-accent focus-within:bg-surface focus-within:ring-2 focus-within:ring-inset focus-within:ring-accent-ring",
         "data-[invalid=true]:border-err/60 data-[invalid=true]:focus-within:ring-err/50",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50",
@@ -32,7 +32,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       <input
         ref={ref}
         disabled={disabled}
-        className="min-w-0 flex-1 bg-transparent text-sm-plus leading-none text-text outline-none placeholder:text-text-4 disabled:cursor-not-allowed"
+        className="min-w-0 flex-1 bg-transparent text-ui leading-none text-text outline-none placeholder:text-text-4 disabled:cursor-not-allowed"
         {...props}
       />
       {trailingSlot && (
