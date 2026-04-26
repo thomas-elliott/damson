@@ -1,6 +1,12 @@
 # Digital Asset Manager — Frontend Design Brief
 
-**Status:** Draft v2 **Author:** Thomas **Last updated:** 2026-04-25 **Companion to:** `docs/product-design-doc.md`, `docs/design-system.md`
+> **Archived 2026-04-26.** This brief drove the M2.5+ frontend build. The
+> authoritative implementation contract is [`docs/design-system.md`](../design-system.md);
+> the information-architecture sections here are still useful background
+> but the visual decisions, component inventory, and state of resolved
+> questions now live in the design-system spec.
+
+**Status:** Draft v2 (archived) **Author:** Thomas **Last updated:** 2026-04-25 **Companion to:** `docs/product-design-doc.md`, `docs/design-system.md`
 
 > **v2 change:** Open questions from §9 resolved during the M2.5 design-system build. The authoritative implementation contract now lives in `docs/design-system.md`; this brief focuses on the *why* and the information architecture.
 
