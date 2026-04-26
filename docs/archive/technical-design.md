@@ -1,6 +1,11 @@
 # Damson — Technical Design Document
 
-**Status:** Draft v1 **Author:** Thomas **Last updated:** 2026-04-23
+> **Archived 2026-04-26.** This was the build-time design document for
+> M0–M7. Section numbers and API shapes have drifted from the code. For
+> the current state see [`docs/architecture.md`](../architecture.md);
+> for milestone-by-milestone status see [`docs/progress.md`](../progress.md).
+
+**Status:** Draft v1 (archived) **Author:** Thomas **Last updated:** 2026-04-23
 **Companions:** `product-design-doc.md`, `ui-design.md`, `CONVENTIONS.md`
 
 ---
