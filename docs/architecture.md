@@ -179,3 +179,160 @@ section sketches the shape and relationships.
 Library-scoped entities all carry `library_id` directly.
 `created_by_user_id` / `pinned_by_user_id` are **attribution, not
 ownership** — they do not affect access rules.
+
+### 4.5 Migrations
+
+SQL-only, in `database/migrations/NNN_*.sql`. The runner
+(`internal/db/migrate.go`) reads them via `damson.MigrationsFS`,
+applies in lexicographic order inside a Postgres advisory lock,
+tracks applied files in `schema_migrations`. Each file is wrapped
+in `BEGIN; … COMMIT;` and uses `IF NOT EXISTS` throughout.
+
+**Tests** use in-memory SQLite + GORM `AutoMigrate` against the
+model structs. The two paths are independent: a schema change must
+land in **both** an SQL migration **and** the corresponding GORM
+struct tags. Postgres-specific behaviour (tsvector, JSONB
+operators, `pg_advisory_lock`) is not exercised by SQLite; a real-
+Postgres integration tier is a follow-up (see `progress.md`).
+
+---
+
+## 5. Object storage
+
+`internal/services/storage.Service` is the abstraction; two concrete
+impls picked at startup by `DAMSON_STORAGE_MODE`:
+
+- **`local`** (default) — content-addressed under
+  `<root>/blobs/<hh>/<hash>` and `<root>/thumbs/<hh>/<hash>`.
+  Atomic rename, SHA-256 dedup. `pathFor` enforces hex-only on the
+  hash so a bug at the HTTP boundary cannot escalate to a path
+  traversal.
+- **`s3`** — `aws-sdk-go-v2` with endpoint override + path-style
+  for MinIO. HEAD-before-PUT dedup. Same key layout as LocalFS so
+  a deployment can migrate with a plain copy.
+
+Two key prefixes:
+
+- `blobs/<hh>/<hhhhh…>` — every file referenced by
+  `asset_files.object_key` and every original `.unitypackage`
+  archive referenced by `asset_versions.original_package_object_key`.
+- `thumbs/<hh>/<hhhhh…>` — generated thumbnails. Derived data;
+  rebuildable.
+
+`object_key == content_hash`. An asset file row is a *reference* to
+a blob — two assets sharing a texture share `object_key`.
+
+Garbage collection is deferred. A later sweep walks references and
+deletes unreferenced blobs.
+
+---
+
+## 6. Authentication and authorisation
+
+### 6.1 Modes
+
+Exactly one authenticator is active per deployment, picked by
+`DAMSON_AUTH_MODE`. Both implement the same `Authenticator`
+interface (`internal/auth/auth.go`); middleware does not know which
+is in play.
+
+**`local`** (default) — bcrypt password hashes in
+`users.password_hash`, HS256 JWTs, 1 h TTL (`auth.LocalTokenTTL`).
+JWT `iss` and `aud` are derived from `DAMSON_BASE_URL` so a token
+leaked from one Damson cannot replay against another.
+`users.tokens_valid_after` is a revocation watermark — JWTs with
+`iat` before that instant are rejected (used by member removal).
+Synthetic subject `"local:<email>"` so the `users.subject` unique
+index still works.
+
+Login is gated by `auth.LoginThrottle` (in-memory, per-IP +
+per-email; 5 burst, 1/min refill). 429 on empty bucket. Same bucket
+gates `POST /api/auth/bootstrap`.
+
+Password floor of 8 chars (`auth.MinPasswordLength`) at every write
+site: env seed, HTTP bootstrap, admin-driven invite, admin password
+reset.
+
+> Recommended for development and small single-user installs only.
+> No MFA, in-memory rate-limiting only (no shared store across
+> replicas), minimum-length password floor only.
+
+**`oidc`** — IdP-issued bearer tokens validated via
+`coreos/go-oidc/v3`. Requires `DAMSON_OIDC_ISSUER_URL`,
+`DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`. The SPA runs the
+interactive flow with `oidc-client-ts` and `automaticSilentRenew`
+keeps the bearer fresh.
+
+### 6.2 Bootstrap
+
+Both modes share `auth.BootstrapFirstAdmin`: the first qualifying
+user is created with `role='sysadmin'`, a default `"Personal"`
+library is created, the user becomes its admin member, and
+`current_library_id` is set — all in one transaction.
+
+Local mode has two entry points:
+
+- **HTTP bootstrap** (`POST /api/auth/bootstrap`, reachable when
+  no users exist; `GET /api/auth/mode` reports `needs_bootstrap`).
+- **Env seed** (`SeedLocalAdmin`, active when both
+  `DAMSON_LOCAL_ADMIN_EMAIL` and `_PASSWORD` are set).
+
+OIDC mode promotes the first user whose email matches
+`DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV) on their first sign-in. An
+empty list logs a warning at startup so the silent "no library
+ever created" failure is visible.
+
+### 6.3 Authorisation
+
+Two role hierarchies, independent:
+
+- `users.role` — `user` (default) | `sysadmin`. Server-level.
+  Creates libraries, manages user records, sees server-level audit.
+- `library_memberships.role` — `admin` | `member`. Per-library.
+  `admin` adds: invite/remove members, edit library settings.
+
+Enforcement:
+
+1. `auth.Middleware(authenticator)` verifies the bearer token,
+   upserts-or-loads the user, attaches it via `auth.GetUser(c)`.
+2. Library-scoped routes layer `h.requireLibrary()` — resolves
+   `current_library_id`, verifies the membership row exists,
+   attaches `(*Library, *LibraryMembership)` via `getLibrary(c)`
+   / `getMembership(c)`. **403 on any gap** (never 404, so
+   membership existence is not leaked).
+3. `requireSysadmin(c)` gates server-admin endpoints explicitly.
+
+A user who is not a member of their `current_library_id` cannot
+read or write it — fail-fast at the middleware before the handler
+sees data.
+
+### 6.4 HTTP security posture
+
+- `securityHeaders` middleware sets CSP (`default-src 'self';
+  script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
+  'self' data: blob:; font-src 'self' data:; connect-src 'self';
+  object-src 'none'; base-uri 'self'; frame-ancestors 'none';`),
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`. TLS / HSTS is the proxy's job.
+- `jsonBodyCap` wraps every non-multipart request body in
+  `http.MaxBytesReader(1 MiB)`. Multipart uploads
+  (`POST /api/imports`) bypass this — they have a streaming
+  pipeline.
+- `http.Server` carries explicit `Read{Header,}Timeout`,
+  `WriteTimeout`, `IdleTimeout` so slow-loris cannot tie up an
+  extraction goroutine.
+- `GET /api/files/:objectKey` always responds with
+  `Content-Type: application/octet-stream` +
+  `Content-Disposition: attachment` + `Content-Length`.
+  `GET /api/thumbs/:objectKey` is restricted to a small
+  `image/{png,jpeg,webp,gif}` allow-list; anything else falls back
+  to `application/octet-stream`. Stored XSS via uploaded HTML/SVG
+  cannot reach the SPA's `localStorage` token.
+- `source_url` PATCH validates http/https + a present host;
+  `javascript:` / `data:` / `file:` are rejected.
+- All HTTP entry points enforce `^[0-9a-f]{64}$` on `objectKey`
+  parameters; LocalFS re-checks the constraint in `pathFor`.
+- The SPA stores the bearer in `localStorage` (both modes). This
+  is a pragmatic choice for a self-hosted tool — bearer-in-header
+  sidesteps CSRF — and depends on the served-file hardening above
+  to keep XSS from being an exfil channel.
