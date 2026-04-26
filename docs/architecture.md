@@ -100,3 +100,82 @@ traverse upward. It exports `damson.MigrationsFS` and
 `damson.WebStaticFS`, consumed by `internal/db` and `internal/web`.
 `web/static/.gitkeep` exists so `//go:embed all:web/static` succeeds
 before the SPA is built.
+
+---
+
+## 4. Data model
+
+The authoritative schema is the SQL in `database/migrations/`; this
+section sketches the shape and relationships.
+
+### 4.1 Identity, libraries, audit
+
+- **`users`** — `id`, `subject` (OIDC `sub` claim or `local:<email>`),
+  `email`, `display_name`, `role` (`user` | `sysadmin`),
+  `current_library_id`, `password_hash` (local mode only),
+  `tokens_valid_after` (local-mode revocation watermark).
+- **`libraries`** — `id`, `name`, `description`.
+- **`library_memberships`** — `library_id` × `user_id` × `role`
+  (`admin` | `member`); `unique(library_id, user_id)`.
+- **`audit_log`** — `library_id` (nullable for server-level events),
+  `user_id`, `action_type`, `target_type`, `target_id`, `diff_json`.
+  Indexed by `(library_id, created_at desc)`,
+  `(library_id, target_type, target_id, created_at desc)`,
+  `(user_id, created_at desc)`, `(action_type, created_at desc)`.
+
+### 4.2 Assets
+
+- **`assets`** — `library_id`, `name`, `description`, `source_url`
+  (validated http/https only), `licence_id`, `current_version_id`,
+  `thumbnail_object_key`, `thumbnail_content_type`, `needs_review`,
+  `created_by_user_id`, `search_vector` (Postgres tsvector,
+  trigger-maintained).
+- **`asset_versions`** — `asset_id`, `version_label`, `notes`,
+  `import_date`, `original_package_object_key` (set for
+  `.unitypackage`), `package_kind` (`unitypackage` | `zip` |
+  `loose` | null). `unique(asset_id, version_label)`.
+- **`asset_files`** — `asset_version_id`, `relative_path`,
+  `size_bytes`, `content_hash`, `object_key` (== `content_hash`),
+  `detected_type`, `unity_guid`. `unique(asset_version_id,
+  relative_path)`.
+- **`asset_imports`** — `asset_id`, `stage` (`uploaded` |
+  `extracting` | `detecting` | `thumbnailing` | `done` | `failed`),
+  `error`. One row per import; the queue surface filters non-`done`.
+
+### 4.3 Tags, projects, collections, licences
+
+- **`tags`** — `library_id`, `path` (materialised path,
+  `environment/trees/deciduous`), `parent_id`. `unique(library_id,
+  path)`. Path length capped at 1 KiB.
+- **`asset_tags`** — `asset_id` × `tag_id`.
+- **`projects`** — `library_id`, `name`, `description`,
+  `target_distribution` (`commercial` | `open-source` | `personal`
+  | `unspecified`). Case-insensitive unique name per library.
+- **`project_asset_pins`** — `project_id` × `asset_id` ×
+  `pinned_version_id`. `unique(project_id, asset_id)`. Re-pinning
+  the same asset with a different version emits a
+  `project.pin.upgrade` audit event.
+- **`collections`** — `library_id`, `name`, `description`.
+- **`collection_assets`** — `collection_id` × `asset_id`.
+- **`licences`** — `asset_id`, `detected_type` (SPDX id |
+  `unity-eula` | `custom` | `unknown`), `detection_confidence`,
+  `canonical_diff` (nullable, populated when the text is a
+  modified version of a known licence), `original_text`,
+  `attributes_json` (commercial / modification / redistribution /
+  attribution / share-alike / open-source — tri-state booleans;
+  `null` = unknown), `reviewed_by_user_id`, `reviewed_at`.
+
+### 4.4 Settings
+
+- **`server_settings`** — singleton row, sysadmin-managed:
+  `max_upload_bytes`, `licence_kb_auto_update`.
+- **`library_settings`** — one row per library, library-admin-managed:
+  `theme_default`, `grid_density_default`,
+  `retain_original_packages`, `dedupe_enabled`,
+  `thumbnails_{raster,audio,font,unity_preview}_enabled`,
+  `audit_retention_days` (nullable; column is editable but no purge
+  job consumes it yet).
+
+Library-scoped entities all carry `library_id` directly.
+`created_by_user_id` / `pinned_by_user_id` are **attribution, not
+ownership** — they do not affect access rules.
