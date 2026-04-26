@@ -528,3 +528,335 @@ adding a derived column.
     `library_id IS NULL`).
 - Retention: unbounded in v1. `library_settings.audit_retention_days`
   is settable but no purge job consumes it yet.
+
+---
+
+## 13. Configuration
+
+Loaded once at startup by `internal/config/config.go`. A `.env` in
+the repo root is auto-loaded; real env vars win on conflict.
+Missing required values panic at startup.
+
+Secrets (`DAMSON_POSTGRES_DSN`, `DAMSON_JWT_SIGNING_KEY`,
+`DAMSON_LOCAL_ADMIN_PASSWORD`, `DAMSON_S3_ACCESS_KEY`,
+`DAMSON_S3_SECRET_KEY`) also accept a `<NAME>_FILE` variant that
+reads the value from a path — for Docker Secrets. Setting both the
+direct var and the `_FILE` variant panics at startup.
+
+The only always-required value is `DAMSON_POSTGRES_DSN` (or its
+`_FILE` form).
+
+### 13.1 Always
+
+| Var | Default |
+|---|---|
+| `DAMSON_POSTGRES_DSN` | **required** |
+| `DAMSON_LISTEN_ADDR` | `:8080` |
+| `DAMSON_BASE_URL` | `http://localhost:8080` |
+| `DAMSON_LOG_LEVEL` | `info` |
+| `DAMSON_AUTH_MODE` | `local` (or `oidc`) |
+| `DAMSON_STORAGE_MODE` | `local` (or `s3`) |
+| `DAMSON_BOOTSTRAP_ADMIN_EMAILS` | empty (CSV) |
+
+### 13.2 `DAMSON_AUTH_MODE=local` (default)
+
+| Var | Default / required |
+|---|---|
+| `DAMSON_JWT_SIGNING_KEY` | optional; if empty, 32 random bytes are generated and persisted |
+| `DAMSON_JWT_KEY_FILE` | `./data/jwt.key` |
+| `DAMSON_LOCAL_ADMIN_EMAIL` | optional — when set with `_PASSWORD`, seeds first admin |
+| `DAMSON_LOCAL_ADMIN_PASSWORD` | optional |
+
+### 13.3 `DAMSON_AUTH_MODE=oidc`
+
+| Var | Required? |
+|---|---|
+| `DAMSON_OIDC_ISSUER_URL` | required |
+| `DAMSON_OIDC_CLIENT_ID` | required |
+| `DAMSON_OIDC_AUDIENCE` | required |
+
+Frontend env (Vite, OIDC only): `VITE_OIDC_AUTHORITY`,
+`VITE_OIDC_CLIENT_ID`, `VITE_OIDC_SCOPE`, `VITE_OIDC_REDIRECT_URI`,
+`VITE_OIDC_SILENT_REDIRECT_URI`, `VITE_OIDC_POST_LOGOUT_REDIRECT_URI`.
+
+### 13.4 `DAMSON_STORAGE_MODE=local` (default)
+
+| Var | Default |
+|---|---|
+| `DAMSON_STORAGE_LOCAL_PATH` | `./data/blobs` |
+
+### 13.5 `DAMSON_STORAGE_MODE=s3`
+
+| Var | Default / required |
+|---|---|
+| `DAMSON_S3_ENDPOINT` | required |
+| `DAMSON_S3_REGION` | required |
+| `DAMSON_S3_BUCKET` | required |
+| `DAMSON_S3_ACCESS_KEY` | required |
+| `DAMSON_S3_SECRET_KEY` | required |
+| `DAMSON_S3_FORCE_PATH_STYLE` | `true` |
+
+See `.env.example` for the canonical list.
+
+---
+
+## 14. Frontend
+
+### 14.1 Layout shell
+
+`AppShell` composes `NavRail` + `FilterSidebar` + main area.
+Routes (`web/src/App.tsx`):
+
+```
+/                       → redirect to /library
+/library                → asset grid + filter sidebar
+/library/:assetId       → grid + detail panel open
+/queue                  → filtered library view (needs_review=true)
+/projects               → projects index
+/projects/:id           → project detail
+/collections            → collections index
+/collections/:id        → collection detail
+/audit                  → library audit log
+/admin/audit            → server audit log (sysadmin)
+/settings               → settings (theme, density, thumbnails,
+                          retention, members, server admin)
+/login                  → local-mode login
+/bootstrap              → local-mode first-admin form
+```
+
+The asset detail panel is URL-addressable so a pasted link opens
+the right asset.
+
+### 14.2 State
+
+- **Server state** through TanStack Query 5. Query keys live in
+  `lib/queryKeys.ts` only; data hooks in `hooks/useDataQueries.ts`
+  return a normalised `{ data, loading, error, reload }` shape.
+  Mutations live in `hooks/useMutations.ts`.
+- **UI state** local to components; filter / search state lives
+  in URL search params (the URL is the source of truth).
+- **Theme** in `localStorage`, seeded from
+  `library_settings.theme_default`. A pre-React boot in `main.tsx`
+  applies the stored theme so light-mode users do not see a dark
+  flash.
+
+### 14.3 API client
+
+`src/api.ts` — `fetchJson<T>` / `fetchMaybeJson<T>` attach the
+bearer, handle 401 (silent renew on OIDC; `AuthRedirectError` on
+local), retry once, throw `ApiError`. **Never `fetch` directly
+from components** — the only exceptions are pre-auth endpoints in
+`lib/authMode.ts` and `lib/localAuth.ts`.
+
+`uploadFile(url, file, onProgress)` uses `XMLHttpRequest` for
+upload progress (fetch lacks it).
+
+### 14.4 SPA auth flow
+
+1. App boots → `useAuthMode()` hits `/api/auth/mode` (public) and
+   caches the result.
+2. **OIDC mode** — `AuthGuard` uses `oidc-client-ts`'s
+   `UserManager`; missing/expired user → `signinRedirect` (browser
+   leaves the SPA).
+3. **Local mode** — `AuthGuard` reads the stored JWT
+   (`damson.local.token`); missing/expired → `<Navigate to="/login">`.
+4. `lib/token.ts:getAccessToken()` provides the bearer to
+   `fetchJson` regardless of mode.
+5. On 401, `api.ts` tries silent renew (OIDC only) or throws
+   `AuthRedirectError`. Local mode has no refresh endpoint yet.
+
+### 14.5 Grid
+
+`@tanstack/react-virtual`. Column count comes from a
+`ResizeObserver`-driven hook; keyboard selection scrolls into view
+via `virtualizer.scrollToIndex`. `LibraryPage` keyboard shortcut
+bindings are stable across renders — handlers read state from a
+ref instead of being re-created on each refetch, so
+`useKeyboardShortcuts` does not rebind on every paint.
+
+Keyboard shortcuts (`useKeyboardShortcuts`): `/` and `cmd+k` focus
+search, arrow keys navigate, `enter` opens, `escape` closes.
+
+### 14.6 Design system
+
+Spec: [`docs/design-system.md`](design-system.md). Three tiers
+under `web/src/design-system/`: **primitives** (Button, Input,
+Dialog, …), **compositions** (AppShell, NavRail, DetailPanel, …),
+**domain** (LicencePill, AssetCard, ProjectCard, …). Every
+component ships a `*.stories.tsx`; Vitest runs them as real
+Chromium tests with axe-core a11y checks (`a11y.test = "error"`).
+
+---
+
+## 15. API surface
+
+REST-ish JSON under `/api`. The list mirrors
+`internal/handlers/api/handler.go`. Library-scoped endpoints
+operate against the user's `current_library_id` and are wrapped by
+`requireLibrary()`. The `/api/libraries/:id/...` family is gated
+inside each handler.
+
+```
+# Public
+GET    /api/auth/mode
+POST   /api/auth/login                # local mode (rate-limited)
+POST   /api/auth/bootstrap            # local mode (rate-limited)
+GET    /api/health
+
+# Session / user
+GET    /api/me
+GET    /api/libraries
+POST   /api/me/current-library
+
+# Libraries (cross-library; handler-gated)
+PATCH  /api/libraries/:id
+GET    /api/libraries/:id/members
+POST   /api/libraries/:id/members
+PATCH  /api/libraries/:id/members/:userId
+DELETE /api/libraries/:id/members/:userId
+
+# Server admin (sysadmin only)
+GET    /api/admin/users
+PATCH  /api/admin/users/:id
+GET    /api/admin/settings
+PATCH  /api/admin/settings
+GET    /api/admin/audit
+
+# Assets (library-scoped)
+GET    /api/assets
+GET    /api/assets/:id
+PATCH  /api/assets/:id
+DELETE /api/assets/:id
+POST   /api/assets/:id/review
+GET    /api/assets/:id/audit
+GET    /api/assets/:id/licence
+PUT    /api/assets/:id/licence
+POST   /api/assets/:id/licence/review
+GET    /api/assets/:id/licence/detect
+POST   /api/assets/:id/tags
+DELETE /api/assets/:id/tags/:tagId
+POST   /api/assets/:id/versions/:vid/reextract
+POST   /api/assets/:id/versions/:vid/subset
+
+# Imports (library-scoped)
+POST   /api/imports
+GET    /api/imports
+GET    /api/imports/:id
+POST   /api/imports/:id/retry
+
+# Tags / licences (library-scoped)
+GET    /api/tags
+POST   /api/tags
+DELETE /api/tags/:id
+POST   /api/licences/detect
+
+# Projects (library-scoped)
+GET    /api/projects
+POST   /api/projects
+GET    /api/projects/:id
+PATCH  /api/projects/:id
+DELETE /api/projects/:id
+GET    /api/projects/:id/audit
+POST   /api/projects/:id/pins
+DELETE /api/projects/:id/pins/:pinId
+
+# Collections (library-scoped)
+GET    /api/collections
+POST   /api/collections
+GET    /api/collections/:id
+PATCH  /api/collections/:id
+DELETE /api/collections/:id
+POST   /api/collections/:id/assets
+DELETE /api/collections/:id/assets/:assetId
+
+# Search alias
+GET    /api/search                    # same shape as /api/assets
+
+# Settings (library-scoped; PATCH gated to library admin)
+GET    /api/settings
+PATCH  /api/settings
+
+# Files (library-scoped)
+GET    /api/files/:objectKey
+GET    /api/thumbs/:objectKey
+
+# Audit (library-scoped)
+GET    /api/audit
+```
+
+Endpoints documented in the archived tech design but **not
+implemented** are listed in `progress.md` "Foundations the tech
+design assumes but hasn't been built yet" — notably `POST
+/api/libraries`, `DELETE /api/libraries/:id`, SSE imports
+(`/api/imports/events`).
+
+---
+
+## 16. Deployment
+
+Multi-stage Dockerfile (no CGo; runtime image is slim):
+
+1. `node:24-alpine` — `npm ci` + `vite build` → `web/static/`.
+2. `golang:1.26-alpine` — `CGO_ENABLED=0 go build` with
+   `-ldflags="-s -w"`, embedding the SPA via `//go:embed`.
+3. `alpine:3.20` — `ca-certificates` + `tzdata`, non-root
+   `damson` user, `HEALTHCHECK` hitting `/api/health`.
+
+The binary serves the SPA at `/` with a fallback (any non-`/api`
+route that is not a static asset returns `index.html`).
+
+Releases are automated via GitHub Actions
+(`.github/workflows/release.yml`): pushing a `v*.*.*` tag builds
+and pushes to `ghcr.io/<owner>/damson` with `{version}`,
+`{major}.{minor}`, `{major}` tags. `main-build.yml` builds
+`main-<sha>` on every push to `main`.
+
+### 16.1 First-run flow
+
+1. Start the container. `DAMSON_POSTGRES_DSN` is the only
+   always-required env var — local auth + local storage are the
+   defaults; the JWT signing key is auto-generated on first boot.
+2. Migrations run on startup inside a Postgres advisory lock.
+3. First browser hit → `GET /api/auth/mode` returns
+   `{ mode: "local", needs_bootstrap: true }`. The SPA renders
+   `/bootstrap`.
+4. The user submits email + password →
+   `POST /api/auth/bootstrap` runs `BootstrapFirstAdmin` and
+   returns a logged-in JWT.
+5. Subsequent users sign in but land on "no library access yet"
+   until a library admin invites them.
+
+Alternatives:
+
+- **Env seed (local).** Set both `DAMSON_LOCAL_ADMIN_EMAIL` and
+  `DAMSON_LOCAL_ADMIN_PASSWORD` — first-admin creation runs at
+  startup, the bootstrap page is skipped.
+- **OIDC.** `DAMSON_AUTH_MODE=oidc` +
+  `DAMSON_BOOTSTRAP_ADMIN_EMAILS` — first sign-in whose email
+  matches the list runs the same bootstrap transaction.
+
+---
+
+## 17. Confirmed decisions
+
+Reproduced from the archived tech design §22 and updated where
+the code diverges:
+
+1. Module path `github.com/thomas-elliott/damson`.
+2. Frontend OIDC library `oidc-client-ts`.
+3. **Local auth mode is real and tested**, alongside OIDC. The
+   archived tech design described OIDC only; local mode is
+   `internal/auth/local.go` + `internal/handlers/api/auth.go`.
+4. Upload path: in-server streaming (Go server hashes in-stream
+   and puts to storage). Revisit only if the server becomes a
+   bottleneck.
+5. Import staging: real `asset_imports` table.
+6. Integration test tier: SQLite-only today. A real-Postgres tier
+   for tsvector / advisory locks is a follow-up.
+7. Thumbnail pipeline: stdlib `image` + `golang.org/x/image/*`.
+   No CGo, no third-party encoder. JPEG for photographic content,
+   PNG for everything else.
+8. Ownership model: library-based group ownership.
+9. **Accent colour is yellow only** — no theme-swap. **Dark default,
+   light override on `data-theme`.** Hand-rolled components on
+   Radix headless primitives — no shadcn/ui.
