@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project documents
 
-Before making non-trivial changes, read the design docs in `docs/`. They are the source of truth for scope and shape — the code implements them.
+Before making non-trivial changes, read the docs in `docs/`. They describe the code as it stands today.
 
-- `docs/product-design-doc.md` — product scope, MVP, domain model
-- `docs/ui-design.md` — frontend design brief
-- `docs/technical-design.md` — architecture, schema, API surface, confirmed decisions (§22)
+- `docs/architecture.md` — current architecture, data model, API surface, shipped decisions
 - `docs/CONVENTIONS.md` — stack, formatting rules, handler patterns, test helpers
+- `docs/design-system.md` — frontend design system spec
 - `docs/progress.md` — milestone-by-milestone status of what's actually in the tree; read this before starting a new slice so you know what foundations do (and don't) already exist
+- `docs/archive/` — original product / technical / UI design docs (Draft v1/v2). They drove the M0–M7 build and are kept verbatim for historical reference; section numbers and API shapes have drifted, so prefer `architecture.md` for the live shape and only consult the archive for the *why*
 
 ## Development commands
 
@@ -95,7 +95,7 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 
 **Production:** SQL-only migrations in `database/migrations/NNN_*.sql`. Runner in `internal/db/migrate.go` reads them via `damson.MigrationsFS` (embedded at project root — see "The damson.go quirk" below), applies in lexicographic order inside a Postgres advisory lock, tracks applied files in `schema_migrations`.
 
-**Tests:** in-memory SQLite via `newTestHandler(t)` + GORM `AutoMigrate` on the model structs. **The two paths are independent** — a schema change must land in BOTH an SQL migration AND the corresponding struct tags. Postgres-specific behaviour (tsvector, JSONB operators, `pg_advisory_lock`) is not exercised by SQLite; when that starts to bite, add a real-Postgres integration tier (see `docs/technical-design.md` §22 decision 5).
+**Tests:** in-memory SQLite via `newTestHandler(t)` + GORM `AutoMigrate` on the model structs. **The two paths are independent** — a schema change must land in BOTH an SQL migration AND the corresponding struct tags. Postgres-specific behaviour (tsvector, JSONB operators, `pg_advisory_lock`) is not exercised by SQLite; when that starts to bite, add a real-Postgres integration tier (see `docs/architecture.md` §17 decision 6).
 
 ### Handlers (per CONVENTIONS.md)
 
