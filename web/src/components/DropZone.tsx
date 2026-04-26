@@ -97,7 +97,7 @@ export function DropZone({ children }: { children: ReactNode }) {
       <div
         {...getRootProps()}
         className={cn(
-          "relative flex min-h-full flex-1 flex-col outline-none",
+          "relative flex min-h-full flex-1 flex-col outline-hidden",
         )}
       >
         <input {...getInputProps()} />
