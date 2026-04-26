@@ -87,22 +87,34 @@ export const Palette: Story = {
 
 export const Typography: Story = {
   render: () => (
-    <div className="flex min-w-[420px] flex-col gap-3">
-      <p className="text-2xl">22px — Page heading</p>
-      <p className="text-xl">20px — Section heading</p>
-      <p className="text-lg">16px — Asset detail title</p>
-      <p className="text-md">14px — Dialog title</p>
-      <p className="text-base">13px — Body (default)</p>
-      <p className="text-sm-plus">12.5px — UI text</p>
-      <p className="text-sm">12px — UI text</p>
-      <p className="text-xs-plus">11.5px — Small</p>
-      <p className="text-xs">11px — Small</p>
-      <p className="text-2xs uppercase tracking-wider">
-        10.5px — LABEL (uppercase)
-      </p>
-      <p className="font-mono text-xs-plus">
-        11.5px JetBrains Mono — sha256:ab3c…
-      </p>
+    <div className="flex min-w-[420px] flex-col gap-6">
+      <section className="flex flex-col gap-2">
+        <p className="text-label text-text-3">Layer 1 — size primitives</p>
+        <p className="text-body">text-body — 15px (default running text)</p>
+        <p className="text-ui">text-ui — 14px (UI controls, list rows)</p>
+        <p className="text-small">text-small — 12px (fine print floor)</p>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <p className="text-label text-text-3">Layer 2 — headings (paired with HTML h1/h2/h3)</p>
+        <p className="text-title">text-title — 22px / semibold</p>
+        <p className="text-title-bold">text-title-bold — 22px / bold</p>
+        <p className="text-title-medium">text-title-medium — 22px / medium</p>
+        <p className="text-title-reg">text-title-reg — 22px / regular</p>
+        <p className="text-heading">text-heading — 20px / semibold</p>
+        <p className="text-subhead">text-subhead — 18px / semibold</p>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <p className="text-label text-text-3">Layer 2 — role tokens</p>
+        <p className="text-label">text-label — section labels</p>
+        <p className="text-mono">text-mono — sha256:ab3c1d…</p>
+        <p className="text-caption">text-caption — helper text under inputs</p>
+        <p className="text-num">text-num — 1,234,567 (tabular numerals)</p>
+        <p className="text-table-row">text-table-row — body of a table cell</p>
+        <p className="text-table-header">text-table-header — column header</p>
+        <p className="text-list-row">text-list-row — body of a list-view row</p>
+      </section>
     </div>
   ),
 };
