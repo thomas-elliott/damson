@@ -115,6 +115,27 @@ tasks:
     cmds:
       - npm run test:all -- --run
 
+  web:e2e:
+    desc: Playwright end-to-end tests (boots vite dev internally)
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm run e2e
+
+  web:e2e:install:
+    desc: Install Playwright browser binaries (run once after npm install)
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm run e2e:install
+
+  web:e2e:ui:
+    desc: Playwright UI mode (interactive test runner)
+    dir: "{{.WEB_DIR}}"
+    deps: [web:deps]
+    cmds:
+      - npm run e2e:ui
+
   web:storybook:
     desc: Storybook dev server (design system)
     dir: "{{.WEB_DIR}}"
@@ -137,13 +158,14 @@ tasks:
       - npm test
 
   pre-release-checks:
-    desc: fmt + vet + mod-tidy + tests (Go & web)
+    desc: fmt + vet + mod-tidy + tests (Go & web) + e2e
     cmds:
       - task: fmt
       - task: vet
       - task: mod:tidy:check
       - task: test
       - task: web:test
+      - task: web:e2e
 
   docker-build:
     desc: Container image
