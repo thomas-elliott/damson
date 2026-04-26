@@ -7,9 +7,9 @@ const glyph = cva(
   {
     variants: {
       size: {
-        sm: "h-7 w-7 text-sm-plus",
-        md: "h-9 w-9 text-md",
-        lg: "h-12 w-12 text-lg",
+        sm: "h-7 w-7 text-[14px]",
+        md: "h-9 w-9 text-[14px]",
+        lg: "h-12 w-12 text-[16px]",
       },
     },
     defaultVariants: { size: "md" },
