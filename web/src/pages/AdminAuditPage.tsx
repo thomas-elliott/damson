@@ -1,4 +1,4 @@
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router";
 
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
