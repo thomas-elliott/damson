@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { UserPlus, Trash2 } from "lucide-react";
 
 import {
@@ -19,6 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SimpleTooltip,
 } from "@/design-system";
 import { useAuthMode, useLibraryMembers } from "@/hooks/useDataQueries";
 import {
@@ -45,6 +46,13 @@ export function LibraryMembersSection({
   const [inviteOpen, setInviteOpen] = useState(false);
   const patch = usePatchMember();
   const remove = useRemoveMember();
+  // Server returns 409 on demote/remove of the last admin — disabling the
+  // UI gives users that signal before they click. Defence-in-depth, not
+  // the only gate.
+  const adminCount = useMemo(
+    () => members.filter((m) => m.role === "admin").length,
+    [members],
+  );
 
   return (
     <Section
@@ -67,52 +75,86 @@ export function LibraryMembersSection({
         <EmptyState title="No members yet" description="Library memberships will appear here." />
       ) : (
         <div className="flex flex-col">
-          {members.map((m) => (
-            <div
-              key={m.user_id}
-              className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-ui text-text">{m.display_name}</div>
-                <div className="truncate text-caption">{m.email}</div>
+          {members.map((m) => {
+            const isLastAdmin = m.role === "admin" && adminCount <= 1;
+            const lastAdminMsg = "Last admin — promote another member first.";
+            return (
+              <div
+                key={m.user_id}
+                className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-ui text-text">{m.display_name}</div>
+                  <div className="truncate text-caption">{m.email}</div>
+                </div>
+                {m.global_role === "sysadmin" && (
+                  <Badge size="sm" tone="warn">sysadmin</Badge>
+                )}
+                {isAdmin ? (
+                  isLastAdmin ? (
+                    <SimpleTooltip label={lastAdminMsg} side="top">
+                      <span>
+                        <Select value={m.role} disabled>
+                          <SelectTrigger aria-label="Role" className="w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">admin</SelectItem>
+                            <SelectItem value="member">member</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </span>
+                    </SimpleTooltip>
+                  ) : (
+                    <Select
+                      value={m.role}
+                      onValueChange={(role) =>
+                        patch.mutate({ libraryId, userId: m.user_id, role: role as "admin" | "member" })
+                      }
+                    >
+                      <SelectTrigger aria-label="Role" className="w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">admin</SelectItem>
+                        <SelectItem value="member">member</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )
+                ) : (
+                  <Badge size="sm" mono>{m.role}</Badge>
+                )}
+                {isAdmin &&
+                  (isLastAdmin ? (
+                    <SimpleTooltip label={lastAdminMsg} side="top">
+                      <span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          leadingIcon={<Trash2 size={12} />}
+                          disabled
+                        >
+                          Remove
+                        </Button>
+                      </span>
+                    </SimpleTooltip>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      leadingIcon={<Trash2 size={12} />}
+                      onClick={() => {
+                        if (confirm(`Remove ${m.display_name} from this library?`)) {
+                          remove.mutate({ libraryId, userId: m.user_id });
+                        }
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  ))}
               </div>
-              {m.global_role === "sysadmin" && (
-                <Badge size="sm" tone="warn">sysadmin</Badge>
-              )}
-              {isAdmin ? (
-                <Select
-                  value={m.role}
-                  onValueChange={(role) =>
-                    patch.mutate({ libraryId, userId: m.user_id, role: role as "admin" | "member" })
-                  }
-                >
-                  <SelectTrigger aria-label="Role" className="w-28">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">admin</SelectItem>
-                    <SelectItem value="member">member</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Badge size="sm" mono>{m.role}</Badge>
-              )}
-              {isAdmin && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  leadingIcon={<Trash2 size={12} />}
-                  onClick={() => {
-                    if (confirm(`Remove ${m.display_name} from this library?`)) {
-                      remove.mutate({ libraryId, userId: m.user_id });
-                    }
-                  }}
-                >
-                  Remove
-                </Button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
