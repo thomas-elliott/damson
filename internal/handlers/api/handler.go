@@ -69,6 +69,11 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	authed.GET("/me", h.getMe)
 	authed.GET("/libraries", h.getLibraries)
 	authed.POST("/me/current-library", h.postCurrentLibrary)
+	if h.authMode == config.AuthModeLocal {
+		// Local-mode session refresh. OIDC sessions silent-renew via the
+		// IdP, so this is local-only.
+		authed.POST("/auth/refresh", h.postAuthRefresh)
+	}
 
 	// Library member management — gated by membership/admin checks inside the
 	// handlers because these routes don't share the current_library_id
