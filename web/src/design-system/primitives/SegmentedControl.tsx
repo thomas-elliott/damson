@@ -14,6 +14,7 @@ export interface SegmentedControlProps<T extends string> {
   onValueChange: (value: T) => void;
   options: SegmentedControlOption<T>[];
   className?: string;
+  "aria-label"?: string;
 }
 
 export function SegmentedControl<T extends string>({
@@ -21,10 +22,12 @@ export function SegmentedControl<T extends string>({
   onValueChange,
   options,
   className,
+  "aria-label": ariaLabel,
 }: SegmentedControlProps<T>) {
   return (
     <div
       role="radiogroup"
+      aria-label={ariaLabel}
       className={cn(
         "inline-flex rounded-sm border border-line bg-panel p-px",
         className,
