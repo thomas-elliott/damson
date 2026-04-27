@@ -88,6 +88,64 @@ func TestGetAdminAudit_RequiresSysadmin(t *testing.T) {
 	requireStatus(t, w, http.StatusOK)
 }
 
+func TestGetAdminAudit_ScopeAllMergesLibraryRows(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	u.Role = "sysadmin"
+	if err := db.Save(u).Error; err != nil {
+		t.Fatal(err)
+	}
+	libA := seedLibrary(t, db, "Alpha")
+	libB := seedLibrary(t, db, "Beta")
+
+	now := time.Now().UTC()
+	rows := []models.AuditLog{
+		// Server-level event.
+		{LibraryID: nil, UserID: &u.ID, ActionType: "library.create", TargetType: "library", CreatedAt: now},
+		// Library-scoped events that the default scope hides.
+		{LibraryID: &libA.ID, UserID: &u.ID, ActionType: "asset.delete", TargetType: "asset", CreatedAt: now.Add(time.Second)},
+		{LibraryID: &libB.ID, UserID: &u.ID, ActionType: "asset.create", TargetType: "asset", CreatedAt: now.Add(2 * time.Second)},
+	}
+	for _, r := range rows {
+		if err := db.Create(&r).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	r := setupRouter(h, u)
+
+	// Default scope: server-only — backwards compatible.
+	w := performGET(r, "/api/admin/audit")
+	requireStatus(t, w, http.StatusOK)
+	body := jsonResponse[auditListResponse](t, w)
+	if body.Total != 1 {
+		t.Fatalf("expected 1 server-scoped row, got %d", body.Total)
+	}
+	if body.Entries[0].LibraryName != "" {
+		t.Fatalf("library_name should be empty on default scope: %+v", body.Entries[0])
+	}
+
+	// scope=all: server + library-scoped, with library_name populated.
+	w = performGET(r, "/api/admin/audit?scope=all")
+	requireStatus(t, w, http.StatusOK)
+	body = jsonResponse[auditListResponse](t, w)
+	if body.Total != 3 {
+		t.Fatalf("expected 3 rows on scope=all, got %d", body.Total)
+	}
+	var sawAlpha, sawBeta bool
+	for _, e := range body.Entries {
+		if e.LibraryID != nil && *e.LibraryID == libA.ID && e.LibraryName == "Alpha" {
+			sawAlpha = true
+		}
+		if e.LibraryID != nil && *e.LibraryID == libB.ID && e.LibraryName == "Beta" {
+			sawBeta = true
+		}
+	}
+	if !sawAlpha || !sawBeta {
+		t.Fatalf("expected library_name populated on scope=all rows: %+v", body.Entries)
+	}
+}
+
 func TestGetAssetAudit_ScopedToAsset(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "librarian@example.com")

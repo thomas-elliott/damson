@@ -391,6 +391,7 @@ export function useLibrarySettings(enabled: boolean = true) {
 export interface AuditEntry {
   id: number;
   library_id?: number;
+  library_name?: string;
   user_id?: number;
   user_display_name?: string;
   user_email?: string;
@@ -412,12 +413,17 @@ export interface AuditFilters {
   offset?: number;
 }
 
+// Sysadmin audit feed scope. `server` is the original behaviour (events
+// with library_id IS NULL); `all` merges every library-scoped event into
+// the same view so a sysadmin can spot cross-library activity bursts.
+export type AdminAuditScope = "server" | "all";
+
 interface AuditListResponse {
   entries: AuditEntry[];
   total: number;
 }
 
-function auditQuery(f?: AuditFilters): string {
+function auditQuery(f?: object): string {
   if (!f) return "";
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(f)) {
@@ -450,7 +456,10 @@ export function useLibraryAudit(filters?: AuditFilters, enabled: boolean = true)
   };
 }
 
-export function useAdminAudit(filters?: AuditFilters, enabled: boolean = true) {
+export function useAdminAudit(
+  filters?: AuditFilters & { scope?: AdminAuditScope },
+  enabled: boolean = true,
+) {
   const keyed = filters && Object.keys(filters).length > 0
     ? (Object.fromEntries(
         Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),

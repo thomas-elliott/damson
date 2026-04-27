@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 
-import { ActivityRow, EmptyState } from "@/design-system";
+import { ActivityRow, Badge, EmptyState } from "@/design-system";
 import {
   formatAuditAction,
   formatAuditActor,
@@ -17,17 +17,23 @@ import { type AuditEntry } from "@/hooks/useDataQueries";
  * render their target as a router link. The detail-panel sections turn it
  * off (the user is already looking at the target) — the standalone pages
  * turn it on so a click jumps to the relevant detail view.
+ *
+ * `showLibrary` prepends the source library name to each target. Only the
+ * sysadmin scope=all feed sets this — the per-library page already filters
+ * by library, so the chip would be redundant noise there.
  */
 export function AuditList({
   entries,
   emptyTitle = "No activity yet",
   emptyDescription = "Audit entries appear here as soon as someone makes a change.",
   linkTargets = false,
+  showLibrary = false,
 }: {
   entries: AuditEntry[];
   emptyTitle?: string;
   emptyDescription?: string;
   linkTargets?: boolean;
+  showLibrary?: boolean;
 }) {
   if (entries.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
@@ -40,7 +46,16 @@ export function AuditList({
           timestamp={formatAuditTimestamp(e.created_at)}
           actor={formatAuditActor(e.user_display_name, e.user_email)}
           action={formatAuditAction(e.action_type)}
-          target={renderTarget(e, linkTargets)}
+          target={
+            <>
+              {showLibrary && e.library_name && (
+                <Badge size="sm" tone="unk" className="mr-1.5 align-middle">
+                  {e.library_name}
+                </Badge>
+              )}
+              {renderTarget(e, linkTargets)}
+            </>
+          }
         />
       ))}
     </div>
