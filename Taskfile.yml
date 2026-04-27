@@ -4,6 +4,13 @@ vars:
   WEB_DIR: web
 
 tasks:
+  install:
+    desc: Install all dependencies for a fresh clone (Go modules, npm, Playwright browsers)
+    cmds:
+      - go mod download
+      - task: web:deps
+      - task: web:e2e:install
+
   dev:
     desc: Go server with air hot-reload
     cmds:
