@@ -83,6 +83,31 @@ func (h *Handler) postAuthLogin(c *gin.Context) {
 	c.JSON(http.StatusOK, loginResponse{Token: token, ExpiresAt: exp})
 }
 
+// postAuthRefresh issues a fresh JWT for the authenticated user. Local mode
+// only — OIDC clients use the IdP's silent-renew flow. The auth middleware
+// has already validated the bearer (including the tokens_valid_after
+// watermark), so this handler just mints a new token off the same user.
+//
+// The SPA calls this proactively when its stored token is within a few
+// minutes of expiry, so users don't get bounced to /login mid-session.
+func (h *Handler) postAuthRefresh(c *gin.Context) {
+	if h.local == nil {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	u := auth.GetUser(c)
+	if u == nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	token, exp, err := h.local.Refresh(u)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	c.JSON(http.StatusOK, loginResponse{Token: token, ExpiresAt: exp})
+}
+
 // postAuthBootstrap creates the very first local-auth admin when no users
 // exist yet. Only registered in local mode. Returns 409 once a user has
 // been created, so it's safe to leave wired permanently — the endpoint

@@ -404,8 +404,12 @@ persisted.
 **Subset version** — `POST /api/assets/:id/versions/:vid/subset`
 creates a new version whose `asset_files` rows are a subset of the
 source version. Object keys are reused — no re-upload. Audited as
-`asset.version.subset`. Backend lands in M7; the file-picker UI is
-deferred.
+`asset.version.subset`. Backend landed in M7; the file-picker UI
+landed in the Alpha leftover-features rollup (PER-71) as a flat
+checkbox-list dialog under `web/src/components/detail/SubsetVersionDialog.tsx`,
+opened from the asset detail panel's Files section. Source version is
+the asset's current version (the only one whose files are loaded into
+the panel today).
 
 **Async pipeline** — currently deferred. SSE
 `/api/imports/events` and `/api/imports/:id/events` will land when
@@ -524,8 +528,11 @@ adding a derived column.
 - Surfaces:
   - Per-asset / per-project (inside the current library).
   - Library audit (`/api/audit`).
-  - Server audit (sysadmin only; `/api/admin/audit`; events with
-    `library_id IS NULL`).
+  - Server audit (sysadmin only; `/api/admin/audit`). Two scopes
+    via `?scope=` (PER-74): `server` (default — `library_id IS NULL`
+    only, the original behaviour) or `all` (server + library-scoped
+    events across every library, with each row's `library_name`
+    joined in for the SPA to render).
 - Retention: unbounded in v1. `library_settings.audit_retention_days`
   is settable but no purge job consumes it yet.
 
@@ -654,16 +661,23 @@ upload progress (fetch lacks it).
 ### 14.4 SPA auth flow
 
 1. App boots → `useAuthMode()` hits `/api/auth/mode` (public) and
-   caches the result.
+   the result is cached in TanStack Query (single source of truth —
+   the previous parallel `cached` singleton in `lib/authMode.ts` was
+   removed in the Alpha leftover-features rollup, PER-68).
 2. **OIDC mode** — `AuthGuard` uses `oidc-client-ts`'s
    `UserManager`; missing/expired user → `signinRedirect` (browser
    leaves the SPA).
 3. **Local mode** — `AuthGuard` reads the stored JWT
    (`damson.local.token`); missing/expired → `<Navigate to="/login">`.
 4. `lib/token.ts:getAccessToken()` provides the bearer to
-   `fetchJson` regardless of mode.
-5. On 401, `api.ts` tries silent renew (OIDC only) or throws
-   `AuthRedirectError`. Local mode has no refresh endpoint yet.
+   `fetchJson` regardless of mode. In local mode it calls
+   `maybeRefreshLocalSession` first — when the stored session is
+   within five minutes of expiry, it swaps in a fresh JWT via
+   `POST /api/auth/refresh` (concurrent fetches share one in-flight
+   refresh). Failures fall through to step 5.
+5. On 401, `api.ts` tries silent renew (OIDC) or throws
+   `AuthRedirectError` (local). The dedicated local refresh keeps
+   typical sessions from ever reaching the 401 path.
 
 ### 14.5 Grid
 
@@ -707,9 +721,11 @@ GET    /api/health
 GET    /api/me
 GET    /api/libraries
 POST   /api/me/current-library
+POST   /api/auth/refresh              # local mode (re-issues JWT)
 
 # Libraries (cross-library; handler-gated)
 PATCH  /api/libraries/:id
+DELETE /api/libraries/:id
 GET    /api/libraries/:id/members
 POST   /api/libraries/:id/members
 PATCH  /api/libraries/:id/members/:userId
@@ -720,7 +736,7 @@ GET    /api/admin/users
 PATCH  /api/admin/users/:id
 GET    /api/admin/settings
 PATCH  /api/admin/settings
-GET    /api/admin/audit
+GET    /api/admin/audit               # ?scope=server (default) | all
 
 # Assets (library-scoped)
 GET    /api/assets
@@ -787,8 +803,9 @@ GET    /api/audit
 Endpoints documented in the archived tech design but **not
 implemented** are listed in `progress.md` "Foundations the tech
 design assumes but hasn't been built yet" — notably `POST
-/api/libraries`, `DELETE /api/libraries/:id`, SSE imports
-(`/api/imports/events`).
+/api/libraries` and SSE imports (`/api/imports/events`). `DELETE
+/api/libraries/:id` and `POST /api/auth/refresh` (local mode) landed
+in the Alpha leftover-features rollup.
 
 ---
 
