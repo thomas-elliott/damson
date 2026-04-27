@@ -1,8 +1,16 @@
-// Auth mode is a server-side deployment choice. The SPA fetches it once at
-// boot and caches the result; mode itself never changes between loads for
-// the same server. `needs_bootstrap` can flip from true → false during a
-// session (once the first local admin is created) — callers that care
-// should invalidate the cache via `invalidateAuthMode()` after bootstrap.
+// Auth mode is a server-side deployment choice — local vs OIDC. The mode
+// itself never changes for the lifetime of a server; `needs_bootstrap`
+// can flip from true → false the moment the first user is created.
+//
+// All callers go through TanStack Query (see `useAuthMode` in
+// hooks/useDataQueries.ts). The `getCachedAuthMode` helper exists for the
+// few places that need the mode synchronously without a hook (api.ts's
+// 401 renewal, lib/token.ts's bearer attach) — it reads directly out of
+// the same query cache rather than maintaining a parallel singleton, so
+// invalidations are a single-source operation.
+
+import { queryClient } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type AuthMode = "oidc" | "local";
 
@@ -11,21 +19,16 @@ export interface AuthModeInfo {
   needs_bootstrap: boolean;
 }
 
-let cached: AuthModeInfo | null = null;
-
 export async function fetchAuthMode(): Promise<AuthModeInfo> {
-  if (cached) return cached;
   const res = await fetch("/api/auth/mode");
   if (!res.ok) throw new Error(`auth mode lookup failed (${res.status})`);
   const body = (await res.json()) as { mode: AuthMode; needs_bootstrap?: boolean };
-  cached = { mode: body.mode, needs_bootstrap: body.needs_bootstrap ?? false };
-  return cached;
+  return { mode: body.mode, needs_bootstrap: body.needs_bootstrap ?? false };
 }
 
+// Synchronous accessor backed by TanStack's query cache. Returns null
+// until `useAuthMode()` (or another caller) has populated it.
 export function getCachedAuthMode(): AuthMode | null {
-  return cached?.mode ?? null;
-}
-
-export function invalidateAuthMode(): void {
-  cached = null;
+  const data = queryClient.getQueryData<AuthModeInfo>(queryKeys.authMode);
+  return data?.mode ?? null;
 }
