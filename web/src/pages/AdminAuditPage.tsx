@@ -1,23 +1,40 @@
-import { Link, Navigate } from "react-router";
+import { useSearchParams, Link, Navigate } from "react-router";
 
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import {
   Breadcrumb,
   BreadcrumbItem,
+  SegmentedControl,
   Toolbar,
 } from "@/design-system";
-import { useAdminAudit, useMe } from "@/hooks/useDataQueries";
+import {
+  useAdminAudit,
+  useMe,
+  type AdminAuditScope,
+} from "@/hooks/useDataQueries";
 
 /**
- * Server-level audit log. Sysadmin-only — non-sysadmin users get bounced
- * back to the library audit. The endpoint also returns 403 for
- * non-sysadmins, so this is defence-in-depth, not the only gate.
+ * Sysadmin audit log. Two scopes:
+ *
+ *   - Server (default): events with `library_id IS NULL` — library
+ *     create/delete, role changes, server-settings updates.
+ *   - All: server-level + every library-scoped event across all libraries.
+ *     Use this to spot cross-library bursts ("library X had 200 deletions
+ *     in the last hour") without joining each library individually.
+ *
+ * Non-sysadmins get bounced back to the library audit. The endpoint also
+ * returns 403 for non-sysadmins, so this is defence-in-depth.
  */
 export function AdminAuditPage() {
   const { data: me, loading: meLoading } = useMe();
   const isSysadmin = me?.role === "sysadmin";
-  const { data: entries, total, loading } = useAdminAudit({ limit: 200 }, isSysadmin);
+  const [params, setParams] = useSearchParams();
+  const scope: AdminAuditScope = params.get("scope") === "all" ? "all" : "server";
+  const { data: entries, total, loading } = useAdminAudit(
+    { limit: 200, scope },
+    isSysadmin,
+  );
 
   if (meLoading) {
     return (
@@ -34,6 +51,13 @@ export function AdminAuditPage() {
     return <Navigate to="/audit" replace />;
   }
 
+  const setScope = (next: AdminAuditScope) => {
+    const p = new URLSearchParams(params);
+    if (next === "server") p.delete("scope");
+    else p.set("scope", next);
+    setParams(p, { replace: true });
+  };
+
   return (
     <Shell
       main={
@@ -43,8 +67,19 @@ export function AdminAuditPage() {
               <BreadcrumbItem>
                 <Link to="/audit" className="hover:underline">Audit log</Link>
               </BreadcrumbItem>
-              <BreadcrumbItem current>Server</BreadcrumbItem>
+              <BreadcrumbItem current>{scope === "all" ? "All libraries" : "Server"}</BreadcrumbItem>
             </Breadcrumb>
+            <div className="ml-auto">
+              <SegmentedControl
+                value={scope}
+                onValueChange={(v) => setScope(v as AdminAuditScope)}
+                options={[
+                  { value: "server", label: "Server" },
+                  { value: "all", label: "All libraries" },
+                ]}
+                aria-label="Audit scope"
+              />
+            </div>
           </Toolbar>
           <div className="mx-auto w-full max-w-[960px] p-3">
             {loading ? (
@@ -54,8 +89,17 @@ export function AdminAuditPage() {
             ) : (
               <AuditList
                 entries={entries}
-                emptyTitle="No server-level events yet"
-                emptyDescription="Library creation, role changes, and server-settings updates appear here."
+                showLibrary={scope === "all"}
+                emptyTitle={
+                  scope === "all"
+                    ? "No activity yet"
+                    : "No server-level events yet"
+                }
+                emptyDescription={
+                  scope === "all"
+                    ? "Library and server-level activity will appear here."
+                    : "Library creation, role changes, and server-settings updates appear here."
+                }
               />
             )}
           </div>

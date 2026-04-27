@@ -16,15 +16,11 @@ tiering as a sequencing recommendation, not a hard contract.
   via the `webServer` array.
 - **Tier 1 specs** in `web/e2e/tests/`: bootstrap routing, local login
   (happy + 401), library renders with seeded asset, full UI import via
-  dropzone. 6 tests pass; 1 marked `test.fixme` because it surfaces a
-  real SPA bug — the bootstrap form posts `/api/auth/bootstrap`
-  successfully (server confirms 201) but the subsequent
-  `navigate("/")` in `BootstrapPage.onSubmit` never fires. The trace
-  shows zero further API calls. Suspected cause: the
-  `await queryClient.invalidateQueries(...)` step hangs under React 19
-  + React Query 5 when the `authMode` query has no active subscriber.
-  The failing test stays in the tree as living documentation; un-fixme
-  once the SPA bug is fixed.
+  dropzone. All 7 tests pass — the previously `test.fixme`'d
+  bootstrap → /library flow (PER-68) is fixed: `BootstrapPage.onSubmit`
+  no longer awaits `queryClient.invalidateQueries`, the parallel
+  module-level cache singleton in `lib/authMode.ts` is gone, and the
+  navigate fires reliably.
 - **Tier 2 + 3:** not yet implemented; sketched below.
 
 Companions:

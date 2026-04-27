@@ -2,12 +2,16 @@
 // for the current bearer token regardless of which auth mode is active.
 
 import { getCachedAuthMode } from "@/lib/authMode";
-import { readLocalSession } from "@/lib/localAuth";
+import { maybeRefreshLocalSession, readLocalSession } from "@/lib/localAuth";
 import { getStoredUser } from "@/lib/oidc";
 
 export async function getAccessToken(): Promise<string | null> {
   const mode = getCachedAuthMode();
   if (mode === "local") {
+    // Proactively refresh near expiry so a long-running request mid-session
+    // doesn't bounce into /login. The helper short-circuits when there's
+    // plenty of time left on the token.
+    await maybeRefreshLocalSession();
     return readLocalSession()?.token ?? null;
   }
   if (mode === "oidc") {

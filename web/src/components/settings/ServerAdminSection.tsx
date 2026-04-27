@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Badge,
@@ -19,6 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SimpleTooltip,
 } from "@/design-system";
 import {
   useAdminUsers,
@@ -116,6 +117,13 @@ function UsersSection() {
   const patchRole = usePatchUserRole();
   const reset = useResetUserPassword();
   const [resetUser, setResetUser] = useState<AdminUser | null>(null);
+  // The server returns 409 on demote-to-user when this is the only
+  // sysadmin; surface that rule in the UI so admins find out before
+  // clicking. Defence-in-depth, not the only gate.
+  const sysadminCount = useMemo(
+    () => users.filter((u) => u.role === "sysadmin").length,
+    [users],
+  );
 
   return (
     <Section title={`Users (${users.length})`} defaultOpen>
@@ -125,36 +133,58 @@ function UsersSection() {
         <EmptyState title="No users yet" />
       ) : (
         <div className="flex flex-col">
-          {users.map((u) => (
-            <div
-              key={u.id}
-              className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-ui text-text">{u.display_name}</div>
-                <div className="truncate text-caption">{u.email}</div>
-              </div>
-              <Select
-                value={u.role}
-                onValueChange={(role) =>
-                  patchRole.mutate({ userId: u.id, role: role as "user" | "sysadmin" })
-                }
+          {users.map((u) => {
+            const isLastSysadmin = u.role === "sysadmin" && sysadminCount <= 1;
+            return (
+              <div
+                key={u.id}
+                className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
               >
-                <SelectTrigger aria-label="Global role" className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">user</SelectItem>
-                  <SelectItem value="sysadmin">sysadmin</SelectItem>
-                </SelectContent>
-              </Select>
-              {authMode === "local" && (
-                <Button size="sm" variant="ghost" onClick={() => setResetUser(u)}>
-                  Reset password
-                </Button>
-              )}
-            </div>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-ui text-text">{u.display_name}</div>
+                  <div className="truncate text-caption">{u.email}</div>
+                </div>
+                {isLastSysadmin ? (
+                  <SimpleTooltip
+                    label="Last sysadmin — promote another user first."
+                    side="top"
+                  >
+                    <span>
+                      <Select value={u.role} disabled>
+                        <SelectTrigger aria-label="Global role" className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">user</SelectItem>
+                          <SelectItem value="sysadmin">sysadmin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </span>
+                  </SimpleTooltip>
+                ) : (
+                  <Select
+                    value={u.role}
+                    onValueChange={(role) =>
+                      patchRole.mutate({ userId: u.id, role: role as "user" | "sysadmin" })
+                    }
+                  >
+                    <SelectTrigger aria-label="Global role" className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">user</SelectItem>
+                      <SelectItem value="sysadmin">sysadmin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {authMode === "local" && (
+                  <Button size="sm" variant="ghost" onClick={() => setResetUser(u)}>
+                    Reset password
+                  </Button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       <ResetPasswordDialog

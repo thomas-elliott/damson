@@ -112,12 +112,12 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 
 ### SPA auth flow
 
-1. App boots → `useAuthMode()` hits `/api/auth/mode` (public) and caches the result.
+1. App boots → `useAuthMode()` hits `/api/auth/mode` (public) and the result is cached in TanStack Query (single source of truth).
 2. In **OIDC mode**: `AuthGuard` uses `oidc-client-ts` UserManager; missing/expired user → `signinRedirect` (browser leaves the SPA).
 3. In **local mode**: `AuthGuard` reads the stored JWT from localStorage (`damson.local.token`); missing/expired → `<Navigate to="/login">`.
-4. `lib/token.ts:getAccessToken()` provides the bearer to `api.ts:fetchJson` regardless of mode.
-5. On 401, `api.ts` tries silent renew (OIDC only) or throws `AuthRedirectError` so the app can bounce to login. Local mode has no refresh endpoint yet.
-6. **Two auth-mode caches exist.** `lib/authMode.ts` holds a module-level `cached` singleton; `useAuthMode()` also goes through TanStack Query. Post-bootstrap code must invalidate both (`invalidateAuthMode()` *then* `queryClient.invalidateQueries`) — and `AuthGuard` only consults `needsBootstrap` when the session is absent, to sidestep the race this duplication creates. Candidate for cleanup: collapse to TanStack alone.
+4. `lib/token.ts:getAccessToken()` provides the bearer to `api.ts:fetchJson` regardless of mode. In local mode it calls `maybeRefreshLocalSession` first — when the stored token is within five minutes of expiry it swaps in a fresh JWT via `POST /api/auth/refresh` (concurrent fetches share one in-flight refresh). OIDC silent-renew runs the equivalent path through `oidc-client-ts`.
+5. On 401, `api.ts` tries silent renew (OIDC) or throws `AuthRedirectError` (local). The proactive local refresh keeps typical sessions from ever hitting the 401 path.
+6. **Auth-mode cache is TanStack-only.** `lib/authMode.ts:getCachedAuthMode()` reads directly out of TanStack's query cache for the synchronous-access sites in `api.ts` and `lib/token.ts`; the previous module-level `cached` singleton (and `invalidateAuthMode()`) was removed. Post-bootstrap code seeds the new value via `queryClient.setQueryData` (synchronous) and fires a no-await invalidate — see PER-68 for the React 19 + RQ5 hang that drove the cleanup.
 
 ## Environment variables
 

@@ -17,9 +17,12 @@ import (
 
 // auditEntryView is the wire shape for a single audit row. The user's
 // display name is joined in so the SPA doesn't have to N+1 lookup users.
+// LibraryName is populated only on the sysadmin endpoint when scope=all so
+// the SPA can render which library a row came from.
 type auditEntryView struct {
 	ID              uint            `json:"id"`
 	LibraryID       *uint           `json:"library_id,omitempty"`
+	LibraryName     string          `json:"library_name,omitempty"`
 	UserID          *uint           `json:"user_id,omitempty"`
 	UserDisplayName string          `json:"user_display_name,omitempty"`
 	UserEmail       string          `json:"user_email,omitempty"`
@@ -104,8 +107,10 @@ func applyAuditFilters(q *gorm.DB, f auditFilters) *gorm.DB {
 // loadAuditPage returns a page of audit entries for the supplied base query.
 // The base query must already have the scope filter applied (library_id,
 // target=asset/project/etc.) — this helper layers the shared filter set,
-// pagination, and the user join.
-func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset int) ([]auditEntryView, int64, error) {
+// pagination, and the user join. When includeLibraryName is true the
+// returned rows carry the library's name (joined via libraries) so the
+// sysadmin "all" feed can render the source library.
+func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset int, includeLibraryName bool) ([]auditEntryView, int64, error) {
 	q := applyAuditFilters(base, f)
 
 	var total int64
@@ -116,6 +121,7 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 	type row struct {
 		ID              uint
 		LibraryID       *uint
+		LibraryName     string
 		UserID          *uint
 		UserDisplayName string
 		UserEmail       string
@@ -125,11 +131,18 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 		DiffJSON        []byte
 		CreatedAt       time.Time
 	}
+	selectCols := "a.id, a.library_id, a.user_id, COALESCE(u.display_name, '') AS user_display_name, COALESCE(u.email, '') AS user_email, a.action_type, a.target_type, a.target_id, a.diff_json, a.created_at"
+	if includeLibraryName {
+		selectCols = "a.id, a.library_id, COALESCE(l.name, '') AS library_name, a.user_id, COALESCE(u.display_name, '') AS user_display_name, COALESCE(u.email, '') AS user_email, a.action_type, a.target_type, a.target_id, a.diff_json, a.created_at"
+	}
 	var rows []row
-	err := q.Session(&gorm.Session{}).
-		Select("a.id, a.library_id, a.user_id, COALESCE(u.display_name, '') AS user_display_name, COALESCE(u.email, '') AS user_email, a.action_type, a.target_type, a.target_id, a.diff_json, a.created_at").
-		Joins("LEFT JOIN users u ON u.id = a.user_id").
-		Order("a.created_at DESC").
+	page := q.Session(&gorm.Session{}).
+		Select(selectCols).
+		Joins("LEFT JOIN users u ON u.id = a.user_id")
+	if includeLibraryName {
+		page = page.Joins("LEFT JOIN libraries l ON l.id = a.library_id")
+	}
+	err := page.Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows).Error
@@ -141,6 +154,7 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 		out[i] = auditEntryView{
 			ID:              r.ID,
 			LibraryID:       r.LibraryID,
+			LibraryName:     r.LibraryName,
 			UserID:          r.UserID,
 			UserDisplayName: r.UserDisplayName,
 			UserEmail:       r.UserEmail,
@@ -169,7 +183,7 @@ func (h *Handler) getLibraryAudit(c *gin.Context) {
 	base := h.db.WithContext(c.Request.Context()).
 		Table("audit_log AS a").
 		Where("a.library_id = ?", lib.ID)
-	entries, total, err := loadAuditPage(c, base, f, limit, offset)
+	entries, total, err := loadAuditPage(c, base, f, limit, offset, false)
 	if err != nil {
 		respond500(c)
 		return
@@ -208,7 +222,7 @@ func (h *Handler) getAssetAudit(c *gin.Context) {
 	base := h.db.WithContext(c.Request.Context()).
 		Table("audit_log AS a").
 		Where("a.library_id = ? AND a.target_type = ? AND a.target_id = ?", lib.ID, "asset", asset.ID)
-	entries, total, err := loadAuditPage(c, base, f, limit, offset)
+	entries, total, err := loadAuditPage(c, base, f, limit, offset, false)
 	if err != nil {
 		respond500(c)
 		return
@@ -246,7 +260,7 @@ func (h *Handler) getProjectAudit(c *gin.Context) {
 	base := h.db.WithContext(c.Request.Context()).
 		Table("audit_log AS a").
 		Where("a.library_id = ? AND a.target_type = ? AND a.target_id = ?", lib.ID, "project", project.ID)
-	entries, total, err := loadAuditPage(c, base, f, limit, offset)
+	entries, total, err := loadAuditPage(c, base, f, limit, offset, false)
 	if err != nil {
 		respond500(c)
 		return
@@ -254,20 +268,31 @@ func (h *Handler) getProjectAudit(c *gin.Context) {
 	c.JSON(http.StatusOK, auditListResponse{Entries: entries, Total: total})
 }
 
-// getAdminAudit returns server-level audit entries (library_id IS NULL).
-// Restricted to sysadmin per docs/archive/technical-design.md §13. We don't merge
-// in cross-library library-scoped events for v1 — the library audit page
-// covers those, and a "global ledger" view is a v2 concern.
+// getAdminAudit returns audit entries for the sysadmin feed. Two scopes:
+//
+//   - scope=server (default) — server-level events only (library_id IS NULL).
+//     Library / user / server-settings lifecycle events live here.
+//   - scope=all — server-level + every library-scoped event across every
+//     library. This is the cross-library activity view; sysadmins use it
+//     to spot bursts (e.g. "library X had 200 deletions in the last hour")
+//     without joining each library individually.
+//
+// Restricted to sysadmin per docs/archive/technical-design.md §13. The
+// scope=all rows carry library_name so the UI can group by source library.
 func (h *Handler) getAdminAudit(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
 	}
 	f := parseAuditFilters(c)
 	limit, offset := parsePagination(c)
+	scope := strings.ToLower(strings.TrimSpace(c.Query("scope")))
+	includeLibraryName := scope == "all"
 	base := h.db.WithContext(c.Request.Context()).
-		Table("audit_log AS a").
-		Where("a.library_id IS NULL")
-	entries, total, err := loadAuditPage(c, base, f, limit, offset)
+		Table("audit_log AS a")
+	if !includeLibraryName {
+		base = base.Where("a.library_id IS NULL")
+	}
+	entries, total, err := loadAuditPage(c, base, f, limit, offset, includeLibraryName)
 	if err != nil {
 		respond500(c)
 		return
