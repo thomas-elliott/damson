@@ -7,8 +7,53 @@ of what shipped lives in `docs/architecture.md`. This doc tracks what's
 skipped or deferred so later slices don't assume foundations that
 aren't there.
 
-Last audited: 2026-04-25 — pre-alpha hardening pass on top of M6/M7. No new
-milestone scope; everything in this round is from the architecture review.
+Last audited: 2026-04-27 — Alpha leftover-features rollup (Linear PER-68,
+PER-70, PER-71, PER-74, PER-75 + a sixth ticket for local-mode token
+refresh). Everything else below is the previous 2026-04-25 entry.
+
+**Alpha leftover features (rollup PR)**
+
+- `DELETE /api/libraries/:id` (PER-70) — library admins / sysadmins can
+  tear a library down. Same-tx cascade across assets, projects, collections,
+  tags, settings, memberships, in-library audit rows; deletion event written
+  with `library_id=NULL` so it survives the audit-log FK and lands in the
+  sysadmin server feed. Every former member's `tokens_valid_after` is
+  bumped so any open SPA tab fails 401 on its next call. New "Danger zone"
+  in `LibraryProfileSection.tsx` with type-the-name confirm dialog.
+- Sysadmin audit: `?scope=all` (PER-74) — `/api/admin/audit` accepts a new
+  scope param so sysadmins can merge every library-scoped event into the
+  view alongside the server-level rows. Rows on `scope=all` carry the
+  source library's name; the SPA gets a SegmentedControl that drives
+  `?scope=` on `AdminAuditPage`. Default behaviour unchanged.
+- Subset-version picker UI (PER-71) — `AssetDetailPanel` Files section
+  grows a "Subset" action that opens a checkbox-list dialog over the
+  current version's files (with a path filter and select-all-visible). Hits
+  the existing `useCreateSubsetVersion` hook against the backend that
+  shipped with M7.
+- Last-admin / last-sysadmin UI guard (PER-75) — server already 409s on
+  demoting/removing the only admin (or only sysadmin); the role select +
+  remove button are now disabled with a tooltip explaining what to do
+  first. `LibraryMembersSection` and `ServerAdminSection`. Server stays
+  the source of truth.
+- Bootstrap → /library nav fix + auth-mode cache collapse (PER-68) —
+  `BootstrapPage.onSubmit` previously hung awaiting
+  `queryClient.invalidateQueries(authMode)` under React 19 + RQ5 (no
+  active subscriber). It now seeds the new value via
+  `queryClient.setQueryData` (synchronous), fires a no-await invalidate,
+  and navigates. The parallel module-level `cached` singleton in
+  `lib/authMode.ts` (and `invalidateAuthMode()`) is gone — the synchronous
+  accessor reads directly out of TanStack's cache. AuthGuard's
+  race-workaround comment is updated; the e2e `test.fixme` for this flow
+  is un-fixme'd.
+- Local-mode token refresh (no Linear ticket — file one) — `POST
+  /api/auth/refresh` (local mode only) re-issues a fresh JWT for the
+  authenticated user. `getAccessToken` calls `maybeRefreshLocalSession`
+  before each request; when the stored session is within 5 minutes of
+  expiry it swaps in a fresh token (concurrent fetches share one
+  in-flight refresh). Failures fall through to api.ts's existing 401
+  handling.
+
+**Backend security & robustness** (2026-04-25)
 
 **Backend security & robustness**
 
@@ -379,9 +424,19 @@ don't assume something exists and then discover it doesn't.
 | Missing thing | Needed by | Expected home |
 |---|---|---|
 | SSE broadcaster + `/api/imports/events` + `/api/imports/:id/events` | Once imports go async (background pipeline) | `internal/services/events/` (or alongside audit) + `internal/handlers/api/imports.go` |
-| Detail-panel "create subset version" picker | UX completion of the subset endpoint that M7 wired backend-only | `web/src/components/detail/AssetDetailPanel.tsx` (file checkbox tree + dialog) |
-| Library deletion (`DELETE /api/libraries/:id`) | Library-admin lifecycle UI | `internal/handlers/api/library.go` + a danger-zone in Settings |
 | Real-Postgres integration tier exercising tsvector + advisory locks (§22 decision 5) | Verifying the search-vector trigger + GIN behaviour the SQLite tests can't see | A new test target / Docker-Compose Postgres fixture |
+| `POST /api/libraries` (library creation flow) | Multi-library deployments — sysadmins / users can't yet create a second library through the API | `internal/handlers/api/library.go` + UX surface (sidebar / settings) |
+
+**Delivered since the 2026-04-25 audit (Alpha leftover-features rollup):**
+
+- `DELETE /api/libraries/:id` + danger-zone UI (PER-70).
+- Sysadmin audit `?scope=all` for cross-library activity (PER-74).
+- Subset-version file-picker dialog wiring the M7 backend handler (PER-71).
+- Last-admin / last-sysadmin disabled-state guard in the SPA (PER-75).
+- Bootstrap nav-after-success fix + auth-mode cache collapse (PER-68).
+- Local-mode `POST /api/auth/refresh` + proactive in-window refresh in
+  `getAccessToken`. The "Local mode has no refresh endpoint yet" caveat
+  in `architecture.md` §SPA auth is no longer accurate.
 
 **Delivered since the previous audit (landed with M6/M7):**
 
