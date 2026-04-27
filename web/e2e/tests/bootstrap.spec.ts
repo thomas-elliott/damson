@@ -23,29 +23,25 @@ test.describe("First-run bootstrap", () => {
     ).toBeVisible();
   });
 
-  // Marked .fixme: the form posts /api/auth/bootstrap successfully (server
-  // log + trace both confirm a 201) but the subsequent navigate("/") in
-  // BootstrapPage.onSubmit never fires. The trace shows zero further API
-  // calls — no /api/auth/mode refetch, no /api/me, no /api/libraries — so
-  // we suspect the `await queryClient.invalidateQueries(...)` step is
-  // hanging because the authMode query has no active subscriber on
-  // /bootstrap (React Query 5 + React 19 interaction). See
-  // web/src/pages/BootstrapPage.tsx:33-56. Re-enable once fixed (likely:
-  // skip the await on invalidateQueries, or refactor to refetchQueries
-  // with cancelRefetch).
-  test.fixme(
-    "submitting the bootstrap form lands the user in /library",
-    async ({ page, noConsoleErrors }) => {
-      await page.goto("/bootstrap");
+  // PER-68 fix: BootstrapPage.onSubmit no longer awaits invalidateQueries
+  // (which previously hung under React 19 + RQ5 when the authMode query
+  // had no active subscriber). It seeds the new mode synchronously via
+  // queryClient.setQueryData and fires invalidate without awaiting. The
+  // separate authMode singleton in lib/authMode.ts is gone — TanStack is
+  // the only cache.
+  test("submitting the bootstrap form lands the user in /library", async ({
+    page,
+    noConsoleErrors,
+  }) => {
+    await page.goto("/bootstrap");
 
-      await page.getByLabel("Email").fill(ADMIN_EMAIL);
-      await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
-      await page.getByLabel(/confirm password/i).fill(ADMIN_PASSWORD);
-      await page.getByRole("button", { name: /create account/i }).click();
+    await page.getByLabel("Email").fill(ADMIN_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
+    await page.getByLabel(/confirm password/i).fill(ADMIN_PASSWORD);
+    await page.getByRole("button", { name: /create account/i }).click();
 
-      await expect(page).toHaveURL(/\/library$/);
-    },
-  );
+    await expect(page).toHaveURL(/\/library$/);
+  });
 
   test("once bootstrapped, second visit goes to /login not /bootstrap", async ({
     page,

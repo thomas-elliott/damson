@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Pencil, Trash2 } from "lucide-react";
+import { Check, GitFork, Pencil, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -31,6 +31,7 @@ import {
 } from "@/hooks/useMutations";
 
 import { LicenceEditor } from "./LicenceEditor";
+import { SubsetVersionDialog } from "./SubsetVersionDialog";
 
 export function AssetDetailPanel({
   assetId,
@@ -66,6 +67,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
   const [description, setDescription] = useState(asset.description);
   const [sourceURL, setSourceURL] = useState(asset.source_url);
   const [newTag, setNewTag] = useState("");
+  const [subsetOpen, setSubsetOpen] = useState(false);
 
   // Reset edit state whenever the loaded asset changes (different asset
   // opened in the panel).
@@ -212,7 +214,28 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
       </Section>
 
       {/* Files (current version) */}
-      <Section title="Files" accessory={`${asset.files.length}`} defaultOpen={false}>
+      <Section
+        title="Files"
+        accessory={
+          <div className="flex items-center gap-2">
+            <span className="text-caption">{asset.files.length}</span>
+            {asset.current_version_id && asset.files.length > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                leadingIcon={<GitFork size={12} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSubsetOpen(true);
+                }}
+              >
+                Subset
+              </Button>
+            )}
+          </div>
+        }
+        defaultOpen={false}
+      >
         <ul className="flex flex-col gap-0.5">
           {asset.files.slice(0, 50).map((f) => (
             <li
@@ -232,6 +255,14 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
           )}
         </ul>
       </Section>
+
+      <SubsetVersionDialog
+        open={subsetOpen}
+        onOpenChange={setSubsetOpen}
+        assetId={asset.id}
+        versionId={asset.current_version_id ?? null}
+        files={asset.files}
+      />
 
       {/* Licence */}
       <Section title="Licence" defaultOpen>
