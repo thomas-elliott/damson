@@ -74,6 +74,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	// handlers because these routes don't share the current_library_id
 	// requirement (a sysadmin can administer any library).
 	authed.PATCH("/libraries/:id", h.patchLibrary)
+	authed.DELETE("/libraries/:id", h.deleteLibrary)
 	authed.GET("/libraries/:id/members", h.getLibraryMembers)
 	authed.POST("/libraries/:id/members", h.postLibraryMember)
 	authed.PATCH("/libraries/:id/members/:userId", h.patchLibraryMember)

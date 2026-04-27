@@ -441,3 +441,22 @@ export function usePatchLibrary() {
     },
   });
 }
+
+// Library deletion is irreversible — the danger-zone confirm dialog gates
+// the call. Server bumps every former member's tokens_valid_after, so the
+// next request from any open tab fails 401 and bounces to login.
+export function useDeleteLibrary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (libraryId: number) => {
+      await fetchMaybeJson(`/api/libraries/${libraryId}`, { method: "DELETE" });
+      return libraryId;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+      qc.invalidateQueries({ queryKey: queryKeys.collections });
+    },
+  });
+}
