@@ -123,6 +123,20 @@ func (a *LocalAuthenticator) Login(ctx context.Context, email, password string) 
 	return a.issueToken(&u)
 }
 
+// Refresh issues a new short-lived JWT for an already-authenticated user.
+// Callers are expected to have validated the bearer via Authenticate (i.e.
+// the request reached an authed handler) — this is what lets the SPA
+// extend a session without re-prompting for a password while still
+// honouring the tokens_valid_after revocation watermark.
+//
+// The new token's iat is `now`, so a freshly-issued refresh stays valid
+// even if tokens_valid_after has just been bumped (admin password reset,
+// membership change, etc.). The old token remains usable until it expires
+// naturally; for v1 we don't track per-token revocation.
+func (a *LocalAuthenticator) Refresh(u *models.User) (string, time.Time, error) {
+	return a.issueToken(u)
+}
+
 func (a *LocalAuthenticator) issueToken(u *models.User) (string, time.Time, error) {
 	now := a.now()
 	exp := now.Add(LocalTokenTTL)

@@ -174,3 +174,30 @@ func TestBootstrap_BadRequest_PasswordTooShort(t *testing.T) {
 	})
 	requireStatus(t, w, http.StatusBadRequest)
 }
+
+func TestRefresh_IssuesNewLocalToken(t *testing.T) {
+	h, db, la := newTestHandlerLocal(t)
+	u := seedLocalUser(t, db, "librarian@example.com", "correct-horse-battery-staple")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/auth/refresh", nil)
+	requireStatus(t, w, http.StatusOK)
+
+	body := jsonResponse[loginResponse](t, w)
+	if body.Token == "" {
+		t.Fatal("expected refreshed token")
+	}
+	if _, err := la.Authenticate(t.Context(), body.Token); err != nil {
+		t.Fatalf("authenticate refreshed token: %v", err)
+	}
+}
+
+func TestRefresh_NotFound_InOIDCMode(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/auth/refresh", nil)
+	// Route not registered in OIDC mode.
+	requireStatus(t, w, http.StatusNotFound)
+}
