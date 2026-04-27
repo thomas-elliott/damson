@@ -5,6 +5,8 @@ import { cn } from "@/design-system/utils";
 import { IconButton } from "@/design-system/primitives/IconButton";
 import { ScrollArea } from "@/design-system/primitives/ScrollArea";
 
+import { ResizeHandle } from "./ResizeHandle";
+
 export interface DetailPanelProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
   title: ReactNode;
   /** Right-aligned header actions; sits next to the close button. */
@@ -16,12 +18,27 @@ export interface DetailPanelProps extends Omit<HTMLAttributes<HTMLElement>, "tit
   children: ReactNode;
   /** `overlay` floats above main (box-shadow, z-detail). `flush` sits in flow. */
   variant?: "overlay" | "flush";
+  /** When set, renders a left-edge drag handle. Overlay variant only;
+   *  ignored in fullscreen. Caller controls width via `width`/`onWidthChange`. */
+  resizable?: boolean;
+  /** Called continuously as the user drags the resize handle. */
+  onWidthChange?: (next: number) => void;
+  /** Min/max clamp for the resize handle (px). */
+  minWidth?: number;
+  maxWidth?: number;
+  /** When true, the panel fills its positioned ancestor (covers main area).
+   *  `width` is ignored. Slide-in animation still plays on first mount. */
+  fullscreen?: boolean;
 }
 
 /**
  * Slide-in side panel with a sticky header and a scrollable body. Use
  * `variant="overlay"` for the asset-detail-over-grid case, `variant="flush"`
  * when it's part of a full-page layout (FullPageView supplies its own side).
+ *
+ * Pass `resizable` (overlay only) plus `width` + `onWidthChange` to enable
+ * left-edge drag-resize. Pass `fullscreen` to make the panel fill its
+ * positioned ancestor — the resize handle is hidden in that mode.
  */
 export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(
   function DetailPanel(
@@ -33,28 +50,50 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(
       width,
       variant = "overlay",
       children,
+      resizable,
+      onWidthChange,
+      minWidth = 320,
+      maxWidth,
+      fullscreen,
       ...props
     },
     ref,
   ) {
-    const style: React.CSSProperties = width
-      ? { width: typeof width === "number" ? `${width}px` : width }
-      : {};
+    const numericWidth =
+      typeof width === "number" ? width : Number.NaN;
+    const style: React.CSSProperties =
+      !fullscreen && width
+        ? { width: typeof width === "number" ? `${width}px` : width }
+        : {};
     return (
       <aside
         ref={ref}
         aria-label="Details"
         className={cn(
           "flex h-full flex-col border-l border-line bg-panel text-text",
-          variant === "overlay" &&
+          variant === "overlay" && !fullscreen &&
             "absolute right-0 top-0 z-detail animate-slide-in-right shadow-elevated",
-          !width && variant === "overlay" && "w-detail",
+          variant === "overlay" && fullscreen &&
+            "absolute inset-0 z-detail animate-slide-in-right shadow-elevated",
+          !width && variant === "overlay" && !fullscreen && "w-detail",
           !width && variant === "flush" && "w-full",
           className,
         )}
         style={style}
         {...props}
       >
+        {resizable && variant === "overlay" && !fullscreen && onWidthChange && (
+          <div className="absolute left-[-2px] top-0 z-resizer h-full w-1">
+            <ResizeHandle
+              value={Number.isFinite(numericWidth) ? numericWidth : minWidth}
+              onChange={onWidthChange}
+              min={minWidth}
+              max={maxWidth ?? 1024}
+              direction="left"
+              aria-label="Resize details panel"
+            />
+          </div>
+        )}
         <header className="flex shrink-0 items-center gap-2 border-b border-line px-3.5 py-2.5">
           <div className="flex-1 truncate text-subhead text-text">
             {title}
