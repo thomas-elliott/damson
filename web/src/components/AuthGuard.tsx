@@ -60,10 +60,10 @@ export function AuthGuard() {
   }
   if (state === "needs-login") {
     // `needsBootstrap` only matters for unauthenticated users — an authed
-    // session means the server has at least one user, regardless of what a
-    // stale cached /api/auth/mode says. Checking it inside "needs-login"
-    // also avoids a race right after bootstrap where the flag hasn't
-    // refetched yet.
+    // session means the server has at least one user. Bootstrap success
+    // now seeds the cached value synchronously (BootstrapPage uses
+    // queryClient.setQueryData), so by the time AuthGuard re-runs the
+    // flag already reflects reality.
     if (mode === "local" && needsBootstrap) {
       return <Navigate to="/bootstrap" replace />;
     }

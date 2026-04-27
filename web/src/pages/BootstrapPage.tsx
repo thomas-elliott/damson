@@ -7,9 +7,9 @@ import {
   FieldRow,
   Input,
 } from "@/design-system";
-import { invalidateAuthMode } from "@/lib/authMode";
 import { localBootstrap } from "@/lib/localAuth";
 import { queryKeys } from "@/lib/queryKeys";
+import { type AuthModeInfo } from "@/lib/authMode";
 
 /**
  * BootstrapPage is shown on a fresh local-mode deployment where no users
@@ -45,8 +45,18 @@ export function BootstrapPage() {
     setError(null);
     try {
       await localBootstrap(email, password);
-      invalidateAuthMode();
-      await queryClient.invalidateQueries({ queryKey: queryKeys.authMode });
+      // Synchronously seed the new auth-mode value so AuthGuard sees
+      // needs_bootstrap=false on the next render. Awaiting
+      // invalidateQueries here previously hung under React 19 + RQ5 when
+      // the authMode query had no active subscriber, leaving the user on
+      // a frozen submit button (PER-68). setQueryData is synchronous and
+      // avoids that path entirely; the no-await invalidate keeps any
+      // future subscribers honest.
+      queryClient.setQueryData<AuthModeInfo>(queryKeys.authMode, {
+        mode: "local",
+        needs_bootstrap: false,
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.authMode });
       navigate("/", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bootstrap failed.");
