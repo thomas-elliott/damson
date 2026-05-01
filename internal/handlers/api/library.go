@@ -68,6 +68,66 @@ type setCurrentLibraryRequest struct {
 	LibraryID uint `json:"library_id" binding:"required"`
 }
 
+type createLibraryRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description,omitempty"`
+}
+
+// postLibrary creates a new library with the caller as its admin. Any
+// authenticated user may create a library — there's no global gate. The
+// caller's current_library_id is left untouched; switching is an explicit
+// follow-up via /api/me/current-library.
+func (h *Handler) postLibrary(c *gin.Context) {
+	u := auth.GetUser(c)
+	if u == nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req createLibraryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond400(c, err)
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		respond400(c, asError("name must not be blank"))
+		return
+	}
+
+	lib := models.Library{Name: name, Description: req.Description}
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&lib).Error; err != nil {
+			return err
+		}
+		mem := models.LibraryMembership{LibraryID: lib.ID, UserID: u.ID, Role: "admin"}
+		if err := tx.Create(&mem).Error; err != nil {
+			return err
+		}
+		actorID := u.ID
+		libID := lib.ID
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &libID,
+			UserID:     &actorID,
+			ActionType: "library.create",
+			TargetType: "library",
+			TargetID:   &libID,
+			Diff: audit.Created(map[string]any{
+				"name":        lib.Name,
+				"description": lib.Description,
+			}),
+		})
+	})
+	if err != nil {
+		respond500(c)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"id":          lib.ID,
+		"name":        lib.Name,
+		"description": lib.Description,
+	})
+}
+
 type patchLibraryRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
