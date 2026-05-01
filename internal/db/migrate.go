@@ -19,6 +19,19 @@ const advisoryLockKey int64 = 4242424242
 // lexicographic order. Applied filenames are tracked in schema_migrations;
 // a Postgres advisory lock serialises concurrent startups.
 func Migrate(ctx context.Context, db *gorm.DB) error {
+	// Acquire the advisory lock first — even before creating
+	// schema_migrations. Two concurrent backends running CREATE TABLE IF
+	// NOT EXISTS race on pg_type/pg_class inserts and one gets a duplicate-
+	// key error on `pg_type_typname_nsp_index`. The lock takes a plain
+	// bigint key and doesn't need any table to exist, so it's safe to take
+	// here.
+	if err := db.WithContext(ctx).Exec(`SELECT pg_advisory_lock(?)`, advisoryLockKey).Error; err != nil {
+		return fmt.Errorf("advisory lock: %w", err)
+	}
+	defer func() {
+		_ = db.Exec(`SELECT pg_advisory_unlock(?)`, advisoryLockKey).Error
+	}()
+
 	if err := db.WithContext(ctx).Exec(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			filename text PRIMARY KEY,
@@ -27,13 +40,6 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 	`).Error; err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
-
-	if err := db.WithContext(ctx).Exec(`SELECT pg_advisory_lock(?)`, advisoryLockKey).Error; err != nil {
-		return fmt.Errorf("advisory lock: %w", err)
-	}
-	defer func() {
-		_ = db.Exec(`SELECT pg_advisory_unlock(?)`, advisoryLockKey).Error
-	}()
 
 	entries, err := fs.ReadDir(damson.MigrationsFS, "database/migrations")
 	if err != nil {
