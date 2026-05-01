@@ -22,16 +22,16 @@ function QueueItem({ item, onReview }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
               {item.detectedLicence ? <LicencePill licence={item.detectedLicence} compact/> : null}
               {item.needsFields.length > 0
-                ? <span style={{ fontSize: 11, color: 'var(--text-4)' }}>
+                ? <span style={{ fontSize: 'var(--fs-small)', color: 'var(--text-4)' }}>
                     Needs: <span style={{ color: 'var(--warn)' }}>{item.needsFields.join(', ')}</span>
                   </span>
-                : <span style={{ fontSize: 11, color: 'var(--ok)' }}>Ready to confirm</span>}
+                : <span style={{ fontSize: 'var(--fs-small)', color: 'var(--ok)' }}>Ready to confirm</span>}
             </div>
           )
         }
       </div>
       {isUploading
-        ? <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>{item.progress}%</span>
+        ? <span className="mono" style={{ fontSize: 'var(--fs-small)', color: 'var(--text-3)' }}>{item.progress}%</span>
         : (
           <>
             <button className="tbtn" style={{ border: '1px solid var(--line)' }} onClick={() => onReview(item)}>

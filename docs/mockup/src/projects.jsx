@@ -4,7 +4,7 @@ const { useState: useStP } = React;
 // ---------- Licence bar (used in project rows) ----------
 function LicenceBar({ byStatus, compact = false }) {
   const total = byStatus.ok + byStatus.warn + byStatus.err + byStatus.unk;
-  if (total === 0) return <span style={{ fontSize: 11, color: 'var(--text-4)' }}>empty</span>;
+  if (total === 0) return <span style={{ fontSize: 'var(--fs-small)', color: 'var(--text-4)' }}>empty</span>;
   const segs = [
     { k: 'ok', c: 'var(--ok)', v: byStatus.ok },
     { k: 'warn', c: 'var(--warn)', v: byStatus.warn },
@@ -79,7 +79,7 @@ function ProjectsList({ onOpen }) {
                 : null}
             </div>
             <div><SyncPill sync={p.sync}/></div>
-            <div style={{ textAlign: 'right', color: 'var(--text-3)', fontSize: 11.5 }}>{formatDate(p.updated)}</div>
+            <div style={{ textAlign: 'right', color: 'var(--text-3)', fontSize: 'var(--fs-small)' }}>{formatDate(p.updated)}</div>
           </div>
         );
       })}
@@ -97,7 +97,7 @@ function ProjectsCards({ onOpen }) {
             <div className="proj-card-head">
               <span className="proj-glyph lg" style={{ background: p.colour }}>{p.glyph}</span>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div className="proj-name" style={{ fontSize: 14 }}>{p.name}</div>
+                <div className="proj-name" style={{ fontSize: 'var(--fs-ui)' }}>{p.name}</div>
                 <div className="proj-path mono">{p.path}</div>
               </div>
               <SyncPill sync={p.sync}/>
@@ -115,7 +115,7 @@ function ProjectsCards({ onOpen }) {
       <div className="proj-card new" onClick={() => {}}>
         <div style={{ textAlign: 'center' }}>
           <I.Plus size={20}/>
-          <div style={{ fontSize: 12, marginTop: 6 }}>New project</div>
+          <div style={{ fontSize: 'var(--fs-small)', marginTop: 6 }}>New project</div>
         </div>
       </div>
     </div>
@@ -178,7 +178,7 @@ function ProjectDetail({ projectId, onBack, onOpenAsset }) {
             </div>
             <div className="proj-stat">
               <div className="label">Manifest</div>
-              <div className="val mono" style={{ fontSize: 16 }}>
+              <div className="val mono" style={{ fontSize: 'var(--fs-h3)' }}>
                 {p.manifestLast ? formatDate(p.manifestLast) : 'Never written'}
               </div>
               <div className="sub">
@@ -189,7 +189,7 @@ function ProjectDetail({ projectId, onBack, onOpenAsset }) {
             </div>
             <div className="proj-stat">
               <div className="label">Updates available</div>
-              <div className="val mono" style={{ fontSize: 16 }}>
+              <div className="val mono" style={{ fontSize: 'var(--fs-h3)' }}>
                 {p.sync === 'drift' ? '2' : '0'}
               </div>
               <div className="sub">of {s.count} pinned assets</div>
@@ -225,8 +225,8 @@ function ProjectAssetsPanel({ project, items, onOpenAsset }) {
   if (items.length === 0) {
     return (
       <div className="empty" style={{ padding: 60 }}>
-        <div style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 4 }}>No assets pinned yet</div>
-        <div style={{ fontSize: 12, marginBottom: 14 }}>Add library assets here, or drop files directly onto this page.</div>
+        <div style={{ fontSize: 'var(--fs-ui)', color: 'var(--text-2)', marginBottom: 4 }}>No assets pinned yet</div>
+        <div style={{ fontSize: 'var(--fs-small)', marginBottom: 14 }}>Add library assets here, or drop files directly onto this page.</div>
         <button className="tbtn primary"><I.Plus size={12}/> Add from library</button>
       </div>
     );
@@ -261,8 +261,8 @@ function ProjectAssetsPanel({ project, items, onOpenAsset }) {
               <td style={{ textAlign: 'right' }} className="mono">{formatSize(a.size)}</td>
               <td>
                 {hasUpdate
-                  ? <span style={{ fontSize: 11, color: 'var(--warn)' }}>Update available</span>
-                  : <span style={{ fontSize: 11, color: 'var(--text-4)' }}>Up to date</span>}
+                  ? <span style={{ fontSize: 'var(--fs-small)', color: 'var(--warn)' }}>Update available</span>
+                  : <span style={{ fontSize: 'var(--fs-small)', color: 'var(--text-4)' }}>Up to date</span>}
               </td>
             </tr>
           );
@@ -290,8 +290,8 @@ function ProjectManifest({ project, items }) {
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 14px' }}>
       <div className="manifest-head">
         <div>
-          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>damson.manifest.json</div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 2 }}>
+          <div style={{ fontSize: 'var(--fs-ui)', color: 'var(--text)', fontWeight: 500 }}>damson.manifest.json</div>
+          <div style={{ fontSize: 'var(--fs-small)', color: 'var(--text-4)', marginTop: 2 }}>
             Written to <span className="mono">{project.path}/.damson/</span>
             {project.manifestLast ? ` · last ${formatDate(project.manifestLast)}` : ' · never written'}
           </div>
@@ -337,13 +337,13 @@ function CollectionHeader({ collection, onBack, onEdit }) {
       <I.Collections size={16} stroke={1.5}/>
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: 'var(--text)', fontSize: 14, fontWeight: 500 }}>{c.name}</span>
+          <span style={{ color: 'var(--text)', fontSize: 'var(--fs-ui)', fontWeight: 500 }}>{c.name}</span>
           {c.kind === 'smart'
             ? <span className="smart-badge"><I.Sliders size={10}/> Smart</span>
             : null}
         </div>
         {c.kind === 'smart' ? (
-          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1, fontFamily: 'var(--mono)' }}>
+          <div style={{ fontSize: 'var(--fs-small)', color: 'var(--text-4)', marginTop: 1, fontFamily: 'var(--mono)' }}>
             {describeSmart(c.query)}
           </div>
         ) : null}
@@ -403,7 +403,7 @@ function NewProjectDialog({ open, onClose, onCreate }) {
         </div>
         <div className="field">
           <label>Project folder</label>
-          <input value={path} onChange={e => setPath(e.target.value)} className="mono" style={{ fontSize: 12 }}/>
+          <input value={path} onChange={e => setPath(e.target.value)} className="mono" style={{ fontSize: 'var(--fs-small)' }}/>
           <div className="hint">A <span className="mono">.damson/</span> folder will be created here for the manifest.</div>
         </div>
         <div className="field">
@@ -477,7 +477,7 @@ function NewCollectionDialog({ open, onClose, onCreate }) {
         {kind === 'smart' ? (
           <div className="field">
             <label>Query</label>
-            <div style={{ padding: 10, background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 11.5, color: 'var(--text-3)' }}>
+            <div style={{ padding: 10, background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 'var(--fs-small)', color: 'var(--text-3)' }}>
               The current library filters will be saved as this collection's query. You can edit it afterwards.
             </div>
           </div>

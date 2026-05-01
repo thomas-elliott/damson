@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
-import { Check, GitFork, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, GitFork, Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
 
 import {
   Button,
   DetailPanel,
   FieldRow,
+  IconButton,
   Input,
   KeyValueList,
   LicencePill,
@@ -33,6 +34,19 @@ import {
 import { LicenceEditor } from "./LicenceEditor";
 import { SubsetVersionDialog } from "./SubsetVersionDialog";
 
+const WIDTH_KEY = "damson.detail.w";
+const DEFAULT_WIDTH = 440;
+const MIN_WIDTH = 320;
+const MOBILE_QUERY = "(max-width: 640px)";
+
+function readStoredWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_WIDTH;
+  const raw = window.localStorage.getItem(WIDTH_KEY);
+  const n = raw ? Number(raw) : NaN;
+  if (Number.isFinite(n) && n >= MIN_WIDTH) return n;
+  return DEFAULT_WIDTH;
+}
+
 export function AssetDetailPanel({
   assetId,
   onClose,
@@ -41,13 +55,72 @@ export function AssetDetailPanel({
   onClose: () => void;
 }) {
   const { data: asset, loading } = useAssetDetail(assetId);
+  const [width, setWidth] = useState<number>(readStoredWidth);
+  const [userFullscreen, setUserFullscreen] = useState(false);
+  const [autoFullscreen, setAutoFullscreen] = useState(false);
+  const [maxWidth, setMaxWidth] = useState<number>(1024);
+  const asideRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(WIDTH_KEY, String(width));
+  }, [width]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const update = () => setAutoFullscreen(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Track the panel's positioned ancestor so the user can't drag past
+  // the available main-area width.
+  useEffect(() => {
+    const aside = asideRef.current;
+    if (!aside) return;
+    const parent = aside.offsetParent as HTMLElement | null;
+    if (!parent) return;
+    const update = () => setMaxWidth(parent.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, [assetId]);
+
+  // Re-clamp width if the available space shrank below it (e.g. window
+  // resize, sidebar widened).
+  useEffect(() => {
+    setWidth((w) => Math.min(Math.max(MIN_WIDTH, w), maxWidth));
+  }, [maxWidth]);
+
   if (assetId == null) return null;
+
+  const isFullscreen = userFullscreen || autoFullscreen;
+
+  const fullscreenButton = !autoFullscreen ? (
+    <IconButton
+      aria-label={userFullscreen ? "Exit fullscreen" : "Fullscreen"}
+      onClick={() => setUserFullscreen((v) => !v)}
+    >
+      {userFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+    </IconButton>
+  ) : null;
 
   return (
     <DetailPanel
+      ref={asideRef}
       onClose={onClose}
       title={asset?.name ?? (loading ? "Loading…" : "Asset")}
       variant="overlay"
+      resizable
+      width={width}
+      onWidthChange={setWidth}
+      minWidth={MIN_WIDTH}
+      maxWidth={maxWidth}
+      fullscreen={isFullscreen}
+      actions={fullscreenButton}
     >
       {asset && <AssetDetailBody asset={asset} />}
     </DetailPanel>
@@ -95,7 +168,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
   };
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="@container flex flex-col gap-3 p-3">
       {/* Hero: name + licence + needs-review. */}
       <div className="flex flex-col gap-2">
         {editingName ? (

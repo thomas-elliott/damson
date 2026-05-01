@@ -58,6 +58,7 @@ export function SettingsPage() {
           ) : !settings ? (
             <EmptyState title="Settings unavailable" />
           ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
               <header>
                 <h1 className="text-heading text-text">Library settings</h1>
@@ -86,6 +87,7 @@ export function SettingsPage() {
               />
 
               {isSysadmin && <ServerAdminSection />}
+            </div>
             </div>
           )}
         </>
