@@ -143,10 +143,24 @@ tasks:
       - npm run e2e
 
   web:e2e:build:
-    desc: Build the SQLite-backed test server (cmd/e2e-server) into web/e2e/.bin
+    desc: Build the test server (cmd/e2e-server) into web/e2e/.bin (SQLite by default; honours DAMSON_TEST_POSTGRES_DSN at runtime)
     cmds:
       - mkdir -p {{.WEB_DIR}}/e2e/.bin
       - go build -o {{.WEB_DIR}}/e2e/.bin/damson-e2e ./cmd/e2e-server
+
+  web:e2e:postgres:
+    desc: Playwright E2E against a Postgres-backed e2e binary (PER-81 search spec)
+    deps: [web:deps, web:e2e:build]
+    cmds:
+      - |
+        bash -c '
+          set -euo pipefail
+          compose="docker compose -f database/test/compose.postgres.yaml"
+          trap "$compose down -v >/dev/null 2>&1 || true" EXIT
+          $compose up -d --wait
+          export DAMSON_TEST_POSTGRES_DSN="postgres://damson:damson@localhost:55432/damson?sslmode=disable"
+          cd {{.WEB_DIR}} && npm run e2e
+        '
 
   web:e2e:install:
     desc: Install Playwright browser binaries (run once after npm install)
