@@ -272,7 +272,11 @@ orchestrate these rather than rebuilding the layout each time.
   right.
 - **`DetailPanel`** — slide-in panel with sticky header (title + action
   slot + close button) and scrollable body. `variant: overlay|flush`
-  (overlay floats above main with shadow; flush sits in flow).
+  (overlay floats above main with shadow; flush sits in flow). When
+  `resizable` is set on an overlay, a left-edge drag handle exposes
+  `width` / `onWidthChange` for caller-controlled resize (use
+  `minWidth` / `maxWidth` to clamp). `fullscreen` makes the panel
+  fill its positioned ancestor and hides the resize handle.
 - **`FullPageView`** — full-page alternative to `DetailPanel`: grid of
   (preview | 440px side), both independently scrollable. Shared header
   on top.

@@ -66,7 +66,7 @@ export function AppShell({
   return (
     <div
       className={cn(
-        "grid h-screen min-h-[640px] overflow-hidden bg-bg text-text",
+        "grid h-screen min-h-[640px] grid-rows-1 overflow-hidden bg-bg text-text",
         className,
       )}
       style={{ gridTemplateColumns: gridTemplate }}
