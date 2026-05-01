@@ -45,6 +45,23 @@ func TestGetAssets_FiltersByQuery(t *testing.T) {
 	}
 }
 
+func TestGetAssets_FiltersByPartialQuery(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedAsset(t, db, lib.ID, "fantasy-kingdom")
+	seedAsset(t, db, lib.ID, "sci-fi-pack")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/assets?q=fant")
+	requireStatus(t, w, http.StatusOK)
+
+	body := jsonResponse[assetListResponse](t, w)
+	if len(body.Assets) != 1 || body.Assets[0].Name != "fantasy-kingdom" {
+		t.Fatalf("partial query didn't filter: %+v", body.Assets)
+	}
+}
+
 func TestGetAssets_ComposedFilters(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
