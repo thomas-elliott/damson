@@ -350,8 +350,8 @@ function App() {
                             {c.kind === 'smart' ? <I.Sliders size={15}/> : <I.Folder size={15}/>}
                           </span>
                           <div style={{ minWidth: 0, flex: 1 }}>
-                            <div className="proj-name" style={{ fontSize: 14 }}>{c.name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>
+                            <div className="proj-name" style={{ fontSize: 'var(--fs-ui)' }}>{c.name}</div>
+                            <div style={{ fontSize: 'var(--fs-small)', color: 'var(--text-4)', marginTop: 1 }}>
                               {c.kind === 'smart' ? 'Smart collection' : 'Manual collection'}
                             </div>
                           </div>
@@ -359,7 +359,7 @@ function App() {
                         </div>
                         <div className="proj-card-desc" style={{ minHeight: 36 }}>
                           {c.kind === 'smart'
-                            ? <span className="mono" style={{ fontSize: 11 }}>{describeSmart(c.query)}</span>
+                            ? <span className="mono" style={{ fontSize: 'var(--fs-small)' }}>{describeSmart(c.query)}</span>
                             : <span style={{ color: 'var(--text-4)' }}>{items.length} {items.length === 1 ? 'asset' : 'assets'}</span>}
                         </div>
                         <div className="proj-card-stats">
@@ -370,7 +370,7 @@ function App() {
                     );
                   })}
                   <div className="proj-card new" onClick={() => setShowNewCollection(true)}>
-                    <div style={{ textAlign: 'center' }}><I.Plus size={20}/><div style={{ fontSize: 12, marginTop: 6 }}>New collection</div></div>
+                    <div style={{ textAlign: 'center' }}><I.Plus size={20}/><div style={{ fontSize: 'var(--fs-small)', marginTop: 6 }}>New collection</div></div>
                   </div>
                 </div>
               </div>
@@ -397,7 +397,7 @@ function App() {
                 <div className="breadcrumb">{route[0].toUpperCase() + route.slice(1)}</div>
               </div>
               <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-3)' }}>
-                <div style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 4 }}>Not in this prototype</div>
+                <div style={{ fontSize: 'var(--fs-ui)', color: 'var(--text-2)', marginBottom: 4 }}>Not in this prototype</div>
                 <button className="tbtn" style={{ marginTop: 14, border: '1px solid var(--line)' }} onClick={() => setRoute('library')}>
                   <I.Library size={12}/> Back to library
                 </button>

@@ -7,9 +7,18 @@ of what shipped lives in `docs/architecture.md`. This doc tracks what's
 skipped or deferred so later slices don't assume foundations that
 aren't there.
 
-Last audited: 2026-04-27 — Alpha leftover-features rollup (Linear PER-68,
-PER-70, PER-71, PER-74, PER-75 + a sixth ticket for local-mode token
-refresh). Everything else below is the previous 2026-04-25 entry.
+Last audited: 2026-04-27. Two entries this date: `layout-improvements`
+branch work below, and the Alpha leftover-features rollup further down.
+
+**layout-improvements branch (in progress, not yet merged)**
+
+- Resizable `AssetDetailPanel` (PER-155) — `DetailPanel` gains `resizable`,
+  `onWidthChange`, `minWidth`, `maxWidth`, and `fullscreen` props (overlay
+  variant only). `AssetDetailPanel` wires in drag-resize with width persisted
+  to `localStorage` (`damson.detail.w`; default 440 px, min 320 px). A
+  fullscreen toggle button expands the panel to cover the grid; viewports
+  ≤ 640 px trigger auto-fullscreen. `docs/design-system.md` updated.
+- `tsconfig.node.json` — minor tooling fix (no behaviour change).
 
 **Alpha leftover features (rollup PR)**
 
@@ -45,7 +54,7 @@ refresh). Everything else below is the previous 2026-04-25 entry.
   accessor reads directly out of TanStack's cache. AuthGuard's
   race-workaround comment is updated; the e2e `test.fixme` for this flow
   is un-fixme'd.
-- Local-mode token refresh (no Linear ticket — file one) — `POST
+- Local-mode token refresh (PER-154) — `POST
   /api/auth/refresh` (local mode only) re-issues a fresh JWT for the
   authenticated user. `getAccessToken` calls `maybeRefreshLocalSession`
   before each request; when the stored session is within 5 minutes of

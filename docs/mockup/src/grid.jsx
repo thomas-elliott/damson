@@ -55,7 +55,7 @@ function Toolbar({
               <button onClick={() => removeChip(c)}><I.X size={10}/></button>
             </span>
           ))}
-          <button className="tbtn" onClick={clearAll} style={{ fontSize: 11.5, color: 'var(--text-4)' }}>
+          <button className="tbtn" onClick={clearAll} style={{ fontSize: 'var(--fs-small)', color: 'var(--text-4)' }}>
             Clear all
           </button>
         </>
@@ -84,8 +84,8 @@ function GridView({ assets, selected, onOpen, onSelect }) {
   if (assets.length === 0) {
     return (
       <div className="empty">
-        <div style={{ fontSize: 14, color: 'var(--text-2)', marginBottom: 4 }}>No assets match these filters</div>
-        <div style={{ fontSize: 12 }}>Clear a filter to widen the search, or drop files here to import.</div>
+        <div style={{ fontSize: 'var(--fs-ui)', color: 'var(--text-2)', marginBottom: 4 }}>No assets match these filters</div>
+        <div style={{ fontSize: 'var(--fs-small)' }}>Clear a filter to widen the search, or drop files here to import.</div>
       </div>
     );
   }
