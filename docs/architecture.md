@@ -632,7 +632,10 @@ Routes (`web/src/App.tsx`):
 ```
 
 The asset detail panel is URL-addressable so a pasted link opens
-the right asset.
+the right asset. It is user-resizable (overlay mode only): a left-edge
+drag handle controls width, persisted to `localStorage` under
+`damson.detail.w` (default 440 px, min 320 px); a header button toggles
+fullscreen (covers the full grid area). Viewports ≤ 640 px auto-fullscreen.
 
 ### 14.2 State
 
