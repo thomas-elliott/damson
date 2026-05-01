@@ -101,6 +101,19 @@ tasks:
       - go test -coverprofile=coverage.out ./...
       - go tool cover -html=coverage.out -o coverage.html
 
+  test:integration:
+    desc: Postgres-backed integration tests (boots compose Postgres on 55432)
+    cmds:
+      - |
+        bash -c '
+          set -euo pipefail
+          compose="docker compose -f database/test/compose.postgres.yaml"
+          trap "$compose down -v >/dev/null 2>&1 || true" EXIT
+          $compose up -d --wait
+          export DAMSON_TEST_POSTGRES_DSN="postgres://damson:damson@localhost:55432/damson?sslmode=disable"
+          go test -tags=postgres_integration -count=1 -race ./...
+        '
+
   web:test:
     desc: Vitest unit tests (jsdom)
     dir: "{{.WEB_DIR}}"

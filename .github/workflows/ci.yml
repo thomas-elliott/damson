@@ -48,6 +48,43 @@ jobs:
       - name: go test
         run: go test -race -count=1 ./...
 
+  integration:
+    # Postgres-backed integration tests. Non-gating until the suite has
+    # soaked — failures are visible on the PR but don't block merge. Promote
+    # to required once stable.
+    name: Go integration (Postgres)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: damson
+          POSTGRES_PASSWORD: damson
+          POSTGRES_DB: damson
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U damson -d damson"
+          --health-interval 1s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run integration tests
+        env:
+          DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@localhost:5432/damson?sslmode=disable
+        run: go test -tags=postgres_integration -race -count=1 ./...
+
   web:
     name: Web (test & build)
     runs-on: ubuntu-latest
