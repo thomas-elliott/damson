@@ -113,6 +113,14 @@ func main() {
 		c.Status(http.StatusNoContent)
 	})
 
+	// Test-only: seed an additional user without going through the bootstrap
+	// flow (which only accepts the FIRST user) or the admin-invite flow
+	// (which doesn't exist yet). Tests for sysadmin-vs-member gating need
+	// two coexisting users on a fresh schema; this is the lever for that.
+	apiGroup.POST("/test/users", func(c *gin.Context) {
+		seedTestUser(c, gormDB)
+	})
+
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           r,
@@ -195,4 +203,61 @@ func resetSchema(db *gorm.DB) error {
 		}
 	}
 	return autoMigrate(db)
+}
+
+// seedTestUser creates an arbitrary user (with optional sysadmin role and
+// optional library membership). Test-only — there's no admin-invite flow in
+// the product yet, so multi-user E2E specs need this lever.
+func seedTestUser(c *gin.Context, db *gorm.DB) {
+	var req struct {
+		Email          string `json:"email" binding:"required"`
+		Password       string `json:"password" binding:"required"`
+		Role           string `json:"role,omitempty"`            // "user" (default) | "sysadmin"
+		LibraryID      uint   `json:"library_id,omitempty"`      // optional: attach a membership
+		MembershipRole string `json:"membership_role,omitempty"` // "admin" (default) | "member"
+		SetCurrent     bool   `json:"set_current,omitempty"`     // also set current_library_id
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := auth.CreateLocalUser(c.Request.Context(), db, req.Email, req.Email, req.Password)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	updates := map[string]any{}
+	if req.Role == "sysadmin" {
+		updates["role"] = "sysadmin"
+		user.Role = "sysadmin"
+	}
+	if req.LibraryID != 0 {
+		role := req.MembershipRole
+		if role == "" {
+			role = "admin"
+		}
+		if err := db.Create(&models.LibraryMembership{
+			LibraryID: req.LibraryID,
+			UserID:    user.ID,
+			Role:      role,
+		}).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if req.SetCurrent {
+			updates["current_library_id"] = req.LibraryID
+			user.CurrentLibraryID = &req.LibraryID
+		}
+	}
+	if len(updates) > 0 {
+		if err := db.Model(user).Updates(updates).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"id":    user.ID,
+		"email": user.Email,
+		"role":  user.Role,
+	})
 }

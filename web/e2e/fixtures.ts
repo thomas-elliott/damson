@@ -154,7 +154,7 @@ export async function uploadImport(
   filename: string,
   fileBytes: Buffer,
   contentType = "application/octet-stream",
-): Promise<{ id: number; asset_id: number }> {
+): Promise<{ id: number; asset_id: number; asset_version_id: number }> {
   const res = await request.post("/api/imports", {
     headers: { Authorization: `Bearer ${session.token}` },
     multipart: {
@@ -164,7 +164,157 @@ export async function uploadImport(
   if (!res.ok()) {
     throw new Error(`import failed: ${res.status()} ${await res.text()}`);
   }
-  return (await res.json()) as { id: number; asset_id: number };
+  return (await res.json()) as {
+    id: number;
+    asset_id: number;
+    asset_version_id: number;
+  };
+}
+
+// createTestUser hits the /api/test/users endpoint exposed by the e2e
+// binary. There's no public admin-invite flow yet, so multi-user specs
+// (e.g. PER-82's sysadmin-vs-member gating) need this lever.
+export async function createTestUser(
+  request: APIRequestContext,
+  opts: {
+    email: string;
+    password: string;
+    role?: "user" | "sysadmin";
+    libraryId?: number;
+    membershipRole?: "admin" | "member";
+    setCurrent?: boolean;
+  },
+): Promise<{ id: number; email: string; role: string }> {
+  const res = await request.post("/api/test/users", {
+    data: {
+      email: opts.email,
+      password: opts.password,
+      role: opts.role,
+      library_id: opts.libraryId,
+      membership_role: opts.membershipRole,
+      set_current: opts.setCurrent,
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`create test user failed: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as { id: number; email: string; role: string };
+}
+
+// subsetVersion creates a new asset version via the subset endpoint. The
+// new version becomes the asset's current_version. Used in PER-79 to seed
+// a v2 against an asset whose v1 came from an import — without a public
+// "add version" API this is the only way to get pin-upgrade arithmetic
+// without a second multipart upload.
+export async function subsetVersion(
+  request: APIRequestContext,
+  session: Session,
+  assetId: number,
+  sourceVersionId: number,
+  fileIds: number[],
+  versionLabel?: string,
+): Promise<{ asset_id: number; asset_version_id: number; version_label: string }> {
+  const res = await request.post(
+    `/api/assets/${assetId}/versions/${sourceVersionId}/subset`,
+    {
+      headers: { Authorization: `Bearer ${session.token}` },
+      data: { file_ids: fileIds, version_label: versionLabel },
+    },
+  );
+  if (!res.ok()) {
+    throw new Error(`subset failed: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as {
+    asset_id: number;
+    asset_version_id: number;
+    version_label: string;
+  };
+}
+
+// getAssetDetail fetches the same payload the SPA's detail panel renders.
+// Tests use it to discover file_ids for subsetVersion without driving any
+// UI.
+export async function getAssetDetail(
+  request: APIRequestContext,
+  session: Session,
+  assetId: number,
+): Promise<{
+  id: number;
+  current_version_id: number | null;
+  files: Array<{ id: number; relative_path: string }>;
+}> {
+  const res = await request.get(`/api/assets/${assetId}`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+  });
+  if (!res.ok()) {
+    throw new Error(`get asset detail: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as {
+    id: number;
+    current_version_id: number | null;
+    files: Array<{ id: number; relative_path: string }>;
+  };
+}
+
+// addAssetToCollection / removeAssetFromCollection wrap the membership
+// API. PER-80 uses these because the SPA doesn't expose an add-to-
+// collection UI yet (the hooks exist in useMutations but no page wires
+// them).
+export async function addAssetToCollection(
+  request: APIRequestContext,
+  session: Session,
+  collectionId: number,
+  assetId: number,
+): Promise<void> {
+  const res = await request.post(`/api/collections/${collectionId}/assets`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+    data: { asset_id: assetId },
+  });
+  if (!res.ok()) {
+    throw new Error(`add asset to collection: ${res.status()} ${await res.text()}`);
+  }
+}
+
+export async function removeAssetFromCollection(
+  request: APIRequestContext,
+  session: Session,
+  collectionId: number,
+  assetId: number,
+): Promise<void> {
+  const res = await request.delete(
+    `/api/collections/${collectionId}/assets/${assetId}`,
+    { headers: { Authorization: `Bearer ${session.token}` } },
+  );
+  if (!res.ok()) {
+    throw new Error(
+      `remove asset from collection: ${res.status()} ${await res.text()}`,
+    );
+  }
+}
+
+// listAuditEntries returns the library-scoped audit feed. Tests use it to
+// assert specific action_type rows exist (e.g. project.pin.upgrade in
+// PER-79) without depending on the audit UI's pagination.
+export async function listAuditEntries(
+  request: APIRequestContext,
+  session: Session,
+  query: Record<string, string | number | undefined> = {},
+): Promise<Array<{ id: number; action_type: string; target_type: string; target_id: number | null; diff: unknown }>> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) {
+    if (v !== undefined) params.set(k, String(v));
+  }
+  const url = "/api/audit" + (params.toString() ? `?${params.toString()}` : "");
+  const res = await request.get(url, {
+    headers: { Authorization: `Bearer ${session.token}` },
+  });
+  if (!res.ok()) {
+    throw new Error(`list audit: ${res.status()} ${await res.text()}`);
+  }
+  const body = (await res.json()) as {
+    entries: Array<{ id: number; action_type: string; target_type: string; target_id: number | null; diff: unknown }>;
+  };
+  return body.entries;
 }
 
 export { expect };
