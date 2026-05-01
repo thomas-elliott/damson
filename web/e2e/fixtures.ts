@@ -108,6 +108,44 @@ export async function installSession(page: Page, session: Session): Promise<void
   );
 }
 
+// createLibrary creates a library via the API and returns its id. The
+// caller becomes the library's admin; their current_library_id is left
+// untouched, so a follow-up switchCurrentLibrary is required before any
+// library-scoped seeding (uploadImport) lands in the new library.
+export async function createLibrary(
+  request: APIRequestContext,
+  session: Session,
+  name: string,
+): Promise<{ id: number; name: string }> {
+  const res = await request.post("/api/libraries", {
+    headers: { Authorization: `Bearer ${session.token}` },
+    data: { name },
+  });
+  if (!res.ok()) {
+    throw new Error(`create library failed: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as { id: number; name: string };
+}
+
+// switchCurrentLibrary flips the authenticated user's active library via
+// the API. Used to pre-stage scope before seeding library-scoped rows in
+// E2E setup; the test itself drives the UI picker for the real switch.
+export async function switchCurrentLibrary(
+  request: APIRequestContext,
+  session: Session,
+  libraryId: number,
+): Promise<void> {
+  const res = await request.post("/api/me/current-library", {
+    headers: { Authorization: `Bearer ${session.token}` },
+    data: { library_id: libraryId },
+  });
+  if (!res.ok()) {
+    throw new Error(
+      `switch library failed: ${res.status()} ${await res.text()}`,
+    );
+  }
+}
+
 // uploadImport posts a multipart import directly to the backend. Used to
 // seed assets in tests that aren't exercising the UI dropzone.
 export async function uploadImport(
