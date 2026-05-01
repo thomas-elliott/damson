@@ -59,18 +59,16 @@ export function AssetGrid({
     virtualizer.scrollToIndex(Math.floor(i / columns), { align: "auto" });
   }, [selectedId, assets, columns, virtualizer]);
 
-  if (assets.length === 0) {
-    return (
-      <EmptyState
-        icon={<FilePlus2 size={28} />}
-        title="No assets yet"
-        description="Drop .unitypackage files, sprites, audio, or fonts onto this view — or click to select. Damson extracts, hashes, and licence-tags each import."
-      />
-    );
-  }
-
   return (
     <div ref={scrollRef} className="flex-1 overflow-auto p-3.5">
+      {assets.length === 0 ? (
+        <EmptyState
+          className="h-full"
+          icon={<FilePlus2 size={28} />}
+          title="No assets yet"
+          description="Drop .unitypackage files, sprites, audio, or fonts onto this view — or click to select. Damson extracts, hashes, and licence-tags each import."
+        />
+      ) : (
       <div
         style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}
       >
@@ -124,6 +122,7 @@ export function AssetGrid({
           );
         })}
       </div>
+      )}
     </div>
   );
 }
@@ -137,6 +136,7 @@ function useColumnCount(ref: React.RefObject<HTMLDivElement | null>): number {
     const el = ref.current;
     if (!el) return;
     const compute = () => {
+      if (!el.isConnected) return;
       const w = el.clientWidth;
       const next = Math.max(1, Math.floor((w + GAP) / (MIN_CELL_WIDTH + GAP)));
       setCols(next);

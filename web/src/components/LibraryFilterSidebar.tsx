@@ -58,53 +58,6 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
         </div>
       }
     >
-      <Section title="Licence" defaultOpen>
-        <ul className="flex flex-col gap-0.5">
-          {LICENCE_STATUSES.map((s) => (
-            <li key={s.value}>
-              <FilterRow
-                label={s.label}
-                icon={<StatusDot tone={s.value} />}
-                active={filters.licence_status === s.value}
-                onClick={() =>
-                  setParam(
-                    "licence",
-                    filters.licence_status === s.value ? null : s.value,
-                  )
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      <Section title="File kind" defaultOpen={false}>
-        <ul className="flex flex-col gap-0.5">
-          {PACKAGE_KINDS.map((k) => (
-            <li key={k.value}>
-              <FilterRow
-                label={k.label}
-                active={filters.package_kind === k.value}
-                onClick={() =>
-                  setParam(
-                    "kind",
-                    filters.package_kind === k.value ? null : k.value,
-                  )
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      <Section title="Needs review" defaultOpen={false}>
-        <FilterRow
-          label="Unreviewed only"
-          active={!!filters.needs_review}
-          onClick={() => setParam("needs_review", filters.needs_review ? null : "true")}
-        />
-      </Section>
-
       <Section title="Projects" defaultOpen={false}>
         {projects.length === 0 ? (
           <div className="text-small text-text-4">No projects yet</div>
@@ -135,6 +88,53 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
         ) : (
           <TagTree tags={tags} activePath={filters.tag_path} onPick={(p) => setParam("tag", filters.tag_path === p ? null : p)} />
         )}
+      </Section>
+
+      <Section title="File kind" defaultOpen={false}>
+        <ul className="flex flex-col gap-0.5">
+          {PACKAGE_KINDS.map((k) => (
+            <li key={k.value}>
+              <FilterRow
+                label={k.label}
+                active={filters.package_kind === k.value}
+                onClick={() =>
+                  setParam(
+                    "kind",
+                    filters.package_kind === k.value ? null : k.value,
+                  )
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      <Section title="Needs review" defaultOpen={false}>
+        <FilterRow
+          label="Unreviewed only"
+          active={!!filters.needs_review}
+          onClick={() => setParam("needs_review", filters.needs_review ? null : "true")}
+        />
+      </Section>
+
+      <Section title="Licence" defaultOpen>
+        <ul className="flex flex-col gap-0.5">
+          {LICENCE_STATUSES.map((s) => (
+            <li key={s.value}>
+              <FilterRow
+                label={s.label}
+                icon={<StatusDot tone={s.value} />}
+                active={filters.licence_status === s.value}
+                onClick={() =>
+                  setParam(
+                    "licence",
+                    filters.licence_status === s.value ? null : s.value,
+                  )
+                }
+              />
+            </li>
+          ))}
+        </ul>
       </Section>
     </FilterSidebar>
   );
