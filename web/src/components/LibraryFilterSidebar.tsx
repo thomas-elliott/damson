@@ -2,11 +2,11 @@ import { useSearchParams } from "react-router";
 import { ChevronDown, ChevronRight, LogOut } from "lucide-react";
 
 import {
-  Badge,
   FilterSidebar,
   Section,
   StatusDot,
 } from "@/design-system";
+import { LibraryPicker } from "@/components/LibraryPicker";
 import { useProjects, useTags, type AssetFilters, type LicenceStatus, type Me, type TagView } from "@/hooks/useDataQueries";
 
 const LICENCE_STATUSES: { value: LicenceStatus; label: string }[] = [
@@ -38,14 +38,11 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
   return (
     <FilterSidebar
       header={
-        <div className="flex items-center gap-2 text-ui">
-          <span className="truncate font-medium text-text">{lib?.name ?? "No library"}</span>
-          {lib && (
-            <Badge size="sm" mono>
-              {lib.role}
-            </Badge>
-          )}
-        </div>
+        lib ? (
+          <LibraryPicker current={lib} />
+        ) : (
+          <div className="text-ui text-text-3">No library</div>
+        )
       }
       footer={
         <div className="flex items-center justify-between gap-2 text-small">

@@ -422,6 +422,46 @@ export function usePatchServerSettings() {
   });
 }
 
+export function useCreateLibrary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { name: string; description?: string }) => {
+      return fetchJson<{ id: number; name: string; description: string }>(
+        `/api/libraries`,
+        { method: "POST", body: JSON.stringify(input) },
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.libraries });
+    },
+  });
+}
+
+// Switching library flips the server-side current_library_id; the client
+// caches keyed on the previous scope (assets, tags, projects, collections,
+// settings) must be dropped or the SPA will momentarily render the old
+// library's data under the new library's name.
+export function useSwitchCurrentLibrary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (libraryId: number) => {
+      return fetchJson<{ library_id: number }>(`/api/me/current-library`, {
+        method: "POST",
+        body: JSON.stringify({ library_id: libraryId }),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.me });
+      qc.invalidateQueries({ queryKey: queryKeys.libraries });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.tags });
+      qc.invalidateQueries({ queryKey: queryKeys.projects });
+      qc.invalidateQueries({ queryKey: queryKeys.collections });
+      qc.invalidateQueries({ queryKey: queryKeys.librarySettings });
+    },
+  });
+}
+
 export function usePatchLibrary() {
   const qc = useQueryClient();
   return useMutation({

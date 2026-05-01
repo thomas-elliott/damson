@@ -26,8 +26,8 @@ func (Asset) TableName() string { return "assets" }
 
 type AssetVersion struct {
 	ID                       uint   `gorm:"primarykey;auto_increment;not_null"`
-	AssetID                  uint   `gorm:"not null;index:idx_version_asset_date"`
-	VersionLabel             string `gorm:"not null;uniqueIndex:idx_version_asset_label"`
+	AssetID                  uint   `gorm:"not null;index:idx_version_asset_date;uniqueIndex:idx_version_asset_label,priority:1"`
+	VersionLabel             string `gorm:"not null;uniqueIndex:idx_version_asset_label,priority:2"`
 	Notes                    string
 	ImportDate               time.Time `gorm:"not null;default:current_timestamp;index:idx_version_asset_date,sort:desc"`
 	OriginalPackageObjectKey string
