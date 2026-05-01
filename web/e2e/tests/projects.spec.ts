@@ -1,0 +1,125 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
+
+import {
+  test,
+  expect,
+  bootstrapAdmin,
+  installSession,
+  uploadImport,
+  subsetVersion,
+  getAssetDetail,
+  listAuditEntries,
+} from "../fixtures";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
+
+// PER-79 — project pin/upgrade arithmetic. Two failure modes the spec
+// guards against:
+//   1. updates_available drifts — a pin pointing at v1 of an asset whose
+//      current_version is now v2 must show as "1 update available". Lose
+//      the SQL `<>` comparison and this counter goes to 0 silently.
+//   2. project.pin.upgrade audit row missing — the audit feed is the only
+//      built-in trail for "who upgraded what to which version, when". A
+//      same-version repin must NOT emit; a true upgrade must emit exactly
+//      one row with the previous + new version_ids in the diff.
+test.describe("Project pin + upgrade flow", () => {
+  test("pinning v1, subsetting to v2, upgrading the pin emits audit", async ({
+    page,
+    request,
+    noConsoleErrors,
+  }) => {
+    test.setTimeout(60_000);
+
+    const session = await bootstrapAdmin(request);
+    const fileBytes = await readFile(FIXTURE_PATH);
+    const upload = await uploadImport(
+      request,
+      session,
+      "pin-target.unitypackage",
+      fileBytes,
+    );
+
+    // The subset endpoint takes file_ids belonging to the source version;
+    // grab the first asset_file from the detail payload (the unitypackage
+    // extracts to several asset_files on import).
+    const detail = await getAssetDetail(request, session, upload.asset_id);
+    const firstFileId = detail.files[0]?.id;
+    expect(firstFileId, "expected at least one file on imported asset").toBeGreaterThan(0);
+
+    await installSession(page, session);
+    await page.goto("/projects");
+
+    // Empty-state CTA opens the create dialog.
+    await page.getByRole("button", { name: "New project" }).first().click();
+    await page.getByPlaceholder("Ashfall").fill("Pinning project");
+    await Promise.all([
+      page.waitForURL(/\/projects\/\d+$/),
+      page.getByRole("button", { name: "Create", exact: true }).click(),
+    ]);
+    const projectId = Number(new URL(page.url()).pathname.split("/").pop());
+    expect(projectId).toBeGreaterThan(0);
+
+    // Pin the asset's current version (v1). PinAssetDialog's submit posts
+    // {asset_id} without a version_id, so the server pins current.
+    await page.getByRole("button", { name: "Pin asset" }).first().click();
+    await page.getByRole("combobox", { name: "Asset" }).click();
+    await page.getByRole("option", { name: "pin-target" }).click();
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          new RegExp(`/api/projects/${projectId}/pins$`).test(r.url()) &&
+          r.request().method() === "POST",
+      ),
+      page.getByRole("button", { name: "Pin current version" }).click(),
+    ]);
+    // Pin lands as "Up to date" — current_version still equals pinned_version.
+    await expect(page.getByText("Up to date")).toBeVisible();
+
+    // Create v2 via subset. The subset handler also flips current_version
+    // to the new id, so updates_available should jump from 0 to 1.
+    const v2 = await subsetVersion(
+      request,
+      session,
+      upload.asset_id,
+      upload.asset_version_id,
+      [firstFileId!],
+    );
+    expect(v2.version_label).toBe("v2");
+
+    // Reload the project page so useProject refetches against the new
+    // current_version. The "Upgrade to v2" affordance is rendered by
+    // ProjectPinRow when pin.has_update is true.
+    await page.reload();
+    await expect(page.getByText(/1\s+updates available/)).toBeVisible();
+    const upgradeButton = page.getByRole("button", { name: /Upgrade to v2/ });
+    await expect(upgradeButton).toBeVisible();
+
+    // Click upgrade, await the second POST /pins (re-post with version_id),
+    // assert the row collapses back to "Up to date".
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          new RegExp(`/api/projects/${projectId}/pins$`).test(r.url()) &&
+          r.request().method() === "POST",
+      ),
+      upgradeButton.click(),
+    ]);
+    await expect(page.getByText("Up to date")).toBeVisible();
+
+    // Audit assertion. Library audit feed should now contain exactly one
+    // project.pin.upgrade row whose diff captures the version delta.
+    const audit = await listAuditEntries(request, session, {
+      action_type: "project.pin.upgrade",
+    });
+    expect(audit, "exactly one project.pin.upgrade row expected").toHaveLength(1);
+    const diff = audit[0].diff as {
+      after?: { asset_id: number; version_id: number };
+      before?: { asset_id: number; version_id: number };
+    };
+    expect(diff.after?.version_id).toBe(v2.asset_version_id);
+    expect(diff.before?.version_id).toBe(upload.asset_version_id);
+  });
+});
