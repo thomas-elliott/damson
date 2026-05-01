@@ -68,6 +68,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	authed.Use(authMiddleware)
 	authed.GET("/me", h.getMe)
 	authed.GET("/libraries", h.getLibraries)
+	authed.POST("/libraries", h.postLibrary)
 	authed.POST("/me/current-library", h.postCurrentLibrary)
 	if h.authMode == config.AuthModeLocal {
 		// Local-mode session refresh. OIDC sessions silent-renew via the

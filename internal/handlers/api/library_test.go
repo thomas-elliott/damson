@@ -69,6 +69,84 @@ func TestGetLibraries_ListsMemberships(t *testing.T) {
 	}
 }
 
+func TestPostLibrary_CreatesAndAdminsCaller(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/libraries", createLibraryRequest{
+		Name:        "Library A",
+		Description: "two-libraries E2E",
+	})
+	requireStatus(t, w, http.StatusCreated)
+
+	body := jsonResponse[struct {
+		ID          uint   `json:"id"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}](t, w)
+	if body.ID == 0 || body.Name != "Library A" || body.Description != "two-libraries E2E" {
+		t.Fatalf("unexpected body: %+v", body)
+	}
+
+	var mem models.LibraryMembership
+	if err := db.Where("library_id = ? AND user_id = ?", body.ID, u.ID).First(&mem).Error; err != nil {
+		t.Fatalf("expected admin membership for caller: %v", err)
+	}
+	if mem.Role != "admin" {
+		t.Fatalf("caller role: got %q, want admin", mem.Role)
+	}
+
+	// Caller's current_library_id is *not* changed by create — switching is
+	// an explicit follow-up. Confirms the picker has something distinct to
+	// switch to in the E2E flow.
+	var refreshed models.User
+	if err := db.First(&refreshed, u.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.CurrentLibraryID != nil {
+		t.Fatalf("current_library_id should not auto-set: got %v", *refreshed.CurrentLibraryID)
+	}
+
+	var auditCount int64
+	if err := db.Model(&models.AuditLog{}).
+		Where("library_id = ? AND action_type = ?", body.ID, "library.create").
+		Count(&auditCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != 1 {
+		t.Fatalf("expected one library.create audit row, got %d", auditCount)
+	}
+}
+
+func TestPostLibrary_RejectsBlankName(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/libraries", map[string]string{"name": "   "})
+	requireStatus(t, w, http.StatusBadRequest)
+}
+
+func TestPostLibrary_IsolatesScopeFromOtherUsers(t *testing.T) {
+	h, db := newTestHandler(t)
+	a := seedUser(t, db, "a@example.com")
+	b := seedUser(t, db, "b@example.com")
+
+	rA := setupRouter(h, a)
+	w := performRequest(rA, http.MethodPost, "/api/libraries", createLibraryRequest{Name: "A's lib"})
+	requireStatus(t, w, http.StatusCreated)
+
+	// User b does not see A's library in their /api/libraries response.
+	rB := setupRouter(h, b)
+	wB := performGET(rB, "/api/libraries")
+	requireStatus(t, wB, http.StatusOK)
+	bodyB := jsonResponse[libraryListResponse](t, wB)
+	if len(bodyB.Libraries) != 0 {
+		t.Fatalf("user b should see no libraries, got %d", len(bodyB.Libraries))
+	}
+}
+
 func TestPostCurrentLibrary_RejectsNonMember(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "librarian@example.com")
