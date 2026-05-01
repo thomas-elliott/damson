@@ -40,6 +40,11 @@ test.describe("Asset edits persist across reload", () => {
     request,
     noConsoleErrors,
   }) => {
+    // Five backend round-trips (import + tag + detect + licence + reload)
+    // plus a Vite cold-start can blow past the default 30s budget on a
+    // fresh worker; bump headroom rather than chase per-step waits.
+    test.setTimeout(60_000);
+
     const session = await bootstrapAdmin(request);
     const fileBytes = await readFile(FIXTURE_PATH);
     await uploadImport(request, session, "persist-asset.unitypackage", fileBytes);
