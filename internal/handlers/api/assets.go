@@ -165,10 +165,9 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 	}
 	if f.Query != "" {
 		// SQLite fallback: LIKE over name/description. Postgres: use
-		// plainto_tsquery against the search_vector column. DB driver name
-		// is the switch.
+		// to_tsquery with a prefix-aware query so "pack" matches "package".
 		if db.Dialector.Name() == "postgres" {
-			q = q.Where("a.search_vector @@ plainto_tsquery('simple', ?)", f.Query)
+			q = q.Where("a.search_vector @@ to_tsquery('simple', ?)", buildPrefixTsQuery(f.Query))
 		} else {
 			like := "%" + f.Query + "%"
 			q = q.Where("(a.name LIKE ? OR a.description LIKE ?)", like, like)
@@ -679,6 +678,34 @@ func parsePagination(c *gin.Context) (limit, offset int) {
 		}
 	}
 	return
+}
+
+// buildPrefixTsQuery converts a raw search string into a to_tsquery expression
+// where each word is a required (&) term and the last word gets the :* prefix
+// operator so partial input like "pack" matches "package". Special tsquery
+// characters are stripped to avoid syntax errors.
+func buildPrefixTsQuery(raw string) string {
+	words := strings.Fields(raw)
+	terms := make([]string, 0, len(words))
+	for i, w := range words {
+		// Strip characters that have special meaning in tsquery syntax.
+		w = strings.Map(func(r rune) rune {
+			switch r {
+			case '\'', '\\', '&', '|', '!', '(', ')', ':', '<', '>':
+				return -1
+			}
+			return r
+		}, w)
+		if w == "" {
+			continue
+		}
+		if i == len(words)-1 {
+			terms = append(terms, w+":*")
+		} else {
+			terms = append(terms, w)
+		}
+	}
+	return strings.Join(terms, " & ")
 }
 
 // escapeLikePattern doubles up `%` and `_` characters and the escape `\` so
