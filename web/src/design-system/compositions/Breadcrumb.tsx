@@ -10,26 +10,11 @@ export interface BreadcrumbProps extends HTMLAttributes<HTMLElement> {
 }
 
 /** Breadcrumb ancestry text + optional count suffix. */
-export function Breadcrumb({
-  className,
-  count,
-  children,
-  ...props
-}: BreadcrumbProps) {
+export function Breadcrumb({ className, count, children, ...props }: BreadcrumbProps) {
   return (
-    <nav
-      aria-label="Breadcrumb"
-      className={cn("flex items-center gap-2", className)}
-      {...props}
-    >
-      <div className="flex items-center gap-1.5 text-ui font-medium text-text">
-        {children}
-      </div>
-      {count !== undefined && (
-        <span className="text-mono tabular-nums text-text-3">
-          {count}
-        </span>
-      )}
+    <nav aria-label="Breadcrumb" className={cn("flex items-center gap-2", className)} {...props}>
+      <div className="flex items-center gap-1.5 text-ui font-medium text-text">{children}</div>
+      {count !== undefined && <span className="text-mono tabular-nums text-text-3">{count}</span>}
     </nav>
   );
 }
@@ -39,19 +24,11 @@ export interface BreadcrumbItemProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 /** Single crumb — display-only, no link semantics built in. */
-export function BreadcrumbItem({
-  className,
-  current,
-  children,
-  ...props
-}: BreadcrumbItemProps) {
+export function BreadcrumbItem({ className, current, children, ...props }: BreadcrumbItemProps) {
   return (
     <span
       aria-current={current ? "page" : undefined}
-      className={cn(
-        "text-text-2 aria-[current=page]:text-text",
-        className,
-      )}
+      className={cn("text-text-2 aria-[current=page]:text-text", className)}
       {...props}
     >
       {children}
@@ -60,7 +37,5 @@ export function BreadcrumbItem({
 }
 
 export function BreadcrumbSeparator() {
-  return (
-    <ChevronRight aria-hidden size={12} className="text-text-4" />
-  );
+  return <ChevronRight aria-hidden size={12} className="text-text-4" />;
 }

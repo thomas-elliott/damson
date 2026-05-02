@@ -30,12 +30,7 @@ import {
   ToolbarSpacer,
   formatBytes,
 } from "@/design-system";
-import {
-  useAssets,
-  useProject,
-  useProjectAudit,
-  type LicenceStatus,
-} from "@/hooks/useDataQueries";
+import { useAssets, useProject, useProjectAudit, type LicenceStatus } from "@/hooks/useDataQueries";
 import {
   useDeleteProject,
   usePinAssetToProject,
@@ -123,17 +118,13 @@ export function ProjectDetailPage() {
                     )}
                   </div>
                   {project.description && (
-                    <p className="mt-2 max-w-prose text-ui text-text-2">
-                      {project.description}
-                    </p>
+                    <p className="mt-2 max-w-prose text-ui text-text-2">{project.description}</p>
                   )}
                 </div>
               </header>
 
               <section className="rounded-md border border-line bg-panel p-3">
-                <div className="mb-2 text-label text-text-3">
-                  Licence mix
-                </div>
+                <div className="mb-2 text-label text-text-3">Licence mix</div>
                 <LicenceBar counts={counts} size="md" />
                 <div className="mt-1 flex gap-3 text-small text-text-3">
                   <span>
@@ -152,9 +143,7 @@ export function ProjectDetailPage() {
               </section>
 
               <section>
-                <h2 className="mb-2 text-ui font-medium text-text">
-                  Pinned assets
-                </h2>
+                <h2 className="mb-2 text-ui font-medium text-text">Pinned assets</h2>
                 {project.pins.length === 0 ? (
                   <EmptyState
                     title="No assets pinned"
@@ -192,9 +181,7 @@ export function ProjectDetailPage() {
               </section>
 
               <section>
-                <h2 className="mb-2 text-ui font-medium text-text">
-                  Recent activity
-                </h2>
+                <h2 className="mb-2 text-ui font-medium text-text">Recent activity</h2>
                 <ProjectAuditPanel projectId={project.id} />
               </section>
             </div>
@@ -224,12 +211,7 @@ function ProjectPinRow({
     <tr className="border-b border-line/60 hover:bg-surface">
       <td className="py-2 text-text">{pin.asset_name}</td>
       <td className="py-2 font-mono text-text-2">{pin.version_label}</td>
-      <td
-        className={
-          "py-2 font-mono " +
-          (pin.has_update ? "text-warn" : "text-text-3")
-        }
-      >
+      <td className={"py-2 font-mono " + (pin.has_update ? "text-warn" : "text-text-3")}>
         {pin.latest_label ?? "—"} {pin.has_update ? "↑" : ""}
       </td>
       <td className="py-2">
@@ -313,7 +295,12 @@ function PinAssetDialog({
     if (!selected) return;
     pin.mutate(
       { projectId, asset_id: Number(selected) },
-      { onSuccess: () => { onOpenChange(false); setSelected(""); } },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          setSelected("");
+        },
+      },
     );
   };
 

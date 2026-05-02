@@ -1,9 +1,4 @@
-import {
-  test,
-  expect,
-  bootstrapAdmin,
-  installSession,
-} from "../fixtures";
+import { test, expect, bootstrapAdmin, installSession } from "../fixtures";
 
 // PER-83 — library settings persistence. The class of bug the issue calls
 // out is "PATCH succeeded but the GET cache wasn't invalidated": the SPA

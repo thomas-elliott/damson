@@ -31,12 +31,8 @@ export function EmptyState({
       {...props}
     >
       {icon && <div className="text-text-4">{icon}</div>}
-      {title && (
-        <h3 className="text-subhead-medium text-text-2">{title}</h3>
-      )}
-      {description && (
-        <p className="max-w-sm text-ui text-text-3">{description}</p>
-      )}
+      {title && <h3 className="text-subhead-medium text-text-2">{title}</h3>}
+      {description && <p className="max-w-sm text-ui text-text-3">{description}</p>}
       {action && <div className="pt-1">{action}</div>}
     </div>
   );

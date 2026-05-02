@@ -11,12 +11,7 @@ import {
   Sun,
 } from "lucide-react";
 
-import {
-  AppShell,
-  NavRail,
-  NavRailItem,
-  NavRailSpacer,
-} from "@/design-system";
+import { AppShell, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
 import { useImports, useMe } from "@/hooks/useDataQueries";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -26,33 +21,18 @@ import { useTheme } from "@/hooks/useTheme";
  * the rail is owned by the shell so library switching and signed-in state
  * stays in one place.
  */
-export function Shell({
-  main,
-  sidebar,
-}: {
-  main: ReactNode;
-  sidebar?: ReactNode;
-}) {
+export function Shell({ main, sidebar }: { main: ReactNode; sidebar?: ReactNode }) {
   const { data: me, loading } = useMe();
   if (loading) return <LoadingShell />;
   if (!me) return null;
 
   return (
-    <AppShell
-      rail={<DamsonRail />}
-      sidebar={sidebar}
-      main={main}
-      resizableSidebar={!!sidebar}
-    />
+    <AppShell rail={<DamsonRail />} sidebar={sidebar} main={main} resizableSidebar={!!sidebar} />
   );
 }
 
 function LoadingShell() {
-  return (
-    <div className="grid h-screen place-items-center bg-bg text-ui text-text-3">
-      Loading…
-    </div>
-  );
+  return <div className="grid h-screen place-items-center bg-bg text-ui text-text-3">Loading…</div>;
 }
 
 function DamsonRail() {
@@ -61,7 +41,12 @@ function DamsonRail() {
   const { total: queueCount } = useImports("in_flight");
   return (
     <NavRail brand={<DamsonBrand />}>
-      <RailLink to="/library" icon={<Library size={16} />} label="Library" active={pathname.startsWith("/library")} />
+      <RailLink
+        to="/library"
+        icon={<Library size={16} />}
+        label="Library"
+        active={pathname.startsWith("/library")}
+      />
       <RailLink
         to="/queue"
         icon={<Inbox size={16} />}
@@ -69,16 +54,36 @@ function DamsonRail() {
         active={pathname.startsWith("/queue")}
         badge={queueCount > 0 ? queueCount : undefined}
       />
-      <RailLink to="/projects" icon={<FolderGit2 size={16} />} label="Projects" active={pathname.startsWith("/projects")} />
-      <RailLink to="/collections" icon={<Boxes size={16} />} label="Collections" active={pathname.startsWith("/collections")} />
-      <RailLink to="/audit" icon={<FileSearch size={16} />} label="Audit log" active={pathname.startsWith("/audit")} />
+      <RailLink
+        to="/projects"
+        icon={<FolderGit2 size={16} />}
+        label="Projects"
+        active={pathname.startsWith("/projects")}
+      />
+      <RailLink
+        to="/collections"
+        icon={<Boxes size={16} />}
+        label="Collections"
+        active={pathname.startsWith("/collections")}
+      />
+      <RailLink
+        to="/audit"
+        icon={<FileSearch size={16} />}
+        label="Audit log"
+        active={pathname.startsWith("/audit")}
+      />
       <NavRailSpacer />
       <NavRailItem
         icon={mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
         onSelect={toggle}
       />
-      <RailLink to="/settings" icon={<SettingsIcon size={16} />} label="Settings" active={pathname.startsWith("/settings")} />
+      <RailLink
+        to="/settings"
+        icon={<SettingsIcon size={16} />}
+        label="Settings"
+        active={pathname.startsWith("/settings")}
+      />
     </NavRail>
   );
 }
@@ -115,4 +120,3 @@ function DamsonBrand() {
     </div>
   );
 }
-

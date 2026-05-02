@@ -67,11 +67,23 @@ function renderTarget(e: AuditEntry, linkTargets: boolean) {
   if (!linkTargets || !e.target_id) return label;
   switch (e.target_type) {
     case "asset":
-      return <Link to={`/library/${e.target_id}`} className="hover:underline">{label}</Link>;
+      return (
+        <Link to={`/library/${e.target_id}`} className="hover:underline">
+          {label}
+        </Link>
+      );
     case "project":
-      return <Link to={`/projects/${e.target_id}`} className="hover:underline">{label}</Link>;
+      return (
+        <Link to={`/projects/${e.target_id}`} className="hover:underline">
+          {label}
+        </Link>
+      );
     case "collection":
-      return <Link to={`/collections/${e.target_id}`} className="hover:underline">{label}</Link>;
+      return (
+        <Link to={`/collections/${e.target_id}`} className="hover:underline">
+          {label}
+        </Link>
+      );
     default:
       return label;
   }

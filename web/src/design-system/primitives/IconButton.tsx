@@ -12,8 +12,7 @@ const iconButton = cva(
       },
       tone: {
         neutral: "",
-        accent:
-          "text-text-2 data-[active=true]:text-text data-[active=true]:bg-surface",
+        accent: "text-text-2 data-[active=true]:text-text data-[active=true]:bg-surface",
       },
     },
     defaultVariants: { size: "sm", tone: "neutral" },
@@ -21,27 +20,24 @@ const iconButton = cva(
 );
 
 export interface IconButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof iconButton> {
+  extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof iconButton> {
   "aria-label": string;
   active?: boolean;
 }
 
-export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-  function IconButton(
-    { className, size, tone, active, children, type = "button", ...props },
-    ref,
-  ) {
-    return (
-      <button
-        ref={ref}
-        type={type}
-        data-active={active ? "true" : undefined}
-        className={cn(iconButton({ size, tone }), className)}
-        {...props}
-      >
-        {children}
-      </button>
-    );
-  },
-);
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  { className, size, tone, active, children, type = "button", ...props },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      data-active={active ? "true" : undefined}
+      className={cn(iconButton({ size, tone }), className)}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+});

@@ -1,10 +1,4 @@
-import {
-  test,
-  expect,
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
-  bootstrapAdmin,
-} from "../fixtures";
+import { test, expect, ADMIN_EMAIL, ADMIN_PASSWORD, bootstrapAdmin } from "../fixtures";
 
 // Tier-1 flow: local-mode login. Real backend, no mocks. Bootstraps an
 // admin via API in beforeEach so the form has someone to log in as.
