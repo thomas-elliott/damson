@@ -1,9 +1,4 @@
-import {
-  test as base,
-  expect,
-  type APIRequestContext,
-  type Page,
-} from "@playwright/test";
+import { test as base, expect, type APIRequestContext, type Page } from "@playwright/test";
 
 export const ADMIN_EMAIL = "admin@e2e.local";
 export const ADMIN_PASSWORD = "hunter2hunter2";
@@ -99,13 +94,10 @@ export async function loginViaApi(
 // loads so AuthGuard resolves "ready" immediately on first navigation,
 // no login form interaction required. Mirrors lib/localAuth.ts.
 export async function installSession(page: Page, session: Session): Promise<void> {
-  await page.addInitScript(
-    ({ token, expiresAt }) => {
-      window.localStorage.setItem("damson.local.token", token);
-      window.localStorage.setItem("damson.local.expiresAt", expiresAt);
-    },
-    session,
-  );
+  await page.addInitScript(({ token, expiresAt }) => {
+    window.localStorage.setItem("damson.local.token", token);
+    window.localStorage.setItem("damson.local.expiresAt", expiresAt);
+  }, session);
 }
 
 // createLibrary creates a library via the API and returns its id. The
@@ -140,9 +132,7 @@ export async function switchCurrentLibrary(
     data: { library_id: libraryId },
   });
   if (!res.ok()) {
-    throw new Error(
-      `switch library failed: ${res.status()} ${await res.text()}`,
-    );
+    throw new Error(`switch library failed: ${res.status()} ${await res.text()}`);
   }
 }
 
@@ -260,13 +250,10 @@ export async function subsetVersion(
   fileIds: number[],
   versionLabel?: string,
 ): Promise<{ asset_id: number; asset_version_id: number; version_label: string }> {
-  const res = await request.post(
-    `/api/assets/${assetId}/versions/${sourceVersionId}/subset`,
-    {
-      headers: { Authorization: `Bearer ${session.token}` },
-      data: { file_ids: fileIds, version_label: versionLabel },
-    },
-  );
+  const res = await request.post(`/api/assets/${assetId}/versions/${sourceVersionId}/subset`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+    data: { file_ids: fileIds, version_label: versionLabel },
+  });
   if (!res.ok()) {
     throw new Error(`subset failed: ${res.status()} ${await res.text()}`);
   }
@@ -327,14 +314,11 @@ export async function removeAssetFromCollection(
   collectionId: number,
   assetId: number,
 ): Promise<void> {
-  const res = await request.delete(
-    `/api/collections/${collectionId}/assets/${assetId}`,
-    { headers: { Authorization: `Bearer ${session.token}` } },
-  );
+  const res = await request.delete(`/api/collections/${collectionId}/assets/${assetId}`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+  });
   if (!res.ok()) {
-    throw new Error(
-      `remove asset from collection: ${res.status()} ${await res.text()}`,
-    );
+    throw new Error(`remove asset from collection: ${res.status()} ${await res.text()}`);
   }
 }
 
@@ -345,7 +329,15 @@ export async function listAuditEntries(
   request: APIRequestContext,
   session: Session,
   query: Record<string, string | number | undefined> = {},
-): Promise<Array<{ id: number; action_type: string; target_type: string; target_id: number | null; diff: unknown }>> {
+): Promise<
+  Array<{
+    id: number;
+    action_type: string;
+    target_type: string;
+    target_id: number | null;
+    diff: unknown;
+  }>
+> {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(query)) {
     if (v !== undefined) params.set(k, String(v));
@@ -358,7 +350,13 @@ export async function listAuditEntries(
     throw new Error(`list audit: ${res.status()} ${await res.text()}`);
   }
   const body = (await res.json()) as {
-    entries: Array<{ id: number; action_type: string; target_type: string; target_id: number | null; diff: unknown }>;
+    entries: Array<{
+      id: number;
+      action_type: string;
+      target_type: string;
+      target_id: number | null;
+      diff: unknown;
+    }>;
   };
   return body.entries;
 }

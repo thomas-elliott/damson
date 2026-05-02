@@ -1,13 +1,16 @@
 import { useSearchParams } from "react-router";
 import { ChevronDown, ChevronRight, LogOut } from "lucide-react";
 
-import {
-  FilterSidebar,
-  Section,
-  StatusDot,
-} from "@/design-system";
+import { FilterSidebar, Section, StatusDot } from "@/design-system";
 import { LibraryPicker } from "@/components/LibraryPicker";
-import { useProjects, useTags, type AssetFilters, type LicenceStatus, type Me, type TagView } from "@/hooks/useDataQueries";
+import {
+  useProjects,
+  useTags,
+  type AssetFilters,
+  type LicenceStatus,
+  type Me,
+  type TagView,
+} from "@/hooks/useDataQueries";
 
 const LICENCE_STATUSES: { value: LicenceStatus; label: string }[] = [
   { value: "ok", label: "Compliant" },
@@ -49,7 +52,11 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
           <span className="truncate font-mono text-text-3" title={me.email}>
             {me.email}
           </span>
-          <a href="#" aria-label="Sign out" className="text-text-3 transition-colors duration-std ease hover:text-text">
+          <a
+            href="#"
+            aria-label="Sign out"
+            className="text-text-3 transition-colors duration-std ease hover:text-text"
+          >
             <LogOut size={13} />
           </a>
         </div>
@@ -81,9 +88,15 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
 
       <Section title="Tags" defaultOpen>
         {tags.length === 0 ? (
-          <div className="text-small text-text-4">No tags yet — add some from an asset detail panel</div>
+          <div className="text-small text-text-4">
+            No tags yet — add some from an asset detail panel
+          </div>
         ) : (
-          <TagTree tags={tags} activePath={filters.tag_path} onPick={(p) => setParam("tag", filters.tag_path === p ? null : p)} />
+          <TagTree
+            tags={tags}
+            activePath={filters.tag_path}
+            onPick={(p) => setParam("tag", filters.tag_path === p ? null : p)}
+          />
         )}
       </Section>
 
@@ -94,12 +107,7 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
               <FilterRow
                 label={k.label}
                 active={filters.package_kind === k.value}
-                onClick={() =>
-                  setParam(
-                    "kind",
-                    filters.package_kind === k.value ? null : k.value,
-                  )
-                }
+                onClick={() => setParam("kind", filters.package_kind === k.value ? null : k.value)}
               />
             </li>
           ))}
@@ -123,10 +131,7 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
                 icon={<StatusDot tone={s.value} />}
                 active={filters.licence_status === s.value}
                 onClick={() =>
-                  setParam(
-                    "licence",
-                    filters.licence_status === s.value ? null : s.value,
-                  )
+                  setParam("licence", filters.licence_status === s.value ? null : s.value)
                 }
               />
             </li>
@@ -165,9 +170,7 @@ function FilterRow({
         {icon}
         {label}
       </span>
-      {count !== undefined && (
-        <span className="text-mono tabular-nums text-text-3">{count}</span>
-      )}
+      {count !== undefined && <span className="text-mono tabular-nums text-text-3">{count}</span>}
     </button>
   );
 }

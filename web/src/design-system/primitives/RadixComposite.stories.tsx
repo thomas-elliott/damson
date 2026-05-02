@@ -27,18 +27,9 @@ import {
 } from "./DropdownMenu";
 import { Input } from "./Input";
 import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./Select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./Select";
 import { TabCount, Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
-import {
-  SimpleTooltip,
-  TooltipProvider,
-} from "./Tooltip";
+import { SimpleTooltip, TooltipProvider } from "./Tooltip";
 
 const meta: Meta = {
   title: "Primitives/RadixComposite",
@@ -143,12 +134,10 @@ export const PopoverExample: Story = {
       </PopoverTrigger>
       <PopoverContent className="min-w-[240px]">
         <div className="flex flex-col gap-2">
-          <div className="text-label text-text-4">
-            Quick info
-          </div>
+          <div className="text-label text-text-4">Quick info</div>
           <p className="text-small text-text-2">
-            Drop-in popover container. Use for rich content (filters, details)
-            that needs more room than a dropdown menu.
+            Drop-in popover container. Use for rich content (filters, details) that needs more room
+            than a dropdown menu.
           </p>
         </div>
       </PopoverContent>
@@ -187,8 +176,8 @@ export const DialogExample: Story = {
         </DialogHeader>
         <DialogBody>
           <DialogDescription>
-            Projects group assets pinned to a specific game. You can always
-            rename or move them later.
+            Projects group assets pinned to a specific game. You can always rename or move them
+            later.
           </DialogDescription>
           <label className="flex flex-col gap-1.5 text-small">
             <span className="text-text-4">Name</span>

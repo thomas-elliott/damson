@@ -17,10 +17,7 @@ import {
   Toolbar,
 } from "@/design-system";
 import { useLibrarySettings, useMe } from "@/hooks/useDataQueries";
-import {
-  usePatchLibrarySettings,
-  type LibrarySettingsPatch,
-} from "@/hooks/useMutations";
+import { usePatchLibrarySettings, type LibrarySettingsPatch } from "@/hooks/useMutations";
 
 /**
  * Library settings surface. Admins can edit the toggles + theme/grid
@@ -59,35 +56,28 @@ export function SettingsPage() {
             <EmptyState title="Settings unavailable" />
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
-              <header>
-                <h1 className="text-heading text-text">Library settings</h1>
-                <p className="mt-1 text-ui text-text-3">
-                  Applies to <span className="font-mono">{me.current_library.name}</span>. Changes are audited.
-                  {!isAdmin && (
-                    <> You have read-only access — ask a library admin to edit.</>
-                  )}
-                </p>
-              </header>
+              <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
+                <header>
+                  <h1 className="text-heading text-text">Library settings</h1>
+                  <p className="mt-1 text-ui text-text-3">
+                    Applies to <span className="font-mono">{me.current_library.name}</span>. Changes
+                    are audited.
+                    {!isAdmin && <> You have read-only access — ask a library admin to edit.</>}
+                  </p>
+                </header>
 
-              {isAdmin ? (
-                <AdminSettingsForm settings={settings} />
-              ) : (
-                <ReadOnlySettings settings={settings} />
-              )}
+                {isAdmin ? (
+                  <AdminSettingsForm settings={settings} />
+                ) : (
+                  <ReadOnlySettings settings={settings} />
+                )}
 
-              <LibraryMembersSection
-                libraryId={me.current_library.id}
-                isAdmin={isAdmin}
-              />
+                <LibraryMembersSection libraryId={me.current_library.id} isAdmin={isAdmin} />
 
-              <LibraryProfileSection
-                library={me.current_library}
-                isAdmin={isAdmin}
-              />
+                <LibraryProfileSection library={me.current_library} isAdmin={isAdmin} />
 
-              {isSysadmin && <ServerAdminSection />}
-            </div>
+                {isSysadmin && <ServerAdminSection />}
+              </div>
             </div>
           )}
         </>
@@ -114,15 +104,32 @@ function ReadOnlySettings({ settings }: { settings: SettingsView }) {
       <Section title="Appearance" defaultOpen>
         <KeyValueList
           entries={[
-            { key: "Theme default", value: <Badge size="sm" mono>{settings.theme_default}</Badge> },
-            { key: "Grid density default", value: <Badge size="sm" mono>{settings.grid_density_default}</Badge> },
+            {
+              key: "Theme default",
+              value: (
+                <Badge size="sm" mono>
+                  {settings.theme_default}
+                </Badge>
+              ),
+            },
+            {
+              key: "Grid density default",
+              value: (
+                <Badge size="sm" mono>
+                  {settings.grid_density_default}
+                </Badge>
+              ),
+            },
           ]}
         />
       </Section>
       <Section title="Storage" defaultOpen>
         <KeyValueList
           entries={[
-            { key: "Retain original packages", value: boolBadge(settings.retain_original_packages) },
+            {
+              key: "Retain original packages",
+              value: boolBadge(settings.retain_original_packages),
+            },
             { key: "Dedupe enabled", value: boolBadge(settings.dedupe_enabled) },
           ]}
         />
@@ -173,7 +180,13 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
       <Section
         title="Appearance"
         defaultOpen
-        accessory={savedAt ? <Badge size="sm" tone="ok">Saved</Badge> : null}
+        accessory={
+          savedAt ? (
+            <Badge size="sm" tone="ok">
+              Saved
+            </Badge>
+          ) : null
+        }
       >
         <FormRow label="Theme default">
           <SegmentedControl
@@ -288,11 +301,7 @@ function ToggleRow({
 }) {
   return (
     <FormRow label={label} help={help}>
-      <Checkbox
-        aria-label={label}
-        checked={checked}
-        onCheckedChange={(v) => onChange(!!v)}
-      />
+      <Checkbox aria-label={label} checked={checked} onCheckedChange={(v) => onChange(!!v)} />
     </FormRow>
   );
 }

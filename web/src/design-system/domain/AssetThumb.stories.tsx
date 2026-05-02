@@ -39,9 +39,7 @@ export const AllPatterns: Story = {
       {SPRITE_PATTERNS.map((p) => (
         <div key={p} className="flex flex-col gap-1.5">
           <div className="aspect-square overflow-hidden rounded-md border border-line">
-            <AssetThumb
-              thumb={{ kind: "sprite", palette: SAMPLE_PALETTES[p], pattern: p }}
-            />
+            <AssetThumb thumb={{ kind: "sprite", palette: SAMPLE_PALETTES[p], pattern: p }} />
           </div>
           <div className="text-mono text-text-3">{p}</div>
         </div>
@@ -76,9 +74,7 @@ export const Fonts: Story = {
       ].map((s) => (
         <div key={s.family} className="flex flex-col gap-1.5">
           <div className="aspect-square overflow-hidden rounded-md border border-line">
-            <AssetThumb
-              thumb={{ kind: "font", sample: s.sample, family: s.family }}
-            />
+            <AssetThumb thumb={{ kind: "font", sample: s.sample, family: s.family }} />
           </div>
           <div className="text-mono text-text-3">{s.family}</div>
         </div>

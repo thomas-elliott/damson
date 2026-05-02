@@ -62,13 +62,7 @@ export function QueuePage() {
   );
 }
 
-function ImportQueueRow({
-  imp,
-  onOpen,
-}: {
-  imp: ImportRow;
-  onOpen: () => void;
-}) {
+function ImportQueueRow({ imp, onOpen }: { imp: ImportRow; onOpen: () => void }) {
   const retry = useRetryImport();
   const stage = imp.stage;
   const isFailed = stage === "failed";
@@ -77,19 +71,19 @@ function ImportQueueRow({
     <QueueItem
       name={imp.asset_name || `Import #${imp.id}`}
       thumb={
-        isFailed ? <AlertTriangle size={20} className="text-err" /> : <Loader2 size={20} className="text-text-3" />
+        isFailed ? (
+          <AlertTriangle size={20} className="text-err" />
+        ) : (
+          <Loader2 size={20} className="text-text-3" />
+        )
       }
       sub={
         <>
           <Badge size="sm" mono tone={isFailed ? "err" : imp.needs_review ? "warn" : "ok"}>
             {stage}
           </Badge>
-          {isFailed && imp.error && (
-            <span className="truncate text-err">{imp.error}</span>
-          )}
-          <span className="text-text-4">
-            updated {new Date(imp.updated_at).toLocaleString()}
-          </span>
+          {isFailed && imp.error && <span className="truncate text-err">{imp.error}</span>}
+          <span className="text-text-4">updated {new Date(imp.updated_at).toLocaleString()}</span>
         </>
       }
       actions={

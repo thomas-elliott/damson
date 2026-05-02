@@ -103,8 +103,20 @@ export function LibraryPage() {
             if (s.assetId != null) s.onCloseDetail();
           },
         },
-        { key: "ArrowRight", handler: (e) => { e.preventDefault(); moveSelection(1); } },
-        { key: "ArrowLeft", handler: (e) => { e.preventDefault(); moveSelection(-1); } },
+        {
+          key: "ArrowRight",
+          handler: (e) => {
+            e.preventDefault();
+            moveSelection(1);
+          },
+        },
+        {
+          key: "ArrowLeft",
+          handler: (e) => {
+            e.preventDefault();
+            moveSelection(-1);
+          },
+        },
         {
           key: "ArrowDown",
           handler: (e) => {
@@ -135,7 +147,13 @@ export function LibraryPage() {
 
   return (
     <Shell
-      sidebar={hasLibrary ? <LibraryFilterSidebar me={me} filters={filters} /> : <SignedOutSidebar me={me} />}
+      sidebar={
+        hasLibrary ? (
+          <LibraryFilterSidebar me={me} filters={filters} />
+        ) : (
+          <SignedOutSidebar me={me} />
+        )
+      }
       main={
         hasLibrary ? (
           <DropZone>
@@ -170,10 +188,8 @@ export function LibraryPage() {
             title="No library access yet"
             description={
               <>
-                You're signed in as{" "}
-                <span className="font-mono text-text-2">{me.email}</span> but
-                you haven't been added to a library. Ask a Damson administrator
-                to invite you.
+                You're signed in as <span className="font-mono text-text-2">{me.email}</span> but
+                you haven't been added to a library. Ask a Damson administrator to invite you.
               </>
             }
           />

@@ -1,14 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
-import {
-  Box,
-  Boxes,
-  FileSearch,
-  FolderGit2,
-  Inbox,
-  Library,
-  Settings,
-} from "lucide-react";
+import { Box, Boxes, FileSearch, FolderGit2, Inbox, Library, Settings } from "lucide-react";
 
 import { SearchInput } from "@/design-system/primitives/SearchInput";
 import { StatusDot } from "@/design-system/primitives/StatusDot";
