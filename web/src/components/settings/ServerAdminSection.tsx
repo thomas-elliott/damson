@@ -76,9 +76,18 @@ function ServerSettingsForm() {
     <Section
       title="Server settings"
       defaultOpen
-      accessory={savedAt ? <Badge size="sm" tone="ok">Saved</Badge> : null}
+      accessory={
+        savedAt ? (
+          <Badge size="sm" tone="ok">
+            Saved
+          </Badge>
+        ) : null
+      }
     >
-      <FieldRow label="Max upload bytes" hint="Hard cap applied to all uploads. 2 GiB = 2147483648.">
+      <FieldRow
+        label="Max upload bytes"
+        hint="Hard cap applied to all uploads. 2 GiB = 2147483648."
+      >
         <Input
           type="number"
           min={1}
@@ -120,10 +129,7 @@ function UsersSection() {
   // The server returns 409 on demote-to-user when this is the only
   // sysadmin; surface that rule in the UI so admins find out before
   // clicking. Defence-in-depth, not the only gate.
-  const sysadminCount = useMemo(
-    () => users.filter((u) => u.role === "sysadmin").length,
-    [users],
-  );
+  const sysadminCount = useMemo(() => users.filter((u) => u.role === "sysadmin").length, [users]);
 
   return (
     <Section title={`Users (${users.length})`} defaultOpen>
@@ -145,10 +151,7 @@ function UsersSection() {
                   <div className="truncate text-caption">{u.email}</div>
                 </div>
                 {isLastSysadmin ? (
-                  <SimpleTooltip
-                    label="Last sysadmin — promote another user first."
-                    side="top"
-                  >
+                  <SimpleTooltip label="Last sysadmin — promote another user first." side="top">
                     <span>
                       <Select value={u.role} disabled>
                         <SelectTrigger aria-label="Global role" className="w-32">
@@ -192,10 +195,7 @@ function UsersSection() {
         onClose={() => setResetUser(null)}
         onSubmit={(password) => {
           if (!resetUser) return;
-          reset.mutate(
-            { userId: resetUser.id, password },
-            { onSuccess: () => setResetUser(null) },
-          );
+          reset.mutate({ userId: resetUser.id, password }, { onSuccess: () => setResetUser(null) });
         }}
       />
     </Section>
@@ -223,8 +223,8 @@ function ResetPasswordDialog({
         <DialogBody>
           {user && (
             <p className="text-ui text-text-2">
-              Set a new password for <span className="font-mono">{user.email}</span>. Their
-              existing sessions will be invalidated.
+              Set a new password for <span className="font-mono">{user.email}</span>. Their existing
+              sessions will be invalidated.
             </p>
           )}
           <FieldRow label="New password">

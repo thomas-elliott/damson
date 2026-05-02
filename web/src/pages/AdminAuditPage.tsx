@@ -2,17 +2,8 @@ import { useSearchParams, Link, Navigate } from "react-router";
 
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  SegmentedControl,
-  Toolbar,
-} from "@/design-system";
-import {
-  useAdminAudit,
-  useMe,
-  type AdminAuditScope,
-} from "@/hooks/useDataQueries";
+import { Breadcrumb, BreadcrumbItem, SegmentedControl, Toolbar } from "@/design-system";
+import { useAdminAudit, useMe, type AdminAuditScope } from "@/hooks/useDataQueries";
 
 /**
  * Sysadmin audit log. Two scopes:
@@ -31,10 +22,7 @@ export function AdminAuditPage() {
   const isSysadmin = me?.role === "sysadmin";
   const [params, setParams] = useSearchParams();
   const scope: AdminAuditScope = params.get("scope") === "all" ? "all" : "server";
-  const { data: entries, total, loading } = useAdminAudit(
-    { limit: 200, scope },
-    isSysadmin,
-  );
+  const { data: entries, total, loading } = useAdminAudit({ limit: 200, scope }, isSysadmin);
 
   if (meLoading) {
     return (
@@ -65,9 +53,13 @@ export function AdminAuditPage() {
           <Toolbar>
             <Breadcrumb count={loading ? "…" : `${total}`}>
               <BreadcrumbItem>
-                <Link to="/audit" className="hover:underline">Audit log</Link>
+                <Link to="/audit" className="hover:underline">
+                  Audit log
+                </Link>
               </BreadcrumbItem>
-              <BreadcrumbItem current>{scope === "all" ? "All libraries" : "Server"}</BreadcrumbItem>
+              <BreadcrumbItem current>
+                {scope === "all" ? "All libraries" : "Server"}
+              </BreadcrumbItem>
             </Breadcrumb>
             <div className="ml-auto">
               <SegmentedControl
@@ -90,11 +82,7 @@ export function AdminAuditPage() {
               <AuditList
                 entries={entries}
                 showLibrary={scope === "all"}
-                emptyTitle={
-                  scope === "all"
-                    ? "No activity yet"
-                    : "No server-level events yet"
-                }
+                emptyTitle={scope === "all" ? "No activity yet" : "No server-level events yet"}
                 emptyDescription={
                   scope === "all"
                     ? "Library and server-level activity will appear here."

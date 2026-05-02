@@ -4,8 +4,7 @@ import { cn } from "@/design-system/utils";
 
 import { AssetThumb, type ThumbDescriptor } from "./AssetThumb";
 
-export interface AssetListRowProps
-  extends Omit<HTMLAttributes<HTMLTableRowElement>, "onSelect"> {
+export interface AssetListRowProps extends Omit<HTMLAttributes<HTMLTableRowElement>, "onSelect"> {
   name: string;
   thumb?: ThumbDescriptor;
   /** Cells to render after the name (each wrapped in its own <td>). */
@@ -21,16 +20,7 @@ export interface AssetListRowProps
  */
 export const AssetListRow = forwardRef<HTMLTableRowElement, AssetListRowProps>(
   function AssetListRow(
-    {
-      className,
-      name,
-      thumb,
-      cells,
-      selected,
-      onSelect,
-      onClick,
-      ...props
-    },
+    { className, name, thumb, cells, selected, onSelect, onClick, ...props },
     ref,
   ) {
     return (

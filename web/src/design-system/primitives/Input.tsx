@@ -24,22 +24,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         className,
       )}
     >
-      {leadingIcon && (
-        <span className="grid place-items-center text-text-3">
-          {leadingIcon}
-        </span>
-      )}
+      {leadingIcon && <span className="grid place-items-center text-text-3">{leadingIcon}</span>}
       <input
         ref={ref}
         disabled={disabled}
         className="min-w-0 flex-1 bg-transparent text-ui leading-none text-text outline-hidden placeholder:text-text-4 disabled:cursor-not-allowed"
         {...props}
       />
-      {trailingSlot && (
-        <span className="grid place-items-center text-text-3">
-          {trailingSlot}
-        </span>
-      )}
+      {trailingSlot && <span className="grid place-items-center text-text-3">{trailingSlot}</span>}
     </div>
   );
 });

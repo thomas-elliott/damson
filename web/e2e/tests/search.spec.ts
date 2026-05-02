@@ -2,13 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 
-import {
-  test,
-  expect,
-  bootstrapAdmin,
-  installSession,
-  uploadImport,
-} from "../fixtures";
+import { test, expect, bootstrapAdmin, installSession, uploadImport } from "../fixtures";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");

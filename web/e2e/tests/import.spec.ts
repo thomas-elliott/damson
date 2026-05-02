@@ -24,8 +24,7 @@ test.describe("Asset import", () => {
 
     const importResponse = page.waitForResponse(
       (res) =>
-        /\/api\/imports$/.test(new URL(res.url()).pathname) &&
-        res.request().method() === "POST",
+        /\/api\/imports$/.test(new URL(res.url()).pathname) && res.request().method() === "POST",
     );
 
     await page.locator('input[type="file"]').setInputFiles(FIXTURE_PATH);

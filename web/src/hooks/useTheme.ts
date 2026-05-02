@@ -10,9 +10,7 @@ import { useLibrarySettings } from "@/hooks/useDataQueries";
 // the stored choice wins forever.
 export function useTheme() {
   const { data: settings } = useLibrarySettings();
-  const [mode, setMode] = useState<ThemeMode>(() =>
-    resolveInitialTheme(settings?.theme_default),
-  );
+  const [mode, setMode] = useState<ThemeMode>(() => resolveInitialTheme(settings?.theme_default));
 
   // When the library's default arrives (or changes via PATCH) and the user
   // hasn't stored an explicit choice yet, fall in line with the library.

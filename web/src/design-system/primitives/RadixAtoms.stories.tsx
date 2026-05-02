@@ -17,10 +17,7 @@ export const Checkboxes: Story = {
     return (
       <div className="flex flex-col gap-2">
         <label className="flex cursor-pointer items-center gap-2 text-ui">
-          <Checkbox
-            checked={checked}
-            onCheckedChange={(v) => setChecked(v === true)}
-          />
+          <Checkbox checked={checked} onCheckedChange={(v) => setChecked(v === true)} />
           <span>Controlled checkbox</span>
         </label>
         <label className="flex cursor-pointer items-center gap-2 text-ui">
@@ -45,14 +42,7 @@ export const Sliders: Story = {
     const [v, setV] = useState([40]);
     return (
       <div className="flex min-w-[280px] flex-col gap-4">
-        <Slider
-          value={v}
-          onValueChange={setV}
-          min={0}
-          max={100}
-          step={1}
-          aria-label="Density"
-        />
+        <Slider value={v} onValueChange={setV} min={0} max={100} step={1} aria-label="Density" />
         <div className="text-mono text-text-3">value: {v[0]}</div>
       </div>
     );

@@ -27,22 +27,14 @@ export function KeyValueList({
 }: KeyValueListProps) {
   return (
     <dl
-      className={cn(
-        "grid gap-x-3 gap-y-1.5 text-small",
-        className,
-      )}
+      className={cn("grid gap-x-3 gap-y-1.5 text-small", className)}
       style={{ gridTemplateColumns: `${labelWidth} 1fr` }}
       {...props}
     >
       {entries.map((entry, i) => (
         <div key={i} className="contents">
           <dt className="text-text-3">{entry.key}</dt>
-          <dd
-            className={cn(
-              "m-0 break-words text-text-2",
-              entry.mono && "font-mono",
-            )}
-          >
+          <dd className={cn("m-0 break-words text-text-2", entry.mono && "font-mono")}>
             {entry.value}
           </dd>
         </div>

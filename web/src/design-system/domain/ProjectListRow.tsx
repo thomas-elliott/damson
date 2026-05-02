@@ -4,8 +4,10 @@ import { cn } from "@/design-system/utils";
 
 import { ProjectGlyph } from "./ProjectGlyph";
 
-export interface ProjectListRowProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, "onSelect" | "title"> {
+export interface ProjectListRowProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  "onSelect" | "title"
+> {
   name: string;
   glyph: string;
   color: string;

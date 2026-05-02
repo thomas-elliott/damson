@@ -15,11 +15,7 @@ export const Text: Story = {
   render: () => (
     <div className="flex min-w-[320px] flex-col gap-3">
       <Input placeholder="Untitled asset" aria-label="Asset name" />
-      <Input
-        placeholder="Email"
-        aria-label="Email"
-        leadingIcon={<Mail size={13} />}
-      />
+      <Input placeholder="Email" aria-label="Email" leadingIcon={<Mail size={13} />} />
       <Input
         placeholder="Invalid"
         aria-label="Invalid sample"
@@ -34,10 +30,7 @@ export const Text: Story = {
 export const Search: Story = {
   render: () => (
     <div className="flex min-w-[320px] flex-col gap-3">
-      <SearchInput
-        placeholder="Search assets, tags…"
-        aria-label="Search assets"
-      />
+      <SearchInput placeholder="Search assets, tags…" aria-label="Search assets" />
       <SearchInput
         placeholder="Search assets, tags…"
         aria-label="Search assets with shortcut"
@@ -50,10 +43,7 @@ export const Search: Story = {
 export const Multiline: Story = {
   render: () => (
     <div className="flex min-w-[320px] flex-col gap-3">
-      <Textarea
-        placeholder="Internal notes about this asset…"
-        aria-label="Internal notes"
-      />
+      <Textarea placeholder="Internal notes about this asset…" aria-label="Internal notes" />
       <Textarea
         placeholder="Invalid"
         invalid
@@ -74,9 +64,7 @@ export const AllStates: Story = {
         { label: "Focus", cls: "pseudo-focus-within-all" },
       ].map((row) => (
         <div key={row.label} className="flex items-center gap-3">
-          <span className="w-20 font-mono text-label text-text-3">
-            {row.label}
-          </span>
+          <span className="w-20 font-mono text-label text-text-3">{row.label}</span>
           <div className={row.cls + " flex-1"}>
             <Input
               placeholder="name@example.com"
@@ -87,27 +75,15 @@ export const AllStates: Story = {
         </div>
       ))}
       <div className="flex items-center gap-3">
-        <span className="w-20 font-mono text-label text-text-3">
-          Invalid
-        </span>
+        <span className="w-20 font-mono text-label text-text-3">Invalid</span>
         <div className="flex-1">
-          <Input
-            invalid
-            defaultValue="not-an-email"
-            aria-label="Invalid input"
-          />
+          <Input invalid defaultValue="not-an-email" aria-label="Invalid input" />
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <span className="w-20 font-mono text-label text-text-3">
-          Disabled
-        </span>
+        <span className="w-20 font-mono text-label text-text-3">Disabled</span>
         <div className="flex-1">
-          <Input
-            disabled
-            placeholder="placeholder"
-            aria-label="Disabled input"
-          />
+          <Input disabled placeholder="placeholder" aria-label="Disabled input" />
         </div>
       </div>
     </div>

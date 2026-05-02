@@ -25,13 +25,6 @@ export interface StatusDotProps extends VariantProps<typeof dot> {
 
 export function StatusDot({ tone, size, ring, className }: StatusDotProps) {
   return (
-    <span
-      aria-hidden
-      className={cn(
-        dot({ tone, size }),
-        ring && "ring-2 ring-panel",
-        className,
-      )}
-    />
+    <span aria-hidden className={cn(dot({ tone, size }), ring && "ring-2 ring-panel", className)} />
   );
 }

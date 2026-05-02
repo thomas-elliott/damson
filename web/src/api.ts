@@ -57,10 +57,7 @@ async function renewOrReject(): Promise<boolean> {
   }
 }
 
-export async function fetchJson<T>(
-  url: string,
-  options: RequestInit = {},
-): Promise<T> {
+export async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
   const hdrs: Record<string, string> = {
     "Content-Type": "application/json",
     ...(await authHeader()),

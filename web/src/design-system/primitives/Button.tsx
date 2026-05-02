@@ -57,33 +57,31 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
     pressed?: boolean;
   };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  function Button(
-    {
-      className,
-      variant,
-      size,
-      leadingIcon,
-      trailingIcon,
-      pressed,
-      children,
-      type = "button",
-      ...props
-    },
-    ref,
-  ) {
-    return (
-      <button
-        ref={ref}
-        type={type}
-        data-pressed={pressed ? "true" : undefined}
-        className={cn(button({ variant, size }), className)}
-        {...props}
-      >
-        {leadingIcon}
-        {children}
-        {trailingIcon}
-      </button>
-    );
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    className,
+    variant,
+    size,
+    leadingIcon,
+    trailingIcon,
+    pressed,
+    children,
+    type = "button",
+    ...props
   },
-);
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      data-pressed={pressed ? "true" : undefined}
+      className={cn(button({ variant, size }), className)}
+      {...props}
+    >
+      {leadingIcon}
+      {children}
+      {trailingIcon}
+    </button>
+  );
+});

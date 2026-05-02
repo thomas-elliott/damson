@@ -35,14 +35,10 @@ export const Grid: Story = {
                 )}
               </>
             }
-            trailing={
-              <LicencePill status={a.licenceStatus} spdx={a.spdx} noDot />
-            }
+            trailing={<LicencePill status={a.licenceStatus} spdx={a.spdx} noDot />}
             needsReview={a.needsReview}
             selected={selected === a.id}
-            onSelect={() =>
-              setSelected((prev) => (prev === a.id ? null : a.id))
-            }
+            onSelect={() => setSelected((prev) => (prev === a.id ? null : a.id))}
           />
         ))}
       </div>
@@ -65,20 +61,12 @@ export const ListView: Story = {
                 name={a.name}
                 thumb={a.thumb}
                 selected={selected === a.id}
-                onSelect={() =>
-                  setSelected((prev) => (prev === a.id ? null : a.id))
-                }
+                onSelect={() => setSelected((prev) => (prev === a.id ? null : a.id))}
                 cells={[
-                  <span className="text-mono text-text-3">
-                    {a.type}
-                  </span>,
+                  <span className="text-mono text-text-3">{a.type}</span>,
                   <LicencePill status={a.licenceStatus} spdx={a.spdx} noDot />,
-                  <span className="text-mono text-text-3">
-                    {formatBytes(a.size)}
-                  </span>,
-                  <span className="text-mono text-text-3">
-                    {a.imported}
-                  </span>,
+                  <span className="text-mono text-text-3">{formatBytes(a.size)}</span>,
+                  <span className="text-mono text-text-3">{a.imported}</span>,
                 ]}
               />
             ))}

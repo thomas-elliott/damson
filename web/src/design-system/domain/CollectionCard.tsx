@@ -4,8 +4,10 @@ import { Folder, Sliders } from "lucide-react";
 import { cn } from "@/design-system/utils";
 import { Pill } from "@/design-system/primitives/Pill";
 
-export interface CollectionCardProps
-  extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect" | "title"> {
+export interface CollectionCardProps extends Omit<
+  HTMLAttributes<HTMLButtonElement>,
+  "onSelect" | "title"
+> {
   name: string;
   count: number;
   kind?: "manual" | "smart";
