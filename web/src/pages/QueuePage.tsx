@@ -11,7 +11,8 @@ import {
   QueueItem,
   Toolbar,
 } from "@/design-system";
-import { useImports, type ImportRow } from "@/hooks/useDataQueries";
+import { useImports, useMe, type ImportRow } from "@/hooks/useDataQueries";
+import { useImportEvents } from "@/hooks/useImportEvents";
 import { useRetryImport } from "@/hooks/useMutations";
 
 /**
@@ -22,6 +23,8 @@ import { useRetryImport } from "@/hooks/useMutations";
  */
 export function QueuePage() {
   const { data: imports, loading } = useImports("in_flight");
+  const { data: me } = useMe();
+  useImportEvents(me?.current_library?.id);
   const navigate = useNavigate();
   return (
     <Shell

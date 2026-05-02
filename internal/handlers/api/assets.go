@@ -15,7 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
-	"github.com/thomas-elliott/damson/internal/services/thumbnail"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 type assetGridRow struct {
@@ -249,23 +249,39 @@ func (h *Handler) getAssets(c *gin.Context) {
 	c.JSON(http.StatusOK, assetListResponse{Assets: out, Total: total})
 }
 
+// importEnqueueResponse is the slim 202 payload returned by POST
+// /api/imports and POST /api/imports/:id/retry. The rich asset metadata
+// (file count, size, package kind) materializes asynchronously — the SPA
+// learns about it via SSE on /api/imports/events or by re-fetching the
+// asset.
+type importEnqueueResponse struct {
+	AssetID  uint `json:"asset_id"`
+	ImportID uint `json:"import_id"`
+}
+
+// importResponse is the wire shape returned by /reextract — that flow stays
+// synchronous for now (re-processing already-stored bytes is fast and the
+// caller wants the new version id immediately).
 type importResponse struct {
 	AssetID        uint   `json:"asset_id"`
 	AssetVersionID uint   `json:"asset_version_id"`
-	ImportID       uint   `json:"import_id"`
 	FileCount      int    `json:"file_count"`
 	SizeBytes      int64  `json:"size_bytes"`
 	PackageKind    string `json:"package_kind"`
 }
 
 // postImport accepts a single-file upload via multipart/form-data (`file`
-// field) and creates an asset + first version. `.unitypackage` uploads are
-// extracted in-process: every inner file becomes an asset_files row, the
-// original archive is retained, and an embedded preview.png (if any) is
-// harvested as the asset's thumbnail.
+// field), persists the upload blob and a stub asset/version/import row,
+// then enqueues the heavy lifting (extract, detect, thumbnail) onto the
+// background pool. Returns 202 with the import id so the SPA can subscribe
+// to /api/imports/events for stage transitions.
 func (h *Handler) postImport(c *gin.Context) {
 	if h.storage == nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
+		return
+	}
+	if h.importPool == nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "import pool not configured"})
 		return
 	}
 	lib := getLibrary(c)
@@ -289,7 +305,6 @@ func (h *Handler) postImport(c *gin.Context) {
 
 	objectKey, size, err := h.storage.PutBlob(c.Request.Context(), src)
 	if err != nil {
-		// No asset_id yet — log only; the user gets a 500 and will retry.
 		slog.Warn("storage put failed", "err", err, "library_id", lib.ID)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage put failed"})
 		return
@@ -299,136 +314,65 @@ func (h *Handler) postImport(c *gin.Context) {
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "upload"
 	}
-
 	isUnity := strings.EqualFold(filepath.Ext(filename), ".unitypackage")
+	contentType := fh.Header.Get("Content-Type")
 
-	// Run Unity extraction outside the DB transaction — it streams inner
-	// blobs to storage, which may take noticeable time. If extraction fails,
-	// the uploaded archive blob is still in storage (content-addressed; GC
-	// picks it up later) but no DB rows exist.
-	var extracted *extract.UnityResult
-	if isUnity {
-		blob, gerr := h.storage.GetBlob(c.Request.Context(), objectKey)
-		if gerr != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-			return
-		}
-		defer blob.Close()
-		ex := &extract.UnityExtractor{Storage: h.storage}
-		res, xerr := ex.Extract(c.Request.Context(), blob)
-		if xerr != nil {
-			slog.Warn("unity extract failed", "err", xerr, "filename", filename, "size", size, "library_id", lib.ID)
-			// Record the failure as a stub asset + failed import so the
-			// queue surface can show + retry it. Without an asset_id we'd
-			// have nowhere to attach the row, so create a minimal asset
-			// pointing at the retained archive blob.
-			h.recordFailedUploadImport(c, lib.ID, &u.ID, filename, objectKey, true, "extract: "+xerr.Error())
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + xerr.Error()})
-			return
-		}
-		extracted = res
-	}
-
-	// M6 thumbnail pipeline. Unity packages already harvest preview.png during
-	// extraction (services/extract); only run the generator if no preview was
-	// found. Loose uploads always go through the generator with the file's
-	// reported content type and filename. Failures are logged and ignored —
-	// thumbnails are never mandatory; the SPA falls back to a file-type icon.
-	thumbKey, thumbType := "", ""
-	if extracted != nil {
-		thumbKey = extracted.ThumbObjectKey
-		thumbType = extracted.ThumbContentType
-	}
-	if thumbKey == "" {
-		settings, sErr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID)
-		if sErr != nil {
-			slog.Warn("thumbnail: load settings", "err", sErr, "library_id", lib.ID)
-		} else if !isUnity || settings.ThumbnailsUnityPreview {
-			toggles := thumbnail.Toggles{
-				Raster: settings.ThumbnailsRasterEnabled,
-				Audio:  settings.ThumbnailsAudioEnabled,
-				Font:   settings.ThumbnailsFontEnabled,
-			}
-			blob, bErr := h.storage.GetBlob(c.Request.Context(), objectKey)
-			if bErr != nil {
-				slog.Warn("thumbnail: get blob", "err", bErr, "object_key", objectKey)
-			} else {
-				gen := &thumbnail.Generator{Storage: h.storage}
-				tres, tErr := gen.Generate(c.Request.Context(), thumbnail.Input{
-					Reader:      blob,
-					Filename:    filename,
-					ContentType: fh.Header.Get("Content-Type"),
-				}, toggles)
-				blob.Close()
-				if tErr != nil {
-					slog.Warn("thumbnail: generate", "err", tErr, "filename", filename)
-				} else if tres.ObjectKey != "" {
-					thumbKey = tres.ObjectKey
-					thumbType = tres.ContentType
-				}
-			}
-		}
-	}
-
-	var resp importResponse
+	var (
+		assetID  uint
+		importID uint
+		libID    = lib.ID
+	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		asset := models.Asset{
-			LibraryID:       lib.ID,
+			LibraryID:       libID,
 			Name:            assetNameFromFilename(filename),
 			NeedsReview:     true,
 			CreatedByUserID: &u.ID,
 		}
-		if thumbKey != "" {
-			asset.ThumbnailObjectKey = thumbKey
-			asset.ThumbnailContentType = thumbType
-		}
 		if err := tx.Create(&asset).Error; err != nil {
 			return err
 		}
-
 		version := models.AssetVersion{
-			AssetID:         asset.ID,
-			VersionLabel:    "v1",
-			ImportDate:      time.Now().UTC(),
-			CreatedByUserID: &u.ID,
+			AssetID:                  asset.ID,
+			VersionLabel:             "v1",
+			ImportDate:               time.Now().UTC(),
+			CreatedByUserID:          &u.ID,
+			OriginalPackageObjectKey: objectKey,
 		}
 		if isUnity {
 			version.PackageKind = packageKindUnityPackage
-			version.OriginalPackageObjectKey = objectKey
 		} else {
 			version.PackageKind = packageKindLoose
 		}
 		if err := tx.Create(&version).Error; err != nil {
 			return err
 		}
-
-		fileCount, totalBytes, err := writeAssetFiles(tx, version.ID, objectKey, size, filename, fh.Header.Get("Content-Type"), extracted)
-		if err != nil {
-			return err
+		// Loose uploads: write the single asset_files row now so the
+		// pipeline has filename + content type available for thumbnail
+		// detection. Unity uploads write asset_files after extraction.
+		if !isUnity {
+			f := models.AssetFile{
+				AssetVersionID: version.ID,
+				RelativePath:   filename,
+				SizeBytes:      size,
+				ContentHash:    objectKey,
+				ObjectKey:      objectKey,
+				DetectedType:   contentType,
+			}
+			if err := tx.Create(&f).Error; err != nil {
+				return err
+			}
 		}
-
-		asset.CurrentVersionID = &version.ID
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-
 		imp := models.AssetImport{
 			AssetID:   asset.ID,
-			Stage:     "done",
+			Stage:     imports.StageUploaded,
 			UpdatedAt: time.Now().UTC(),
 		}
 		if err := tx.Create(&imp).Error; err != nil {
 			return err
 		}
-
-		resp = importResponse{
-			AssetID:        asset.ID,
-			AssetVersionID: version.ID,
-			ImportID:       imp.ID,
-			FileCount:      fileCount,
-			SizeBytes:      totalBytes,
-			PackageKind:    version.PackageKind,
-		}
+		assetID = asset.ID
+		importID = imp.ID
 		return nil
 	})
 	if err != nil {
@@ -436,7 +380,9 @@ func (h *Handler) postImport(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, resp)
+	h.importPool.Enqueue(imports.Job{ImportID: importID, LibraryID: libID})
+
+	c.JSON(http.StatusAccepted, importEnqueueResponse{AssetID: assetID, ImportID: importID})
 }
 
 // postReExtract creates a new AssetVersion by re-reading the original
@@ -508,7 +454,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 
-	nextLabel, err := nextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
+	nextLabel, err := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
@@ -528,7 +474,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 			return err
 		}
 
-		fileCount, totalBytes, err := writeAssetFiles(tx, version.ID, "", 0, "", "", result)
+		fileCount, totalBytes, err := imports.WriteAssetFiles(tx, version.ID, "", 0, "", "", result)
 		if err != nil {
 			return err
 		}
@@ -557,102 +503,6 @@ func (h *Handler) postReExtract(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, resp)
-}
-
-// recordFailedUploadImport persists a stub asset + a failed import row when
-// an upload makes it to storage but the post-upload pipeline (Unity extract,
-// validation, etc.) bombs out before any asset_files exist. The row gives
-// the queue UI something to show and a handle for retry. Failures here are
-// best-effort logged: the user is already getting an error response, so we
-// don't escalate further.
-func (h *Handler) recordFailedUploadImport(c *gin.Context, libID uint, userID *uint, filename, objectKey string, isUnity bool, reason string) {
-	tx := h.db.WithContext(c.Request.Context())
-	asset := models.Asset{
-		LibraryID:       libID,
-		Name:            assetNameFromFilename(filename),
-		NeedsReview:     true,
-		CreatedByUserID: userID,
-	}
-	if err := tx.Create(&asset).Error; err != nil {
-		slog.Warn("record failed import: create asset", "err", err)
-		return
-	}
-	v := models.AssetVersion{
-		AssetID:         asset.ID,
-		VersionLabel:    "v1",
-		ImportDate:      time.Now().UTC(),
-		CreatedByUserID: userID,
-	}
-	if isUnity {
-		v.PackageKind = packageKindUnityPackage
-		v.OriginalPackageObjectKey = objectKey
-	} else {
-		v.PackageKind = packageKindLoose
-	}
-	if err := tx.Create(&v).Error; err != nil {
-		slog.Warn("record failed import: create version", "err", err)
-	}
-	imp := models.AssetImport{
-		AssetID:   asset.ID,
-		Stage:     "failed",
-		Error:     reason,
-		UpdatedAt: time.Now().UTC(),
-	}
-	if err := tx.Create(&imp).Error; err != nil {
-		slog.Warn("record failed import: create import row", "err", err)
-	}
-}
-
-// writeAssetFiles creates asset_files rows for a version. If extracted is
-// non-nil, each extracted file becomes a row; otherwise a single row is
-// written for the loose upload. Returns (count, totalBytes).
-func writeAssetFiles(tx *gorm.DB, versionID uint, looseObjectKey string, looseSize int64, looseFilename, looseContentType string, extracted *extract.UnityResult) (int, int64, error) {
-	if extracted == nil {
-		file := models.AssetFile{
-			AssetVersionID: versionID,
-			RelativePath:   looseFilename,
-			SizeBytes:      looseSize,
-			ContentHash:    looseObjectKey,
-			ObjectKey:      looseObjectKey,
-			DetectedType:   looseContentType,
-		}
-		if err := tx.Create(&file).Error; err != nil {
-			return 0, 0, err
-		}
-		return 1, looseSize, nil
-	}
-
-	var total int64
-	rows := make([]models.AssetFile, 0, len(extracted.Files))
-	for _, f := range extracted.Files {
-		rows = append(rows, models.AssetFile{
-			AssetVersionID: versionID,
-			RelativePath:   f.RelativePath,
-			SizeBytes:      f.SizeBytes,
-			ContentHash:    f.ContentHash,
-			ObjectKey:      f.ObjectKey,
-			UnityGUID:      f.GUID,
-		})
-		total += f.SizeBytes
-	}
-	if len(rows) == 0 {
-		return 0, 0, nil
-	}
-	if err := tx.Create(&rows).Error; err != nil {
-		return 0, 0, err
-	}
-	return len(rows), total, nil
-}
-
-// nextVersionLabel returns the next `v<N>` label for an asset by counting
-// existing versions. The scheme is simple and stable for v1; when users
-// supply upstream-derived labels, this becomes a fallback.
-func nextVersionLabel(db *gorm.DB, assetID uint) (string, error) {
-	var n int64
-	if err := db.Model(&models.AssetVersion{}).Where("asset_id = ?", assetID).Count(&n).Error; err != nil {
-		return "", err
-	}
-	return "v" + strconv.FormatInt(n+1, 10), nil
 }
 
 func parseIDParam(c *gin.Context, key string) (uint, bool) {
