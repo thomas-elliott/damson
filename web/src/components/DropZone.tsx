@@ -67,6 +67,9 @@ export function DropZone({ children }: { children: ReactNode }) {
             return next;
           });
           void queryClient.invalidateQueries({ queryKey: queryKeys.assets() });
+          // Imports cache picks up the new in-flight row so QueuePage
+          // shows it immediately; SSE then drives live stage updates.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.imports });
         } catch (err) {
           setUploads((prev) => {
             const next = [...prev];

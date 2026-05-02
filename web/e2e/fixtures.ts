@@ -146,8 +146,11 @@ export async function switchCurrentLibrary(
   }
 }
 
-// uploadImport posts a multipart import directly to the backend. Used to
-// seed assets in tests that aren't exercising the UI dropzone.
+// uploadImport posts a multipart import directly to the backend, then
+// blocks until the background worker reaches a terminal stage so the
+// caller can rely on asset_files + current_version being populated. POST
+// /api/imports returns 202 with only {asset_id, import_id}; the
+// asset_version_id is resolved from /api/assets/:id once `done`.
 export async function uploadImport(
   request: APIRequestContext,
   session: Session,
@@ -164,11 +167,54 @@ export async function uploadImport(
   if (!res.ok()) {
     throw new Error(`import failed: ${res.status()} ${await res.text()}`);
   }
-  return (await res.json()) as {
-    id: number;
+  const { asset_id, import_id } = (await res.json()) as {
     asset_id: number;
-    asset_version_id: number;
+    import_id: number;
   };
+
+  await waitForImportDone(request, session, import_id);
+
+  // current_version_id is set when the worker finalizes; pull it from
+  // /api/assets/:id so subset/pin tests can keep using a single version id.
+  const detail = await request.get(`/api/assets/${asset_id}`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+  });
+  if (!detail.ok()) {
+    throw new Error(`asset detail failed: ${detail.status()} ${await detail.text()}`);
+  }
+  const body = (await detail.json()) as {
+    versions: { id: number; is_current: boolean }[];
+  };
+  const current = body.versions.find((v) => v.is_current) ?? body.versions[0];
+  if (!current) {
+    throw new Error("import finished but asset has no versions");
+  }
+  return { id: import_id, asset_id, asset_version_id: current.id };
+}
+
+// waitForImportDone polls /api/imports/:id until the row reaches a
+// terminal stage. Failed imports throw with the recorded error so the
+// caller doesn't carry on against half-built rows.
+async function waitForImportDone(
+  request: APIRequestContext,
+  session: Session,
+  importId: number,
+): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const res = await request.get(`/api/imports/${importId}`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    if (res.ok()) {
+      const row = (await res.json()) as { stage: string; error?: string };
+      if (row.stage === "done") return;
+      if (row.stage === "failed") {
+        throw new Error(`import failed: ${row.error ?? "(no error message)"}`);
+      }
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`import ${importId} did not finish within 15s`);
 }
 
 // createTestUser hits the /api/test/users endpoint exposed by the e2e

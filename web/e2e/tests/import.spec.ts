@@ -6,16 +6,14 @@ import { test, expect, bootstrapAdmin, installSession } from "../fixtures";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
 
-// Tier-1 flow: end-to-end .unitypackage import via the UI dropzone. This
-// covers the full pipeline — multipart upload → storage layer → Unity
-// extractor → DB writes → asset list invalidation — none of which can be
-// verified in unit tests on their own. The DropZone lives on /library
-// (see web/src/components/DropZone.tsx); the toolbar Upload button calls
-// open() from context, but we drive the hidden file input directly so
-// the test isn't sensitive to dropzone-trigger refactors.
+// Tier-1 flow: end-to-end .unitypackage import via the UI dropzone. The
+// upload goes multipart → storage → DB stub rows → background worker
+// (extract + thumbnail). POST /api/imports returns 202 once the stub is
+// persisted; the placeholder asset is then visible in the library while
+// the worker fills in asset_files and the thumbnail asynchronously.
 
 test.describe("Asset import", () => {
-  test("dropping a .unitypackage uploads, extracts, and surfaces in the library", async ({
+  test("dropping a .unitypackage enqueues an import and surfaces in the library", async ({
     page,
     request,
   }) => {
@@ -24,9 +22,6 @@ test.describe("Asset import", () => {
 
     await page.goto("/library");
 
-    // Wait for the import POST so we know the backend finished extraction
-    // (postImport in internal/handlers/api/assets.go runs Unity extraction
-    // synchronously inside the request).
     const importResponse = page.waitForResponse(
       (res) =>
         /\/api\/imports$/.test(new URL(res.url()).pathname) &&
@@ -36,13 +31,11 @@ test.describe("Asset import", () => {
     await page.locator('input[type="file"]').setInputFiles(FIXTURE_PATH);
 
     const response = await importResponse;
-    expect(response.status()).toBe(201);
+    expect(response.status()).toBe(202);
 
-    // The asset list invalidates on upload completion (see
-    // web/src/components/DropZone.tsx onDrop). Wait for the card to
-    // appear; Playwright's locator auto-retries until the timeout.
-    // Substring match — accessible name includes the meta line below
-    // the asset name.
+    // DropZone invalidates the assets query on upload completion. The
+    // placeholder asset shows up immediately because the stub row was
+    // written in the handler transaction.
     await expect(page.getByRole("button", { name: /\btiny\b/i })).toBeVisible();
   });
 });
