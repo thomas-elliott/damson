@@ -17,20 +17,14 @@ const tag = cva(
 );
 
 export interface TagProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof tag> {}
+  extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof tag> {}
 
 export const Tag = forwardRef<HTMLButtonElement, TagProps>(function Tag(
   { className, variant, children, type = "button", ...props },
   ref,
 ) {
   return (
-    <button
-      ref={ref}
-      type={type}
-      className={cn(tag({ variant }), className)}
-      {...props}
-    >
+    <button ref={ref} type={type} className={cn(tag({ variant }), className)} {...props}>
       {variant === "add" && <Plus size={10} />}
       {children}
     </button>

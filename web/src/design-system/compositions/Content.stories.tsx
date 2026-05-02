@@ -22,11 +22,7 @@ import { StatusDot } from "@/design-system/primitives/StatusDot";
 import { Chip } from "@/design-system/primitives/Chip";
 import { Tag } from "@/design-system/primitives/Tag";
 
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbSeparator,
-} from "./Breadcrumb";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from "./Breadcrumb";
 import { DetailPanel } from "./DetailPanel";
 import { DropOverlay } from "./DropOverlay";
 import { EmptyState } from "./EmptyState";
@@ -157,9 +153,7 @@ export const FullPageViewExample: Story = {
             </IconButton>
           </>
         }
-        preview={
-          <div className="aspect-[16/9] rounded-lg border border-line bg-surface" />
-        }
+        preview={<div className="aspect-[16/9] rounded-lg border border-line bg-surface" />}
         side={
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
@@ -170,8 +164,8 @@ export const FullPageViewExample: Story = {
               <Tag>ui/icons</Tag>
             </div>
             <p className="text-ui text-text-2">
-              A 128-file sprite pack with 2× and 3× variants. Compliant for
-              commercial use with attribution.
+              A 128-file sprite pack with 2× and 3× variants. Compliant for commercial use with
+              attribution.
             </p>
           </div>
         }
@@ -229,7 +223,11 @@ export const EmptyStateExample: Story = {
         icon={<Inbox size={32} />}
         title="Nothing here yet"
         description="Drop .unitypackage files, sprites, audio, or fonts onto this view to import them into your library."
-        action={<Button variant="primary" leadingIcon={<Plus size={12} />}>Import</Button>}
+        action={
+          <Button variant="primary" leadingIcon={<Plus size={12} />}>
+            Import
+          </Button>
+        }
       />
     </div>
   ),

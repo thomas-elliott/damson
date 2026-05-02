@@ -22,11 +22,7 @@ import {
   SimpleTooltip,
 } from "@/design-system";
 import { useAuthMode, useLibraryMembers } from "@/hooks/useDataQueries";
-import {
-  useInviteMember,
-  usePatchMember,
-  useRemoveMember,
-} from "@/hooks/useMutations";
+import { useInviteMember, usePatchMember, useRemoveMember } from "@/hooks/useMutations";
 
 /**
  * Library members section. Lists every membership; admins can invite, change
@@ -49,10 +45,7 @@ export function LibraryMembersSection({
   // Server returns 409 on demote/remove of the last admin — disabling the
   // UI gives users that signal before they click. Defence-in-depth, not
   // the only gate.
-  const adminCount = useMemo(
-    () => members.filter((m) => m.role === "admin").length,
-    [members],
-  );
+  const adminCount = useMemo(() => members.filter((m) => m.role === "admin").length, [members]);
 
   return (
     <Section
@@ -88,7 +81,9 @@ export function LibraryMembersSection({
                   <div className="truncate text-caption">{m.email}</div>
                 </div>
                 {m.global_role === "sysadmin" && (
-                  <Badge size="sm" tone="warn">sysadmin</Badge>
+                  <Badge size="sm" tone="warn">
+                    sysadmin
+                  </Badge>
                 )}
                 {isAdmin ? (
                   isLastAdmin ? (
@@ -109,7 +104,11 @@ export function LibraryMembersSection({
                     <Select
                       value={m.role}
                       onValueChange={(role) =>
-                        patch.mutate({ libraryId, userId: m.user_id, role: role as "admin" | "member" })
+                        patch.mutate({
+                          libraryId,
+                          userId: m.user_id,
+                          role: role as "admin" | "member",
+                        })
                       }
                     >
                       <SelectTrigger aria-label="Role" className="w-28">
@@ -122,7 +121,9 @@ export function LibraryMembersSection({
                     </Select>
                   )
                 ) : (
-                  <Badge size="sm" mono>{m.role}</Badge>
+                  <Badge size="sm" mono>
+                    {m.role}
+                  </Badge>
                 )}
                 {isAdmin &&
                   (isLastAdmin ? (
@@ -158,11 +159,7 @@ export function LibraryMembersSection({
         </div>
       )}
 
-      <InviteMemberDialog
-        libraryId={libraryId}
-        open={inviteOpen}
-        onOpenChange={setInviteOpen}
-      />
+      <InviteMemberDialog libraryId={libraryId} open={inviteOpen} onOpenChange={setInviteOpen} />
     </Section>
   );
 }
@@ -217,10 +214,18 @@ function InviteMemberDialog({
         </DialogHeader>
         <DialogBody>
           <FieldRow label="Email">
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@example.com" />
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@example.com"
+            />
           </FieldRow>
           <FieldRow label="Display name" hint="Optional. Defaults to email.">
-            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Optional" />
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Optional"
+            />
           </FieldRow>
           <FieldRow label="Role">
             <Select value={role} onValueChange={(v) => setRole(v as "admin" | "member")}>

@@ -62,9 +62,7 @@ export const List: Story = {
           }}
           cells={[
             <span className="text-mono text-text-3">{p.engine}</span>,
-            <span className="truncate text-mono text-text-3">
-              {p.path}
-            </span>,
+            <span className="truncate text-mono text-text-3">{p.path}</span>,
             <span className="text-mono text-text-3">
               {p.assets} assets · {p.updated}
             </span>,

@@ -33,9 +33,7 @@ export function useKeyboardShortcuts(bindings: KeyBinding[]) {
       const target = e.target as HTMLElement | null;
       const inEditable =
         !!target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable);
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 
       for (const b of bindings) {
         if (b.key.length === 1 ? e.key.toLowerCase() !== b.key.toLowerCase() : e.key !== b.key) {

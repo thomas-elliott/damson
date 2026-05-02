@@ -55,44 +55,29 @@ export const DialogContent = forwardRef<
   );
 });
 
-export function DialogHeader({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   // Stack the title + description vertically and reserve space on the right
   // for the absolute-positioned close button in DialogContent (24px button +
   // 12px inset). Using justify-between used to squish a long title against
   // the description.
   return (
     <div
-      className={cn(
-        "flex flex-col gap-1 border-b border-line px-4 py-3 pr-10",
-        className,
-      )}
+      className={cn("flex flex-col gap-1 border-b border-line px-4 py-3 pr-10", className)}
       {...props}
     />
   );
 }
 
-export function DialogBody({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        "flex flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-4",
-        className,
-      )}
+      className={cn("flex flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-4", className)}
       {...props}
     />
   );
 }
 
-export function DialogFooter({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
@@ -109,11 +94,7 @@ export const DialogTitle = forwardRef<
   ComponentPropsWithoutRef<typeof RadixDialog.Title>
 >(function DialogTitle({ className, ...props }, ref) {
   return (
-    <RadixDialog.Title
-      ref={ref}
-      className={cn("text-subhead text-text", className)}
-      {...props}
-    />
+    <RadixDialog.Title ref={ref} className={cn("text-subhead text-text", className)} {...props} />
   );
 });
 
@@ -121,13 +102,7 @@ export const DialogDescription = forwardRef<
   React.ElementRef<typeof RadixDialog.Description>,
   ComponentPropsWithoutRef<typeof RadixDialog.Description>
 >(function DialogDescription({ className, ...props }, ref) {
-  return (
-    <RadixDialog.Description
-      ref={ref}
-      className={cn("text-caption", className)}
-      {...props}
-    />
-  );
+  return <RadixDialog.Description ref={ref} className={cn("text-caption", className)} {...props} />;
 });
 
 export const DialogClose = RadixDialog.Close;

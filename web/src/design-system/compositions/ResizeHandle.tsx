@@ -54,13 +54,10 @@ export function ResizeHandle({
     [dragging, direction, onChange, min, max],
   );
 
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      setDragging(false);
-    },
-    [],
-  );
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    setDragging(false);
+  }, []);
 
   useEffect(() => {
     if (!dragging) return;

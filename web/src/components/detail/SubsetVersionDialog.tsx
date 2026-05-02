@@ -93,8 +93,7 @@ export function SubsetVersionDialog({
       },
       {
         onSuccess: () => onOpenChange(false),
-        onError: (e: unknown) =>
-          setError(e instanceof Error ? e.message : "Failed"),
+        onError: (e: unknown) => setError(e instanceof Error ? e.message : "Failed"),
       },
     );
   };
@@ -113,9 +112,8 @@ export function SubsetVersionDialog({
         </DialogHeader>
         <DialogBody>
           <p className="text-ui text-text-2">
-            New versions reference the same content-addressed blobs — no
-            re-upload, no extra storage. Pick which files belong to the new
-            subset.
+            New versions reference the same content-addressed blobs — no re-upload, no extra
+            storage. Pick which files belong to the new subset.
           </p>
           <FieldRow label="Filter">
             <Input
@@ -168,19 +166,14 @@ export function SubsetVersionDialog({
                       >
                         {f.relative_path}
                       </span>
-                      <span className="text-mono text-text-3">
-                        {formatBytes(f.size_bytes)}
-                      </span>
+                      <span className="text-mono text-text-3">{formatBytes(f.size_bytes)}</span>
                     </li>
                   );
                 })}
               </ul>
             )}
           </ScrollArea>
-          <FieldRow
-            label="Version label"
-            hint="Optional. Auto-numbered when blank."
-          >
+          <FieldRow label="Version label" hint="Optional. Auto-numbered when blank.">
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}

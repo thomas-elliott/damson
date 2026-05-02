@@ -14,17 +14,25 @@ Before making non-trivial changes, read the docs in `docs/`. They describe the c
 
 ## Development commands
 
-All workflows go through Task (`Taskfile.yml`). Common:
+All workflows go through Task (`Taskfile.yml`) — do not invoke `go`, `npm`, `docker compose` directly for build/test/lint operations. Run `task --list` to discover targets. Naming follows a canonical vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `run`/`dev`, `install`) with `:` for subtasks. The high-frequency ones:
 
 ```
-task dev              # Go server with air hot-reload (API only)
-task dev:spa          # Backend + Vite SPA in parallel
-task build            # Build SPA then CGO_ENABLED=0 go build
-task fmt / vet        # gofmt / go vet
-task test             # go test ./...
-task web:test         # Vitest run
-task pre-release-checks  # fmt + vet + Go tests + web tests
+task                  # alias for `task --list`
+task install          # Go modules + npm + Playwright browsers (fresh clone)
+task dev              # Go API only (air hot-reload)
+task dev:spa          # backend + Vite SPA in parallel
+task build            # SPA + Go production binary
+task check            # read-only: lint + format:check + mod:tidy:check
+task lint             # go vet + eslint
+task format           # go fmt + prettier --write
+task test:unit        # Go unit tests + Vitest
+task test:e2e         # Playwright (boots e2e-server + vite internally)
+task test:integration # Postgres-backed Go integration tests
+task ci               # full preflight: check + test:unit + test:e2e
+task clean            # remove build artifacts
 ```
+
+Subdomain tasks split by language: `lint:go` / `lint:web`, `format:go` / `format:web`, `format:check:go` / `format:check:web`, `test:unit:go` / `test:unit:web`. Use the umbrella when in doubt.
 
 Run one Go test:
 
@@ -49,7 +57,7 @@ The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in
 - **Never log tokens or raw session values.** Applies to `slog` debug output, error wraps, anything that might end up in a log collector.
 - **Mirror existing patterns; don't refactor unrelated code.** Focused changes only. Read `docs/` before architectural changes.
 - **Taskfile shell.** `Taskfile.yml` commands run under mvdan/sh (Task's embedded interpreter), not bash. Bash-isms like `trap INT TERM`, process substitution, and `set -o pipefail` fail silently or with confusing errors — wrap in `bash -c '...'` when you need them.
-- **`go mod tidy` is enforced in CI.** `.github/workflows/ci.yml` runs `go mod tidy` then `git diff --exit-code -- go.mod go.sum` and fails the build on any drift. Whenever you add an import — especially when a previously-indirect dep becomes a direct require because new code uses it — run `task mod:tidy:check` (or `go mod tidy` + diff) before committing. `task pre-release-checks` includes this step; running it locally before pushing avoids CI-only failures.
+- **`go mod tidy` is enforced in CI.** `.github/workflows/ci.yml` runs `go mod tidy` then `git diff --exit-code -- go.mod go.sum` and fails the build on any drift. Whenever you add an import — especially when a previously-indirect dep becomes a direct require because new code uses it — run `task mod:tidy:check` (or `go mod tidy` + diff) before committing. `task check` (and `task ci`) include this step; running either locally before pushing avoids CI-only failures.
 
 ## Architecture
 

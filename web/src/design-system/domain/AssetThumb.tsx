@@ -41,12 +41,7 @@ export function AssetThumb({ thumb, className, style }: AssetThumbProps) {
   }
   if (thumb.kind === "font") {
     return (
-      <FontThumb
-        sample={thumb.sample}
-        family={thumb.family}
-        className={className}
-        style={style}
-      />
+      <FontThumb sample={thumb.sample} family={thumb.family} className={className} style={style} />
     );
   }
   return (
@@ -64,11 +59,7 @@ interface ThumbChildProps {
   style?: CSSProperties;
 }
 
-export function Waveform({
-  seed = 1,
-  className,
-  style,
-}: { seed?: number } & ThumbChildProps) {
+export function Waveform({ seed = 1, className, style }: { seed?: number } & ThumbChildProps) {
   const id = useId().replace(/:/g, "");
   const bars = 56;
   let s = seed * 9301 + 49297;
@@ -239,10 +230,7 @@ export function SpriteThumb({
         <svg {...commonProps}>
           <rect width={w} height={h} fill={c2} />
           <ellipse cx={w / 2} cy={h * 0.42} rx="32" ry="38" fill={c1} />
-          <path
-            d={`M${w / 2 - 46} ${h} Q${w / 2} ${h * 0.65} ${w / 2 + 46} ${h} Z`}
-            fill={c0}
-          />
+          <path d={`M${w / 2 - 46} ${h} Q${w / 2} ${h * 0.65} ${w / 2 + 46} ${h} Z`} fill={c0} />
           <circle cx={w / 2 - 10} cy={h * 0.4} r="2.5" fill={c2} />
           <circle cx={w / 2 + 10} cy={h * 0.4} r="2.5" fill={c2} />
         </svg>
@@ -288,10 +276,7 @@ export function SpriteThumb({
             [100, 100],
           ].map(([x, y], i) => (
             <g key={i} transform={`translate(${x},${y})`}>
-              <path
-                d="M0 0 L0 28 L8 22 L14 34 L18 32 L12 20 L22 20 Z"
-                fill={c0}
-              />
+              <path d="M0 0 L0 28 L8 22 L14 34 L18 32 L12 20 L22 20 Z" fill={c0} />
             </g>
           ))}
         </svg>
@@ -335,10 +320,7 @@ export function UnknownThumb({ className, style }: ThumbChildProps) {
   return (
     <div
       aria-hidden
-      className={cn(
-        "grid h-full w-full place-items-center bg-surface text-text-3",
-        className,
-      )}
+      className={cn("grid h-full w-full place-items-center bg-surface text-text-3", className)}
       style={style}
     >
       <File size={28} strokeWidth={1.25} />
