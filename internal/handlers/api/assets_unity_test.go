@@ -84,19 +84,35 @@ func TestPostImport_UnityPackage_ExtractsFiles(t *testing.T) {
 	r := setupRouter(h, u)
 	body, ctype := buildMultipart(t, "file", "Environment Kit.unitypackage", pkg)
 	w := postMultipart(r, "/api/imports", body, ctype)
-	requireStatus(t, w, http.StatusCreated)
+	requireStatus(t, w, http.StatusAccepted)
 
-	resp := jsonResponse[importResponse](t, w)
-	if resp.PackageKind != "unitypackage" {
-		t.Fatalf("package_kind: got %q, want %q", resp.PackageKind, "unitypackage")
+	resp := jsonResponse[importEnqueueResponse](t, w)
+	if resp.AssetID == 0 || resp.ImportID == 0 {
+		t.Fatalf("ids missing in response: %+v", resp)
 	}
-	if resp.FileCount != 2 {
-		t.Fatalf("file_count: got %d, want 2", resp.FileCount)
+
+	// Sync test pool runs the pipeline inline, so by now extract + thumbnail
+	// + finalize are all done.
+	var imp models.AssetImport
+	if err := db.First(&imp, resp.ImportID).Error; err != nil {
+		t.Fatal(err)
 	}
+	if imp.Stage != "done" {
+		t.Fatalf("import stage: got %q, want done; err=%q", imp.Stage, imp.Error)
+	}
+
+	var asset models.Asset
+	if err := db.First(&asset, resp.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if asset.CurrentVersionID == nil {
+		t.Fatalf("current_version_id not set on asset: %+v", asset)
+	}
+	versionID := *asset.CurrentVersionID
 
 	// Each extracted file becomes an asset_files row with the Unity GUID set.
 	var files []models.AssetFile
-	if err := db.Where("asset_version_id = ?", resp.AssetVersionID).
+	if err := db.Where("asset_version_id = ?", versionID).
 		Order("relative_path asc").Find(&files).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +134,7 @@ func TestPostImport_UnityPackage_ExtractsFiles(t *testing.T) {
 
 	// Version retains the archive so re-extraction is possible later.
 	var version models.AssetVersion
-	if err := db.First(&version, resp.AssetVersionID).Error; err != nil {
+	if err := db.First(&version, versionID).Error; err != nil {
 		t.Fatal(err)
 	}
 	if version.PackageKind != "unitypackage" || version.OriginalPackageObjectKey == "" {
@@ -126,10 +142,6 @@ func TestPostImport_UnityPackage_ExtractsFiles(t *testing.T) {
 	}
 
 	// Preview harvested → asset.thumbnail_object_key points into thumbs/.
-	var asset models.Asset
-	if err := db.First(&asset, resp.AssetID).Error; err != nil {
-		t.Fatal(err)
-	}
 	if asset.ThumbnailObjectKey == "" || asset.ThumbnailContentType != "image/png" {
 		t.Fatalf("preview not harvested onto asset: %+v", asset)
 	}
@@ -150,12 +162,22 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	r := setupRouter(h, u)
 	body, ctype := buildMultipart(t, "file", "Pack.unitypackage", pkg)
 	w := postMultipart(r, "/api/imports", body, ctype)
-	requireStatus(t, w, http.StatusCreated)
-	first := jsonResponse[importResponse](t, w)
+	requireStatus(t, w, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w)
+
+	// After the sync pool finishes, the asset has a current version id.
+	var firstAsset models.Asset
+	if err := db.First(&firstAsset, first.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if firstAsset.CurrentVersionID == nil {
+		t.Fatalf("first import did not set current_version_id")
+	}
+	firstVersionID := *firstAsset.CurrentVersionID
 
 	// Re-extract using the retained original package.
 	path := "/api/assets/" + uintStr(first.AssetID) +
-		"/versions/" + uintStr(first.AssetVersionID) + "/reextract"
+		"/versions/" + uintStr(firstVersionID) + "/reextract"
 	w2 := performRequest(r, http.MethodPost, path, nil)
 	requireStatus(t, w2, http.StatusCreated)
 	second := jsonResponse[importResponse](t, w2)
@@ -163,7 +185,7 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	if second.AssetID != first.AssetID {
 		t.Fatalf("asset id changed: %d → %d", first.AssetID, second.AssetID)
 	}
-	if second.AssetVersionID == first.AssetVersionID {
+	if second.AssetVersionID == firstVersionID {
 		t.Fatalf("version id should differ: %d", second.AssetVersionID)
 	}
 	if second.FileCount != 1 {
@@ -173,7 +195,7 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	// Old version rows are untouched.
 	var firstFiles int64
 	if err := db.Model(&models.AssetFile{}).
-		Where("asset_version_id = ?", first.AssetVersionID).
+		Where("asset_version_id = ?", firstVersionID).
 		Count(&firstFiles).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -210,11 +232,18 @@ func TestPostReExtract_RejectsNonUnityVersion(t *testing.T) {
 	// A loose upload has no original package retained.
 	body, ctype := buildMultipart(t, "file", "logo.png", []byte("png"))
 	w := postMultipart(r, "/api/imports", body, ctype)
-	requireStatus(t, w, http.StatusCreated)
-	resp := jsonResponse[importResponse](t, w)
+	requireStatus(t, w, http.StatusAccepted)
+	resp := jsonResponse[importEnqueueResponse](t, w)
 
+	var asset models.Asset
+	if err := db.First(&asset, resp.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if asset.CurrentVersionID == nil {
+		t.Fatalf("loose import did not finalize a version")
+	}
 	path := "/api/assets/" + uintStr(resp.AssetID) +
-		"/versions/" + uintStr(resp.AssetVersionID) + "/reextract"
+		"/versions/" + uintStr(*asset.CurrentVersionID) + "/reextract"
 	w2 := performRequest(r, http.MethodPost, path, nil)
 	requireStatus(t, w2, http.StatusConflict)
 }

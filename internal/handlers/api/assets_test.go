@@ -58,17 +58,15 @@ func TestPostImport_StoresAssetAndVersion(t *testing.T) {
 	r := setupRouter(h, u)
 	body, ctype := buildMultipart(t, "file", "grass-texture.png", []byte("fake png bytes"))
 	w := postMultipart(r, "/api/imports", body, ctype)
-	requireStatus(t, w, http.StatusCreated)
+	requireStatus(t, w, http.StatusAccepted)
 
-	resp := jsonResponse[importResponse](t, w)
-	if resp.AssetID == 0 || resp.AssetVersionID == 0 {
+	resp := jsonResponse[importEnqueueResponse](t, w)
+	if resp.AssetID == 0 || resp.ImportID == 0 {
 		t.Fatalf("missing ids in response: %+v", resp)
 	}
-	if resp.PackageKind != "loose" || resp.FileCount != 1 {
-		t.Fatalf("unexpected response: %+v", resp)
-	}
 
-	// Asset row is library-scoped and has current_version_id set.
+	// Asset row is library-scoped and has current_version_id set after the
+	// sync test pool runs the pipeline.
 	var a models.Asset
 	if err := db.First(&a, resp.AssetID).Error; err != nil {
 		t.Fatal(err)
@@ -76,7 +74,7 @@ func TestPostImport_StoresAssetAndVersion(t *testing.T) {
 	if a.LibraryID != lib.ID {
 		t.Fatalf("library_id: got %d, want %d", a.LibraryID, lib.ID)
 	}
-	if a.CurrentVersionID == nil || *a.CurrentVersionID != resp.AssetVersionID {
+	if a.CurrentVersionID == nil {
 		t.Fatalf("current_version_id not set: %+v", a.CurrentVersionID)
 	}
 	if a.Name != "grass-texture" {
@@ -85,11 +83,20 @@ func TestPostImport_StoresAssetAndVersion(t *testing.T) {
 
 	// File row carries the content hash as its object key.
 	var f models.AssetFile
-	if err := db.Where("asset_version_id = ?", resp.AssetVersionID).First(&f).Error; err != nil {
+	if err := db.Where("asset_version_id = ?", *a.CurrentVersionID).First(&f).Error; err != nil {
 		t.Fatal(err)
 	}
 	if f.ContentHash == "" || f.ContentHash != f.ObjectKey {
 		t.Fatalf("hash/key mismatch: %+v", f)
+	}
+
+	// Import row reaches the done stage.
+	var imp models.AssetImport
+	if err := db.First(&imp, resp.ImportID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if imp.Stage != "done" {
+		t.Fatalf("stage: got %q, want done; err=%q", imp.Stage, imp.Error)
 	}
 }
 

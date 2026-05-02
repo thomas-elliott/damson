@@ -20,6 +20,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/db"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
 )
@@ -100,6 +101,20 @@ func main() {
 	}
 	slog.Info("storage mode", "mode", cfg.StorageMode)
 
+	broadcaster := imports.NewBroadcaster()
+	importPool := imports.New(imports.Deps{
+		DB:          gormDB,
+		Storage:     store,
+		Broadcaster: broadcaster,
+	}, cfg.ImportWorkers)
+	slog.Info("import pool", "workers", cfg.ImportWorkers)
+
+	if resumed, err := imports.ResumeInFlight(startupCtx, gormDB, importPool); err != nil {
+		slog.Warn("import resume sweep failed", "err", err)
+	} else if resumed > 0 {
+		slog.Info("import resume sweep", "enqueued", resumed)
+	}
+
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
@@ -108,10 +123,12 @@ func main() {
 
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
-		DB:       gormDB,
-		AuthMode: cfg.AuthMode,
-		Local:    localAuth,
-		Storage:  store,
+		DB:          gormDB,
+		AuthMode:    cfg.AuthMode,
+		Local:       localAuth,
+		Storage:     store,
+		ImportPool:  importPool,
+		Broadcaster: broadcaster,
 	})
 	api.AddRoutes(apiGroup, auth.Middleware(authenticator), h)
 
@@ -157,6 +174,10 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// Drain in-flight imports before stopping the HTTP server. Anything
+	// still running when ctx expires gets logged; the next boot's resume
+	// sweep picks up whatever remained non-terminal.
+	importPool.Shutdown(shutdownCtx)
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown", "err", err)
 	}

@@ -1,10 +1,12 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,8 +15,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/extract"
-	"github.com/thomas-elliott/damson/internal/services/thumbnail"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 // importRow is the wire shape returned by GET /api/imports — the
@@ -157,14 +158,18 @@ func (h *Handler) getImport(c *gin.Context) {
 	})
 }
 
-// postImportRetry re-runs the import pipeline against the original blob of
-// a failed import. Only `failed` rows can be retried; `done` rows are
-// rejected with 409. Idempotency: each retry creates a fresh asset_import
-// row rather than mutating the existing one — easier to reason about and
-// keeps the failure history visible.
+// postImportRetry re-runs the import pipeline against the previous import's
+// retained source blob. Only `failed` rows can be retried; `done` rows are
+// rejected with 409. A retry creates a brand-new asset_version (label v2,
+// v3, …) plus a fresh asset_imports row in the `uploaded` stage and hands
+// it to the worker pool — same code path as a first-time upload.
 func (h *Handler) postImportRetry(c *gin.Context) {
 	if h.storage == nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
+		return
+	}
+	if h.importPool == nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "import pool not configured"})
 		return
 	}
 	lib := getLibrary(c)
@@ -197,15 +202,14 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		respond404(c, "import not found")
 		return
 	}
-	if imp.Stage != "failed" {
+	if imp.Stage != imports.StageFailed {
 		respond409(c, "import is not in failed state")
 		return
 	}
 
-	// Find a source blob to retry against. Prefer the original-package blob
-	// from the most recent version (Unity case); otherwise fall back to a
-	// single asset file. If neither exists, the upload bytes are gone and
-	// we can't recover.
+	// Locate a source blob from the failed import's most-recent version.
+	// Unity uploads always retain the original archive on the version row;
+	// loose uploads need an asset_files row to recover the bytes.
 	var version models.AssetVersion
 	verr := h.db.WithContext(c.Request.Context()).
 		Where("asset_id = ?", asset.ID).
@@ -216,154 +220,192 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		return
 	}
 
-	// Pick a source blob to retry against. The Unity case retains the
-	// original archive on the version row; the non-Unity case requires an
-	// existing asset_files row — without one the upload bytes are gone (the
-	// failed import never wrote a manifest) and re-running the pipeline
-	// would create a corrupt empty version.
 	var (
-		sourceKey      string
-		sourceFilename string
-		sourceCT       string
-		isUnity        bool
+		sourceKey   string
+		packageKind string
 	)
 	if verr == nil && version.PackageKind == packageKindUnityPackage && version.OriginalPackageObjectKey != "" {
 		sourceKey = version.OriginalPackageObjectKey
-		sourceFilename = asset.Name + ".unitypackage"
-		isUnity = true
+		packageKind = packageKindUnityPackage
 	} else if verr == nil {
-		var f models.AssetFile
-		if err := h.db.WithContext(c.Request.Context()).
-			Where("asset_version_id = ?", version.ID).
-			First(&f).Error; err == nil {
-			sourceKey = f.ObjectKey
-			sourceFilename = f.RelativePath
-			sourceCT = f.DetectedType
-			isUnity = strings.EqualFold(filepath.Ext(sourceFilename), ".unitypackage")
+		// Loose case: try the version's retained key first, then fall back
+		// to the first asset_file row.
+		if version.OriginalPackageObjectKey != "" {
+			sourceKey = version.OriginalPackageObjectKey
+		} else {
+			var f models.AssetFile
+			if err := h.db.WithContext(c.Request.Context()).
+				Where("asset_version_id = ?", version.ID).
+				First(&f).Error; err == nil {
+				sourceKey = f.ObjectKey
+			}
 		}
+		packageKind = packageKindLoose
 	}
 	if sourceKey == "" {
 		respond409(c, "no source blob to retry")
 		return
 	}
 
-	// Re-run the pipeline against the source blob. Treat it as a fresh
-	// import: existing asset stays, but we get a new version + thumbnail
-	// generation if applicable.
-	var extracted *extract.UnityResult
-	if isUnity {
-		blob, gerr := h.storage.GetBlob(c.Request.Context(), sourceKey)
-		if gerr != nil {
-			h.markImportFailed(c, asset.ID, "fetch retained blob")
-			respond500(c)
-			return
-		}
-		ex := &extract.UnityExtractor{Storage: h.storage}
-		res, xerr := ex.Extract(c.Request.Context(), blob)
-		blob.Close()
-		if xerr != nil {
-			h.markImportFailed(c, asset.ID, "extract: "+xerr.Error())
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + xerr.Error()})
-			return
-		}
-		extracted = res
-	}
-
-	// Thumbnail pipeline mirrors postImport.
-	thumbKey, thumbType := "", ""
-	if extracted != nil {
-		thumbKey = extracted.ThumbObjectKey
-		thumbType = extracted.ThumbContentType
-	}
-	if thumbKey == "" && !isUnity {
-		settings, sErr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID)
-		if sErr == nil {
-			toggles := thumbnail.Toggles{
-				Raster: settings.ThumbnailsRasterEnabled,
-				Audio:  settings.ThumbnailsAudioEnabled,
-				Font:   settings.ThumbnailsFontEnabled,
-			}
-			blob, bErr := h.storage.GetBlob(c.Request.Context(), sourceKey)
-			if bErr == nil {
-				gen := &thumbnail.Generator{Storage: h.storage}
-				tres, tErr := gen.Generate(c.Request.Context(), thumbnail.Input{
-					Reader:      blob,
-					Filename:    sourceFilename,
-					ContentType: sourceCT,
-				}, toggles)
-				blob.Close()
-				if tErr == nil && tres.ObjectKey != "" {
-					thumbKey = tres.ObjectKey
-					thumbType = tres.ContentType
-				}
-			}
-		}
-	}
-
-	nextLabel, nlErr := nextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
+	nextLabel, nlErr := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
 	if nlErr != nil {
 		respond500(c)
 		return
 	}
 
-	var newImp models.AssetImport
+	var newImportID uint
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		v := models.AssetVersion{
-			AssetID:         asset.ID,
-			VersionLabel:    nextLabel,
-			ImportDate:      time.Now().UTC(),
-			CreatedByUserID: &u.ID,
-		}
-		if isUnity {
-			v.PackageKind = packageKindUnityPackage
-			v.OriginalPackageObjectKey = sourceKey
-		} else {
-			v.PackageKind = packageKindLoose
+			AssetID:                  asset.ID,
+			VersionLabel:             nextLabel,
+			ImportDate:               time.Now().UTC(),
+			CreatedByUserID:          &u.ID,
+			PackageKind:              packageKind,
+			OriginalPackageObjectKey: sourceKey,
 		}
 		if err := tx.Create(&v).Error; err != nil {
 			return err
 		}
-		if _, _, err := writeAssetFiles(tx, v.ID, sourceKey, 0, filepath.Base(sourceFilename), sourceCT, extracted); err != nil {
-			return err
-		}
-		asset.CurrentVersionID = &v.ID
-		if thumbKey != "" {
-			asset.ThumbnailObjectKey = thumbKey
-			asset.ThumbnailContentType = thumbType
-		}
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-		newImp = models.AssetImport{
+		nextImp := models.AssetImport{
 			AssetID:   asset.ID,
-			Stage:     "done",
+			Stage:     imports.StageUploaded,
 			UpdatedAt: time.Now().UTC(),
 		}
-		return tx.Create(&newImp).Error
+		if err := tx.Create(&nextImp).Error; err != nil {
+			return err
+		}
+		newImportID = nextImp.ID
+		return nil
 	})
 	if err != nil {
 		respond500(c)
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	h.importPool.Enqueue(imports.Job{ImportID: newImportID, LibraryID: lib.ID})
+
+	c.JSON(http.StatusAccepted, gin.H{
 		"asset_id":  asset.ID,
-		"import_id": newImp.ID,
+		"import_id": newImportID,
 	})
 }
 
-// markImportFailed writes a `failed` import row in its own transaction. The
-// failure is itself an event worth recording; we don't want to roll it back
-// just because a downstream call also failed. Errors here are logged and
-// swallowed — failing to record a failure shouldn't escalate the failure.
-func (h *Handler) markImportFailed(c *gin.Context, assetID uint, reason string) {
-	imp := models.AssetImport{
-		AssetID:   assetID,
-		Stage:     "failed",
-		Error:     reason,
-		UpdatedAt: time.Now().UTC(),
+// getImportEvents streams library-wide import stage transitions to the
+// caller as Server-Sent Events. On connect the handler emits a snapshot of
+// every non-terminal import row so a fresh client paints the live state
+// without waiting for the next transition; thereafter it forwards events
+// from the broadcaster until the client disconnects.
+func (h *Handler) getImportEvents(c *gin.Context) {
+	if h.broadcaster == nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "broadcaster not configured"})
+		return
 	}
-	if err := h.db.WithContext(c.Request.Context()).Create(&imp).Error; err != nil {
-		slog.Warn("failed to record failed import", "err", err, "asset_id", assetID)
+	lib := getLibrary(c)
+	if lib == nil {
+		respond500(c)
+		return
 	}
+	streamImportEvents(c, h, lib.ID, 0)
+}
+
+// getImportEventsByID is the single-import variant of getImportEvents.
+// Useful for the asset detail panel to follow one upload from queued to
+// done without subscribing to the entire library feed.
+func (h *Handler) getImportEventsByID(c *gin.Context) {
+	if h.broadcaster == nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "broadcaster not configured"})
+		return
+	}
+	lib := getLibrary(c)
+	if lib == nil {
+		respond500(c)
+		return
+	}
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	// Library-gate the import id up front so we don't open a stream that
+	// will only ever receive other libraries' events.
+	_, found, err := imports.LoadEvent(c.Request.Context(), h.db, lib.ID, id)
+	if err != nil {
+		respond500(c)
+		return
+	}
+	if !found {
+		respond404(c, "import not found")
+		return
+	}
+	streamImportEvents(c, h, lib.ID, id)
+}
+
+// sseHeartbeat is the interval between SSE comment frames. Keeps proxies
+// (nginx, traefik) from idling out the connection. Plenty of slack —
+// neither stage transitions nor heartbeats are time-sensitive.
+const sseHeartbeat = 25 * time.Second
+
+func streamImportEvents(c *gin.Context, h *Handler, libraryID, filterImportID uint) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+
+	// Subscribe before replay so events that fire during the snapshot read
+	// don't fall in a gap.
+	ch, unsub := h.broadcaster.Subscribe(libraryID)
+	defer unsub()
+
+	snapshot, err := imports.ReplaySnapshot(c.Request.Context(), h.db, libraryID)
+	if err != nil {
+		slog.Warn("import events: replay snapshot", "err", err, "library_id", libraryID)
+	}
+	for _, ev := range snapshot {
+		if filterImportID != 0 && ev.ID != filterImportID {
+			continue
+		}
+		if !writeSSEEvent(c.Writer, ev) {
+			return
+		}
+	}
+	c.Writer.Flush()
+
+	ticker := time.NewTicker(sseHeartbeat)
+	defer ticker.Stop()
+	ctx := c.Request.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			if filterImportID != 0 && ev.ID != filterImportID {
+				continue
+			}
+			if !writeSSEEvent(c.Writer, ev) {
+				return
+			}
+			c.Writer.Flush()
+		case <-ticker.C:
+			if _, err := io.WriteString(c.Writer, ": keepalive\n\n"); err != nil {
+				return
+			}
+			c.Writer.Flush()
+		}
+	}
+}
+
+// writeSSEEvent serializes one import event as a `data:` SSE frame.
+// Returns false if the underlying writer rejected the bytes — callers
+// should bail out of the stream loop on false.
+func writeSSEEvent(w gin.ResponseWriter, ev imports.Event) bool {
+	payload, err := json.Marshal(ev)
+	if err != nil {
+		slog.Warn("import events: marshal", "err", err, "import_id", ev.ID)
+		return true // skip this one, don't tear down the stream
+	}
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", payload); err != nil {
+		return false
+	}
+	return true
 }

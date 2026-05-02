@@ -6,6 +6,8 @@ package config
 import (
 	"log"
 	"os"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -63,6 +65,10 @@ type Config struct {
 
 	LogLevel string
 	GinMode  string
+
+	// ImportWorkers caps the size of the background import goroutine pool.
+	// Zero or negative values mean "use runtime.GOMAXPROCS(0)".
+	ImportWorkers int
 }
 
 func Load() Config {
@@ -85,13 +91,14 @@ func Load() Config {
 	}
 
 	cfg := Config{
-		ListenAddr:  getenv("DAMSON_LISTEN_ADDR", ":8080"),
-		BaseURL:     getenv("DAMSON_BASE_URL", "http://localhost:8080"),
-		PostgresDSN: mustGetSecret("DAMSON_POSTGRES_DSN"),
-		AuthMode:    authMode,
-		StorageMode: storageMode,
-		LogLevel:    getenv("DAMSON_LOG_LEVEL", "info"),
-		GinMode:     os.Getenv("GIN_MODE"),
+		ListenAddr:    getenv("DAMSON_LISTEN_ADDR", ":8080"),
+		BaseURL:       getenv("DAMSON_BASE_URL", "http://localhost:8080"),
+		PostgresDSN:   mustGetSecret("DAMSON_POSTGRES_DSN"),
+		AuthMode:      authMode,
+		StorageMode:   storageMode,
+		LogLevel:      getenv("DAMSON_LOG_LEVEL", "info"),
+		GinMode:       os.Getenv("GIN_MODE"),
+		ImportWorkers: parseImportWorkers(os.Getenv("DAMSON_IMPORT_WORKERS")),
 	}
 
 	switch authMode {
@@ -173,6 +180,20 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// parseImportWorkers reads the DAMSON_IMPORT_WORKERS env var. An empty,
+// invalid, or non-positive value falls back to runtime.GOMAXPROCS(0) so a
+// fresh deploy gets a sane default.
+func parseImportWorkers(raw string) int {
+	if raw == "" {
+		return runtime.GOMAXPROCS(0)
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return runtime.GOMAXPROCS(0)
+	}
+	return n
 }
 
 func splitCSV(s string) []string {
