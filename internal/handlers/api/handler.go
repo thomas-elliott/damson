@@ -11,6 +11,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -18,11 +19,13 @@ import (
 // New(Deps{...}); register routes with AddRoutes. Exported so cmd/server (and
 // out-of-tree tests) can hold a typed handle without leaking the field set.
 type Handler struct {
-	db        *gorm.DB
-	authMode  config.AuthMode
-	local     *auth.LocalAuthenticator // non-nil only in local mode
-	storage   storage.Service          // nil in tests that don't exercise uploads
-	loginRate *auth.LoginThrottle
+	db          *gorm.DB
+	authMode    config.AuthMode
+	local       *auth.LocalAuthenticator // non-nil only in local mode
+	storage     storage.Service          // nil in tests that don't exercise uploads
+	loginRate   *auth.LoginThrottle
+	importPool  *imports.Pool
+	broadcaster *imports.Broadcaster
 }
 
 type Deps struct {
@@ -34,6 +37,13 @@ type Deps struct {
 	// /api/auth/bootstrap. Optional — a nil value installs the default
 	// throttle (5 burst, one token per minute).
 	LoginThrottle *auth.LoginThrottle
+	// ImportPool drains async import jobs. Tests that don't exercise the
+	// import flow can leave it nil; tests that do should pass a synchronous
+	// pool (imports.NewSync) so stage transitions stay deterministic.
+	ImportPool *imports.Pool
+	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
+	// the pipeline tolerates a missing broadcaster.
+	Broadcaster *imports.Broadcaster
 }
 
 func New(d Deps) *Handler {
@@ -42,11 +52,13 @@ func New(d Deps) *Handler {
 		throttle = auth.NewLoginThrottle(5, time.Minute)
 	}
 	return &Handler{
-		db:        d.DB,
-		authMode:  d.AuthMode,
-		local:     d.Local,
-		storage:   d.Storage,
-		loginRate: throttle,
+		db:          d.DB,
+		authMode:    d.AuthMode,
+		local:       d.Local,
+		storage:     d.Storage,
+		loginRate:   throttle,
+		importPool:  d.ImportPool,
+		broadcaster: d.Broadcaster,
 	}
 }
 
@@ -107,7 +119,9 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	// Imports
 	scoped.POST("/imports", h.postImport)
 	scoped.GET("/imports", h.getImports)
+	scoped.GET("/imports/events", h.getImportEvents)
 	scoped.GET("/imports/:id", h.getImport)
+	scoped.GET("/imports/:id/events", h.getImportEventsByID)
 	scoped.POST("/imports/:id/retry", h.postImportRetry)
 	scoped.POST("/assets/:id/versions/:vid/reextract", h.postReExtract)
 	scoped.POST("/assets/:id/versions/:vid/subset", h.postAssetVersionSubset)
