@@ -7,15 +7,8 @@ import type { StorybookConfig } from "@storybook/react-vite";
 //   - addon-vitest      run stories as Vitest tests (real Chromium)
 //   - pseudo-states     toolbar toggles for :hover/:focus/:active/:disabled
 const config: StorybookConfig = {
-  stories: [
-    "../src/design-system/**/*.mdx",
-    "../src/design-system/**/*.stories.@(ts|tsx)",
-  ],
-  addons: [
-    "@storybook/addon-a11y",
-    "@storybook/addon-vitest",
-    "storybook-addon-pseudo-states",
-  ],
+  stories: ["../src/design-system/**/*.mdx", "../src/design-system/**/*.stories.@(ts|tsx)"],
+  addons: ["@storybook/addon-a11y", "@storybook/addon-vitest", "storybook-addon-pseudo-states"],
   framework: {
     name: "@storybook/react-vite",
     options: {},

@@ -34,9 +34,7 @@ export function ActivityRow({
       style={{ gridTemplateColumns: "96px 140px 1fr auto" }}
       {...props}
     >
-      <span className="text-mono tabular-nums text-text-3">
-        {timestamp}
-      </span>
+      <span className="text-mono tabular-nums text-text-3">{timestamp}</span>
       <span className="truncate text-text-2">{actor}</span>
       <span className="truncate text-text-2">
         <span className="text-text-3">{action}</span>

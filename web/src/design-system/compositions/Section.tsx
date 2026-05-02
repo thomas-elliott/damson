@@ -1,10 +1,4 @@
-import {
-  forwardRef,
-  useId,
-  useState,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
+import { forwardRef, useId, useState, type HTMLAttributes, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
@@ -47,11 +41,7 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
   const bodyId = useId();
 
   return (
-    <section
-      ref={ref}
-      className={cn("border-b border-line", className)}
-      {...props}
-    >
+    <section ref={ref} className={cn("border-b border-line", className)} {...props}>
       <div className="flex items-center">
         <button
           type="button"

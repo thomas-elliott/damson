@@ -16,14 +16,15 @@ export interface LicencePillProps extends Omit<BadgeProps, "tone" | "shape" | "m
  * Canonical licence badge — tone derived from status, always mono (SPDX
  * identifiers read cleaner as mono), optional status dot on the left.
  */
-export const LicencePill = forwardRef<HTMLSpanElement, LicencePillProps>(
-  function LicencePill({ status, spdx, noDot, children, ...props }, ref) {
-    return (
-      <Pill ref={ref} tone={status} mono {...props}>
-        {!noDot && <StatusDot tone={status} />}
-        {spdx}
-        {children}
-      </Pill>
-    );
-  },
-);
+export const LicencePill = forwardRef<HTMLSpanElement, LicencePillProps>(function LicencePill(
+  { status, spdx, noDot, children, ...props },
+  ref,
+) {
+  return (
+    <Pill ref={ref} tone={status} mono {...props}>
+      {!noDot && <StatusDot tone={status} />}
+      {spdx}
+      {children}
+    </Pill>
+  );
+});

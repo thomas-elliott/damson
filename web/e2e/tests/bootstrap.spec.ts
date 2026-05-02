@@ -1,10 +1,4 @@
-import {
-  test,
-  expect,
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
-  bootstrapAdmin,
-} from "../fixtures";
+import { test, expect, ADMIN_EMAIL, ADMIN_PASSWORD, bootstrapAdmin } from "../fixtures";
 
 // Tier-1 flow: first-run bootstrap. A freshly-reset backend reports
 // needs_bootstrap=true; the SPA should route any unauthenticated visit
@@ -12,15 +6,10 @@ import {
 // user in /library with a working session.
 
 test.describe("First-run bootstrap", () => {
-  test("AuthGuard routes a fresh deployment to /bootstrap", async ({
-    page,
-    noConsoleErrors,
-  }) => {
+  test("AuthGuard routes a fresh deployment to /bootstrap", async ({ page, noConsoleErrors }) => {
     await page.goto("/library");
     await expect(page).toHaveURL(/\/bootstrap$/);
-    await expect(
-      page.getByRole("heading", { name: /create the first admin/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /create the first admin/i })).toBeVisible();
   });
 
   // PER-68 fix: BootstrapPage.onSubmit no longer awaits invalidateQueries

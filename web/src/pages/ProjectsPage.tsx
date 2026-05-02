@@ -95,19 +95,14 @@ export function ProjectsPage() {
                       </span>
                     )}
                   </div>
-                  <LicenceBar
-                    counts={{ ok: 0, warn: 0, err: 0, unk: p.asset_count }}
-                  />
+                  <LicenceBar counts={{ ok: 0, warn: 0, err: 0, unk: p.asset_count }} />
                 </ProjectCard>
               ))}
               <ProjectCardNew onClick={() => setDialogOpen(true)} />
             </div>
           )}
 
-          <NewProjectDialog
-            open={dialogOpen}
-            onOpenChange={setDialogOpen}
-          />
+          <NewProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
         </>
       }
     />
@@ -151,7 +146,8 @@ function NewProjectDialog({
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>
-            Projects pin specific asset versions and track licence compatibility with a distribution target.
+            Projects pin specific asset versions and track licence compatibility with a distribution
+            target.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -193,11 +189,7 @@ function NewProjectDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            onClick={submit}
-            disabled={!name.trim() || create.isPending}
-          >
+          <Button variant="primary" onClick={submit} disabled={!name.trim() || create.isPending}>
             Create
           </Button>
         </DialogFooter>
@@ -205,4 +197,3 @@ function NewProjectDialog({
     </Dialog>
   );
 }
-

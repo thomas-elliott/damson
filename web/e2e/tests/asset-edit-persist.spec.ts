@@ -2,13 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 
-import {
-  test,
-  expect,
-  bootstrapAdmin,
-  installSession,
-  uploadImport,
-} from "../fixtures";
+import { test, expect, bootstrapAdmin, installSession, uploadImport } from "../fixtures";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
@@ -35,11 +29,7 @@ const TAG_PATH = "qa/persist-test";
 // real reload so the SPA has to refetch from the backend rather than
 // reading its own in-memory cache.
 test.describe("Asset edits persist across reload", () => {
-  test("tag and licence survive a hard reload", async ({
-    page,
-    request,
-    noConsoleErrors,
-  }) => {
+  test("tag and licence survive a hard reload", async ({ page, request, noConsoleErrors }) => {
     // Five backend round-trips (import + tag + detect + licence + reload)
     // plus a Vite cold-start can blow past the default 30s budget on a
     // fresh worker; bump headroom rather than chase per-step waits.

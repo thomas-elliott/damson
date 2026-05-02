@@ -10,10 +10,7 @@ export const PopoverAnchor = RadixPopover.Anchor;
 export const PopoverContent = forwardRef<
   React.ElementRef<typeof RadixPopover.Content>,
   ComponentPropsWithoutRef<typeof RadixPopover.Content>
->(function PopoverContent(
-  { className, sideOffset = 6, align = "start", style, ...props },
-  ref,
-) {
+>(function PopoverContent({ className, sideOffset = 6, align = "start", style, ...props }, ref) {
   return (
     <RadixPopover.Portal>
       <RadixPopover.Content

@@ -37,26 +37,14 @@ export function VersionItem({
     <>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-list-row font-medium text-text">
-            {version}
-          </span>
-          {current && (
-            <span className="text-label text-accent">
-              Current
-            </span>
-          )}
+          <span className="font-mono text-list-row font-medium text-text">{version}</span>
+          {current && <span className="text-label text-accent">Current</span>}
         </div>
         {notes && <div className="mt-0.5 text-text-2">{notes}</div>}
       </div>
       <div className="flex flex-col items-end gap-0.5 text-right">
-        <span className="text-mono tabular-nums text-text-3">
-          {date}
-        </span>
-        {meta && (
-          <span className="text-mono tabular-nums text-text-3">
-            {meta}
-          </span>
-        )}
+        <span className="text-mono tabular-nums text-text-3">{date}</span>
+        {meta && <span className="text-mono tabular-nums text-text-3">{meta}</span>}
       </div>
     </>
   );

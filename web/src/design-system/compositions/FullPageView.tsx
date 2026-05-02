@@ -25,10 +25,7 @@ export function FullPageView({
   ...props
 }: FullPageViewProps) {
   return (
-    <div
-      className={cn("flex h-full flex-col bg-bg", className)}
-      {...props}
-    >
+    <div className={cn("flex h-full flex-col bg-bg", className)} {...props}>
       <header className="flex shrink-0 items-center gap-2 border-b border-line bg-bg px-3.5 py-2.5">
         {header}
       </header>

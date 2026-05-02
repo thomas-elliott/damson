@@ -1,13 +1,13 @@
-@import '@fontsource/inter/400.css' layer(base);
-@import '@fontsource/inter/500.css' layer(base);
-@import '@fontsource/inter/600.css' layer(base);
-@import '@fontsource/inter/700.css' layer(base);
-@import '@fontsource/jetbrains-mono/400.css' layer(base);
-@import '@fontsource/jetbrains-mono/500.css' layer(base);
+@import "@fontsource/inter/400.css" layer(base);
+@import "@fontsource/inter/500.css" layer(base);
+@import "@fontsource/inter/600.css" layer(base);
+@import "@fontsource/inter/700.css" layer(base);
+@import "@fontsource/jetbrains-mono/400.css" layer(base);
+@import "@fontsource/jetbrains-mono/500.css" layer(base);
 
-@import '@/design-system/tokens/tokens.css' layer(base);
+@import "@/design-system/tokens/tokens.css" layer(base);
 
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @plugin '@tailwindcss/typography';
 
@@ -222,7 +222,7 @@
 }
 @utility text-num {
   @apply text-ui font-mono;
-  font-feature-settings: 'tnum';
+  font-feature-settings: "tnum";
 }
 @utility text-table-row {
   /* View-specific role tokens. */

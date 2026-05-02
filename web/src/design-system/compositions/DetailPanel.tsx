@@ -40,75 +40,70 @@ export interface DetailPanelProps extends Omit<HTMLAttributes<HTMLElement>, "tit
  * left-edge drag-resize. Pass `fullscreen` to make the panel fill its
  * positioned ancestor — the resize handle is hidden in that mode.
  */
-export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(
-  function DetailPanel(
-    {
-      className,
-      title,
-      actions,
-      onClose,
-      width,
-      variant = "overlay",
-      children,
-      resizable,
-      onWidthChange,
-      minWidth = 320,
-      maxWidth,
-      fullscreen,
-      ...props
-    },
-    ref,
-  ) {
-    const numericWidth =
-      typeof width === "number" ? width : Number.NaN;
-    const style: React.CSSProperties =
-      !fullscreen && width
-        ? { width: typeof width === "number" ? `${width}px` : width }
-        : {};
-    return (
-      <aside
-        ref={ref}
-        aria-label="Details"
-        className={cn(
-          "flex h-full flex-col border-l border-line bg-panel text-text",
-          variant === "overlay" && !fullscreen &&
-            "absolute right-0 top-0 z-detail animate-slide-in-right shadow-elevated",
-          variant === "overlay" && fullscreen &&
-            "absolute inset-0 z-detail animate-slide-in-right shadow-elevated",
-          !width && variant === "overlay" && !fullscreen && "w-detail",
-          !width && variant === "flush" && "w-full",
-          className,
-        )}
-        style={style}
-        {...props}
-      >
-        {resizable && variant === "overlay" && !fullscreen && onWidthChange && (
-          <div className="absolute left-[-2px] top-0 z-resizer h-full w-1">
-            <ResizeHandle
-              value={Number.isFinite(numericWidth) ? numericWidth : minWidth}
-              onChange={onWidthChange}
-              min={minWidth}
-              max={maxWidth ?? 1024}
-              direction="left"
-              aria-label="Resize details panel"
-            />
-          </div>
-        )}
-        <header className="flex shrink-0 items-center gap-2 border-b border-line px-3.5 py-2.5">
-          <div className="flex-1 truncate text-subhead text-text">
-            {title}
-          </div>
-          {actions && <div className="flex items-center gap-1">{actions}</div>}
-          {onClose && (
-            <IconButton aria-label="Close details" onClick={onClose}>
-              <X size={14} />
-            </IconButton>
-          )}
-        </header>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="px-3.5 py-3">{children}</div>
-        </ScrollArea>
-      </aside>
-    );
+export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function DetailPanel(
+  {
+    className,
+    title,
+    actions,
+    onClose,
+    width,
+    variant = "overlay",
+    children,
+    resizable,
+    onWidthChange,
+    minWidth = 320,
+    maxWidth,
+    fullscreen,
+    ...props
   },
-);
+  ref,
+) {
+  const numericWidth = typeof width === "number" ? width : Number.NaN;
+  const style: React.CSSProperties =
+    !fullscreen && width ? { width: typeof width === "number" ? `${width}px` : width } : {};
+  return (
+    <aside
+      ref={ref}
+      aria-label="Details"
+      className={cn(
+        "flex h-full flex-col border-l border-line bg-panel text-text",
+        variant === "overlay" &&
+          !fullscreen &&
+          "absolute right-0 top-0 z-detail animate-slide-in-right shadow-elevated",
+        variant === "overlay" &&
+          fullscreen &&
+          "absolute inset-0 z-detail animate-slide-in-right shadow-elevated",
+        !width && variant === "overlay" && !fullscreen && "w-detail",
+        !width && variant === "flush" && "w-full",
+        className,
+      )}
+      style={style}
+      {...props}
+    >
+      {resizable && variant === "overlay" && !fullscreen && onWidthChange && (
+        <div className="absolute left-[-2px] top-0 z-resizer h-full w-1">
+          <ResizeHandle
+            value={Number.isFinite(numericWidth) ? numericWidth : minWidth}
+            onChange={onWidthChange}
+            min={minWidth}
+            max={maxWidth ?? 1024}
+            direction="left"
+            aria-label="Resize details panel"
+          />
+        </div>
+      )}
+      <header className="flex shrink-0 items-center gap-2 border-b border-line px-3.5 py-2.5">
+        <div className="flex-1 truncate text-subhead text-text">{title}</div>
+        {actions && <div className="flex items-center gap-1">{actions}</div>}
+        {onClose && (
+          <IconButton aria-label="Close details" onClick={onClose}>
+            <X size={14} />
+          </IconButton>
+        )}
+      </header>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="px-3.5 py-3">{children}</div>
+      </ScrollArea>
+    </aside>
+  );
+});

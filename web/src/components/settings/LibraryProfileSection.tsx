@@ -65,14 +65,16 @@ export function LibraryProfileSection({
       <Section
         title="Library profile"
         defaultOpen
-        accessory={savedAt ? <Badge size="sm" tone="ok">Saved</Badge> : null}
+        accessory={
+          savedAt ? (
+            <Badge size="sm" tone="ok">
+              Saved
+            </Badge>
+          ) : null
+        }
       >
         <FieldRow label="Name">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={!isAdmin}
-          />
+          <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!isAdmin} />
         </FieldRow>
         <FieldRow label="Description" hint="Optional. Visible to all members.">
           <Textarea
@@ -84,11 +86,7 @@ export function LibraryProfileSection({
         </FieldRow>
         {isAdmin && (
           <div className="flex justify-end">
-            <Button
-              variant="primary"
-              disabled={patch.isPending || !name.trim()}
-              onClick={submit}
-            >
+            <Button variant="primary" disabled={patch.isPending || !name.trim()} onClick={submit}>
               Save
             </Button>
           </div>
@@ -108,23 +106,15 @@ function DangerZone({ library }: { library: MeLibrary }) {
           <span className="text-ui text-text">Delete this library</span>
           <span className="text-caption">
             Removes every asset, project, collection, tag, setting, and member of{" "}
-            <span className="font-mono">{library.name}</span>. Blob storage is
-            untouched. This can't be undone.
+            <span className="font-mono">{library.name}</span>. Blob storage is untouched. This can't
+            be undone.
           </span>
         </div>
-        <Button
-          variant="danger"
-          leadingIcon={<Trash2 size={12} />}
-          onClick={() => setOpen(true)}
-        >
+        <Button variant="danger" leadingIcon={<Trash2 size={12} />} onClick={() => setOpen(true)}>
           Delete library
         </Button>
       </div>
-      <DeleteLibraryDialog
-        library={library}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      <DeleteLibraryDialog library={library} open={open} onOpenChange={setOpen} />
     </Section>
   );
 }
@@ -176,14 +166,11 @@ function DeleteLibraryDialog({
         </DialogHeader>
         <DialogBody>
           <p className="text-ui text-text-2">
-            All assets, projects, collections, tags, settings, and member roles
-            for <span className="font-mono">{library.name}</span> will be
-            removed. Members will be signed out of any open sessions.
+            All assets, projects, collections, tags, settings, and member roles for{" "}
+            <span className="font-mono">{library.name}</span> will be removed. Members will be
+            signed out of any open sessions.
           </p>
-          <FieldRow
-            label="Type the library name to confirm"
-            hint="Case-sensitive."
-          >
+          <FieldRow label="Type the library name to confirm" hint="Case-sensitive.">
             <Input
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
@@ -197,11 +184,7 @@ function DeleteLibraryDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant="danger"
-            disabled={!matches || del.isPending}
-            onClick={submit}
-          >
+          <Button variant="danger" disabled={!matches || del.isPending} onClick={submit}>
             {del.isPending ? "Deleting…" : "Delete library"}
           </Button>
         </DialogFooter>

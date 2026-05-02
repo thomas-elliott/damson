@@ -56,10 +56,10 @@ export function useAddAssetTag() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { assetId: number; path: string }) => {
-      return fetchJson<{ asset_id: number; tag_id: number }>(
-        `/api/assets/${input.assetId}/tags`,
-        { method: "POST", body: JSON.stringify({ path: input.path }) },
-      );
+      return fetchJson<{ asset_id: number; tag_id: number }>(`/api/assets/${input.assetId}/tags`, {
+        method: "POST",
+        body: JSON.stringify({ path: input.path }),
+      });
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: queryKeys.asset(v.assetId) });
@@ -159,11 +159,7 @@ export function useDeleteProject() {
 export function usePinAssetToProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      projectId: number;
-      asset_id: number;
-      version_id?: number;
-    }) => {
+    mutationFn: async (input: { projectId: number; asset_id: number; version_id?: number }) => {
       const { projectId, ...body } = input;
       return fetchJson<unknown>(`/api/projects/${projectId}/pins`, {
         method: "POST",
@@ -243,10 +239,9 @@ export function useRemoveAssetFromCollection() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { collectionId: number; assetId: number }) => {
-      await fetchMaybeJson(
-        `/api/collections/${input.collectionId}/assets/${input.assetId}`,
-        { method: "DELETE" },
-      );
+      await fetchMaybeJson(`/api/collections/${input.collectionId}/assets/${input.assetId}`, {
+        method: "DELETE",
+      });
       return input;
     },
     onSuccess: (v) => {
@@ -287,10 +282,9 @@ export function useRetryImport() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
-      return fetchJson<{ asset_id: number; import_id: number }>(
-        `/api/imports/${id}/retry`,
-        { method: "POST" },
-      );
+      return fetchJson<{ asset_id: number; import_id: number }>(`/api/imports/${id}/retry`, {
+        method: "POST",
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.imports });
@@ -324,11 +318,7 @@ export function useInviteMember() {
 export function usePatchMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      libraryId: number;
-      userId: number;
-      role: "admin" | "member";
-    }) => {
+    mutationFn: async (input: { libraryId: number; userId: number; role: "admin" | "member" }) => {
       const { libraryId, userId, role } = input;
       return fetchJson<unknown>(`/api/libraries/${libraryId}/members/${userId}`, {
         method: "PATCH",
@@ -345,10 +335,9 @@ export function useRemoveMember() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { libraryId: number; userId: number }) => {
-      await fetchMaybeJson(
-        `/api/libraries/${input.libraryId}/members/${input.userId}`,
-        { method: "DELETE" },
-      );
+      await fetchMaybeJson(`/api/libraries/${input.libraryId}/members/${input.userId}`, {
+        method: "DELETE",
+      });
       return input;
     },
     onSuccess: (v) => {
@@ -407,10 +396,7 @@ export function useResetUserPassword() {
 export function usePatchServerSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      max_upload_bytes?: number;
-      licence_kb_auto_update?: boolean;
-    }) => {
+    mutationFn: async (input: { max_upload_bytes?: number; licence_kb_auto_update?: boolean }) => {
       return fetchJson<unknown>(`/api/admin/settings`, {
         method: "PATCH",
         body: JSON.stringify(input),
@@ -426,10 +412,10 @@ export function useCreateLibrary() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { name: string; description?: string }) => {
-      return fetchJson<{ id: number; name: string; description: string }>(
-        `/api/libraries`,
-        { method: "POST", body: JSON.stringify(input) },
-      );
+      return fetchJson<{ id: number; name: string; description: string }>(`/api/libraries`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.libraries });
@@ -465,11 +451,7 @@ export function useSwitchCurrentLibrary() {
 export function usePatchLibrary() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      libraryId: number;
-      name?: string;
-      description?: string;
-    }) => {
+    mutationFn: async (input: { libraryId: number; name?: string; description?: string }) => {
       const { libraryId, ...body } = input;
       return fetchJson<unknown>(`/api/libraries/${libraryId}`, {
         method: "PATCH",
