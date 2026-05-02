@@ -15,6 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -35,7 +36,15 @@ func newTestHandler(t *testing.T) (*Handler, *gorm.DB) {
 	t.Helper()
 	db := newTestDB(t)
 	store := newTestStorage(t)
-	return New(Deps{DB: db, AuthMode: config.AuthModeOIDC, Storage: store}), db
+	bc := imports.NewBroadcaster()
+	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc})
+	return New(Deps{
+		DB:          db,
+		AuthMode:    config.AuthModeOIDC,
+		Storage:     store,
+		ImportPool:  pool,
+		Broadcaster: bc,
+	}), db
 }
 
 func newTestHandlerLocal(t *testing.T) (*Handler, *gorm.DB, *auth.LocalAuthenticator) {
@@ -46,7 +55,16 @@ func newTestHandlerLocal(t *testing.T) (*Handler, *gorm.DB, *auth.LocalAuthentic
 		t.Fatalf("local auth: %v", err)
 	}
 	store := newTestStorage(t)
-	return New(Deps{DB: db, AuthMode: config.AuthModeLocal, Local: la, Storage: store}), db, la
+	bc := imports.NewBroadcaster()
+	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc})
+	return New(Deps{
+		DB:          db,
+		AuthMode:    config.AuthModeLocal,
+		Local:       la,
+		Storage:     store,
+		ImportPool:  pool,
+		Broadcaster: bc,
+	}), db, la
 }
 
 func newTestDB(t *testing.T) *gorm.DB {

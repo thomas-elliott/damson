@@ -11,6 +11,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 type subsetRequest struct {
@@ -89,7 +90,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 
 	label := req.VersionLabel
 	if label == "" {
-		next, err := nextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
+		next, err := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
 		if err != nil {
 			respond500(c)
 			return

@@ -82,7 +82,7 @@ func TestPostImportRetry_NoSourceBlob(t *testing.T) {
 	requireStatus(t, w, http.StatusConflict) // no source blob → 409
 }
 
-func TestPostImport_RecordsFailedRowOnExtractFailure(t *testing.T) {
+func TestPostImport_MarksFailedOnExtractError(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "thomas@datch.io")
 	seedLibraryAndSwitch(t, h, u)
@@ -90,9 +90,10 @@ func TestPostImport_RecordsFailedRowOnExtractFailure(t *testing.T) {
 	r := setupRouter(h, u)
 	body, ctype := buildMultipart(t, "file", "broken.unitypackage", []byte("not gzipped tar"))
 	w := postMultipart(r, "/api/imports", body, ctype)
-	requireStatus(t, w, http.StatusBadRequest)
+	// The handler accepts the upload; the worker (sync mode) fails the
+	// extract and writes the failure to the import row.
+	requireStatus(t, w, http.StatusAccepted)
 
-	// One asset + one failed import row should exist now.
 	var assetCount int64
 	if err := db.Model(&models.Asset{}).Count(&assetCount).Error; err != nil {
 		t.Fatal(err)
