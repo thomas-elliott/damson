@@ -12,10 +12,7 @@ export const TabsList = forwardRef<
   return (
     <RadixTabs.List
       ref={ref}
-      className={cn(
-        "flex items-center gap-2 border-b border-line",
-        className,
-      )}
+      className={cn("flex items-center gap-2 border-b border-line", className)}
       {...props}
     />
   );

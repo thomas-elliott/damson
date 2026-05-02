@@ -27,11 +27,7 @@ import { Chip } from "@/design-system/primitives/Chip";
 import { TooltipProvider } from "@/design-system/primitives/Tooltip";
 
 import { AppShell } from "./AppShell";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbSeparator,
-} from "./Breadcrumb";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from "./Breadcrumb";
 import { DetailPanel } from "./DetailPanel";
 import { FilterRow, FilterSidebar } from "./FilterSidebar";
 import { NavRail, NavRailItem, NavRailSpacer } from "./NavRail";
@@ -67,9 +63,7 @@ function PlaceholderCard() {
     <div className="flex flex-col gap-2">
       <div className="aspect-square rounded-md border border-line bg-surface" />
       <div className="flex items-center justify-between">
-        <span className="truncate text-ui font-medium text-text">
-          Asset name
-        </span>
+        <span className="truncate text-ui font-medium text-text">Asset name</span>
         <StatusDot tone="ok" />
       </div>
       <span className="text-mono text-text-3">12.4 MB</span>
@@ -132,32 +126,13 @@ export const LibraryView: Story = {
         }
         sidebar={
           <div className="relative h-full">
-            <FilterSidebar
-              header={<SearchInput kbd="⌘K" aria-label="Search assets" />}
-            >
+            <FilterSidebar header={<SearchInput kbd="⌘K" aria-label="Search assets" />}>
               <Section title="Licence">
                 <div className="flex flex-col gap-0.5">
-                  <FilterRow
-                    label="Compliant"
-                    count={124}
-                    dot={<StatusDot tone="ok" />}
-                    active
-                  />
-                  <FilterRow
-                    label="Needs review"
-                    count={18}
-                    dot={<StatusDot tone="warn" />}
-                  />
-                  <FilterRow
-                    label="Violation"
-                    count={3}
-                    dot={<StatusDot tone="err" />}
-                  />
-                  <FilterRow
-                    label="Unknown"
-                    count={42}
-                    dot={<StatusDot tone="unk" />}
-                  />
+                  <FilterRow label="Compliant" count={124} dot={<StatusDot tone="ok" />} active />
+                  <FilterRow label="Needs review" count={18} dot={<StatusDot tone="warn" />} />
+                  <FilterRow label="Violation" count={3} dot={<StatusDot tone="err" />} />
+                  <FilterRow label="Unknown" count={42} dot={<StatusDot tone="unk" />} />
                 </div>
               </Section>
               <Section title="File type">
@@ -169,9 +144,7 @@ export const LibraryView: Story = {
                 </div>
               </Section>
               <Section title="Tags" defaultOpen={false}>
-                <div className="text-caption">
-                  (no selected tags)
-                </div>
+                <div className="text-caption">(no selected tags)</div>
               </Section>
             </FilterSidebar>
             <div className="absolute inset-y-0 right-0 z-resizer">
@@ -234,10 +207,7 @@ export const LibraryView: Story = {
                     <IconButton aria-label="Pin">
                       <Pin size={14} />
                     </IconButton>
-                    <IconButton
-                      aria-label="Delete"
-                      onClick={() => setSelected(0)}
-                    >
+                    <IconButton aria-label="Delete" onClick={() => setSelected(0)}>
                       <Trash2 size={14} />
                     </IconButton>
                     <IconButton aria-label="More">
@@ -280,9 +250,7 @@ export const LibraryView: Story = {
                       <Button variant="primary" leadingIcon={<Pin size={12} />}>
                         Pin to project
                       </Button>
-                      <Button leadingIcon={<Plus size={12} />}>
-                        Add to collection
-                      </Button>
+                      <Button leadingIcon={<Plus size={12} />}>Add to collection</Button>
                     </div>
                   </div>
                 </DetailPanel>

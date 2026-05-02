@@ -86,10 +86,7 @@ function b64url(input: string): string {
 }
 
 test.describe("OIDC sign-in callback", () => {
-  test("exchanges code, stores user, and lands on /library", async ({
-    page,
-    noConsoleErrors,
-  }) => {
+  test("exchanges code, stores user, and lands on /library", async ({ page, noConsoleErrors }) => {
     // The SPA calls /api/auth/mode at boot; flip it to oidc *before*
     // navigation so AuthGuard takes the OIDC branch.
     await page.route("**/api/auth/mode", (route) =>
@@ -163,12 +160,14 @@ test.describe("OIDC sign-in callback", () => {
         }),
       }),
     );
-    await page.route(/\/api\/(assets|tags|projects|collections|imports|settings|audit|admin|files|thumbs)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({}),
-      }),
+    await page.route(
+      /\/api\/(assets|tags|projects|collections|imports|settings|audit|admin|files|thumbs)/,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({}),
+        }),
     );
 
     // Pre-seed localStorage with the SigninState the SDK looks up by
@@ -191,9 +190,7 @@ test.describe("OIDC sign-in callback", () => {
       },
     );
 
-    await page.goto(
-      `/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`,
-    );
+    await page.goto(`/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`);
 
     // The callback handler navigates / → /library. Wait on the final URL,
     // not the intermediate /, so a regression that strands the SPA on /

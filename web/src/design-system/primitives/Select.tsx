@@ -35,10 +35,7 @@ export const SelectTrigger = forwardRef<
 export const SelectContent = forwardRef<
   React.ElementRef<typeof RadixSelect.Content>,
   ComponentPropsWithoutRef<typeof RadixSelect.Content>
->(function SelectContent(
-  { className, position = "popper", sideOffset = 4, style, ...props },
-  ref,
-) {
+>(function SelectContent({ className, position = "popper", sideOffset = 4, style, ...props }, ref) {
   return (
     <RadixSelect.Portal>
       <RadixSelect.Content
@@ -54,8 +51,7 @@ export const SelectContent = forwardRef<
         className={cn(
           "z-popover overflow-hidden rounded-md border border-line bg-panel text-ui text-text-2 shadow-elevated",
           "data-[state=open]:animate-fade-in",
-          position === "popper" &&
-            "min-w-[var(--radix-select-trigger-width)]",
+          position === "popper" && "min-w-[var(--radix-select-trigger-width)]",
           className,
         )}
         {...props}
@@ -63,9 +59,7 @@ export const SelectContent = forwardRef<
         <RadixSelect.ScrollUpButton className="flex cursor-default items-center justify-center py-1 text-text-3">
           <ChevronUp size={12} />
         </RadixSelect.ScrollUpButton>
-        <RadixSelect.Viewport className="p-1">
-          {props.children}
-        </RadixSelect.Viewport>
+        <RadixSelect.Viewport className="p-1">{props.children}</RadixSelect.Viewport>
         <RadixSelect.ScrollDownButton className="flex cursor-default items-center justify-center py-1 text-text-3">
           <ChevronDown size={12} />
         </RadixSelect.ScrollDownButton>
@@ -106,10 +100,7 @@ export const SelectLabel = forwardRef<
   return (
     <RadixSelect.Label
       ref={ref}
-      className={cn(
-        "px-2 py-1 text-label text-text-4",
-        className,
-      )}
+      className={cn("px-2 py-1 text-label text-text-4", className)}
       {...props}
     />
   );
@@ -120,10 +111,6 @@ export const SelectSeparator = forwardRef<
   ComponentPropsWithoutRef<typeof RadixSelect.Separator>
 >(function SelectSeparator({ className, ...props }, ref) {
   return (
-    <RadixSelect.Separator
-      ref={ref}
-      className={cn("my-1 h-px bg-line", className)}
-      {...props}
-    />
+    <RadixSelect.Separator ref={ref} className={cn("my-1 h-px bg-line", className)} {...props} />
   );
 });

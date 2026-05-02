@@ -2,12 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import {
-  AssetCard,
-  EmptyState,
-  LicencePill,
-  formatBytes,
-} from "@/design-system";
+import { AssetCard, EmptyState, LicencePill, formatBytes } from "@/design-system";
 import type { AssetRow } from "@/hooks/useDataQueries";
 
 // Cell sizing matches the Tailwind class `minmax(180px, 1fr)` used previously
@@ -69,59 +64,54 @@ export function AssetGrid({
           description="Drop .unitypackage files, sprites, audio, or fonts onto this view — or click to select. Damson extracts, hashes, and licence-tags each import."
         />
       ) : (
-      <div
-        style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}
-      >
-        {virtualizer.getVirtualItems().map((vRow) => {
-          const row = rows[vRow.index];
-          return (
-            <div
-              key={vRow.key}
-              data-row-index={vRow.index}
-              className="grid"
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${vRow.start}px)`,
-                gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                gap: GAP,
-              }}
-            >
-              {row.map((a) => (
-                <AssetCard
-                  key={a.id}
-                  name={a.name}
-                  data-asset-id={a.id}
-                  selected={selectedId === a.id}
-                  onSelect={() => onOpen?.(a.id)}
-                  sub={
-                    <>
-                      <span className="font-mono">{formatBytes(a.size_bytes)}</span>
-                      {a.file_count > 1 && (
-                        <>
-                          <span className="text-text-4">·</span>
-                          <span className="font-mono">{a.file_count} files</span>
-                        </>
-                      )}
-                    </>
-                  }
-                  trailing={
-                    a.licence_spdx ? (
-                      <LicencePill
-                        status={a.licence_status ?? "unk"}
-                        spdx={a.licence_spdx}
-                      />
-                    ) : undefined
-                  }
-                  needsReview={a.needs_review}
-                />
-              ))}
-            </div>
-          );
-        })}
-      </div>
+        <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+          {virtualizer.getVirtualItems().map((vRow) => {
+            const row = rows[vRow.index];
+            return (
+              <div
+                key={vRow.key}
+                data-row-index={vRow.index}
+                className="grid"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${vRow.start}px)`,
+                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                  gap: GAP,
+                }}
+              >
+                {row.map((a) => (
+                  <AssetCard
+                    key={a.id}
+                    name={a.name}
+                    data-asset-id={a.id}
+                    selected={selectedId === a.id}
+                    onSelect={() => onOpen?.(a.id)}
+                    sub={
+                      <>
+                        <span className="font-mono">{formatBytes(a.size_bytes)}</span>
+                        {a.file_count > 1 && (
+                          <>
+                            <span className="text-text-4">·</span>
+                            <span className="font-mono">{a.file_count} files</span>
+                          </>
+                        )}
+                      </>
+                    }
+                    trailing={
+                      a.licence_spdx ? (
+                        <LicencePill status={a.licence_status ?? "unk"} spdx={a.licence_spdx} />
+                      ) : undefined
+                    }
+                    needsReview={a.needs_review}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

@@ -127,15 +127,15 @@ function filtersToQuery(f: AssetFilters | undefined): string {
 }
 
 export function useAssets(filters?: AssetFilters, enabled: boolean = true) {
-  const keyed = filters && Object.keys(filters).length > 0
-    ? (Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
-      ) as Record<string, string | number | boolean>)
-    : undefined;
+  const keyed =
+    filters && Object.keys(filters).length > 0
+      ? (Object.fromEntries(
+          Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
+        ) as Record<string, string | number | boolean>)
+      : undefined;
   const q = useQuery({
     queryKey: queryKeys.assets(keyed),
-    queryFn: () =>
-      fetchJson<AssetListResponse>(`/api/assets${filtersToQuery(filters)}`),
+    queryFn: () => fetchJson<AssetListResponse>(`/api/assets${filtersToQuery(filters)}`),
     staleTime: 30 * 1000,
     gcTime: 10 * MINUTE,
     enabled,
@@ -461,11 +461,12 @@ function auditQuery(f?: object): string {
 }
 
 export function useLibraryAudit(filters?: AuditFilters, enabled: boolean = true) {
-  const keyed = filters && Object.keys(filters).length > 0
-    ? (Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
-      ) as Record<string, string | number | boolean>)
-    : undefined;
+  const keyed =
+    filters && Object.keys(filters).length > 0
+      ? (Object.fromEntries(
+          Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
+        ) as Record<string, string | number | boolean>)
+      : undefined;
   const q = useQuery({
     queryKey: queryKeys.audit(keyed),
     queryFn: () => fetchJson<AuditListResponse>(`/api/audit${auditQuery(filters)}`),
@@ -486,11 +487,12 @@ export function useAdminAudit(
   filters?: AuditFilters & { scope?: AdminAuditScope },
   enabled: boolean = true,
 ) {
-  const keyed = filters && Object.keys(filters).length > 0
-    ? (Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
-      ) as Record<string, string | number | boolean>)
-    : undefined;
+  const keyed =
+    filters && Object.keys(filters).length > 0
+      ? (Object.fromEntries(
+          Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
+        ) as Record<string, string | number | boolean>)
+      : undefined;
   const q = useQuery({
     queryKey: queryKeys.adminAudit(keyed),
     queryFn: () => fetchJson<AuditListResponse>(`/api/admin/audit${auditQuery(filters)}`),
@@ -559,7 +561,10 @@ interface ImportListResponse {
   total: number;
 }
 
-export function useImports(stage: "in_flight" | "all" | "done" | "failed" = "in_flight", enabled: boolean = true) {
+export function useImports(
+  stage: "in_flight" | "all" | "done" | "failed" = "in_flight",
+  enabled: boolean = true,
+) {
   const search = stage === "in_flight" ? "" : `?stage=${stage}`;
   const q = useQuery({
     queryKey: [...queryKeys.imports, stage],

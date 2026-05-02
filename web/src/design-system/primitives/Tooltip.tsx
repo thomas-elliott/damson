@@ -18,10 +18,7 @@ export const TooltipTrigger = RadixTooltip.Trigger;
 export const TooltipContent = forwardRef<
   React.ElementRef<typeof RadixTooltip.Content>,
   ComponentPropsWithoutRef<typeof RadixTooltip.Content>
->(function TooltipContent(
-  { className, sideOffset = 8, side = "right", ...props },
-  ref,
-) {
+>(function TooltipContent({ className, sideOffset = 8, side = "right", ...props }, ref) {
   return (
     <RadixTooltip.Portal>
       <RadixTooltip.Content

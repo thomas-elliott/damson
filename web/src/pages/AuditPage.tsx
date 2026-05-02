@@ -3,12 +3,7 @@ import { useSearchParams } from "react-router";
 
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  SearchInput,
-  Toolbar,
-} from "@/design-system";
+import { Breadcrumb, BreadcrumbItem, SearchInput, Toolbar } from "@/design-system";
 import { cn } from "@/design-system/utils";
 import { useLibraryAudit } from "@/hooks/useDataQueries";
 

@@ -4,12 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Check, UploadCloud } from "lucide-react";
 
 import { uploadFile } from "@/api";
-import {
-  DropOverlay,
-  ProgressBar,
-  cn,
-  formatBytes,
-} from "@/design-system";
+import { DropOverlay, ProgressBar, cn, formatBytes } from "@/design-system";
 import { queryKeys } from "@/lib/queryKeys";
 
 interface UploadState {
@@ -62,8 +57,7 @@ export function DropZone({ children }: { children: ReactNode }) {
           });
           setUploads((prev) => {
             const next = [...prev];
-            if (next[myIndex])
-              next[myIndex] = { ...next[myIndex], progress: 1, done: true };
+            if (next[myIndex]) next[myIndex] = { ...next[myIndex], progress: 1, done: true };
             return next;
           });
           void queryClient.invalidateQueries({ queryKey: queryKeys.assets() });
@@ -99,9 +93,7 @@ export function DropZone({ children }: { children: ReactNode }) {
     <DropZoneContext.Provider value={{ open }}>
       <div
         {...getRootProps()}
-        className={cn(
-          "relative flex min-h-full flex-1 flex-col outline-hidden",
-        )}
+        className={cn("relative flex min-h-full flex-1 flex-col outline-hidden")}
       >
         <input {...getInputProps()} />
         {children}
@@ -111,9 +103,7 @@ export function DropZone({ children }: { children: ReactNode }) {
             {uploads.map((u, i) => (
               <li key={`${u.filename}-${i}`} className="flex flex-col gap-1">
                 <div className="flex items-center justify-between gap-3 text-small">
-                  <span className="truncate font-medium text-text">
-                    {u.filename}
-                  </span>
+                  <span className="truncate font-medium text-text">{u.filename}</span>
                   <span
                     className={cn(
                       "flex items-center gap-1 text-mono tabular-nums",
@@ -127,11 +117,7 @@ export function DropZone({ children }: { children: ReactNode }) {
                     ) : (
                       <UploadCloud size={12} />
                     )}
-                    {u.error
-                      ? "error"
-                      : u.done
-                        ? "done"
-                        : `${Math.round(u.progress * 100)}%`}
+                    {u.error ? "error" : u.done ? "done" : `${Math.round(u.progress * 100)}%`}
                   </span>
                 </div>
                 {!u.error && (
@@ -141,12 +127,8 @@ export function DropZone({ children }: { children: ReactNode }) {
                     tone={u.done ? "ok" : "accent"}
                   />
                 )}
-                {u.error && (
-                  <span className="text-small text-err">{u.error}</span>
-                )}
-                <span className="text-mono text-text-3">
-                  {formatBytes(u.size)}
-                </span>
+                {u.error && <span className="text-small text-err">{u.error}</span>}
+                <span className="text-mono text-text-3">{formatBytes(u.size)}</span>
               </li>
             ))}
           </ul>

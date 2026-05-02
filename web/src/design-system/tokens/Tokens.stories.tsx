@@ -62,9 +62,7 @@ function Group({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-label font-semibold text-text-4">
-        {heading}
-      </h3>
+      <h3 className="text-label font-semibold text-text-4">{heading}</h3>
       <div className="grid grid-cols-2 gap-3">
         {swatches.map((s) => (
           <Swatch key={s.v} name={s.name} cssVar={s.v} />

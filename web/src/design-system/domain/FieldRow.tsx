@@ -37,8 +37,7 @@ export function FieldRow({
   const descId = description ? `${controlId}-desc` : undefined;
   const hintId = hint ? `${controlId}-hint` : undefined;
   const errorId = error ? `${controlId}-error` : undefined;
-  const describedBy =
-    [descId, hintId, errorId].filter(Boolean).join(" ") || undefined;
+  const describedBy = [descId, hintId, errorId].filter(Boolean).join(" ") || undefined;
   return (
     <div className={cn("flex flex-col gap-1.5", className)} {...props}>
       <label htmlFor={controlId} className="text-small text-text-3">

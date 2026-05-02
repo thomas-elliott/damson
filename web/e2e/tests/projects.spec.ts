@@ -35,12 +35,7 @@ test.describe("Project pin + upgrade flow", () => {
 
     const session = await bootstrapAdmin(request);
     const fileBytes = await readFile(FIXTURE_PATH);
-    const upload = await uploadImport(
-      request,
-      session,
-      "pin-target.unitypackage",
-      fileBytes,
-    );
+    const upload = await uploadImport(request, session, "pin-target.unitypackage", fileBytes);
 
     // The subset endpoint takes file_ids belonging to the source version;
     // grab the first asset_file from the detail payload (the unitypackage
@@ -80,13 +75,9 @@ test.describe("Project pin + upgrade flow", () => {
 
     // Create v2 via subset. The subset handler also flips current_version
     // to the new id, so updates_available should jump from 0 to 1.
-    const v2 = await subsetVersion(
-      request,
-      session,
-      upload.asset_id,
-      upload.asset_version_id,
-      [firstFileId!],
-    );
+    const v2 = await subsetVersion(request, session, upload.asset_id, upload.asset_version_id, [
+      firstFileId!,
+    ]);
     expect(v2.version_label).toBe("v2");
 
     // Reload the project page so useProject refetches against the new

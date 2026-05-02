@@ -2,11 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
-import {
-  Button,
-  FieldRow,
-  Input,
-} from "@/design-system";
+import { Button, FieldRow, Input } from "@/design-system";
 import { localBootstrap } from "@/lib/localAuth";
 import { queryKeys } from "@/lib/queryKeys";
 import { type AuthModeInfo } from "@/lib/authMode";
@@ -80,11 +76,7 @@ export function BootstrapPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
         </FieldRow>
-        <FieldRow
-          label="Password"
-          hint="At least 8 characters."
-          error={fieldErrors.password}
-        >
+        <FieldRow label="Password" hint="At least 8 characters." error={fieldErrors.password}>
           <Input
             type="password"
             autoComplete="new-password"
@@ -105,12 +97,7 @@ export function BootstrapPage() {
           />
         </FieldRow>
         {error && <p className="text-small text-err">{error}</p>}
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={submitting}
-          className="mt-1 w-full"
-        >
+        <Button type="submit" variant="primary" disabled={submitting} className="mt-1 w-full">
           {submitting ? "Creating account…" : "Create account"}
         </Button>
       </form>
@@ -131,9 +118,7 @@ function AuthCard({
     <div className="grid min-h-screen place-items-center bg-bg px-4">
       <div className="w-full max-w-sm rounded-lg border border-line bg-panel p-6 shadow-elevated">
         <h1 className="text-subhead text-text">{title}</h1>
-        {description && (
-          <p className="mt-1 text-caption">{description}</p>
-        )}
+        {description && <p className="mt-1 text-caption">{description}</p>}
         <div className="mt-5">{children}</div>
       </div>
     </div>

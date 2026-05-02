@@ -11,11 +11,7 @@ import {
   StatusDot,
   Textarea,
 } from "@/design-system";
-import type {
-  LicenceAttributes,
-  LicenceStatus,
-  LicenceView,
-} from "@/hooks/useDataQueries";
+import type { LicenceAttributes, LicenceStatus, LicenceView } from "@/hooks/useDataQueries";
 import { usePutLicence } from "@/hooks/useMutations";
 
 interface DetectResponse {
@@ -174,11 +170,7 @@ export function LicenceEditor({
         >
           {detecting ? "Detecting…" : "Detect"}
         </Button>
-        <Button
-          variant="primary"
-          onClick={saveDetected}
-          disabled={!draft.trim() || put.isPending}
-        >
+        <Button variant="primary" onClick={saveDetected} disabled={!draft.trim() || put.isPending}>
           Save detected
         </Button>
         <Button variant="ghost" onClick={saveAsCustom} disabled={!draft.trim()}>

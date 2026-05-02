@@ -66,10 +66,7 @@ async function sseHeaders(): Promise<Record<string, string>> {
 // updated for symmetry (e.g. a "failed" filter open in another tab). For
 // terminal `done` events the row is removed from the in_flight slice
 // because the snapshot endpoint excludes done rows.
-function applyImportEvent(
-  queryClient: ReturnType<typeof useQueryClient>,
-  ev: ImportRow,
-) {
+function applyImportEvent(queryClient: ReturnType<typeof useQueryClient>, ev: ImportRow) {
   type CachedShape = { imports: ImportRow[]; total: number } | undefined;
   const variants: Array<"in_flight" | "all" | "done" | "failed"> = [
     "in_flight",
@@ -78,21 +75,15 @@ function applyImportEvent(
     "failed",
   ];
   for (const variant of variants) {
-    queryClient.setQueryData<CachedShape>(
-      [...queryKeys.imports, variant],
-      (cached) => {
-        if (!cached) return cached;
-        const inFlightHidesDone = variant === "in_flight";
-        const stageMatchesFilter =
-          variant === "all" ||
-          variant === "in_flight" ||
-          variant === ev.stage;
-        const next = cached.imports.filter((row) => row.id !== ev.id);
-        const shouldKeep =
-          stageMatchesFilter && !(inFlightHidesDone && ev.stage === "done");
-        if (shouldKeep) next.unshift(ev);
-        return { imports: next, total: next.length };
-      },
-    );
+    queryClient.setQueryData<CachedShape>([...queryKeys.imports, variant], (cached) => {
+      if (!cached) return cached;
+      const inFlightHidesDone = variant === "in_flight";
+      const stageMatchesFilter =
+        variant === "all" || variant === "in_flight" || variant === ev.stage;
+      const next = cached.imports.filter((row) => row.id !== ev.id);
+      const shouldKeep = stageMatchesFilter && !(inFlightHidesDone && ev.stage === "done");
+      if (shouldKeep) next.unshift(ev);
+      return { imports: next, total: next.length };
+    });
   }
 }

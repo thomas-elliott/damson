@@ -17,11 +17,7 @@ import {
   formatBytes,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
-import {
-  useAssetAudit,
-  useAssetDetail,
-  type AssetDetailView,
-} from "@/hooks/useDataQueries";
+import { useAssetAudit, useAssetDetail, type AssetDetailView } from "@/hooks/useDataQueries";
 import {
   useAddAssetTag,
   useDeleteAsset,
@@ -161,10 +157,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
   const onAddTag = () => {
     const v = newTag.trim();
     if (!v) return;
-    addTag.mutate(
-      { assetId: asset.id, path: v },
-      { onSuccess: () => setNewTag("") },
-    );
+    addTag.mutate({ assetId: asset.id, path: v }, { onSuccess: () => setNewTag("") });
   };
 
   return (
@@ -190,12 +183,18 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
             className="group flex items-center gap-2 text-left text-heading-medium text-text"
           >
             <span className="truncate">{asset.name}</span>
-            <Pencil size={12} className="opacity-0 transition-opacity duration-std ease group-hover:opacity-100 text-text-3" />
+            <Pencil
+              size={12}
+              className="opacity-0 transition-opacity duration-std ease group-hover:opacity-100 text-text-3"
+            />
           </button>
         )}
         <div className="flex flex-wrap items-center gap-1.5">
           {asset.licence && (
-            <LicencePill status={asset.licence.status} spdx={asset.licence.detected_type || "Unknown"} />
+            <LicencePill
+              status={asset.licence.status}
+              spdx={asset.licence.detected_type || "Unknown"}
+            />
           )}
           {asset.needs_review && (
             <button
@@ -251,7 +250,9 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
               onClick={() => removeTag.mutate({ assetId: asset.id, tagId: t.id })}
             >
               {t.path}
-              <span aria-hidden className="ml-1 text-text-3">×</span>
+              <span aria-hidden className="ml-1 text-text-3">
+                ×
+              </span>
             </Tag>
           ))}
           <Input
@@ -322,9 +323,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
             </li>
           ))}
           {asset.files.length > 50 && (
-            <li className="px-1.5 py-1 text-caption">
-              … {asset.files.length - 50} more files
-            </li>
+            <li className="px-1.5 py-1 text-caption">… {asset.files.length - 50} more files</li>
           )}
         </ul>
       </Section>
@@ -354,9 +353,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
           <KeyValueList
             entries={asset.projects.map((p) => ({
               key: p.project_name,
-              value: (
-                <span className="font-mono text-text-2">{p.version_label}</span>
-              ),
+              value: <span className="font-mono text-text-2">{p.version_label}</span>,
               mono: false,
             }))}
           />

@@ -62,12 +62,7 @@ export function LoginPage() {
             />
           </FieldRow>
           {error && <p className="text-small text-err">{error}</p>}
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={submitting}
-            className="mt-1 w-full"
-          >
+          <Button type="submit" variant="primary" disabled={submitting} className="mt-1 w-full">
             {submitting ? "Signing in…" : "Sign in"}
           </Button>
         </form>

@@ -16,13 +16,7 @@ export interface SelectionBarProps extends HTMLAttributes<HTMLDivElement> {
  * multiple items selected. Absolute-positioned so it sits over a grid/list
  * without shifting layout. Auto-hides when count is 0.
  */
-export function SelectionBar({
-  className,
-  count,
-  actions,
-  children,
-  ...props
-}: SelectionBarProps) {
+export function SelectionBar({ className, count, actions, children, ...props }: SelectionBarProps) {
   if (count <= 0) return null;
   return (
     <div

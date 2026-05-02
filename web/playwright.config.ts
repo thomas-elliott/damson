@@ -9,8 +9,7 @@ const FRONTEND_PORT = Number(process.env.E2E_PORT ?? 5173);
 const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8080);
 const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
-const E2E_DATA_DIR =
-  process.env.E2E_DATA_DIR ?? path.join(dirname, "e2e", ".e2e-data");
+const E2E_DATA_DIR = process.env.E2E_DATA_DIR ?? path.join(dirname, "e2e", ".e2e-data");
 
 // Default target is `vite dev` so the suite exercises the same dev pipeline
 // developers hit locally — Vite plugins, Tailwind transform, on-demand

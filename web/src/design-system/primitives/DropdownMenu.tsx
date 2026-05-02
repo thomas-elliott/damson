@@ -14,10 +14,7 @@ export const DropdownMenuRadioGroup = RadixDropdown.RadioGroup;
 export const DropdownMenuContent = forwardRef<
   React.ElementRef<typeof RadixDropdown.Content>,
   ComponentPropsWithoutRef<typeof RadixDropdown.Content>
->(function DropdownMenuContent(
-  { className, sideOffset = 4, style, ...props },
-  ref,
-) {
+>(function DropdownMenuContent({ className, sideOffset = 4, style, ...props }, ref) {
   return (
     <RadixDropdown.Portal>
       <RadixDropdown.Content
@@ -42,22 +39,13 @@ export const DropdownMenuItem = forwardRef<
   React.ElementRef<typeof RadixDropdown.Item>,
   ComponentPropsWithoutRef<typeof RadixDropdown.Item>
 >(function DropdownMenuItem({ className, ...props }, ref) {
-  return (
-    <RadixDropdown.Item
-      ref={ref}
-      className={cn(itemClasses, className)}
-      {...props}
-    />
-  );
+  return <RadixDropdown.Item ref={ref} className={cn(itemClasses, className)} {...props} />;
 });
 
 export const DropdownMenuCheckboxItem = forwardRef<
   React.ElementRef<typeof RadixDropdown.CheckboxItem>,
   ComponentPropsWithoutRef<typeof RadixDropdown.CheckboxItem>
->(function DropdownMenuCheckboxItem(
-  { className, children, checked, ...props },
-  ref,
-) {
+>(function DropdownMenuCheckboxItem({ className, children, checked, ...props }, ref) {
   return (
     <RadixDropdown.CheckboxItem
       ref={ref}
@@ -80,11 +68,7 @@ export const DropdownMenuRadioItem = forwardRef<
   ComponentPropsWithoutRef<typeof RadixDropdown.RadioItem>
 >(function DropdownMenuRadioItem({ className, children, ...props }, ref) {
   return (
-    <RadixDropdown.RadioItem
-      ref={ref}
-      className={cn(itemClasses, "pl-7", className)}
-      {...props}
-    >
+    <RadixDropdown.RadioItem ref={ref} className={cn(itemClasses, "pl-7", className)} {...props}>
       <span className="absolute left-2 grid h-4 w-4 place-items-center text-accent">
         <RadixDropdown.ItemIndicator>
           <span className="h-1.5 w-1.5 rounded-full bg-accent" />
@@ -102,10 +86,7 @@ export const DropdownMenuLabel = forwardRef<
   return (
     <RadixDropdown.Label
       ref={ref}
-      className={cn(
-        "px-2 py-1 text-label text-text-4",
-        className,
-      )}
+      className={cn("px-2 py-1 text-label text-text-4", className)}
       {...props}
     />
   );
@@ -116,11 +97,7 @@ export const DropdownMenuSeparator = forwardRef<
   ComponentPropsWithoutRef<typeof RadixDropdown.Separator>
 >(function DropdownMenuSeparator({ className, ...props }, ref) {
   return (
-    <RadixDropdown.Separator
-      ref={ref}
-      className={cn("my-1 h-px bg-line", className)}
-      {...props}
-    />
+    <RadixDropdown.Separator ref={ref} className={cn("my-1 h-px bg-line", className)} {...props} />
   );
 });
 
@@ -128,11 +105,5 @@ export const DropdownMenuShortcut = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) => (
-  <span
-    className={cn(
-      "ml-auto text-mono text-text-4",
-      className,
-    )}
-    {...props}
-  />
+  <span className={cn("ml-auto text-mono text-text-4", className)} {...props} />
 );
