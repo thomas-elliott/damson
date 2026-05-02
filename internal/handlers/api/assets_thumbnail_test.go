@@ -23,8 +23,8 @@ func TestPostImport_GeneratesRasterThumbnail(t *testing.T) {
 	r := setupRouter(h, u)
 	body, ctype := buildMultipart(t, "file", "tile.png", pngBytes)
 	w := postMultipart(r, "/api/imports", body, ctype)
-	requireStatus(t, w, http.StatusCreated)
-	resp := jsonResponse[importResponse](t, w)
+	requireStatus(t, w, http.StatusAccepted)
+	resp := jsonResponse[importEnqueueResponse](t, w)
 
 	var a models.Asset
 	if err := db.First(&a, resp.AssetID).Error; err != nil {
@@ -64,8 +64,8 @@ func TestPostImport_RasterToggleOff(t *testing.T) {
 	r := setupRouter(h, u)
 	body, ctype := buildMultipart(t, "file", "tile.png", pngBytes)
 	w := postMultipart(r, "/api/imports", body, ctype)
-	requireStatus(t, w, http.StatusCreated)
-	resp := jsonResponse[importResponse](t, w)
+	requireStatus(t, w, http.StatusAccepted)
+	resp := jsonResponse[importEnqueueResponse](t, w)
 
 	var a models.Asset
 	if err := db.First(&a, resp.AssetID).Error; err != nil {
