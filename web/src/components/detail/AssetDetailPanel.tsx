@@ -15,6 +15,7 @@ import {
   Textarea,
   VersionItem,
   formatBytes,
+  useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
 import { useAssetAudit, useAssetDetail, type AssetDetailView } from "@/hooks/useDataQueries";
@@ -137,6 +138,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
   const [sourceURL, setSourceURL] = useState(asset.source_url);
   const [newTag, setNewTag] = useState("");
   const [subsetOpen, setSubsetOpen] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   // Reset edit state whenever the loaded asset changes (different asset
   // opened in the panel).
@@ -383,10 +385,14 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
         <Button
           variant="danger"
           leadingIcon={<Trash2 size={12} />}
-          onClick={() => {
-            if (confirm(`Delete "${asset.name}"? This removes all versions and files.`)) {
-              del.mutate(asset.id);
-            }
+          onClick={async () => {
+            const ok = await confirm({
+              title: `Delete "${asset.name}"?`,
+              description: "This removes all versions and files.",
+              confirmLabel: "Delete asset",
+              tone: "danger",
+            });
+            if (ok) del.mutate(asset.id);
           }}
         >
           Delete asset
@@ -397,6 +403,7 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
           </Button>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }
