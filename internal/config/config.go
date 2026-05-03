@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -69,6 +70,12 @@ type Config struct {
 	// ImportWorkers caps the size of the background import goroutine pool.
 	// Zero or negative values mean "use runtime.GOMAXPROCS(0)".
 	ImportWorkers int
+
+	// AuditPurgeInterval is how often the audit retention purge job sweeps
+	// audit_log against per-library `library_settings.audit_retention_days`.
+	// Defaults to 24h; an unparseable or non-positive value falls back to
+	// the default.
+	AuditPurgeInterval time.Duration
 }
 
 func Load() Config {
@@ -91,14 +98,15 @@ func Load() Config {
 	}
 
 	cfg := Config{
-		ListenAddr:    getenv("DAMSON_LISTEN_ADDR", ":8080"),
-		BaseURL:       getenv("DAMSON_BASE_URL", "http://localhost:8080"),
-		PostgresDSN:   mustGetSecret("DAMSON_POSTGRES_DSN"),
-		AuthMode:      authMode,
-		StorageMode:   storageMode,
-		LogLevel:      getenv("DAMSON_LOG_LEVEL", "info"),
-		GinMode:       os.Getenv("GIN_MODE"),
-		ImportWorkers: parseImportWorkers(os.Getenv("DAMSON_IMPORT_WORKERS")),
+		ListenAddr:         getenv("DAMSON_LISTEN_ADDR", ":8080"),
+		BaseURL:            getenv("DAMSON_BASE_URL", "http://localhost:8080"),
+		PostgresDSN:        mustGetSecret("DAMSON_POSTGRES_DSN"),
+		AuthMode:           authMode,
+		StorageMode:        storageMode,
+		LogLevel:           getenv("DAMSON_LOG_LEVEL", "info"),
+		GinMode:            os.Getenv("GIN_MODE"),
+		ImportWorkers:      parseImportWorkers(os.Getenv("DAMSON_IMPORT_WORKERS")),
+		AuditPurgeInterval: parseAuditPurgeInterval(os.Getenv("DAMSON_AUDIT_PURGE_INTERVAL")),
 	}
 
 	switch authMode {
@@ -194,6 +202,22 @@ func parseImportWorkers(raw string) int {
 		return runtime.GOMAXPROCS(0)
 	}
 	return n
+}
+
+const defaultAuditPurgeInterval = 24 * time.Hour
+
+// parseAuditPurgeInterval reads DAMSON_AUDIT_PURGE_INTERVAL as a Go duration
+// string ("24h", "30m", "12h"). Empty / unparseable / non-positive values
+// fall back to defaultAuditPurgeInterval.
+func parseAuditPurgeInterval(raw string) time.Duration {
+	if raw == "" {
+		return defaultAuditPurgeInterval
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return defaultAuditPurgeInterval
+	}
+	return d
 }
 
 func splitCSV(s string) []string {
