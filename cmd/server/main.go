@@ -20,6 +20,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/db"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
+	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
@@ -115,6 +116,11 @@ func main() {
 		slog.Info("import resume sweep", "enqueued", resumed)
 	}
 
+	purgeCtx, cancelPurge := context.WithCancel(context.Background())
+	defer cancelPurge()
+	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}
+	go purger.Run(purgeCtx)
+
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
@@ -174,6 +180,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	cancelPurge()
 	// Drain in-flight imports before stopping the HTTP server. Anything
 	// still running when ctx expires gets logged; the next boot's resume
 	// sweep picks up whatever remained non-terminal.
