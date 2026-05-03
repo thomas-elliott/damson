@@ -29,6 +29,7 @@ import {
   Toolbar,
   ToolbarSpacer,
   formatBytes,
+  useConfirm,
 } from "@/design-system";
 import { useAssets, useProject, useProjectAudit, type LicenceStatus } from "@/hooks/useDataQueries";
 import {
@@ -44,6 +45,7 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
   const del = useDeleteProject();
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   if (!projectId) return null;
 
@@ -78,8 +80,15 @@ export function ProjectDetailPage() {
             <Button
               variant="danger"
               leadingIcon={<Trash2 size={12} />}
-              onClick={() => {
-                if (project && confirm(`Delete project "${project.name}"?`)) {
+              onClick={async () => {
+                if (!project) return;
+                const ok = await confirm({
+                  title: `Delete project "${project.name}"?`,
+                  description: "Pinned assets stay in your library — only the project is removed.",
+                  confirmLabel: "Delete project",
+                  tone: "danger",
+                });
+                if (ok) {
                   del.mutate(project.id, {
                     onSuccess: () => navigate("/projects"),
                   });
@@ -192,6 +201,7 @@ export function ProjectDetailPage() {
             onOpenChange={setPinDialogOpen}
             projectId={projectId}
           />
+          {confirmDialog}
         </>
       }
     />

@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
   SimpleTooltip,
+  useConfirm,
 } from "@/design-system";
 import { useAuthMode, useLibraryMembers } from "@/hooks/useDataQueries";
 import { useInviteMember, usePatchMember, useRemoveMember } from "@/hooks/useMutations";
@@ -42,6 +43,7 @@ export function LibraryMembersSection({
   const [inviteOpen, setInviteOpen] = useState(false);
   const patch = usePatchMember();
   const remove = useRemoveMember();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   // Server returns 409 on demote/remove of the last admin — disabling the
   // UI gives users that signal before they click. Defence-in-depth, not
   // the only gate.
@@ -144,10 +146,14 @@ export function LibraryMembersSection({
                       size="sm"
                       variant="ghost"
                       leadingIcon={<Trash2 size={12} />}
-                      onClick={() => {
-                        if (confirm(`Remove ${m.display_name} from this library?`)) {
-                          remove.mutate({ libraryId, userId: m.user_id });
-                        }
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Remove ${m.display_name}?`,
+                          description: "They'll lose access to this library.",
+                          confirmLabel: "Remove",
+                          tone: "danger",
+                        });
+                        if (ok) remove.mutate({ libraryId, userId: m.user_id });
                       }}
                     >
                       Remove
@@ -160,6 +166,7 @@ export function LibraryMembersSection({
       )}
 
       <InviteMemberDialog libraryId={libraryId} open={inviteOpen} onOpenChange={setInviteOpen} />
+      {confirmDialog}
     </Section>
   );
 }
