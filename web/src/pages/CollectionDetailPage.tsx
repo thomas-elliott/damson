@@ -11,6 +11,7 @@ import {
   EmptyState,
   Toolbar,
   ToolbarSpacer,
+  useConfirm,
 } from "@/design-system";
 import { useAssets, useCollection } from "@/hooks/useDataQueries";
 import { useDeleteCollection } from "@/hooks/useMutations";
@@ -25,6 +26,7 @@ export function CollectionDetailPage() {
   );
   const navigate = useNavigate();
   const del = useDeleteCollection();
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   if (!collectionId) return null;
 
@@ -50,8 +52,15 @@ export function CollectionDetailPage() {
             <Button
               variant="danger"
               leadingIcon={<Trash2 size={12} />}
-              onClick={() => {
-                if (collection && confirm(`Delete collection "${collection.name}"?`)) {
+              onClick={async () => {
+                if (!collection) return;
+                const ok = await confirm({
+                  title: `Delete collection "${collection.name}"?`,
+                  description: "Assets stay in your library — only the collection is removed.",
+                  confirmLabel: "Delete collection",
+                  tone: "danger",
+                });
+                if (ok) {
                   del.mutate(collection.id, {
                     onSuccess: () => navigate("/collections"),
                   });
@@ -76,6 +85,7 @@ export function CollectionDetailPage() {
           ) : (
             <AssetGrid assets={assets} onOpen={(id) => navigate(`/library/${id}`)} />
           )}
+          {confirmDialog}
         </>
       }
     />
