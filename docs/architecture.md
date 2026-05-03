@@ -173,8 +173,8 @@ section sketches the shape and relationships.
   `theme_default`, `grid_density_default`,
   `retain_original_packages`, `dedupe_enabled`,
   `thumbnails_{raster,audio,font,unity_preview}_enabled`,
-  `audit_retention_days` (nullable; column is editable but no purge
-  job consumes it yet).
+  `audit_retention_days` (nullable; consumed by the background purge
+  worker in `internal/services/audit/purge.go` — see §12).
 
 Library-scoped entities all carry `library_id` directly.
 `created_by_user_id` / `pinned_by_user_id` are **attribution, not
@@ -533,8 +533,13 @@ adding a derived column.
     only, the original behaviour) or `all` (server + library-scoped
     events across every library, with each row's `library_name`
     joined in for the SPA to render).
-- Retention: unbounded in v1. `library_settings.audit_retention_days`
-  is settable but no purge job consumes it yet.
+- Retention: per-library via `library_settings.audit_retention_days`
+  (nullable — unset means "keep forever"). A background sweep in
+  `internal/services/audit/purge.go` deletes `audit_log` rows older
+  than that window for each library that has one set. Sweep cadence
+  is `DAMSON_AUDIT_PURGE_INTERVAL` (default `24h`). Server-level
+  events (`library_id IS NULL`) are not yet purged — `server_settings`
+  has no retention column.
 
 ---
 
@@ -564,6 +569,7 @@ The only always-required value is `DAMSON_POSTGRES_DSN` (or its
 | `DAMSON_AUTH_MODE` | `local` (or `oidc`) |
 | `DAMSON_STORAGE_MODE` | `local` (or `s3`) |
 | `DAMSON_BOOTSTRAP_ADMIN_EMAILS` | empty (CSV) |
+| `DAMSON_AUDIT_PURGE_INTERVAL` | `24h` (Go duration; non-positive falls back to default) |
 
 ### 13.2 `DAMSON_AUTH_MODE=local` (default)
 
