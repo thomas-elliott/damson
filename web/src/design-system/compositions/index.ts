@@ -1,5 +1,6 @@
 export * from "./AppShell";
 export * from "./Breadcrumb";
+export * from "./ConfirmDialog";
 export * from "./DetailPanel";
 export * from "./DropOverlay";
 export * from "./EmptyState";
