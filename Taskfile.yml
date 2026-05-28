@@ -2,6 +2,7 @@ version: "3"
 
 vars:
   WEB_DIR: web
+  VERSION_FILE: VERSION
 
 tasks:
   default:
@@ -284,3 +285,62 @@ tasks:
       - task: check
       - task: test:unit
       - task: test:e2e
+
+  release:
+    desc: "Create and push a release tag (usage: task release VERSION=v1.0.0)"
+    preconditions:
+      - sh: '[ -n "{{.VERSION}}" ]'
+        msg: "VERSION is required. Usage: task release VERSION=v1.0.0"
+      - sh: 'case "{{.VERSION}}" in v[0-9]*.[0-9]*.[0-9]*) exit 0 ;; *) exit 1 ;; esac'
+        msg: "VERSION must match vX.Y.Z (for example: v1.0.0)."
+      - sh: '! git rev-parse "{{.VERSION}}" >/dev/null 2>&1'
+        msg: "Tag {{.VERSION}} already exists locally."
+    cmds:
+      - task: ci
+      - git diff --quiet
+      - git diff --quiet --cached
+      - |
+        NEW_VERSION="{{.VERSION}}"
+        NEW_VERSION="${NEW_VERSION#v}"
+        echo "Updating {{.VERSION_FILE}} → $NEW_VERSION"
+        printf '%s\n' "$NEW_VERSION" > {{.VERSION_FILE}}
+      - git add {{.VERSION_FILE}}
+      - 'git commit -m "chore: release {{.VERSION}}"'
+      - git tag -a {{.VERSION}} -m "Release {{.VERSION}}"
+      - echo "Pushing commit and tag {{.VERSION}}..."
+      - git push origin HEAD
+      - git push origin {{.VERSION}}
+      - echo "Released {{.VERSION}}. GitHub Actions will publish the container image."
+
+  release:patch:
+    desc: Create a patch release (increments patch from VERSION file)
+    cmds:
+      - |
+        CURRENT=$(tr -d '[:space:]' < {{.VERSION_FILE}})
+        OLD_IFS="$IFS"; IFS='.'; set -- $CURRENT; IFS="$OLD_IFS"
+        MAJOR=$1; MINOR=$2; PATCH=$3
+        NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+        echo "Bumping from v${CURRENT} to ${NEW_TAG}"
+        task release VERSION="${NEW_TAG}"
+
+  release:minor:
+    desc: Create a minor release (increments minor, resets patch)
+    cmds:
+      - |
+        CURRENT=$(tr -d '[:space:]' < {{.VERSION_FILE}})
+        OLD_IFS="$IFS"; IFS='.'; set -- $CURRENT; IFS="$OLD_IFS"
+        MAJOR=$1; MINOR=$2
+        NEW_TAG="v${MAJOR}.$((MINOR + 1)).0"
+        echo "Bumping from v${CURRENT} to ${NEW_TAG}"
+        task release VERSION="${NEW_TAG}"
+
+  release:major:
+    desc: Create a major release (increments major, resets minor and patch)
+    cmds:
+      - |
+        CURRENT=$(tr -d '[:space:]' < {{.VERSION_FILE}})
+        OLD_IFS="$IFS"; IFS='.'; set -- $CURRENT; IFS="$OLD_IFS"
+        MAJOR=$1
+        NEW_TAG="v$((MAJOR + 1)).0.0"
+        echo "Bumping from v${CURRENT} to ${NEW_TAG}"
+        task release VERSION="${NEW_TAG}"
