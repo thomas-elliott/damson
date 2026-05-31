@@ -54,3 +54,19 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Auto-update the tylo test env: tell the gitops repo to pin damson-test to the
+      # immutable main-<sha> just pushed. Arcane's autoSync redeploys within ~5 min.
+      - name: Trigger gitops bump (test env)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_DISPATCH_TOKEN }}
+          META_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then echo "GITOPS_DISPATCH_TOKEN not set — skipping test-env bump"; exit 0; fi
+          REF=$(printf '%s' "$META_JSON" | jq -r '.tags[] | select(contains(":main-"))' | head -n1)
+          test -n "$REF" || { echo "::error::no main-<sha> tag in metadata"; exit 1; }
+          jq -nc --arg ref "$REF" \
+            '{event_type:"bump-image", client_payload:{project:"damson-test", service:"damson", image_ref:$ref}}' \
+            | gh api repos/thomas-elliott/gitops/dispatches --method POST --input -
