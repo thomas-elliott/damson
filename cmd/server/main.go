@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -124,7 +125,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
-	r.Use(securityHeaders())
+	r.Use(securityHeaders(oidcCSPOrigin(cfg)))
 	r.Use(jsonBodyCap(maxJSONBodyBytes))
 
 	apiGroup := r.Group("/api")
@@ -205,13 +206,40 @@ const maxJSONBodyBytes = 1 << 20
 // blob can't reach back into damson's UI. X-Frame-Options blocks clickjacking;
 // X-Content-Type-Options stops the browser sniffing past our declared types.
 // Referrer-Policy keeps internal paths out of upstream Referer headers.
-func securityHeaders() gin.HandlerFunc {
-	const csp = "default-src 'self'; " +
+// oidcCSPOrigin returns the scheme://host of the configured OIDC issuer, to be
+// whitelisted in the CSP so the SPA can reach the IdP. Empty in local mode (no
+// issuer) or if the issuer URL can't be parsed — in which case the CSP stays at
+// the tighter 'self'-only baseline.
+func oidcCSPOrigin(cfg config.Config) string {
+	if cfg.OIDCIssuerURL == "" {
+		return ""
+	}
+	u, err := url.Parse(cfg.OIDCIssuerURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+func securityHeaders(oidcOrigin string) gin.HandlerFunc {
+	// In OIDC mode the SPA talks to the identity provider's origin: it fetches
+	// the discovery doc + token/userinfo endpoints (connect-src) and runs
+	// silent token renewal in a hidden iframe that navigates to the IdP's
+	// authorize endpoint (frame-src). Local mode makes no cross-origin calls,
+	// so the IdP origin is only whitelisted when it's actually configured.
+	connectSrc := "connect-src 'self'"
+	frameSrc := "frame-src 'self'"
+	if oidcOrigin != "" {
+		connectSrc += " " + oidcOrigin
+		frameSrc += " " + oidcOrigin
+	}
+	csp := "default-src 'self'; " +
 		"script-src 'self'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: blob:; " +
 		"font-src 'self' data:; " +
-		"connect-src 'self'; " +
+		connectSrc + "; " +
+		frameSrc + "; " +
 		"object-src 'none'; " +
 		"base-uri 'self'; " +
 		"frame-ancestors 'none';"
