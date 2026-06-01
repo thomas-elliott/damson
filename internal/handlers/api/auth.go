@@ -30,6 +30,18 @@ type authModeResponse struct {
 	// SPA should render the "create first admin" page rather than the login
 	// form. Always absent/false in OIDC mode.
 	NeedsBootstrap bool `json:"needs_bootstrap,omitempty"`
+	// OIDC carries the non-secret issuer + client_id the SPA needs to
+	// configure oidc-client-ts at runtime (the browser derives its redirect
+	// URIs from window.location.origin). Present only in OIDC mode; absent in
+	// local mode. This is what lets one prebuilt image target any IdP without
+	// baking VITE_OIDC_* at build time.
+	OIDC *oidcPublic `json:"oidc,omitempty"`
+}
+
+// oidcPublic is the non-secret OIDC client config handed to the browser.
+type oidcPublic struct {
+	Authority string `json:"authority"`
+	ClientID  string `json:"client_id"`
 }
 
 // getAuthMode is public — the SPA calls it before auth to decide whether to
@@ -37,13 +49,16 @@ type authModeResponse struct {
 // start an OIDC redirect.
 func (h *Handler) getAuthMode(c *gin.Context) {
 	resp := authModeResponse{Mode: string(h.authMode)}
-	if h.authMode == config.AuthModeLocal {
+	switch h.authMode {
+	case config.AuthModeLocal:
 		var n int64
 		if err := h.db.WithContext(c.Request.Context()).Model(&models.User{}).Count(&n).Error; err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 			return
 		}
 		resp.NeedsBootstrap = n == 0
+	case config.AuthModeOIDC:
+		resp.OIDC = &oidcPublic{Authority: h.oidcAuthority, ClientID: h.oidcClientID}
 	}
 	c.JSON(http.StatusOK, resp)
 }

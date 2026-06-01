@@ -44,6 +44,9 @@ func newTestHandler(t *testing.T) (*Handler, *gorm.DB) {
 		Storage:     store,
 		ImportPool:  pool,
 		Broadcaster: bc,
+		// Non-secret OIDC config the SPA reads off /api/auth/mode.
+		OIDCAuthority: "https://auth.example.com",
+		OIDCClientID:  "damson",
 	}), db
 }
 

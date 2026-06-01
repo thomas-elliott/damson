@@ -26,6 +26,12 @@ type Handler struct {
 	loginRate   *auth.LoginThrottle
 	importPool  *imports.Pool
 	broadcaster *imports.Broadcaster
+	// oidcAuthority / oidcClientID are the non-secret OIDC client config
+	// echoed to the SPA via /api/auth/mode in OIDC mode, so the browser
+	// configures oidc-client-ts at runtime instead of baking VITE_OIDC_* at
+	// build time. Both empty in local mode.
+	oidcAuthority string
+	oidcClientID  string
 }
 
 type Deps struct {
@@ -44,6 +50,11 @@ type Deps struct {
 	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
 	// the pipeline tolerates a missing broadcaster.
 	Broadcaster *imports.Broadcaster
+	// OIDCAuthority / OIDCClientID are the issuer URL + client_id echoed to
+	// the SPA on /api/auth/mode in OIDC mode (the values the browser needs to
+	// start the auth-code+PKCE flow). Ignored in local mode.
+	OIDCAuthority string
+	OIDCClientID  string
 }
 
 func New(d Deps) *Handler {
@@ -59,6 +70,9 @@ func New(d Deps) *Handler {
 		loginRate:   throttle,
 		importPool:  d.ImportPool,
 		broadcaster: d.Broadcaster,
+
+		oidcAuthority: d.OIDCAuthority,
+		oidcClientID:  d.OIDCClientID,
 	}
 }
 
