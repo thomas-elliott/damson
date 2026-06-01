@@ -30,6 +30,7 @@ const TAG_PATH = "qa/persist-test";
 // reading its own in-memory cache.
 test.describe("Asset edits persist across reload", () => {
   test("tag and licence survive a hard reload", async ({ page, request, noConsoleErrors }) => {
+    void noConsoleErrors;
     // Five backend round-trips (import + tag + detect + licence + reload)
     // plus a Vite cold-start can blow past the default 30s budget on a
     // fresh worker; bump headroom rather than chase per-step waits.

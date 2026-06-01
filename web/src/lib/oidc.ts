@@ -41,9 +41,7 @@ export function configureOidc(cfg: OidcConfig): UserManager {
 // surfaces an ordering bug loudly rather than building a half-configured client.
 export function getUserManager(): UserManager {
   if (!manager) {
-    throw new Error(
-      "OIDC not configured — fetchAuthMode() must resolve before getUserManager()",
-    );
+    throw new Error("OIDC not configured — fetchAuthMode() must resolve before getUserManager()");
   }
   return manager;
 }

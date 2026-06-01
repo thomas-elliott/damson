@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 
-import { useAuthMode } from "@/hooks/useDataQueries";
+import { useAuthMode, useMe } from "@/hooks/useDataQueries";
 import { readLocalSession } from "@/lib/localAuth";
 import { getUserManager } from "@/lib/oidc";
+import { ProfileSetupPage } from "@/pages/ProfileSetupPage";
 
 type AuthState = "checking" | "ready" | "needs-login";
 
@@ -23,9 +24,17 @@ export function AuthGuard() {
     let cancelled = false;
 
     if (mode === "local") {
-      const sess = readLocalSession();
-      setState(sess ? "ready" : "needs-login");
-      return;
+      const next: AuthState = readLocalSession() ? "ready" : "needs-login";
+      // Defer off the effect's synchronous body so we don't trigger a
+      // cascading render mid-commit (react-hooks/set-state-in-effect); the
+      // "Authenticating…" spinner covers this microtask. The OIDC branch below
+      // already updates state from async callbacks, which the rule allows.
+      queueMicrotask(() => {
+        if (!cancelled) setState(next);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
     // OIDC path.
@@ -68,6 +77,26 @@ export function AuthGuard() {
       return <Navigate to="/bootstrap" replace />;
     }
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+  return <ProfileGate />;
+}
+
+// ProfileGate sits between a valid session and the app. It holds the user on
+// the first-login profile step until they've set an email (needs_profile),
+// then falls through to the routed app. Separate component so useMe only runs
+// once we know the session is ready.
+function ProfileGate() {
+  const { data: me, loading } = useMe();
+
+  if (loading || !me) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-ui text-text-3">
+        Authenticating…
+      </div>
+    );
+  }
+  if (me.needs_profile) {
+    return <ProfileSetupPage me={me} />;
   }
   return <Outlet />;
 }

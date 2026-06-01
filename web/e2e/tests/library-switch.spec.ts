@@ -26,6 +26,7 @@ test.describe("Library switch isolates scope", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     const session = await bootstrapAdmin(request);
     const fileBytes = await readFile(FIXTURE_PATH);
 

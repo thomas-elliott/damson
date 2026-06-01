@@ -25,6 +25,7 @@ test.describe("Library search (Postgres tsvector)", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     test.setTimeout(60_000);
 
     const session = await bootstrapAdmin(request);

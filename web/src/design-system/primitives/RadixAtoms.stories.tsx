@@ -12,7 +12,7 @@ export default meta;
 type Story = StoryObj;
 
 export const Checkboxes: Story = {
-  render: () => {
+  render: function CheckboxesDemo() {
     const [checked, setChecked] = useState(false);
     return (
       <div className="flex flex-col gap-2">
@@ -38,7 +38,7 @@ export const Checkboxes: Story = {
 };
 
 export const Sliders: Story = {
-  render: () => {
+  render: function SlidersDemo() {
     const [v, setV] = useState([40]);
     return (
       <div className="flex min-w-[280px] flex-col gap-4">

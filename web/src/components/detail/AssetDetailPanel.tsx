@@ -86,15 +86,13 @@ export function AssetDetailPanel({
     return () => observer.disconnect();
   }, [assetId]);
 
-  // Re-clamp width if the available space shrank below it (e.g. window
-  // resize, sidebar widened).
-  useEffect(() => {
-    setWidth((w) => Math.min(Math.max(MIN_WIDTH, w), maxWidth));
-  }, [maxWidth]);
-
   if (assetId == null) return null;
 
   const isFullscreen = userFullscreen || autoFullscreen;
+  // Clamp to the available space at render time (window resize, sidebar
+  // widened) while preserving the user's chosen width in state, so it springs
+  // back when room reappears.
+  const effectiveWidth = Math.min(Math.max(MIN_WIDTH, width), maxWidth);
 
   const fullscreenButton = !autoFullscreen ? (
     <IconButton
@@ -112,14 +110,16 @@ export function AssetDetailPanel({
       title={asset?.name ?? (loading ? "Loading…" : "Asset")}
       variant="overlay"
       resizable
-      width={width}
+      width={effectiveWidth}
       onWidthChange={setWidth}
       minWidth={MIN_WIDTH}
       maxWidth={maxWidth}
       fullscreen={isFullscreen}
       actions={fullscreenButton}
     >
-      {asset && <AssetDetailBody asset={asset} />}
+      {/* key by asset id so edit state re-initialises from props when a
+          different asset opens, instead of syncing via an effect. */}
+      {asset && <AssetDetailBody key={asset.id} asset={asset} />}
     </DetailPanel>
   );
 }
@@ -139,15 +139,6 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
   const [newTag, setNewTag] = useState("");
   const [subsetOpen, setSubsetOpen] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
-
-  // Reset edit state whenever the loaded asset changes (different asset
-  // opened in the panel).
-  useEffect(() => {
-    setEditingName(false);
-    setName(asset.name);
-    setDescription(asset.description);
-    setSourceURL(asset.source_url);
-  }, [asset.id]);
 
   const onSaveHeader = () => {
     patch.mutate(

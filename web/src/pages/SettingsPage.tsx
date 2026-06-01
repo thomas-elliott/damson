@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Shell } from "@/components/Shell";
 import { LibraryMembersSection } from "@/components/settings/LibraryMembersSection";
@@ -18,6 +18,7 @@ import {
 } from "@/design-system";
 import { useLibrarySettings, useMe } from "@/hooks/useDataQueries";
 import { usePatchLibrarySettings, type LibrarySettingsPatch } from "@/hooks/useMutations";
+import { useSavedFlash } from "@/hooks/useSavedFlash";
 
 /**
  * Library settings surface. Admins can edit the toggles + theme/grid
@@ -74,7 +75,11 @@ export function SettingsPage() {
 
                 <LibraryMembersSection libraryId={me.current_library.id} isAdmin={isAdmin} />
 
-                <LibraryProfileSection library={me.current_library} isAdmin={isAdmin} />
+                <LibraryProfileSection
+                  key={me.current_library.id}
+                  library={me.current_library}
+                  isAdmin={isAdmin}
+                />
 
                 {isSysadmin && <ServerAdminSection />}
               </div>
@@ -163,17 +168,11 @@ function ReadOnlySettings({ settings }: { settings: SettingsView }) {
 
 function AdminSettingsForm({ settings }: { settings: SettingsView }) {
   const patch = usePatchLibrarySettings();
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Flash a "Saved" indicator after each successful save — driven from the
+  // mutation's onSuccess callback rather than an effect watching its result.
+  const { saved, flash } = useSavedFlash();
 
-  // After every successful save, flash a "Saved" indicator for ~1.5s.
-  useEffect(() => {
-    if (!patch.isSuccess) return;
-    setSavedAt(Date.now());
-    const t = window.setTimeout(() => setSavedAt(null), 1500);
-    return () => window.clearTimeout(t);
-  }, [patch.submittedAt, patch.isSuccess]);
-
-  const apply = (p: LibrarySettingsPatch) => patch.mutate(p);
+  const apply = (p: LibrarySettingsPatch) => patch.mutate(p, { onSuccess: flash });
 
   return (
     <>
@@ -181,7 +180,7 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
         title="Appearance"
         defaultOpen
         accessory={
-          savedAt ? (
+          saved ? (
             <Badge size="sm" tone="ok">
               Saved
             </Badge>
@@ -259,6 +258,7 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
           help="Leave blank for unbounded. The retention policy is recorded but not yet enforced."
         >
           <RetentionInput
+            key={String(settings.audit_retention_days)}
             value={settings.audit_retention_days}
             onCommit={(v) => apply({ audit_retention_days: v })}
           />
@@ -313,10 +313,9 @@ function RetentionInput({
   value: number | null;
   onCommit: (v: number | null) => void;
 }) {
+  // Re-seeded from `value` via the key={value} the caller sets, so a committed
+  // change remounts this input instead of syncing through an effect.
   const [draft, setDraft] = useState(value == null ? "" : String(value));
-  useEffect(() => {
-    setDraft(value == null ? "" : String(value));
-  }, [value]);
   return (
     <Input
       type="number"

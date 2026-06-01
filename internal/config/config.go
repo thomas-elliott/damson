@@ -40,10 +40,9 @@ type Config struct {
 	AuthMode AuthMode
 
 	// OIDC mode
-	OIDCIssuerURL   string
-	OIDCClientID    string
-	OIDCAudience    string
-	BootstrapAdmins []string
+	OIDCIssuerURL string
+	OIDCClientID  string
+	OIDCAudience  string
 
 	// Local mode
 	JWTSigningKey      []byte
@@ -114,7 +113,6 @@ func Load() Config {
 		cfg.OIDCIssuerURL = mustGetEnv("DAMSON_OIDC_ISSUER_URL")
 		cfg.OIDCClientID = mustGetEnv("DAMSON_OIDC_CLIENT_ID")
 		cfg.OIDCAudience = mustGetEnv("DAMSON_OIDC_AUDIENCE")
-		cfg.BootstrapAdmins = splitCSV(os.Getenv("DAMSON_BOOTSTRAP_ADMIN_EMAILS"))
 	case AuthModeLocal:
 		// DAMSON_JWT_SIGNING_KEY is honoured verbatim when set; otherwise
 		// main.go falls back to reading (or generating) JWTKeyFile. This
@@ -218,18 +216,4 @@ func parseAuditPurgeInterval(raw string) time.Duration {
 		return defaultAuditPurgeInterval
 	}
 	return d
-}
-
-func splitCSV(s string) []string {
-	if s == "" {
-		return nil
-	}
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }

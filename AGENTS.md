@@ -76,9 +76,9 @@ Implications:
 `internal/auth` defines `Authenticator` with two concrete impls, picked at startup by `DAMSON_AUTH_MODE`:
 
 - **Local** (default; `local.go`) — bcrypt password hashes in `users.password_hash`, issues HS256 JWTs (1h TTL, `jwtIssuer = "damson-local"`). `users.tokens_valid_after` acts as a revocation watermark: JWTs with `iat` before that instant are rejected. Synthetic subject `"local:<email>"` so the `users.subject` unique index still works.
-- **OIDC** (`oidc.go`) — validates IdP bearer tokens, upserts the user from claims. `BootstrapFirstAdmin` runs on the first user whose email matches `DAMSON_BOOTSTRAP_ADMIN_EMAILS`.
+- **OIDC** (`oidc.go`) — validates IdP bearer tokens, upserts the user by `sub` only (email/name are optional claims, seeded once at creation and thereafter app-owned via `PATCH /api/me`). A user with no email is flagged `needs_profile` so the SPA collects one on first login.
 
-Both modes share one bootstrap path (`BootstrapFirstAdmin`): first user + "Personal" library + admin membership + `current_library_id`, all in one transaction.
+Both modes share one bootstrap path (`BootstrapFirstAdmin`): the first user on an empty system (no other users, no libraries) gets sysadmin + "Personal" library + admin membership + `current_library_id`, all in one transaction. No env-var allowlist — identity is whoever signs in first.
 
 Local-mode bootstrap has two entry points: the env-seeded startup path (`SeedLocalAdmin`, active when both `DAMSON_LOCAL_ADMIN_EMAIL` and `_PASSWORD` are set) and the HTTP path (`POST /api/auth/bootstrap`, reachable when no users exist). The latter is what `GET /api/auth/mode`'s `needs_bootstrap` flag signals to the SPA.
 
@@ -132,7 +132,7 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 Loaded in `internal/config/config.go`. A `.env` in the repo root is auto-loaded at startup (real env vars win on conflict). See `.env.example` for the full set. Secrets (`DAMSON_POSTGRES_DSN`, `DAMSON_JWT_SIGNING_KEY`, `DAMSON_LOCAL_ADMIN_PASSWORD`, `DAMSON_S3_ACCESS_KEY`, `DAMSON_S3_SECRET_KEY`) also accept a `<NAME>_FILE` variant that reads the value from that path — for Docker Secrets. Setting both the direct var and the `_FILE` variant panics at startup. The only always-required var is `DAMSON_POSTGRES_DSN` (or `DAMSON_POSTGRES_DSN_FILE`). `DAMSON_JWT_SIGNING_KEY` is optional in local mode — if unset, `internal/auth.LoadOrCreateJWTKey` generates 32 random bytes on first boot and persists them to `./data/jwt.key` (overridable via `DAMSON_JWT_KEY_FILE`). Defaults worth knowing: `DAMSON_LISTEN_ADDR=:8080`, `DAMSON_BASE_URL=http://localhost:8080`, `DAMSON_LOG_LEVEL=info`, `DAMSON_AUTH_MODE=local`, `DAMSON_STORAGE_MODE=local`, `DAMSON_STORAGE_LOCAL_PATH=./data/blobs`.
 
 Mode-dependent:
-- `DAMSON_AUTH_MODE=oidc` → `DAMSON_OIDC_ISSUER_URL`, `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`, optional `DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV).
+- `DAMSON_AUTH_MODE=oidc` → `DAMSON_OIDC_ISSUER_URL`, `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`.
 - `DAMSON_AUTH_MODE=local` → `DAMSON_JWT_SIGNING_KEY` (≥32 bytes), `DAMSON_LOCAL_ADMIN_EMAIL`, `DAMSON_LOCAL_ADMIN_PASSWORD`.
 - `DAMSON_STORAGE_MODE=s3` → `DAMSON_S3_ENDPOINT`, `DAMSON_S3_REGION`, `DAMSON_S3_BUCKET`, `DAMSON_S3_ACCESS_KEY`, `DAMSON_S3_SECRET_KEY`, `DAMSON_S3_FORCE_PATH_STYLE` (default true).
 - `DAMSON_STORAGE_MODE=local` → `DAMSON_STORAGE_LOCAL_PATH` (default `./data/blobs`).

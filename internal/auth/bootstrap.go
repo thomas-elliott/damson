@@ -15,13 +15,23 @@ import (
 )
 
 // BootstrapFirstAdmin promotes u to sysadmin and creates a default "Personal"
-// library (with u as its admin) the first time a matching user signs in. It
-// is a no-op if any libraries already exist, so retrying is safe.
+// library (with u as its admin) when u is the very first user on an empty
+// system. Identity is whoever signs in first — we no longer consult an env
+// var of privileged emails. It is a no-op once any other user exists or any
+// library has been created, so retrying is safe.
 //
 // The whole thing runs in one transaction: if any step fails, u's role is
 // not promoted and no partial library is left behind.
-func BootstrapFirstAdmin(ctx context.Context, db *gorm.DB, u *models.User, bootstrapEmails []string) error {
-	if !emailInList(u.Email, bootstrapEmails) {
+func BootstrapFirstAdmin(ctx context.Context, db *gorm.DB, u *models.User) error {
+	// Only the first account on an empty system bootstraps. u has already
+	// been created by the caller, so it counts itself — exactly one user
+	// means u is the first. The library check is belt-and-braces against a
+	// half-finished previous run.
+	var userCount int64
+	if err := db.WithContext(ctx).Model(&models.User{}).Count(&userCount).Error; err != nil {
+		return fmt.Errorf("count users: %w", err)
+	}
+	if userCount > 1 {
 		return nil
 	}
 
@@ -168,7 +178,7 @@ func createLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) 
 		return nil, fmt.Errorf("create admin user: %w", err)
 	}
 
-	if err := BootstrapFirstAdmin(ctx, db, &u, []string{email}); err != nil {
+	if err := BootstrapFirstAdmin(ctx, db, &u); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -249,12 +259,3 @@ func SetLocalUserPassword(ctx context.Context, db *gorm.DB, userID uint, passwor
 // ErrUserExists is returned by CreateLocalUser when a user with the same
 // email or subject is already present.
 var ErrUserExists = errors.New("user already exists")
-
-func emailInList(email string, list []string) bool {
-	for _, e := range list {
-		if strings.EqualFold(strings.TrimSpace(e), email) {
-			return true
-		}
-	}
-	return false
-}

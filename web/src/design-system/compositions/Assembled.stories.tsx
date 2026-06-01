@@ -72,7 +72,7 @@ function PlaceholderCard() {
 }
 
 export const LibraryView: Story = {
-  render: () => {
+  render: function LibraryViewDemo() {
     const [route, setRoute] = useState("library");
     const [view, setView] = useState<"grid" | "list">("grid");
     const [sidebarW, setSidebarW] = useState(260);

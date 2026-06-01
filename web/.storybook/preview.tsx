@@ -3,8 +3,9 @@ import type { Decorator, Preview } from "@storybook/react";
 
 import "../src/styles/globals.css";
 
-const withTheme: Decorator = (Story, context) => {
-  const theme = context.globals.theme as "dark" | "light";
+// The theme-applying effect lives in a real component so the hook isn't called
+// from the bare decorator function (react-hooks/rules-of-hooks).
+function ThemeFrame({ theme, children }: { theme: "dark" | "light"; children: React.ReactNode }) {
   React.useEffect(() => {
     const root = document.documentElement;
     if (theme === "light") {
@@ -22,10 +23,16 @@ const withTheme: Decorator = (Story, context) => {
         fontFamily: "var(--ds-font-sans)",
       }}
     >
-      <Story />
+      {children}
     </div>
   );
-};
+}
+
+const withTheme: Decorator = (Story, context) => (
+  <ThemeFrame theme={context.globals.theme as "dark" | "light"}>
+    <Story />
+  </ThemeFrame>
+);
 
 const preview: Preview = {
   parameters: {

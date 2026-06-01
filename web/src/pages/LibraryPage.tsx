@@ -26,6 +26,7 @@ import {
   type Me,
 } from "@/hooks/useDataQueries";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { logout } from "@/lib/logout";
 
 export function LibraryPage() {
   const { data: me } = useMe();
@@ -248,11 +249,16 @@ function SignedOutSidebar({ me }: { me: Me }) {
     <div className="flex h-full flex-col justify-end border-r border-line bg-panel p-3">
       <div className="flex items-center justify-between gap-2 text-small">
         <span className="truncate font-mono text-text-3" title={me.email}>
-          {me.email}
+          {me.display_name || me.email}
         </span>
-        <a href="#" aria-label="Sign out" className="text-text-3 hover:text-text">
+        <button
+          type="button"
+          aria-label="Sign out"
+          onClick={() => void logout()}
+          className="text-text-3 hover:text-text"
+        >
           <LogOut size={13} />
-        </a>
+        </button>
       </div>
       <div className="sr-only">
         <Search size={1} />

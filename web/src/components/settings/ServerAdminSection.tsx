@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   Badge,
@@ -32,6 +32,9 @@ import {
   usePatchUserRole,
   useResetUserPassword,
 } from "@/hooks/useMutations";
+import { useSavedFlash } from "@/hooks/useSavedFlash";
+
+type ServerSettings = NonNullable<ReturnType<typeof useServerSettings>["data"]>;
 
 /**
  * Sysadmin-only sections rolled into one component so the SettingsPage can
@@ -50,21 +53,6 @@ export function ServerAdminSection() {
 
 function ServerSettingsForm() {
   const { data: settings, loading } = useServerSettings();
-  const patch = usePatchServerSettings();
-  const [maxUpload, setMaxUpload] = useState("");
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (settings) setMaxUpload(String(settings.max_upload_bytes));
-  }, [settings?.max_upload_bytes]);
-
-  useEffect(() => {
-    if (!patch.isSuccess) return;
-    setSavedAt(Date.now());
-    const t = window.setTimeout(() => setSavedAt(null), 1500);
-    return () => window.clearTimeout(t);
-  }, [patch.submittedAt, patch.isSuccess]);
-
   if (loading || !settings) {
     return (
       <Section title="Server settings" defaultOpen>
@@ -72,12 +60,23 @@ function ServerSettingsForm() {
       </Section>
     );
   }
+  // Mount the body only once settings are loaded so maxUpload can seed from
+  // them in a useState initializer instead of a sync effect.
+  return <ServerSettingsFormBody settings={settings} />;
+}
+
+function ServerSettingsFormBody({ settings }: { settings: ServerSettings }) {
+  const patch = usePatchServerSettings();
+  const [maxUpload, setMaxUpload] = useState(String(settings.max_upload_bytes));
+  // Flash a "Saved" indicator after each successful save (event-driven).
+  const { saved, flash } = useSavedFlash();
+
   return (
     <Section
       title="Server settings"
       defaultOpen
       accessory={
-        savedAt ? (
+        saved ? (
           <Badge size="sm" tone="ok">
             Saved
           </Badge>
@@ -97,7 +96,7 @@ function ServerSettingsForm() {
             const n = Number(maxUpload);
             if (!Number.isFinite(n) || n <= 0) return;
             if (n !== settings.max_upload_bytes) {
-              patch.mutate({ max_upload_bytes: n });
+              patch.mutate({ max_upload_bytes: n }, { onSuccess: flash });
             }
           }}
           className="w-48"
@@ -113,7 +112,9 @@ function ServerSettingsForm() {
         <Checkbox
           aria-label="Auto-update licence knowledge base"
           checked={settings.licence_kb_auto_update}
-          onCheckedChange={(v) => patch.mutate({ licence_kb_auto_update: !!v })}
+          onCheckedChange={(v) =>
+            patch.mutate({ licence_kb_auto_update: !!v }, { onSuccess: flash })
+          }
         />
       </div>
     </Section>
@@ -211,44 +212,56 @@ function ResetPasswordDialog({
   onClose: () => void;
   onSubmit: (password: string) => void;
 }) {
-  const [password, setPassword] = useState("");
-  useEffect(() => setPassword(""), [user?.id]);
-
+  // The password field lives in ResetPasswordForm, which Radix only mounts
+  // while the dialog is open — so it starts empty on every open (one user at a
+  // time, dialog closes between them) without a reset effect.
   return (
     <Dialog open={!!user} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reset password</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          {user && (
-            <p className="text-ui text-text-2">
-              Set a new password for <span className="font-mono">{user.email}</span>. Their existing
-              sessions will be invalidated.
-            </p>
-          )}
-          <FieldRow label="New password">
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-            />
-          </FieldRow>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => onSubmit(password)}
-            disabled={password.length < 8}
-          >
-            Reset
-          </Button>
-        </DialogFooter>
+        {user && <ResetPasswordForm user={user} onClose={onClose} onSubmit={onSubmit} />}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ResetPasswordForm({
+  user,
+  onClose,
+  onSubmit,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onSubmit: (password: string) => void;
+}) {
+  const [password, setPassword] = useState("");
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Reset password</DialogTitle>
+      </DialogHeader>
+      <DialogBody>
+        <p className="text-ui text-text-2">
+          Set a new password for <span className="font-mono">{user.email}</span>. Their existing
+          sessions will be invalidated.
+        </p>
+        <FieldRow label="New password">
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 8 characters"
+          />
+        </FieldRow>
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={() => onSubmit(password)} disabled={password.length < 8}>
+          Reset
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

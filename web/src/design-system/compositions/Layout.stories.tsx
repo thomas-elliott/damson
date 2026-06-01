@@ -106,7 +106,7 @@ function SidebarSample() {
 }
 
 export const AppShellWithSidebar: Story = {
-  render: () => {
+  render: function AppShellWithSidebarDemo() {
     const [route, setRoute] = useState("library");
     const [sidebarW, setSidebarW] = useState(248);
     return (
@@ -140,7 +140,7 @@ export const AppShellWithSidebar: Story = {
 };
 
 export const RailOnly: Story = {
-  render: () => {
+  render: function RailOnlyDemo() {
     const [route, setRoute] = useState("library");
     return (
       <AppShell

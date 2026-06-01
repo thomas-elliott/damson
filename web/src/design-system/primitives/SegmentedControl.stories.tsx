@@ -12,7 +12,7 @@ export default meta;
 type Story = StoryObj<typeof SegmentedControl>;
 
 export const ViewToggle: Story = {
-  render: () => {
+  render: function ViewToggleDemo() {
     const [v, setV] = useState<"grid" | "list">("grid");
     return (
       <SegmentedControl
@@ -36,7 +36,7 @@ export const ViewToggle: Story = {
 };
 
 export const TextOptions: Story = {
-  render: () => {
+  render: function TextOptionsDemo() {
     const [v, setV] = useState<"compact" | "medium" | "large">("medium");
     return (
       <SegmentedControl

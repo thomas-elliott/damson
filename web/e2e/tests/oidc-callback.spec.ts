@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { test, expect } from "../fixtures";
 
 // PER-78 — OIDC sign-in callback. The full code-exchange dance is faked
@@ -85,15 +87,92 @@ function b64url(input: string): string {
     .replace(/\//g, "_");
 }
 
+const jsonRoute = (body: unknown) => ({
+  status: 200,
+  contentType: "application/json",
+  body: JSON.stringify(body),
+});
+
+// setupOidcRoutes wires the full SPA-side OIDC dance (mode flip, discovery,
+// JWKS, token exchange, signin-state seed) plus the post-login reads. `me` is
+// what GET /api/me returns; `patchedMe`, when given, is returned for the
+// PATCH /api/me the profile step issues. Used by the profile + logout tests;
+// the first test keeps its inline routes for its stricter storage assertions.
+async function setupOidcRoutes(
+  page: Page,
+  me: Record<string, unknown>,
+  patchedMe?: Record<string, unknown>,
+) {
+  await page.route("**/api/auth/mode", (route) =>
+    // The `oidc` block is what makes fetchAuthMode() call configureOidc();
+    // without it getUserManager() throws "OIDC not configured".
+    route.fulfill(
+      jsonRoute({
+        mode: "oidc",
+        needs_bootstrap: false,
+        oidc: { authority: AUTHORITY, client_id: CLIENT_ID },
+      }),
+    ),
+  );
+  await page.route(`${AUTHORITY}/.well-known/openid-configuration`, (route) =>
+    route.fulfill(jsonRoute(DISCOVERY_DOC)),
+  );
+  await page.route(`${AUTHORITY}/jwks`, (route) => route.fulfill(jsonRoute({ keys: [] })));
+  await page.route(`${AUTHORITY}/token`, (route) =>
+    route.fulfill(
+      jsonRoute({
+        access_token: "synthetic-access-token-per78",
+        id_token: fakeIdToken(),
+        token_type: "Bearer",
+        expires_in: 3600,
+        scope: SCOPE,
+      }),
+    ),
+  );
+  await page.route("**/api/me", (route) =>
+    route.fulfill(jsonRoute(route.request().method() === "PATCH" && patchedMe ? patchedMe : me)),
+  );
+  await page.route("**/api/libraries", (route) =>
+    route.fulfill(
+      jsonRoute({
+        libraries: [{ library_id: 1, name: "OIDC Test Library", role: "admin", is_current: true }],
+      }),
+    ),
+  );
+  await page.route(
+    /\/api\/(assets|tags|projects|collections|imports|settings|audit|admin|files|thumbs)/,
+    (route) => route.fulfill(jsonRoute({})),
+  );
+  await page.addInitScript(
+    ({ key, value }) => {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch {
+        /* about:blank — storage isn't available here */
+      }
+    },
+    { key: `oidc.${STATE_ID}`, value: JSON.stringify(SIGNIN_STATE) },
+  );
+}
+
 test.describe("OIDC sign-in callback", () => {
   test("exchanges code, stores user, and lands on /library", async ({ page, noConsoleErrors }) => {
+    void noConsoleErrors;
     // The SPA calls /api/auth/mode at boot; flip it to oidc *before*
     // navigation so AuthGuard takes the OIDC branch.
     await page.route("**/api/auth/mode", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ mode: "oidc", needs_bootstrap: false }),
+        // The `oidc` block carries the issuer + client_id the SPA needs to
+        // configure oidc-client-ts at runtime; fetchAuthMode() only calls
+        // configureOidc() when it's present, so getUserManager() throws
+        // without it.
+        body: JSON.stringify({
+          mode: "oidc",
+          needs_bootstrap: false,
+          oidc: { authority: AUTHORITY, client_id: CLIENT_ID },
+        }),
       }),
     );
 
@@ -208,5 +287,76 @@ test.describe("OIDC sign-in callback", () => {
     const parsed = JSON.parse(storedUser!);
     expect(parsed.access_token).toBe("synthetic-access-token-per78");
     expect(parsed.profile?.sub).toBe(SUBJECT);
+  });
+
+  test("with no email, prompts for a profile before entering the app", async ({
+    page,
+    noConsoleErrors,
+  }) => {
+    void noConsoleErrors;
+    // IdP authenticated by `sub` but the backend has no email for this user
+    // yet → /api/me reports needs_profile. The PATCH response fills it in.
+    await setupOidcRoutes(
+      page,
+      {
+        id: 1,
+        email: "",
+        display_name: "",
+        role: "user",
+        needs_profile: true,
+        current_library: { id: 1, name: "OIDC Test Library", role: "admin" },
+      },
+      {
+        id: 1,
+        email: "filled-in@example.com",
+        display_name: "filled-in@example.com",
+        role: "user",
+        needs_profile: false,
+        current_library: { id: 1, name: "OIDC Test Library", role: "admin" },
+      },
+    );
+
+    await page.goto(`/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`);
+
+    // Profile step gates the app — the routed library view is not rendered.
+    await expect(
+      page.getByRole("heading", { name: /finish setting up your profile/i }),
+    ).toBeVisible();
+
+    await page.locator('input[type="email"]').fill("filled-in@example.com");
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    // PATCH flips needs_profile → false; the gate falls through to /library.
+    await page.waitForURL("**/library");
+  });
+
+  test("sign out clears the stored session and returns to /login", async ({
+    page,
+    noConsoleErrors,
+  }) => {
+    void noConsoleErrors;
+    await setupOidcRoutes(page, {
+      id: 1,
+      email: "oidc-user@example.com",
+      display_name: "OIDC Test User",
+      role: "user",
+      needs_profile: false,
+      current_library: { id: 1, name: "OIDC Test Library", role: "admin" },
+    });
+
+    await page.goto(`/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`);
+    await page.waitForURL("**/library");
+
+    await page.getByRole("button", { name: "Sign out" }).click();
+
+    // DISCOVERY_DOC advertises no end_session_endpoint, so logout() falls back
+    // to clearing the stored user locally and hard-redirecting to /login.
+    await page.waitForURL("**/login");
+    const storedUser = await page.evaluate(
+      ({ authority, clientId }) =>
+        window.localStorage.getItem(`oidc.user:${authority}:${clientId}`),
+      { authority: AUTHORITY, clientId: CLIENT_ID },
+    );
+    expect(storedUser, "OIDC user should be cleared on sign out").toBeNull();
   });
 });

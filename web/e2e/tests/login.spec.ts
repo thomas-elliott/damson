@@ -9,6 +9,7 @@ test.describe("Local login", () => {
   });
 
   test("happy path navigates to /library", async ({ page, noConsoleErrors }) => {
+    void noConsoleErrors;
     await page.goto("/login");
 
     await page.getByLabel("Email").fill(ADMIN_EMAIL);
