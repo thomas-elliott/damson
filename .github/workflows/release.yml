@@ -52,6 +52,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Auto-update the laythe prod env: pin projects/damson to the immutable X.Y.Z image
+      # just published. Arcane's autoSync redeploys within ~5 min (mirrors the test-env
+      # main-<sha> bump in main-build.yml, but fires the semver tag on release).
+      - name: Trigger gitops bump (prod env)
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_DISPATCH_TOKEN }}
+          META_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then echo "GITOPS_DISPATCH_TOKEN not set — skipping prod bump"; exit 0; fi
+          REF=$(printf '%s' "$META_JSON" | jq -r '.tags[] | select(test(":[0-9]+[.][0-9]+[.][0-9]+$"))' | head -n1)
+          test -n "$REF" || { echo "::error::no X.Y.Z tag in metadata"; exit 1; }
+          jq -nc --arg ref "$REF" \
+            '{event_type:"bump-image", client_payload:{project:"damson", service:"damson", image_ref:$ref}}' \
+            | gh api repos/thomas-elliott/gitops/dispatches --method POST --input -
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
