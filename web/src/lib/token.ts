@@ -16,8 +16,15 @@ export async function getAccessToken(): Promise<string | null> {
   }
   if (mode === "oidc") {
     const user = await getStoredUser();
-    if (!user || user.expired || !user.access_token) return null;
-    return user.access_token;
+    // Send the id_token, not the access_token. The backend is a self-contained
+    // resource server that JWT-verifies the bearer with aud == client_id (an
+    // ID-token verifier); IdPs like Authelia issue OPAQUE access tokens
+    // (`authelia_at_…`) that can't be JWT-verified. The id_token is a signed
+    // JWT with aud=<client_id>, exactly what the verifier expects, and carries
+    // the sub/email/name claims the backend maps to a user. expires_at tracks
+    // the token lifetime; the id_token's own exp is also enforced server-side.
+    if (!user || user.expired || !user.id_token) return null;
+    return user.id_token;
   }
   return null;
 }
