@@ -135,6 +135,9 @@ func main() {
 		Storage:     store,
 		ImportPool:  importPool,
 		Broadcaster: broadcaster,
+		// Echoed to the SPA on /api/auth/mode in OIDC mode (empty in local).
+		OIDCAuthority: cfg.OIDCIssuerURL,
+		OIDCClientID:  cfg.OIDCClientID,
 	})
 	api.AddRoutes(apiGroup, auth.Middleware(authenticator), h)
 

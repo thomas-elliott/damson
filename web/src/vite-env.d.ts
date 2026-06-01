@@ -1,14 +1,5 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {
-  readonly VITE_OIDC_AUTHORITY: string;
-  readonly VITE_OIDC_CLIENT_ID: string;
-  readonly VITE_OIDC_SCOPE?: string;
-  readonly VITE_OIDC_REDIRECT_URI: string;
-  readonly VITE_OIDC_SILENT_REDIRECT_URI: string;
-  readonly VITE_OIDC_POST_LOGOUT_REDIRECT_URI: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
+// OIDC client config is fetched at runtime from the server (GET /api/auth/mode
+// → `oidc`), not injected at build time — so there are no VITE_OIDC_* env vars
+// to declare here. See lib/oidc.ts / lib/authMode.ts.
