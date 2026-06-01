@@ -1,7 +1,25 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson, fetchMaybeJson } from "@/api";
+import type { Me } from "@/hooks/useDataQueries";
 import { queryKeys } from "@/lib/queryKeys";
+
+// usePatchMe writes the current user's own profile (email + optional display
+// name). Used by the first-login profile step. The fresh Me is seeded straight
+// into the query cache so the profile gate falls through immediately.
+export function usePatchMe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { email: string; display_name?: string }) =>
+      fetchJson<Me>("/api/me", {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (me) => {
+      qc.setQueryData(queryKeys.me, me);
+    },
+  });
+}
 
 export function usePatchAsset() {
   const qc = useQueryClient();

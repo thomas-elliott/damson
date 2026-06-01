@@ -7,6 +7,7 @@ import { test, expect, ADMIN_EMAIL, ADMIN_PASSWORD, bootstrapAdmin } from "../fi
 
 test.describe("First-run bootstrap", () => {
   test("AuthGuard routes a fresh deployment to /bootstrap", async ({ page, noConsoleErrors }) => {
+    void noConsoleErrors;
     await page.goto("/library");
     await expect(page).toHaveURL(/\/bootstrap$/);
     await expect(page.getByRole("heading", { name: /create the first admin/i })).toBeVisible();
@@ -22,6 +23,7 @@ test.describe("First-run bootstrap", () => {
     page,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     await page.goto("/bootstrap");
 
     await page.getByLabel("Email").fill(ADMIN_EMAIL);
@@ -37,6 +39,7 @@ test.describe("First-run bootstrap", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     // Seed an admin via API to flip needs_bootstrap=false, then visit as
     // an unauthenticated user — AuthGuard should bounce to /login.
     await bootstrapAdmin(request);

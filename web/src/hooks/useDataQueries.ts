@@ -35,6 +35,9 @@ export interface Me {
   email: string;
   display_name: string;
   role: "user" | "sysadmin";
+  // True when the user hasn't set an email yet (the IdP sent no email claim at
+  // first sign-in). The SPA shows the first-login profile step while this holds.
+  needs_profile: boolean;
   current_library?: MeLibrary;
 }
 

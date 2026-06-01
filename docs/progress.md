@@ -87,8 +87,9 @@ branch work below, and the Alpha leftover-features rollup further down.
 - Removing a library member bumps `users.tokens_valid_after` so an open SPA
   tab is forced to log in on its next request rather than silently sliding
   into "no library access yet".
-- OIDC mode warns at startup when `DAMSON_BOOTSTRAP_ADMIN_EMAILS` is empty —
-  the silent "no library ever created" failure mode is now visible.
+- OIDC bootstrap needs no env config: the first user to sign in on an empty
+  system becomes the sysadmin. Users are keyed by `sub` only; one with no
+  email claim is prompted to add a profile on first login (`PATCH /api/me`).
 
 **Backend correctness**
 

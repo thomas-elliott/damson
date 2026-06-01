@@ -14,7 +14,7 @@ type Story = StoryObj;
 
 export const Grid: Story = {
   parameters: { layout: "padded" },
-  render: () => {
+  render: function GridDemo() {
     const [selected, setSelected] = useState<string | null>(null);
     return (
       <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
@@ -48,7 +48,7 @@ export const Grid: Story = {
 
 export const ListView: Story = {
   parameters: { layout: "padded" },
-  render: () => {
+  render: function ListViewDemo() {
     const [selected, setSelected] = useState<string | null>(null);
     return (
       <div className="overflow-hidden rounded-md border border-line bg-bg">

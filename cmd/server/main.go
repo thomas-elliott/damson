@@ -57,10 +57,9 @@ func main() {
 	switch cfg.AuthMode {
 	case config.AuthModeOIDC:
 		oa, err := auth.NewOIDCAuthenticator(startupCtx, gormDB, auth.OIDCConfig{
-			IssuerURL:       cfg.OIDCIssuerURL,
-			ClientID:        cfg.OIDCClientID,
-			Audience:        cfg.OIDCAudience,
-			BootstrapAdmins: cfg.BootstrapAdmins,
+			IssuerURL: cfg.OIDCIssuerURL,
+			ClientID:  cfg.OIDCClientID,
+			Audience:  cfg.OIDCAudience,
 		})
 		if err != nil {
 			slog.Error("oidc init", "err", err)
@@ -68,9 +67,6 @@ func main() {
 		}
 		authenticator = oa
 		slog.Info("auth mode", "mode", "oidc", "issuer", cfg.OIDCIssuerURL)
-		if len(cfg.BootstrapAdmins) == 0 {
-			slog.Warn("oidc: DAMSON_BOOTSTRAP_ADMIN_EMAILS is empty — no first-sign-in user will be promoted to sysadmin or get a default library; new users will land on 'no library access yet' with no path forward")
-		}
 
 	case config.AuthModeLocal:
 		signingKey := cfg.JWTSigningKey

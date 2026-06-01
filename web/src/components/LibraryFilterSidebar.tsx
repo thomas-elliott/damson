@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, LogOut } from "lucide-react";
 
 import { FilterSidebar, Section, StatusDot } from "@/design-system";
 import { LibraryPicker } from "@/components/LibraryPicker";
+import { logout } from "@/lib/logout";
 import {
   useProjects,
   useTags,
@@ -50,15 +51,16 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
       footer={
         <div className="flex items-center justify-between gap-2 text-small">
           <span className="truncate font-mono text-text-3" title={me.email}>
-            {me.email}
+            {me.display_name || me.email}
           </span>
-          <a
-            href="#"
+          <button
+            type="button"
             aria-label="Sign out"
+            onClick={() => void logout()}
             className="text-text-3 transition-colors duration-std ease hover:text-text"
           >
             <LogOut size={13} />
-          </a>
+          </button>
         </div>
       }
     >

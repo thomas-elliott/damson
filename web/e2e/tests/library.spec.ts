@@ -18,6 +18,7 @@ test.describe("Library page", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     const session = await bootstrapAdmin(request);
     const fileBytes = await readFile(FIXTURE_PATH);
     await uploadImport(

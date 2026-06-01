@@ -265,10 +265,12 @@ keeps the bearer fresh.
 
 ### 6.2 Bootstrap
 
-Both modes share `auth.BootstrapFirstAdmin`: the first qualifying
-user is created with `role='sysadmin'`, a default `"Personal"`
-library is created, the user becomes its admin member, and
-`current_library_id` is set — all in one transaction.
+Both modes share `auth.BootstrapFirstAdmin`: the **first user on an
+empty system** (no other users, no libraries) is promoted to
+`role='sysadmin'`, a default `"Personal"` library is created, the
+user becomes its admin member, and `current_library_id` is set — all
+in one transaction. It's a no-op once any other user or library
+exists, so retrying is safe.
 
 Local mode has two entry points:
 
@@ -277,10 +279,10 @@ Local mode has two entry points:
 - **Env seed** (`SeedLocalAdmin`, active when both
   `DAMSON_LOCAL_ADMIN_EMAIL` and `_PASSWORD` are set).
 
-OIDC mode promotes the first user whose email matches
-`DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV) on their first sign-in. An
-empty list logs a warning at startup so the silent "no library
-ever created" failure is visible.
+OIDC mode needs no configuration here: the first IdP user to sign in
+runs the same bootstrap. Identity comes from the `sub` claim alone;
+if the IdP sends no email, the user is flagged `needs_profile` and
+the SPA collects one on first login (`PATCH /api/me`).
 
 ### 6.3 Authorisation
 
@@ -568,7 +570,6 @@ The only always-required value is `DAMSON_POSTGRES_DSN` (or its
 | `DAMSON_LOG_LEVEL` | `info` |
 | `DAMSON_AUTH_MODE` | `local` (or `oidc`) |
 | `DAMSON_STORAGE_MODE` | `local` (or `s3`) |
-| `DAMSON_BOOTSTRAP_ADMIN_EMAILS` | empty (CSV) |
 | `DAMSON_AUDIT_PURGE_INTERVAL` | `24h` (Go duration; non-positive falls back to default) |
 
 ### 13.2 `DAMSON_AUTH_MODE=local` (default)
@@ -857,9 +858,10 @@ Alternatives:
 - **Env seed (local).** Set both `DAMSON_LOCAL_ADMIN_EMAIL` and
   `DAMSON_LOCAL_ADMIN_PASSWORD` — first-admin creation runs at
   startup, the bootstrap page is skipped.
-- **OIDC.** `DAMSON_AUTH_MODE=oidc` +
-  `DAMSON_BOOTSTRAP_ADMIN_EMAILS` — first sign-in whose email
-  matches the list runs the same bootstrap transaction.
+- **OIDC.** `DAMSON_AUTH_MODE=oidc` — the first user to sign in on
+  an empty system runs the same bootstrap transaction (no admin
+  email list). Users are keyed by their `sub`; one with no email
+  claim fills it in on first login.
 
 ---
 

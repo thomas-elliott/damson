@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 
@@ -18,6 +18,7 @@ import {
 } from "@/design-system";
 import { type MeLibrary } from "@/hooks/useDataQueries";
 import { useDeleteLibrary, usePatchLibrary } from "@/hooks/useMutations";
+import { useSavedFlash } from "@/hooks/useSavedFlash";
 
 /**
  * Library name + description editor. Admins can save changes; everyone else
@@ -36,28 +37,23 @@ export function LibraryProfileSection({
   library: MeLibrary;
   isAdmin: boolean;
 }) {
+  // `name` seeds from the library and is reset across libraries by the
+  // key={library.id} the parent puts on this section (see SettingsPage), so no
+  // sync effect is needed here.
   const patch = usePatchLibrary();
   const [name, setName] = useState(library.name);
   const [description, setDescription] = useState("");
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-
-  useEffect(() => {
-    setName(library.name);
-  }, [library.name]);
-
-  useEffect(() => {
-    if (!patch.isSuccess) return;
-    setSavedAt(Date.now());
-    const t = window.setTimeout(() => setSavedAt(null), 1500);
-    return () => window.clearTimeout(t);
-  }, [patch.submittedAt, patch.isSuccess]);
+  const { saved, flash } = useSavedFlash();
 
   const submit = () => {
-    patch.mutate({
-      libraryId: library.id,
-      name: name.trim() || undefined,
-      description,
-    });
+    patch.mutate(
+      {
+        libraryId: library.id,
+        name: name.trim() || undefined,
+        description,
+      },
+      { onSuccess: flash },
+    );
   };
 
   return (
@@ -66,7 +62,7 @@ export function LibraryProfileSection({
         title="Library profile"
         defaultOpen
         accessory={
-          savedAt ? (
+          saved ? (
             <Badge size="sm" tone="ok">
               Saved
             </Badge>
@@ -128,18 +124,29 @@ function DeleteLibraryDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  // The form's confirm/error state lives in DeleteLibraryForm, which Radix
+  // only mounts while the dialog is open — so it starts fresh on every open
+  // without a reset effect.
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DeleteLibraryForm library={library} onOpenChange={onOpenChange} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteLibraryForm({
+  library,
+  onOpenChange,
+}: {
+  library: MeLibrary;
+  onOpenChange: (v: boolean) => void;
+}) {
   const navigate = useNavigate();
   const del = useDeleteLibrary();
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  // Reset the confirm field whenever the dialog re-opens.
-  useEffect(() => {
-    if (open) {
-      setConfirm("");
-      setError(null);
-    }
-  }, [open]);
 
   const matches = confirm === library.name;
   const submit = () => {
@@ -159,36 +166,34 @@ function DeleteLibraryDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete library?</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <p className="text-ui text-text-2">
-            All assets, projects, collections, tags, settings, and member roles for{" "}
-            <span className="font-mono">{library.name}</span> will be removed. Members will be
-            signed out of any open sessions.
-          </p>
-          <FieldRow label="Type the library name to confirm" hint="Case-sensitive.">
-            <Input
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              autoFocus
-              placeholder={library.name}
-            />
-          </FieldRow>
-          {error && <p className="text-small text-err">{error}</p>}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button variant="danger" disabled={!matches || del.isPending} onClick={submit}>
-            {del.isPending ? "Deleting…" : "Delete library"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <>
+      <DialogHeader>
+        <DialogTitle>Delete library?</DialogTitle>
+      </DialogHeader>
+      <DialogBody>
+        <p className="text-ui text-text-2">
+          All assets, projects, collections, tags, settings, and member roles for{" "}
+          <span className="font-mono">{library.name}</span> will be removed. Members will be signed
+          out of any open sessions.
+        </p>
+        <FieldRow label="Type the library name to confirm" hint="Case-sensitive.">
+          <Input
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoFocus
+            placeholder={library.name}
+          />
+        </FieldRow>
+        {error && <p className="text-small text-err">{error}</p>}
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button variant="danger" disabled={!matches || del.isPending} onClick={submit}>
+          {del.isPending ? "Deleting…" : "Delete library"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

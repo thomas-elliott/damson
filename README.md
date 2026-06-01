@@ -152,9 +152,10 @@ Alternatives:
 - **Env seed.** Set both `DAMSON_LOCAL_ADMIN_EMAIL` and
   `DAMSON_LOCAL_ADMIN_PASSWORD` — first-admin creation runs at
   startup, the bootstrap page is skipped.
-- **OIDC.** `DAMSON_AUTH_MODE=oidc` plus
-  `DAMSON_BOOTSTRAP_ADMIN_EMAILS` (CSV) — first sign-in whose email
-  matches the list runs the same bootstrap transaction.
+- **OIDC.** `DAMSON_AUTH_MODE=oidc` — the first user to sign in on an
+  empty system runs the same bootstrap transaction (no admin email list
+  needed). If the IdP sends no email claim, that user is prompted to add
+  one on first login.
 
 ## Layout
 
