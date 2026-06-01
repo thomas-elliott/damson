@@ -28,6 +28,7 @@ test.describe("Collection create + asset add/remove", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     // Two backend round-trips per import + a Vite cold-start can be tight
     // on the default 30s budget when paired with a UI flow.
     test.setTimeout(60_000);

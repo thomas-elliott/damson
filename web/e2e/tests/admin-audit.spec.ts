@@ -27,6 +27,7 @@ test.describe("Admin audit visibility (sysadmin gating)", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     // bootstrapAdmin promotes the first user to sysadmin and creates the
     // first library (id=1). The second user, created via /api/test/users,
     // gets role=user and a member-tier membership in the same library.

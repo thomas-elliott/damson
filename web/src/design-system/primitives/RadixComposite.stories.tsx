@@ -87,7 +87,7 @@ export const TooltipExample: Story = {
 };
 
 export const DropdownMenuExample: Story = {
-  render: () => {
+  render: function DropdownMenuExampleDemo() {
     const [showSub, setShowSub] = useState(true);
     return (
       <DropdownMenu>
@@ -146,7 +146,7 @@ export const PopoverExample: Story = {
 };
 
 export const SelectExample: Story = {
-  render: () => {
+  render: function SelectExampleDemo() {
     const [v, setV] = useState("name");
     return (
       <Select value={v} onValueChange={setV}>

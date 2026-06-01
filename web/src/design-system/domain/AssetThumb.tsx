@@ -62,15 +62,15 @@ interface ThumbChildProps {
 export function Waveform({ seed = 1, className, style }: { seed?: number } & ThumbChildProps) {
   const id = useId().replace(/:/g, "");
   const bars = 56;
+  // Deterministic LCG seeded per-waveform, advanced inline in the loop so no
+  // closure reassigns an outer variable during render (react-hooks/immutability).
+  const heights: number[] = [];
   let s = seed * 9301 + 49297;
-  const rand = () => {
+  for (let i = 0; i < bars; i++) {
     s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
-  };
-  const heights = Array.from({ length: bars }, (_, i) => {
     const env = Math.sin((i / bars) * Math.PI) * 0.7 + 0.3;
-    return 0.15 + rand() * 0.85 * env;
-  });
+    heights.push(0.15 + (s / 233280) * 0.85 * env);
+  }
   const w = 180;
   const h = 180;
   const bw = w / bars;

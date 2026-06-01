@@ -39,7 +39,7 @@ type Story = StoryObj;
 
 export const ToolbarExample: Story = {
   parameters: { layout: "centered" },
-  render: () => {
+  render: function ToolbarExampleDemo() {
     const [view, setView] = useState<"grid" | "list">("grid");
     return (
       <div className="w-[720px] border border-line bg-bg">
@@ -186,7 +186,7 @@ export const DropOverlayExample: Story = {
 
 export const SelectionBarExample: Story = {
   parameters: { layout: "centered" },
-  render: () => {
+  render: function SelectionBarExampleDemo() {
     const [count, setCount] = useState(3);
     return (
       <div className="relative h-[240px] w-[640px] overflow-hidden border border-line bg-bg p-4 text-ui text-text-3">

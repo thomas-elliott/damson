@@ -12,6 +12,7 @@ test.describe("Library settings persist across reload", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     const session = await bootstrapAdmin(request);
     await installSession(page, session);
     await page.goto("/settings");

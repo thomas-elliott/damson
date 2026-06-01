@@ -31,6 +31,7 @@ test.describe("Project pin + upgrade flow", () => {
     request,
     noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     test.setTimeout(60_000);
 
     const session = await bootstrapAdmin(request);

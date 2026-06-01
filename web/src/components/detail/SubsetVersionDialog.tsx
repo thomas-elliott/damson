@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   Button,
@@ -41,21 +41,40 @@ export function SubsetVersionDialog({
   versionId: number | null;
   files: AssetFileView[];
 }) {
+  // The picker state lives in SubsetVersionForm, which Radix only mounts while
+  // the dialog is open — so it starts fresh on every open without an effect.
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[640px]">
+        {open && (
+          <SubsetVersionForm
+            assetId={assetId}
+            versionId={versionId}
+            files={files}
+            onOpenChange={onOpenChange}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SubsetVersionForm({
+  assetId,
+  versionId,
+  files,
+  onOpenChange,
+}: {
+  assetId: number;
+  versionId: number | null;
+  files: AssetFileView[];
+  onOpenChange: (v: boolean) => void;
+}) {
   const create = useCreateSubsetVersion();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-
-  // Reset state every time the dialog re-opens or the source files change.
-  useEffect(() => {
-    if (open) {
-      setSelected(new Set());
-      setLabel("");
-      setError(null);
-      setFilter("");
-    }
-  }, [open, versionId]);
 
   const visibleFiles = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -105,96 +124,86 @@ export function SubsetVersionDialog({
   }, [files, selected]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[640px]">
-        <DialogHeader>
-          <DialogTitle>Create subset version</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <p className="text-ui text-text-2">
-            New versions reference the same content-addressed blobs — no re-upload, no extra
-            storage. Pick which files belong to the new subset.
-          </p>
-          <FieldRow label="Filter">
-            <Input
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Path contains…"
-            />
-          </FieldRow>
-          <div className="flex items-center justify-between gap-3 py-1 text-caption">
-            <button
-              type="button"
-              onClick={toggleAllVisible}
-              className="text-text-2 hover:underline"
-            >
-              {allVisibleSelected
-                ? `Deselect ${visibleFiles.length}`
-                : `Select all ${visibleFiles.length}`}
-            </button>
-            <span className="text-text-3">
-              {selected.size} selected · {formatBytes(totalSelectedBytes)}
-            </span>
-          </div>
-          <ScrollArea className="h-[280px] rounded-sm border border-line bg-panel">
-            {visibleFiles.length === 0 ? (
-              <div className="p-3 text-caption">No files match.</div>
-            ) : (
-              <ul className="flex flex-col">
-                {visibleFiles.map((f) => {
-                  const checked = selected.has(f.id);
-                  return (
-                    <li
-                      key={f.id}
-                      className="flex items-center gap-2 border-b border-line px-2 py-1.5 last:border-b-0 hover:bg-surface"
+    <>
+      <DialogHeader>
+        <DialogTitle>Create subset version</DialogTitle>
+      </DialogHeader>
+      <DialogBody>
+        <p className="text-ui text-text-2">
+          New versions reference the same content-addressed blobs — no re-upload, no extra storage.
+          Pick which files belong to the new subset.
+        </p>
+        <FieldRow label="Filter">
+          <Input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Path contains…"
+          />
+        </FieldRow>
+        <div className="flex items-center justify-between gap-3 py-1 text-caption">
+          <button type="button" onClick={toggleAllVisible} className="text-text-2 hover:underline">
+            {allVisibleSelected
+              ? `Deselect ${visibleFiles.length}`
+              : `Select all ${visibleFiles.length}`}
+          </button>
+          <span className="text-text-3">
+            {selected.size} selected · {formatBytes(totalSelectedBytes)}
+          </span>
+        </div>
+        <ScrollArea className="h-[280px] rounded-sm border border-line bg-panel">
+          {visibleFiles.length === 0 ? (
+            <div className="p-3 text-caption">No files match.</div>
+          ) : (
+            <ul className="flex flex-col">
+              {visibleFiles.map((f) => {
+                const checked = selected.has(f.id);
+                return (
+                  <li
+                    key={f.id}
+                    className="flex items-center gap-2 border-b border-line px-2 py-1.5 last:border-b-0 hover:bg-surface"
+                  >
+                    <Checkbox
+                      aria-label={f.relative_path}
+                      checked={checked}
+                      onCheckedChange={(v) => {
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (v) next.add(f.id);
+                          else next.delete(f.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span
+                      className="min-w-0 flex-1 truncate font-mono text-small text-text-2"
+                      title={f.relative_path}
                     >
-                      <Checkbox
-                        aria-label={f.relative_path}
-                        checked={checked}
-                        onCheckedChange={(v) => {
-                          setSelected((prev) => {
-                            const next = new Set(prev);
-                            if (v) next.add(f.id);
-                            else next.delete(f.id);
-                            return next;
-                          });
-                        }}
-                      />
-                      <span
-                        className="min-w-0 flex-1 truncate font-mono text-small text-text-2"
-                        title={f.relative_path}
-                      >
-                        {f.relative_path}
-                      </span>
-                      <span className="text-mono text-text-3">{formatBytes(f.size_bytes)}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </ScrollArea>
-          <FieldRow label="Version label" hint="Optional. Auto-numbered when blank.">
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="v1.subset"
-            />
-          </FieldRow>
-          {error && <p className="text-small text-err">{error}</p>}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            disabled={selected.size === 0 || create.isPending || !versionId}
-            onClick={submit}
-          >
-            {create.isPending ? "Creating…" : "Create subset version"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+                      {f.relative_path}
+                    </span>
+                    <span className="text-mono text-text-3">{formatBytes(f.size_bytes)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </ScrollArea>
+        <FieldRow label="Version label" hint="Optional. Auto-numbered when blank.">
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="v1.subset" />
+        </FieldRow>
+        {error && <p className="text-small text-err">{error}</p>}
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          disabled={selected.size === 0 || create.isPending || !versionId}
+          onClick={submit}
+        >
+          {create.isPending ? "Creating…" : "Create subset version"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
