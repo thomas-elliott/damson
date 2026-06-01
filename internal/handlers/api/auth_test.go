@@ -23,6 +23,14 @@ func TestAuthMode_OIDC(t *testing.T) {
 	if body.Mode != "oidc" {
 		t.Fatalf("mode: got %q, want oidc", body.Mode)
 	}
+	// In OIDC mode the SPA gets the issuer + client_id it needs to configure
+	// oidc-client-ts at runtime (no VITE_OIDC_* baked into the bundle).
+	if body.OIDC == nil {
+		t.Fatal("oidc: expected a non-nil oidc block in oidc mode")
+	}
+	if body.OIDC.Authority != "https://auth.example.com" || body.OIDC.ClientID != "damson" {
+		t.Fatalf("oidc: got %+v, want authority=https://auth.example.com client_id=damson", body.OIDC)
+	}
 }
 
 func TestAuthMode_Local_NeedsBootstrap(t *testing.T) {

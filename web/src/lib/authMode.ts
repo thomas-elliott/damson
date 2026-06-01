@@ -9,6 +9,7 @@
 // the same query cache rather than maintaining a parallel singleton, so
 // invalidations are a single-source operation.
 
+import { configureOidc } from "@/lib/oidc";
 import { queryClient } from "@/lib/queryClient";
 import { queryKeys } from "@/lib/queryKeys";
 
@@ -19,10 +20,24 @@ export interface AuthModeInfo {
   needs_bootstrap: boolean;
 }
 
+interface AuthModeBody {
+  mode: AuthMode;
+  needs_bootstrap?: boolean;
+  // Present only in OIDC mode — the issuer + client_id the SPA needs to
+  // configure oidc-client-ts at runtime (see lib/oidc.ts).
+  oidc?: { authority: string; client_id: string; scope?: string };
+}
+
 export async function fetchAuthMode(): Promise<AuthModeInfo> {
   const res = await fetch("/api/auth/mode");
   if (!res.ok) throw new Error(`auth mode lookup failed (${res.status})`);
-  const body = (await res.json()) as { mode: AuthMode; needs_bootstrap?: boolean };
+  const body = (await res.json()) as AuthModeBody;
+  // Configure the OIDC client immediately from the server-supplied config, so
+  // every downstream caller (AuthGuard, token.ts, the api.ts 401 silent-renew
+  // path) can rely on getUserManager() being ready. Idempotent.
+  if (body.mode === "oidc" && body.oidc) {
+    configureOidc(body.oidc);
+  }
   return { mode: body.mode, needs_bootstrap: body.needs_bootstrap ?? false };
 }
 
