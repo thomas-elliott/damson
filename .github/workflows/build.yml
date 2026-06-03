@@ -1,11 +1,21 @@
-name: Main Build
+name: Build (main)
+
+# Builds and pushes the `latest` + `main-<sha>` container image on every update
+# to main so it can be pulled into the test environment. Production releases are
+# handled separately by release.yml, which promotes one of these tested images
+# (no rebuild) by adding the version tags.
 
 on:
   push:
-    branches:
-      - main
-    tags-ignore:
-      - '**'
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+# Only keep the newest build for a given ref; cancel superseded ones.
+concurrency:
+  group: build-main-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -13,15 +23,18 @@ env:
 
 jobs:
   build-and-push:
-    name: Build & push (main)
+    name: Build and Push latest
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -35,28 +48,25 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            latest=false
           tags: |
-            type=sha,prefix=main-
             type=raw,value=latest
+            type=sha,prefix=main-
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # amd64 only. release.yml promotes this exact image to prod, so prod
+          # runs the same single-arch artifact that was tested.
+          platforms: linux/amd64
 
-      # Auto-update the tylo test env: tell the gitops repo to pin damson-test to the
-      # immutable main-<sha> just pushed. Arcane's autoSync redeploys within ~5 min.
+      # Auto-update the test env: pin damson-test to the immutable main-<sha>
+      # just pushed. Arcane's autoSync redeploys within ~5 min.
       - name: Trigger gitops bump (test env)
         if: github.ref == 'refs/heads/main'
         env:
