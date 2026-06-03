@@ -66,11 +66,17 @@ steps:
       - go build -o web/e2e/.bin/damson-e2e ./cmd/e2e-server
 
   e2e:
-    image: node:24
+    # Pre-baked Playwright image (Chromium + system deps already installed) instead of node:24 +
+    # `playwright install`. The runtime browser download wedges forever on a stalled CDN socket /
+    # stale dirlock with no timeout (this is what hung GitHub Actions for 6h on a cache miss).
+    # Image tag MUST match @playwright/test in web/package-lock.json (1.59.1) so the bundled
+    # browsers are found. Bumping Playwright in the app => bump this tag.
+    image: mcr.microsoft.com/playwright:v1.59.1-noble
+    environment:
+      CI: "true" # playwright.config keys off it (reuseExistingServer:!CI, CI reporter)
     commands:
       - cd web
       - npm ci
-      - npx playwright install --with-deps chromium
       - npm run e2e                                            # sqlite mode — GATING
       # postgres mode is non-gating (GHA continue-on-error): the `|| echo` swallows its failure
       - bash -c 'until (exec 3<>/dev/tcp/postgres/5432) 2>/dev/null; do sleep 1; done'
