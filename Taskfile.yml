@@ -2,7 +2,6 @@ version: "3"
 
 vars:
   WEB_DIR: web
-  VERSION_FILE: VERSION
 
 tasks:
   default:
@@ -286,61 +285,99 @@ tasks:
       - task: test:unit
       - task: test:e2e
 
+  # Releases promote the already-tested main image to prod via a GitHub Release
+  # (which triggers release.yml). Cut one from the GitHub UI, or with the helpers
+  # below. These do NOT re-run checks locally — they verify CI already passed for
+  # the current main commit on the remote, then publish the release.
+
   release:
-    desc: "Create and push a release tag (usage: task release VERSION=v1.0.0)"
+    desc: "Publish a GitHub release promoting current main to prod (usage: task release VERSION=v1.2.3). Gated on a pushed, up-to-date main with green CI — does not re-run checks locally."
     preconditions:
       - sh: '[ -n "{{.VERSION}}" ]'
-        msg: "VERSION is required. Usage: task release VERSION=v1.0.0"
-      - sh: 'case "{{.VERSION}}" in v[0-9]*.[0-9]*.[0-9]*) exit 0 ;; *) exit 1 ;; esac'
-        msg: "VERSION must match vX.Y.Z (for example: v1.0.0)."
-      - sh: '! git rev-parse "{{.VERSION}}" >/dev/null 2>&1'
-        msg: "Tag {{.VERSION}} already exists locally."
+        msg: "VERSION is required. Usage: task release VERSION=v1.2.3"
+      - sh: 'echo "{{.VERSION}}" | grep -Eq "^v[0-9]+\.[0-9]+\.[0-9]+$"'
+        msg: "VERSION must be vX.Y.Z (for example v1.2.3)."
+      - sh: "command -v gh >/dev/null"
+        msg: "GitHub CLI (gh) is required: https://cli.github.com"
+      - sh: '[ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]'
+        msg: "Releases are cut from main. Switch to main first."
     cmds:
-      - task: ci
-      - git diff --quiet
-      - git diff --quiet --cached
       - |
-        NEW_VERSION="{{.VERSION}}"
-        NEW_VERSION="${NEW_VERSION#v}"
-        echo "Updating {{.VERSION_FILE}} → $NEW_VERSION"
-        printf '%s\n' "$NEW_VERSION" > {{.VERSION_FILE}}
-      - git add {{.VERSION_FILE}}
-      - 'git commit -m "chore: release {{.VERSION}}"'
-      - git tag -a {{.VERSION}} -m "Release {{.VERSION}}"
-      - echo "Pushing commit and tag {{.VERSION}}..."
-      - git push origin HEAD
-      - git push origin {{.VERSION}}
-      - echo "Released {{.VERSION}}. GitHub Actions will publish the container image."
+        set -eu
+        VERSION="{{.VERSION}}"
+
+        # main must be up to date with the remote (nothing unpushed, not behind).
+        git fetch --quiet origin main
+        if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+          echo "Error: local main is not in sync with origin/main — push/pull first." >&2
+          exit 1
+        fi
+        SHA="$(git rev-parse origin/main)"
+
+        # Tag must not already exist on the remote.
+        if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+          echo "Error: tag $VERSION already exists on origin." >&2
+          exit 1
+        fi
+
+        # CI must already be green for this commit: tests.yml (the gate) and
+        # build.yml (which produced the image release.yml promotes).
+        for wf in tests.yml build.yml; do
+          state="$(gh api "repos/{owner}/{repo}/actions/workflows/$wf/runs?head_sha=$SHA&per_page=1" \
+            --jq 'if (.workflow_runs|length)==0 then "missing" else .workflow_runs[0].status + ":" + (.workflow_runs[0].conclusion // "") end')"
+          case "$state" in
+            completed:success) ;;
+            missing)            echo "Error: no $wf run for $SHA — a docs-only commit has no image, release an earlier commit." >&2; exit 1 ;;
+            completed:*)        echo "Error: $wf concluded '${state#completed:}' for $SHA — fix CI before releasing." >&2; exit 1 ;;
+            *)                  echo "Error: $wf is still running for $SHA (status '${state%%:*}'). Wait for CI to finish, then retry." >&2; exit 1 ;;
+          esac
+        done
+
+        echo "Publishing release $VERSION for ${SHA} ..."
+        gh release create "$VERSION" --target "$SHA" --title "$VERSION" --generate-notes
+        echo "Released $VERSION. release.yml will promote the tested image to prod."
 
   release:patch:
-    desc: Create a patch release (increments patch from VERSION file)
+    desc: Release the next patch version (vX.Y.Z+1) from the latest tag
     cmds:
-      - |
-        CURRENT=$(tr -d '[:space:]' < {{.VERSION_FILE}})
-        OLD_IFS="$IFS"; IFS='.'; set -- $CURRENT; IFS="$OLD_IFS"
-        MAJOR=$1; MINOR=$2; PATCH=$3
-        NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
-        echo "Bumping from v${CURRENT} to ${NEW_TAG}"
-        task release VERSION="${NEW_TAG}"
+      - task: release
+        vars: { VERSION: "{{.NEXT}}" }
+    vars:
+      NEXT:
+        sh: |
+          git fetch --tags --quiet origin
+          CUR="$(git tag -l 'v*' --sort=-version:refname | head -1)"
+          if [ -z "$CUR" ]; then echo "v0.0.1"; else
+            N=${CUR#v}; OLD_IFS="$IFS"; IFS='.'; set -- $N; IFS="$OLD_IFS"
+            echo "v$1.$2.$(($3 + 1))"
+          fi
 
   release:minor:
-    desc: Create a minor release (increments minor, resets patch)
+    desc: Release the next minor version (vX.Y+1.0) from the latest tag
     cmds:
-      - |
-        CURRENT=$(tr -d '[:space:]' < {{.VERSION_FILE}})
-        OLD_IFS="$IFS"; IFS='.'; set -- $CURRENT; IFS="$OLD_IFS"
-        MAJOR=$1; MINOR=$2
-        NEW_TAG="v${MAJOR}.$((MINOR + 1)).0"
-        echo "Bumping from v${CURRENT} to ${NEW_TAG}"
-        task release VERSION="${NEW_TAG}"
+      - task: release
+        vars: { VERSION: "{{.NEXT}}" }
+    vars:
+      NEXT:
+        sh: |
+          git fetch --tags --quiet origin
+          CUR="$(git tag -l 'v*' --sort=-version:refname | head -1)"
+          if [ -z "$CUR" ]; then echo "v0.1.0"; else
+            N=${CUR#v}; OLD_IFS="$IFS"; IFS='.'; set -- $N; IFS="$OLD_IFS"
+            echo "v$1.$(($2 + 1)).0"
+          fi
 
   release:major:
-    desc: Create a major release (increments major, resets minor and patch)
+    desc: Release the next major version (vX+1.0.0) from the latest tag
     cmds:
-      - |
-        CURRENT=$(tr -d '[:space:]' < {{.VERSION_FILE}})
-        OLD_IFS="$IFS"; IFS='.'; set -- $CURRENT; IFS="$OLD_IFS"
-        MAJOR=$1
-        NEW_TAG="v$((MAJOR + 1)).0.0"
-        echo "Bumping from v${CURRENT} to ${NEW_TAG}"
-        task release VERSION="${NEW_TAG}"
+      - task: release
+        vars: { VERSION: "{{.NEXT}}" }
+    vars:
+      NEXT:
+        sh: |
+          git fetch --tags --quiet origin
+          CUR="$(git tag -l 'v*' --sort=-version:refname | head -1)"
+          if [ -z "$CUR" ]; then echo "v1.0.0"; else
+            N=${CUR#v}; OLD_IFS="$IFS"; IFS='.'; set -- $N; IFS="$OLD_IFS"
+            echo "v$(($1 + 1)).0.0"
+          fi
