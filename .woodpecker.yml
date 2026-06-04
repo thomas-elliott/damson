@@ -34,6 +34,11 @@ services:
 
 steps:
   go:
+    # Skip on tag: a release is a retag of the already-tested main-<sha> image, not a rebuild.
+    when:
+      - event: pull_request
+      - event: push
+        branch: main
     image: golang:1.26
     commands:
       - go mod download
@@ -43,6 +48,10 @@ steps:
       - go test -race -count=1 ./...
 
   web:
+    when:
+      - event: pull_request
+      - event: push
+        branch: main
     image: node:24
     commands:
       - cd web
@@ -51,6 +60,10 @@ steps:
       - npm test -- --run
 
   integration:
+    when:
+      - event: pull_request
+      - event: push
+        branch: main
     image: golang:1.26
     failure: ignore             # non-gating (GHA continue-on-error)
     environment:
@@ -60,12 +73,20 @@ steps:
       - go test -tags=postgres_integration -race -count=1 ./...
 
   e2e-build:
+    when:
+      - event: pull_request
+      - event: push
+        branch: main
     image: golang:1.26
     commands:
       - mkdir -p web/e2e/.bin
       - go build -o web/e2e/.bin/damson-e2e ./cmd/e2e-server
 
   e2e:
+    when:
+      - event: pull_request
+      - event: push
+        branch: main
     # Pre-baked Playwright image (Chromium + system deps already installed) instead of node:24 +
     # `playwright install`. The runtime browser download wedges forever on a stalled CDN socket /
     # stale dirlock with no timeout (this is what hung GitHub Actions for 6h on a cache miss).
