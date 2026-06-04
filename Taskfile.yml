@@ -285,13 +285,14 @@ tasks:
       - task: test:unit
       - task: test:e2e
 
-  # Releases promote the already-tested main image to prod via a GitHub Release
-  # (which triggers release.yml). Cut one from the GitHub UI, or with the helpers
-  # below. These do NOT re-run checks locally — they verify CI already passed for
-  # the current main commit on the remote, then publish the release.
+  # Releases promote the already-tested main image to prod by pushing a vX.Y.Z tag,
+  # which triggers the Woodpecker tag pipeline (.woodpecker.yml): it re-runs the
+  # full test suite, then promotes the existing main-<sha> image (no rebuild). The
+  # helpers below cut the tag from an up-to-date main; they do NOT re-run checks
+  # locally.
 
   release:
-    desc: "Publish a GitHub release promoting current main to prod (usage: task release VERSION=v1.2.3). Gated on a pushed, up-to-date main with green CI — does not re-run checks locally."
+    desc: "Publish a GitHub release promoting current main to prod (usage: task release VERSION=v1.2.3). Gated on a pushed, up-to-date main — does not re-run checks locally; Woodpecker tests + promotes on the tag."
     preconditions:
       - sh: '[ -n "{{.VERSION}}" ]'
         msg: "VERSION is required. Usage: task release VERSION=v1.2.3"
@@ -320,22 +321,14 @@ tasks:
           exit 1
         fi
 
-        # CI must already be green for this commit: tests.yml (the gate) and
-        # build.yml (which produced the image release.yml promotes).
-        for wf in tests.yml build.yml; do
-          state="$(gh api "repos/{owner}/{repo}/actions/workflows/$wf/runs?head_sha=$SHA&per_page=1" \
-            --jq 'if (.workflow_runs|length)==0 then "missing" else .workflow_runs[0].status + ":" + (.workflow_runs[0].conclusion // "") end')"
-          case "$state" in
-            completed:success) ;;
-            missing)            echo "Error: no $wf run for $SHA — a docs-only commit has no image, release an earlier commit." >&2; exit 1 ;;
-            completed:*)        echo "Error: $wf concluded '${state#completed:}' for $SHA — fix CI before releasing." >&2; exit 1 ;;
-            *)                  echo "Error: $wf is still running for $SHA (status '${state%%:*}'). Wait for CI to finish, then retry." >&2; exit 1 ;;
-          esac
-        done
+        # No local CI gate: GitHub Actions was retired in favour of Woodpecker on
+        # tylo (.woodpecker.yml). The tag pipeline re-runs the full test suite, and
+        # release-promote guards itself with `crane manifest` on the main-<sha>
+        # image — so tagging a commit with no tested image fails safe (no promotion).
 
         echo "Publishing release $VERSION for ${SHA} ..."
         gh release create "$VERSION" --target "$SHA" --title "$VERSION" --generate-notes
-        echo "Released $VERSION. release.yml will promote the tested image to prod."
+        echo "Released $VERSION. The Woodpecker tag pipeline will test and promote the image to prod."
 
   release:patch:
     desc: Release the next patch version (vX.Y.Z+1) from the latest tag
