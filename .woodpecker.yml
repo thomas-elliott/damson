@@ -119,7 +119,9 @@ steps:
       - git diff --quiet || { git commit -am "bump damson-test -> $IMAGE_REF"; git push; }
 
   release-promote:
-    image: gcr.io/go-containerregistry/crane:debug
+    # crane:debug ships no /bin/sh, but Woodpecker runs step commands through
+    # /bin/sh -> the container can't start. Run crane from alpine instead.
+    image: alpine:3.20
     when:
       - event: tag
         ref: refs/tags/v*
@@ -127,6 +129,9 @@ steps:
       GHCR_TOKEN:
         from_secret: ghcr_token
     commands:
+      - apk add --no-cache curl
+      - curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz -o /tmp/crane.tgz
+      - tar -xzf /tmp/crane.tgz -C /usr/local/bin crane
       # promote the already-built+tested main-<sha> image to the version tags (no rebuild)
       - VER="${CI_COMMIT_TAG#v}"
       - SRC="ghcr.io/thomas-elliott/damson:main-$(echo "$CI_COMMIT_SHA" | cut -c1-7)"
