@@ -78,6 +78,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&models.User{},
+		&models.UserIdentity{},
 		&models.Library{},
 		&models.LibraryMembership{},
 		&models.AuditLog{},
@@ -165,7 +166,6 @@ func jsonResponse[T any](t *testing.T, w *httptest.ResponseRecorder) T {
 func seedUser(t *testing.T, db *gorm.DB, email string) *models.User {
 	t.Helper()
 	u := models.User{
-		Subject:     "sub-" + email,
 		Email:       email,
 		DisplayName: email,
 		Role:        "user",
@@ -183,7 +183,6 @@ func seedLocalUser(t *testing.T, db *gorm.DB, email, password string) *models.Us
 		t.Fatalf("hash: %v", err)
 	}
 	u := models.User{
-		Subject:      "local:" + email,
 		Email:        email,
 		DisplayName:  email,
 		Role:         "user",

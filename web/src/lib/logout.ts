@@ -10,18 +10,13 @@ import { getUserManager } from "@/lib/oidc";
 export async function logout(): Promise<void> {
   const mode = getCachedAuthMode();
   if (mode === "oidc") {
-    try {
-      // Leaves the SPA entirely; the IdP ends the session and redirects back
-      // to post_logout_redirect_uri (/login).
-      await getUserManager().signoutRedirect();
-      return;
-    } catch {
-      // IdP advertises no end-session endpoint (or it failed): clear the
-      // stored user locally so the next AuthGuard pass bounces to login.
-      await getUserManager()
-        .removeUser()
-        .catch(() => {});
-    }
+    // Local-only logout: clear the stored user so the next AuthGuard pass
+    // bounces to /login. We deliberately do NOT call signoutRedirect() — the
+    // IdP's end_session needs a registered post_logout_redirect_uri and would
+    // end the whole SSO session across every app sharing the IdP.
+    await getUserManager()
+      .removeUser()
+      .catch(() => {});
   } else {
     clearLocalSession();
   }

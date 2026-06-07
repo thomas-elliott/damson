@@ -27,7 +27,9 @@ export function configureOidc(cfg: OidcConfig): UserManager {
     // dispatches on whether it's running inside an iframe.
     redirect_uri: `${origin}/auth/callback`,
     silent_redirect_uri: `${origin}/auth/callback`,
-    post_logout_redirect_uri: `${origin}/login`,
+    // No post_logout_redirect_uri: logout is local-only (see lib/logout.ts) —
+    // we clear the stored user rather than hitting the IdP's end_session, so an
+    // end-session redirect target would never be used.
     scope: cfg.scope ?? "openid profile email",
     automaticSilentRenew: true,
     userStore: new WebStorageStateStore({ store: window.localStorage }),
