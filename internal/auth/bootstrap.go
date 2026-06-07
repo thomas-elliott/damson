@@ -168,7 +168,6 @@ func createLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) 
 	hashStr := string(hash)
 
 	u := models.User{
-		Subject:      localSubject(email),
 		Email:        email,
 		DisplayName:  email,
 		Role:         "user", // promoted by BootstrapFirstAdmin below
@@ -202,10 +201,9 @@ func CreateLocalUser(ctx context.Context, db *gorm.DB, email, displayName, passw
 	if displayName == "" {
 		displayName = email
 	}
-	subject := localSubject(email)
 
 	var existing models.User
-	err := db.WithContext(ctx).Where("subject = ? OR email = ?", subject, email).First(&existing).Error
+	err := db.WithContext(ctx).Where("lower(email) = lower(?)", email).First(&existing).Error
 	if err == nil {
 		return &existing, ErrUserExists
 	}
@@ -219,7 +217,6 @@ func CreateLocalUser(ctx context.Context, db *gorm.DB, email, displayName, passw
 	}
 	hashStr := string(hash)
 	u := models.User{
-		Subject:      subject,
 		Email:        email,
 		DisplayName:  displayName,
 		Role:         "user",
@@ -257,5 +254,5 @@ func SetLocalUserPassword(ctx context.Context, db *gorm.DB, userID uint, passwor
 }
 
 // ErrUserExists is returned by CreateLocalUser when a user with the same
-// email or subject is already present.
+// email is already present.
 var ErrUserExists = errors.New("user already exists")

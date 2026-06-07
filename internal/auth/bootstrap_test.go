@@ -17,6 +17,7 @@ func newBootstrapTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&models.User{},
+		&models.UserIdentity{},
 		&models.Library{},
 		&models.LibraryMembership{},
 	); err != nil {
@@ -25,9 +26,9 @@ func newBootstrapTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func createUser(t *testing.T, db *gorm.DB, subject, email string) *models.User {
+func createUser(t *testing.T, db *gorm.DB, email string) *models.User {
 	t.Helper()
-	u := models.User{Subject: subject, Email: email, DisplayName: email, Role: "user"}
+	u := models.User{Email: email, DisplayName: email, Role: "user"}
 	if err := db.Create(&u).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -37,7 +38,7 @@ func createUser(t *testing.T, db *gorm.DB, subject, email string) *models.User {
 // The very first user on an empty system is promoted and handed a library.
 func TestBootstrapFirstAdmin_FirstUserPromoted(t *testing.T) {
 	db := newBootstrapTestDB(t)
-	u := createUser(t, db, "sub-1", "first@example.com")
+	u := createUser(t, db, "first@example.com")
 
 	if err := BootstrapFirstAdmin(t.Context(), db, u); err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -61,7 +62,7 @@ func TestBootstrapFirstAdmin_FirstUserPromoted(t *testing.T) {
 // becomes the first admin (they fill in their email afterwards via PATCH /me).
 func TestBootstrapFirstAdmin_NoEmailStillBootstraps(t *testing.T) {
 	db := newBootstrapTestDB(t)
-	u := createUser(t, db, "sub-noemail", "")
+	u := createUser(t, db, "")
 
 	if err := BootstrapFirstAdmin(t.Context(), db, u); err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -77,12 +78,12 @@ func TestBootstrapFirstAdmin_NoEmailStillBootstraps(t *testing.T) {
 // The second user to sign in is not promoted and gets no library.
 func TestBootstrapFirstAdmin_SecondUserNotPromoted(t *testing.T) {
 	db := newBootstrapTestDB(t)
-	first := createUser(t, db, "sub-1", "first@example.com")
+	first := createUser(t, db, "first@example.com")
 	if err := BootstrapFirstAdmin(t.Context(), db, first); err != nil {
 		t.Fatalf("bootstrap first: %v", err)
 	}
 
-	second := createUser(t, db, "sub-2", "second@example.com")
+	second := createUser(t, db, "second@example.com")
 	if err := BootstrapFirstAdmin(t.Context(), db, second); err != nil {
 		t.Fatalf("bootstrap second: %v", err)
 	}
@@ -103,7 +104,7 @@ func TestBootstrapFirstAdmin_SecondUserNotPromoted(t *testing.T) {
 // Re-running on the same first user is a no-op once the library exists.
 func TestBootstrapFirstAdmin_Idempotent(t *testing.T) {
 	db := newBootstrapTestDB(t)
-	u := createUser(t, db, "sub-1", "first@example.com")
+	u := createUser(t, db, "first@example.com")
 	if err := BootstrapFirstAdmin(t.Context(), db, u); err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
