@@ -36,7 +36,7 @@ func TestGetMe_ReturnsUser(t *testing.T) {
 // needs_profile so the SPA shows the first-login profile step.
 func TestGetMe_NeedsProfile_WhenNoEmail(t *testing.T) {
 	h, db := newTestHandler(t)
-	u := &models.User{Subject: "sub-noemail", Role: "user"}
+	u := &models.User{Role: "user"}
 	if err := db.Create(u).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestGetMe_NeedsProfile_WhenNoEmail(t *testing.T) {
 
 func TestPatchMe_SetsEmailAndDefaultsDisplayName(t *testing.T) {
 	h, db := newTestHandler(t)
-	u := &models.User{Subject: "sub-noemail", Role: "user"}
+	u := &models.User{Role: "user"}
 	if err := db.Create(u).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestPatchMe_SetsEmailAndDefaultsDisplayName(t *testing.T) {
 
 func TestPatchMe_KeepsProvidedDisplayName(t *testing.T) {
 	h, db := newTestHandler(t)
-	u := &models.User{Subject: "sub-noemail", Role: "user"}
+	u := &models.User{Role: "user"}
 	if err := db.Create(u).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}

@@ -17,9 +17,9 @@ type OIDCConfig struct {
 	Audience  string
 }
 
-// OIDCAuthenticator validates IdP-issued bearer tokens and upserts users by
-// their OIDC subject. The very first user to sign in on an empty system
-// triggers the one-time bootstrap (see bootstrap.go).
+// OIDCAuthenticator validates IdP-issued bearer tokens and resolves them to a
+// damson user via the user_identities table. The very first user to sign in on
+// an empty system triggers the one-time bootstrap (see bootstrap.go).
 type OIDCAuthenticator struct {
 	verifier *oidc.IDTokenVerifier
 	db       *gorm.DB
@@ -45,53 +45,84 @@ func (a *OIDCAuthenticator) Authenticate(ctx context.Context, rawToken string) (
 	if err != nil {
 		return nil, ErrUnauthenticated
 	}
-
-	var claims struct {
-		Sub   string `json:"sub"`
-		Email string `json:"email"`
-		Name  string `json:"name"`
-	}
-	if err := tok.Claims(&claims); err != nil || claims.Sub == "" {
+	// Issuer and Subject are validated struct fields on the verified token;
+	// email/name come from the raw claims.
+	if tok.Issuer == "" || tok.Subject == "" {
 		return nil, ErrUnauthenticated
 	}
 
-	return a.upsertUser(ctx, claims.Sub, claims.Email, claims.Name)
+	var claims struct {
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+		Name          string `json:"name"`
+	}
+	if err := tok.Claims(&claims); err != nil {
+		return nil, ErrUnauthenticated
+	}
+
+	return a.resolveUser(ctx, tok.Issuer, tok.Subject, claims.Email, claims.EmailVerified, claims.Name)
 }
 
-// upsertUser finds a user by OIDC subject or creates one. The subject is the
-// only thing we trust from the IdP; email and name are optional claims used
-// merely to seed the profile at creation. Once a user exists the app owns
-// their email/display name (edited via PATCH /api/me), so we never overwrite
-// them from later logins. A freshly-created first user triggers the one-time
-// bootstrap inside the same call (see bootstrap.go).
-func (a *OIDCAuthenticator) upsertUser(ctx context.Context, subject, email, displayName string) (*models.User, error) {
+// resolveUser maps a verified IdP identity to a damson user, in priority order:
+//
+//  1. an existing (issuer, subject) identity → its user;
+//  2. else, when the IdP asserts a *verified* email, an existing user with that
+//     email → link a new identity to them (this is what lets someone who first
+//     signed up via one IdP log in via another, same email, same account);
+//  3. else, a brand-new user seeded from the claims, with this identity.
+//
+// Email/name are only ever used to seed a new profile or as the join key — once
+// a user exists the app owns their email/display name (edited via PATCH
+// /api/me), so later logins never overwrite them. The whole thing runs in one
+// transaction; a freshly-created first user triggers bootstrap inside it.
+func (a *OIDCAuthenticator) resolveUser(ctx context.Context, issuer, subject, email string, emailVerified bool, displayName string) (*models.User, error) {
 	var u models.User
-	err := a.db.WithContext(ctx).Where("subject = ?", subject).First(&u).Error
-	if err == nil {
-		return &u, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
+	err := a.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Known identity.
+		var ident models.UserIdentity
+		err := tx.Where("issuer = ? AND subject = ?", issuer, subject).First(&ident).Error
+		if err == nil {
+			return tx.First(&u, ident.UserID).Error
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 
-	// Seed the profile from claims when present. Leave email empty when the
-	// IdP doesn't send one — the SPA detects the blank email (needs_profile)
-	// and prompts the user to fill it in. Display name defaults to email only
-	// when we actually have an email to fall back to.
-	if displayName == "" {
-		displayName = email
-	}
-	u = models.User{
-		Subject:     subject,
-		Email:       email,
-		DisplayName: displayName,
-		Role:        "user",
-	}
-	if err := a.db.WithContext(ctx).Create(&u).Error; err != nil {
-		return nil, err
-	}
+		// 2. Adopt an existing account by verified email, linking this identity.
+		if emailVerified && email != "" {
+			err := tx.Where("lower(email) = lower(?)", email).First(&u).Error
+			if err == nil {
+				return tx.Create(&models.UserIdentity{
+					UserID: u.ID, Issuer: issuer, Subject: subject,
+				}).Error
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
 
-	if err := BootstrapFirstAdmin(ctx, a.db, &u); err != nil {
+		// 3. New user. Leave email blank when the IdP doesn't send a verified
+		// one — the SPA detects the blank email (needs_profile) and prompts for
+		// it. Only seed email/display name from a verified address.
+		seedEmail := ""
+		if emailVerified {
+			seedEmail = email
+		}
+		if displayName == "" {
+			displayName = seedEmail
+		}
+		u = models.User{Email: seedEmail, DisplayName: displayName, Role: "user"}
+		if err := tx.Create(&u).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&models.UserIdentity{
+			UserID: u.ID, Issuer: issuer, Subject: subject,
+		}).Error; err != nil {
+			return err
+		}
+		return BootstrapFirstAdmin(ctx, tx, &u)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &u, nil

@@ -164,10 +164,3 @@ func parseUserID(s string) (uint, error) {
 	}
 	return id, nil
 }
-
-// localSubject returns the synthetic subject used for local-auth users. This
-// lets the Subject column remain NOT NULL UNIQUE without collision risk
-// (OIDC subjects can't legitimately start with "local:").
-func localSubject(email string) string {
-	return "local:" + strings.ToLower(strings.TrimSpace(email))
-}
