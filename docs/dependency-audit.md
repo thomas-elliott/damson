@@ -54,7 +54,7 @@ Go toolchain is `go 1.26` (latest 1.26.2 as of 2026-04-07). Already on the curre
 | `storybook` + addons | ^10.3.5 | 10.3.5 | 0 | Heavy (76 stories) | None — currently latest |
 | `@vitejs/plugin-react` | ^4.3.0 | bumped with Vite 8 | — | Config only | Move with Vite |
 | `typescript` | ^5.5.0 | 5.x | 0 | — | Minor bump |
-| `playwright` | ^1.59.1 | 1.x | 0 | Test runner | Minor bump |
+| `playwright` | 1.60.0 (exact) | 1.x | 0 | Test runner — pinned exact to match the CI Playwright image tag | Bump app + `.woodpecker.yml` image together |
 | `jsdom` | ^24.1.0 | v24/25 | possibly 1 | Vitest env | Bump alongside Vitest 4 if required |
 | `@types/node` | ^24.0.0 | 24.x | 0 | — | Minor bump |
 | `autoprefixer`, `postcss` | current | — | — | Drops out with Tailwind v4 (which has its own engine) | Re-evaluate post-Tailwind 4 |
@@ -69,19 +69,19 @@ Five concrete major-version moves, ordered by dependency. Each is a separate com
 - **Why first:** every other frontend bump cares about React's peer range. Doing it first lets us pick the React-19-aligned version of each subsequent dep in one shot.
 - **Files:** `web/package.json` (`react`, `react-dom`, `@types/react`, `@types/react-dom`); no source changes expected — the codebase already uses hooks-only function components, `createRoot`, no `defaultProps`/`PropTypes`/`findDOMNode`.
 - **Risk:** Low. Optionally run `npx types-react-codemod@latest preset-19 ./src` for any subtle type changes.
-- **Verify:** `npm run build`, `npm run test:all`, `npm run storybook` smoke.
+- **Verify:** `pnpm run build`, `pnpm run test:all`, `pnpm run storybook` smoke.
 
 ### 2. Vite 5 → 8 + `@vitejs/plugin-react` peer  *(build)*
 - **Why next:** Vitest 4 needs Vite 8. Our `vite.config.ts` is minimal (alias + dev proxy + single plugin).
 - **Files:** `web/package.json`, `web/vite.config.ts` (smoke check; CJS-default removal already complied with).
 - **Risk:** Low — no custom plugins, no Environment API usage.
-- **Verify:** `npm run dev`, `npm run build`, confirm `/api` proxy still works against `task dev`.
+- **Verify:** `pnpm run dev`, `pnpm run build`, confirm `/api` proxy still works against `task dev`.
 
 ### 3. Vitest 3 → 4 + `@vitest/browser` 4  *(test)*
 - **Why next:** depends on Vite 8. v4 stabilizes Browser Mode (already in use via `vitest --project=storybook`).
 - **Files:** `web/package.json`, `web/vitest.config.ts`, `web/.storybook/vitest.setup.ts`. `playwright` may need a bump alongside.
 - **Risk:** Medium — browser-mode test config can drift. Pre-existing 76 story tests are the canary.
-- **Verify:** `npm run test`, `npm run test:stories`, `npm run test:all`.
+- **Verify:** `pnpm run test`, `pnpm run test:stories`, `pnpm run test:all`.
 
 ### 4. React Router 6 → 7  *(routing)*
 - **Why:** v6 is on the deprecation path; v7 is largely backward-compatible for our usage. We use only the classic surface — no data-router APIs, no loaders/actions.
@@ -99,7 +99,7 @@ Five concrete major-version moves, ordered by dependency. Each is a separate com
   - `@tailwindcss/typography` peer — bump to its v4-compatible release.
   - `tailwind-merge` and `class-variance-authority` — verify against new utility names; v4 renames a handful of utilities.
 - **Risk:** High footprint, low per-call-site complexity. Run codemod first, then visual-diff Storybook page-by-page.
-- **Verify:** Storybook visual sweep; `npm run build-storybook`; `task dev:spa` and click through key pages.
+- **Verify:** Storybook visual sweep; `pnpm run build-storybook`; `task dev:spa` and click through key pages.
 
 ### 6. Housekeeping pass *(non-major, but run as part of the same release)*
 - **Backend:** `go get -u ./... && go mod tidy && task pre-release-checks`. Brings Gin to v1.12, GORM to v1.31, go-oidc to v3.17, AWS SDK and `golang.org/x/*` current.
@@ -113,8 +113,8 @@ After **each** numbered upgrade above, run, in order:
 
 1. `task fmt && task vet` — Go side untouched but cheap to confirm.
 2. `task test` — Go tests.
-3. `cd web && npm install && npm run build` — TypeScript + Vite build must succeed.
-4. `cd web && npm run test:all` — unit + storybook tests.
+3. `cd web && pnpm install && pnpm run build` — TypeScript + Vite build must succeed.
+4. `cd web && pnpm run test:all` — unit + storybook tests.
 5. `task dev:spa` — open in a browser, exercise:
    - Local-mode login flow (`/login` → library page) — covers React Router + auth guard.
    - Library grid scroll — covers `@tanstack/react-virtual`, Tailwind layout.
