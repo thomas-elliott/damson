@@ -1,12 +1,19 @@
 // Grid + list view, toolbar, chip bar, selection bar.
 const { useMemo: useMemoG } = React;
 
+const SPDX_SHORT = {
+  'Unity-Asset-Store-EULA': 'Unity EULA',
+};
+
 function LicencePill({ licence, compact = false }) {
   const data = LICENCES[licence] || LICENCES.Unknown;
+  const label = compact
+    ? (SPDX_SHORT[data.spdx] || data.spdx || '—')
+    : (data.spdx || 'Unknown');
   return (
     <span className={`lic-pill ${data.status}`} title={licence}>
       <span className="dot"/>
-      {compact ? (data.spdx || '—') : (data.spdx || 'Unknown')}
+      {label}
     </span>
   );
 }
@@ -39,6 +46,7 @@ function AssetCard({ asset, selected, onClick, onShiftClick }) {
 function Toolbar({
   count, total, view, setView, sort, setSort,
   activeChips, removeChip, clearAll,
+  browseTarget, onBrowse,
 }) {
   return (
     <div className="toolbar">
@@ -62,6 +70,15 @@ function Toolbar({
       ) : null}
 
       <div className="toolbar-spacer"/>
+
+      {browseTarget ? (
+        <>
+          <button className="tbtn browse-pill" onClick={() => onBrowse(browseTarget.id)} title={`Browse the ${browseTarget.files.toLocaleString()} files in ${browseTarget.name}`}>
+            <I.Browse size={12}/> Browse files
+          </button>
+          <span className="divider-v"/>
+        </>
+      ) : null}
 
       <button className="tbtn" onClick={() => setSort(sort === 'name' ? 'imported' : 'name')}>
         <I.SortAsc size={12}/>

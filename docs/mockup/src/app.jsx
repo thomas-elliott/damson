@@ -22,6 +22,22 @@ function App() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [showNewCollection, setShowNewCollection] = useState(false);
   const [projectsLayout, setProjectsLayout] = useState(tweaks.projectsLayout || 'list');
+
+  // ---- File browser (scoped into an asset pack) ----
+  const [browse, setBrowse] = useState(null);   // assetId being browsed, or null
+  const [bPath, setBPath] = useState([]);        // current folder path
+  const [bSel, setBSel] = useState(new Set());   // selected file path-strings
+  const [bOpen, setBOpen] = useState(null);      // open file path-string (detail)
+  const [bTypes, setBTypes] = useState(new Set());
+  const [bQuery, setBQuery] = useState('');
+  const [bView, setBView] = useState('grid');
+  const [dragging, setDragging] = useState(false);
+  const [pickMode, setPickMode] = useState(false);
+  const [newColFromSel, setNewColFromSel] = useState(false);
+  const [toast, setToast] = useState(null);
+  const dragPayloadRef = useRef([]);
+  const toastTimer = useRef(null);
+
   const mainRef = useRef(null);
 
   useEffect(() => {
@@ -227,6 +243,98 @@ function App() {
     setShowNewCollection(false);
   };
 
+  // ---- File browser derived state ----
+  const browseAsset = browse ? (ASSETS.find(a => a.id === browse) || null) : null;
+  const bTree = useMemo(() => browseAsset ? buildPackTree(browseAsset) : [], [browse]);
+  const bTypeCounts = useMemo(() => browseAsset ? typeCounts(bTree) : {}, [bTree, browse]);
+  const bResultsMode = !!(bQuery.trim() || bTypes.size);
+  const bListing = useMemo(() => {
+    if (!browseAsset) return [];
+    if (bResultsMode) {
+      const q = bQuery.trim().toLowerCase();
+      return flattenFiles(bTree).filter(f => {
+        if (bTypes.size && !bTypes.has(f.ftype)) return false;
+        if (q && !(f.name.toLowerCase().includes(q) || f.dir.join('/').toLowerCase().includes(q))) return false;
+        return true;
+      });
+    }
+    return nodesAtPath(bTree, bPath);
+  }, [browseAsset, bTree, bResultsMode, bQuery, bTypes, bPath]);
+  const bFiles = useMemo(() => bListing.filter(n => n.type === 'file'), [bListing]);
+  const bOpenIdx = bOpen ? bFiles.findIndex(n => pathStr(bResultsMode ? n.dir : bPath, n.name) === bOpen) : -1;
+  const bOpenFile = bOpenIdx >= 0 ? { node: bFiles[bOpenIdx], dir: bResultsMode ? bFiles[bOpenIdx].dir : bPath } : null;
+
+  const enterBrowser = (assetId) => {
+    setBrowse(assetId); setBPath([]); setBSel(new Set()); setBOpen(null);
+    setBTypes(new Set()); setBQuery(''); setBView('grid');
+    setPickMode(false); setDragging(false);
+    setOpenId(null); setFullPage(false);
+  };
+  const exitBrowser = () => {
+    const id = browse;
+    setBrowse(null); setBSel(new Set()); setBOpen(null); setPickMode(false); setDragging(false);
+    if (id) { setOpenId(id); setSelected(new Set([id])); }   // land back on the asset
+  };
+  const bNavigate = (p) => { setBPath(p); setBQuery(''); setBTypes(new Set()); setBOpen(null); };
+  const bToggleType = (ft) => setBTypes(s => { const n = new Set(s); n.has(ft) ? n.delete(ft) : n.add(ft); setBOpen(null); return n; });
+  const bOpenFromTree = (node, parent) => {
+    setBQuery(''); setBTypes(new Set()); setBPath(parent);
+    const k = pathStr(parent, node.name); setBOpen(k); setBSel(new Set([k]));
+  };
+  const bOpenFileFn = (node, dir) => { const k = pathStr(dir, node.name); setBOpen(k); setBSel(new Set([k])); };
+  const bSelectFile = (node, dir) => {
+    const k = pathStr(dir, node.name);
+    setBSel(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  };
+  const bStep = (delta) => {
+    if (!bFiles.length) return;
+    let idx = bOpenIdx; if (idx < 0) idx = 0;
+    const next = bFiles[(idx + delta + bFiles.length) % bFiles.length];
+    const dir = bResultsMode ? next.dir : bPath;
+    const k = pathStr(dir, next.name); setBOpen(k); setBSel(new Set([k]));
+  };
+  const showToast = (msg) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
+  };
+  const bDragStart = (e, node, dir) => {
+    const k = pathStr(dir, node.name);
+    const payload = bSel.has(k) ? [...bSel] : [k];
+    dragPayloadRef.current = payload;
+    try { e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setData('text/plain', payload.join('\n')); } catch (err) {}
+    setDragging(true);
+  };
+  const bDragEnd = () => setDragging(false);
+  const bPayloadCount = () => dragging ? dragPayloadRef.current.length : bSel.size;
+  const bDropCollection = (col) => {
+    const n = bPayloadCount();
+    setDragging(false); setPickMode(false);
+    showToast(`Added ${n} ${n === 1 ? 'file' : 'files'} to “${col.name}”`);
+    setBSel(new Set());
+  };
+  const bDropNew = () => { setDragging(false); setPickMode(false); setNewColFromSel(true); };
+
+  // Keyboard nav inside the file browser
+  useEffect(() => {
+    if (!browseAsset) return;
+    const onKey = (e) => {
+      if (e.target.matches('input, textarea, select')) return;
+      if (e.key === 'Escape') {
+        if (pickMode) { setPickMode(false); return; }
+        if (bOpen) { setBOpen(null); return; }
+        if (bResultsMode) { setBQuery(''); setBTypes(new Set()); return; }
+        if (bPath.length) { setBPath(bPath.slice(0, -1)); return; }
+        exitBrowser(); return;
+      }
+      if (!bOpen) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); bStep(1); }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); bStep(-1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [browseAsset, bOpen, bOpenIdx, bFiles, pickMode, bResultsMode, bPath]);
+
   return (
     <>
       <div className="app">
@@ -235,11 +343,56 @@ function App() {
           setRoute={(r) => {
             setRoute(r);
             setOpenId(null); setFullPage(false); setOpenProjectId(null);
+            setBrowse(null); setBSel(new Set()); setBOpen(null);
             if (r !== 'library') setActiveCollection(null);
           }}
           queueCount={queueCount}/>
 
-        {route === 'library' ? (
+        {route === 'library' && browseAsset ? (
+          <>
+            <FileTreeSidebar
+              asset={browseAsset} tree={bTree}
+              width={sidebarW} onResizerDown={onResizerDown}
+              query={bQuery} setQuery={setBQuery}
+              path={bPath} onNavigate={bNavigate}
+              openPath={bOpen} onOpenFile={bOpenFromTree}
+              typeFilter={bTypes} toggleType={bToggleType} typeCountsObj={bTypeCounts}
+              onExit={exitBrowser}/>
+            <main className="main" ref={mainRef}>
+              <FileBrowserToolbar
+                asset={browseAsset} path={bPath} onNavigate={bNavigate} onExit={exitBrowser}
+                count={bResultsMode ? bFiles.length : bListing.length} total={browseAsset.files}
+                view={bView} setView={setBView}
+                typeFilter={bTypes} toggleType={bToggleType}
+                resultsMode={bResultsMode} query={bQuery}
+                clearResults={() => { setBQuery(''); setBTypes(new Set()); }}/>
+              <div className="grid-wrap">
+                <FileBrowserMain
+                  listing={bListing} resultsMode={bResultsMode} path={bPath} onNavigate={bNavigate}
+                  selected={bSel} openPath={bOpen}
+                  onOpenFile={bOpenFileFn} onSelectFile={bSelectFile}
+                  onDragStart={bDragStart} onDragEnd={bDragEnd}
+                  view={bView}/>
+              </div>
+              {bOpenFile ? (
+                <FileDetailPanel
+                  asset={browseAsset} node={bOpenFile.node} dir={bOpenFile.dir}
+                  index={bOpenIdx >= 0 ? bOpenIdx : 0} total={bFiles.length}
+                  onPrev={() => bStep(-1)} onNext={() => bStep(1)}
+                  onClose={() => setBOpen(null)}
+                  onAddToCollection={() => setPickMode(true)}/>
+              ) : null}
+              <FileSelectionBar count={bSel.size} onClear={() => setBSel(new Set())}
+                onAddToCollection={() => setPickMode(true)} onNewCollection={() => setNewColFromSel(true)}/>
+              <CollectionDock
+                visible={dragging || pickMode}
+                mode={pickMode ? 'pick' : 'drag'}
+                count={bPayloadCount()}
+                onPick={bDropCollection} onPickNew={bDropNew} onCancel={() => setPickMode(false)}/>
+              <Toast toast={toast}/>
+            </main>
+          </>
+        ) : route === 'library' ? (
           <>
             <FilterSidebar
               query={query} setQuery={setQuery}
@@ -260,7 +413,9 @@ function App() {
                 count={filtered.length} total={activeCollectionObj ? collectionAssets(activeCollectionObj).length : ASSETS.length}
                 view={view} setView={setView}
                 sort={sort} setSort={setSort}
-                activeChips={activeChips} removeChip={removeChip} clearAll={() => { clearFilters(); setQuery(''); }}/>
+                activeChips={activeChips} removeChip={removeChip} clearAll={() => { clearFilters(); setQuery(''); }}
+                browseTarget={openAsset_obj && typeof isBrowsable === 'function' && isBrowsable(openAsset_obj) ? openAsset_obj : null}
+                onBrowse={enterBrowser}/>
               <div className="grid-wrap">
                 {view === 'grid'
                   ? <GridView assets={filtered} selected={selected} onOpen={openAsset} onSelect={shiftSelect}/>
@@ -282,7 +437,8 @@ function App() {
                   total={filtered.length}
                   onClose={() => { setOpenId(null); setSelected(new Set()); }}
                   onPrev={() => step(-1)} onNext={() => step(1)}
-                  onExpand={() => setFullPage(true)}/>
+                  onExpand={() => setFullPage(true)}
+                  onBrowse={enterBrowser}/>
               ) : null}
               {openAsset_obj && fullPage ? (
                 <FullPage asset={openAsset_obj}
@@ -409,6 +565,13 @@ function App() {
       <Tweaks tweaks={tweaks} setTweaks={setTweaks}/>
       <NewProjectDialog open={showNewProject} onClose={() => setShowNewProject(false)} onCreate={onCreateProject}/>
       <NewCollectionDialog open={showNewCollection} onClose={() => setShowNewCollection(false)} onCreate={onCreateCollection}/>
+      <NewCollectionDialog open={newColFromSel} onClose={() => setNewColFromSel(false)}
+        onCreate={(c) => {
+          const n = bSel.size || dragPayloadRef.current.length;
+          setNewColFromSel(false);
+          showToast(`Created “${c.name}” with ${n} ${n === 1 ? 'file' : 'files'}`);
+          setBSel(new Set());
+        }}/>
     </>
   );
 }
