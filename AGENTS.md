@@ -44,7 +44,7 @@ go test ./internal/handlers/api -run '^TestName$/SubtestName$'
 Vitest single-file:
 
 ```
-cd web && npm test -- src/path/to/file.test.tsx --run
+cd web && pnpm run test -- src/path/to/file.test.tsx --run
 ```
 
 ## Conventions
