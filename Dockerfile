@@ -1,9 +1,11 @@
 FROM node:24-alpine AS spa
 WORKDIR /app/web
-COPY web/package.json web/package-lock.json* ./
-RUN npm ci
+RUN corepack enable
+# pnpm version is pinned via the "packageManager" field in package.json.
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY web/ ./
-RUN npm run build
+RUN pnpm run build
 
 FROM golang:1.26-alpine AS build
 WORKDIR /src

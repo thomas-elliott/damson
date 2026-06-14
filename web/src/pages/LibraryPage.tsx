@@ -5,6 +5,7 @@ import { LogOut, Search, UploadCloud } from "lucide-react";
 import { AssetGrid } from "@/components/AssetGrid";
 import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
 import { DropZone, useDropZoneOpen } from "@/components/DropZone";
+import { FileBrowser } from "@/components/filebrowser/FileBrowser";
 import { LibraryFilterSidebar } from "@/components/LibraryFilterSidebar";
 import { Shell } from "@/components/Shell";
 import {
@@ -15,8 +16,9 @@ import {
   SearchInput,
   Toolbar,
   ToolbarSpacer,
+  isBrowsable,
 } from "@/design-system";
-import { Library as LibraryIcon } from "lucide-react";
+import { FolderOpen, Library as LibraryIcon } from "lucide-react";
 import {
   useAssets,
   useMe,
@@ -28,7 +30,7 @@ import {
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { logout } from "@/lib/logout";
 
-export function LibraryPage() {
+export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const { data: me } = useMe();
   const params = useParams();
   const navigate = useNavigate();
@@ -36,6 +38,7 @@ export function LibraryPage() {
   const hasLibrary = !!me?.current_library;
 
   const assetId = params.assetId ? Number(params.assetId) : null;
+  const browsing = browse && assetId != null;
 
   const filters: AssetFilters = useMemo(() => {
     const f: AssetFilters = {};
@@ -63,11 +66,15 @@ export function LibraryPage() {
     setSearch(params, { replace: true });
   };
 
+  const suffix = search.toString() ? `?${search}` : "";
   const onOpenAsset = (id: number) => {
-    navigate(`/library/${id}${search.toString() ? `?${search}` : ""}`);
+    navigate(`/library/${id}${suffix}`);
   };
   const onCloseDetail = () => {
-    navigate(`/library${search.toString() ? `?${search}` : ""}`);
+    navigate(`/library${suffix}`);
+  };
+  const onBrowse = (id: number) => {
+    navigate(`/library/${id}/browse${suffix}`);
   };
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -78,17 +85,22 @@ export function LibraryPage() {
   // current state through refs inside the handlers — re-creating the array
   // every time `assets` refetches caused useKeyboardShortcuts to rebind on
   // every paint.
-  const stateRef = useRef({ assets, assetId, onOpenAsset, onCloseDetail });
+  const stateRef = useRef({ assets, assetId, onOpenAsset, onCloseDetail, browsing });
   useEffect(() => {
-    stateRef.current = { assets, assetId, onOpenAsset, onCloseDetail };
+    stateRef.current = { assets, assetId, onOpenAsset, onCloseDetail, browsing };
   });
 
+  // In browse mode the FileBrowser owns the keyboard (Esc/arrows); the grid's
+  // shortcuts must stand down so they don't fight over Escape/arrow keys or
+  // swallow `/` from the file search.
   const focusSearch = (e: KeyboardEvent) => {
+    if (stateRef.current.browsing) return;
     e.preventDefault();
     searchInputRef.current?.focus();
   };
   const moveSelection = (delta: number) => {
     const s = stateRef.current;
+    if (s.browsing) return;
     moveByOffset(s.assets, s.assetId, delta, s.onOpenAsset);
   };
   useKeyboardShortcuts(
@@ -101,6 +113,7 @@ export function LibraryPage() {
           key: "Escape",
           handler: () => {
             const s = stateRef.current;
+            if (s.browsing) return;
             if (s.assetId != null) s.onCloseDetail();
           },
         },
@@ -146,6 +159,13 @@ export function LibraryPage() {
 
   if (!me) return null;
 
+  if (browse && assetId != null) {
+    return <Shell main={<FileBrowser assetId={assetId} onExit={onCloseDetail} />} />;
+  }
+
+  const selectedAsset = assetId != null ? assets.find((a) => a.id === assetId) : undefined;
+  const canBrowseSelected = !!selectedAsset && isBrowsable(selectedAsset.file_count);
+
   return (
     <Shell
       sidebar={
@@ -172,6 +192,15 @@ export function LibraryPage() {
                 />
               </div>
               <ToolbarSpacer />
+              {canBrowseSelected && assetId != null && (
+                <Button
+                  variant="secondary"
+                  leadingIcon={<FolderOpen size={12} />}
+                  onClick={() => onBrowse(assetId)}
+                >
+                  Browse files
+                </Button>
+              )}
               <UploadButton />
             </Toolbar>
             {loading ? (
@@ -181,7 +210,7 @@ export function LibraryPage() {
             ) : (
               <AssetGrid assets={assets} onOpen={onOpenAsset} selectedId={assetId} />
             )}
-            <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} />
+            <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
           </DropZone>
         ) : (
           <EmptyState

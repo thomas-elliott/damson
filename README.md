@@ -47,6 +47,8 @@ For OIDC and S3 see [Configuration](#configuration) below.
 
 - Go 1.26
 - Node 24+
+- [pnpm](https://pnpm.io) — frontend package manager (run `corepack enable` to
+  use the version pinned in `web/package.json`)
 - Postgres 14+ (or higher)
 - [Task](https://taskfile.dev) — workflow runner
 - [air](https://github.com/air-verse/air) — Go hot-reload
@@ -56,9 +58,8 @@ For OIDC and S3 see [Configuration](#configuration) below.
 ### Setup
 
 ```sh
-# 1. clone, then:
-go mod tidy
-task web:deps
+# 1. clone, then install all deps (Go modules, web deps via pnpm, Playwright browsers):
+task install
 
 # 2. point at a Postgres
 cp .env.example .env
@@ -73,16 +74,16 @@ Migrations apply on startup. The SPA's first request will hit
 password and you're in.
 
 `task dev` runs the backend only (no Vite). Useful when you don't need
-SPA changes or you're running Vite separately via `task web:dev`.
+SPA changes or you're running Vite separately via `task dev:web`.
 
 ### Tests
 
 ```sh
-task test                # Go: go test ./...
-task web:test            # Vitest unit project (jsdom)
-task web:test:stories    # Vitest storybook project (Playwright Chromium)
-task web:test:all        # Both Vitest projects
-task pre-release-checks  # fmt + vet + go.mod tidiness + Go tests + web tests
+task test:unit:go        # Go unit tests (go test ./...)
+task test:unit:web       # Vitest unit project (jsdom)
+task test:stories        # Vitest storybook project (Playwright Chromium)
+task test                # Full suite: Go unit + Postgres integration + Playwright e2e
+task ci                  # Preflight: lint + format check + go.mod tidy + unit tests + e2e
 ```
 
 Single Go test:
@@ -95,14 +96,14 @@ go test ./internal/handlers/api -run '^TestName$/SubtestName$'
 Single Vitest file:
 
 ```sh
-cd web && npm test -- src/path/to/file.test.tsx --run
+cd web && pnpm run test -- src/path/to/file.test.tsx --run
 ```
 
 ### Build
 
 ```sh
 task build           # SPA + Go binary (CGO_ENABLED=0) → ./damson
-task docker-build    # multi-stage container image → damson:local
+task docker:build    # multi-stage container image → damson:local
 ```
 
 ## Configuration
@@ -174,9 +175,14 @@ Alternatives:
 
 ## Releases
 
-Pushing a tag matching `v*.*.*` to `main` triggers
-`.github/workflows/release.yml`, which builds and pushes the image to
-`ghcr.io/<owner>/damson` with `{version}`, `{major}.{minor}`, and
-`{major}` tags. `main-build.yml` builds `main-<sha>` on every push to
-`main`. Locally, `task pre-release-checks` runs the same checks CI
-runs.
+CI runs on [Woodpecker](https://woodpecker-ci.org) (`.woodpecker.yml`):
+
+- **push to `main`** — tests → build & push
+  `ghcr.io/<owner>/damson:main-<sha>` + `:latest` → bump the `damson-test`
+  gitops deployment.
+- **tag `v*.*.*`** — promotes the already-built, already-tested `main-<sha>`
+  image to the `{version}`, `{major}.{minor}`, and `{major}` tags (a retag, no
+  rebuild) → bump the `damson` (prod) gitops deployment.
+
+Locally, `task ci` runs the same preflight (lint + format check + go.mod tidy +
+unit tests + e2e) before you push.
