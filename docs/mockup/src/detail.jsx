@@ -62,7 +62,7 @@ function LicenceAttrs({ attrs }) {
   );
 }
 
-function DetailBody({ asset }) {
+function DetailBody({ asset, onBrowse }) {
   const lic = LICENCES[asset.licence] || LICENCES.Unknown;
   const ov = asset.overview || {};
   const [teamNotes, setTeamNotes] = useStD(ov.teamNotes || '');
@@ -239,6 +239,12 @@ function DetailBody({ asset }) {
       </Section>
 
       <Section title="Files" count={asset.files} defaultOpen={false}>
+        {typeof isBrowsable === 'function' && isBrowsable(asset) && onBrowse ? (
+          <button className="tbtn fb-open" onClick={() => onBrowse(asset.id)} style={{ width: '100%', justifyContent: 'space-between', border: '1px solid var(--line)', marginBottom: 10, padding: '9px 12px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><I.Browse size={13} stroke={1.6}/> Browse all {asset.files.toLocaleString()} files</span>
+            <I.ChevronRight size={13}/>
+          </button>
+        ) : null}
         <div className="tree">
           {asset.fileTree.map((n, i) => <TreeNode key={i} node={n}/>)}
         </div>
@@ -320,7 +326,7 @@ function DetailBody({ asset }) {
   );
 }
 
-function DetailPanel({ asset, onClose, onPrev, onNext, onExpand, index, total }) {
+function DetailPanel({ asset, onClose, onPrev, onNext, onExpand, onBrowse, index, total }) {
   const [width, setWidth] = useStD(() => {
     const saved = parseInt(localStorage.getItem('damson.detailW'), 10);
     return Number.isFinite(saved) ? saved : 440;
@@ -384,11 +390,14 @@ function DetailPanel({ asset, onClose, onPrev, onNext, onExpand, index, total })
         <button className="nav-btn" onClick={onNext} title="Next (↓)"><I.ChevronRight size={14}/></button>
         <span className="counter">{index + 1} / {total}</span>
         <div className="spacer"/>
+        {typeof isBrowsable === 'function' && isBrowsable(asset) && onBrowse ? (
+          <button className="nav-btn" title="Browse files" onClick={() => onBrowse(asset.id)}><I.Browse size={14}/></button>
+        ) : null}
         <button className="nav-btn" title="Open as full page" onClick={onExpand}><I.Expand size={13}/></button>
         <button className="nav-btn" title="More"><I.MoreH size={14}/></button>
         <button className="nav-btn" title="Close (esc)" onClick={onClose}><I.X size={14}/></button>
       </div>
-      <DetailBody asset={asset}/>
+      <DetailBody asset={asset} onBrowse={onBrowse}/>
     </div>
   );
 }

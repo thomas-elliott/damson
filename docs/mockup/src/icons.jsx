@@ -44,6 +44,14 @@ const I = {
   Moon: (p) => <Icon {...p}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></Icon>,
   Circle: (p) => <Icon {...p}><circle cx="12" cy="12" r="5" fill="currentColor"/></Icon>,
   Sliders: (p) => <Icon {...p}><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></Icon>,
+  FolderOpen: (p) => <Icon {...p}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1M3 9v8a2 2 0 0 0 2 2h13.5a1.5 1.5 0 0 0 1.43-1.05l1.7-5.5A1 1 0 0 0 20.7 9H6.2a2 2 0 0 0-1.9 1.37z"/></Icon>,
+  Browse: (p) => <Icon {...p}><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="M5 8h1.5M5 11h1.5M5 14h1.5"/></Icon>,
+  Cube: (p) => <Icon {...p}><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5M12 22V12"/></Icon>,
+  Code: (p) => <Icon {...p}><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></Icon>,
+  Scene: (p) => <Icon {...p}><path d="M12 2 2 7l10 5 10-5z"/><path d="m2 12 10 5 10-5M2 17l10 5 10-5"/></Icon>,
+  Sphere: (p) => <Icon {...p}><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></Icon>,
+  Play: (p) => <Icon {...p}><path d="M6 4v16l13-8z"/></Icon>,
+  CornerArrow: (p) => <Icon {...p}><path d="M9 10 4 15l5 5M4 15h11a5 5 0 0 0 5-5V4"/></Icon>,
 };
 
 // Map asset type → icon
