@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, GitFork, Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
+import { Check, FolderOpen, Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -15,6 +15,7 @@ import {
   Textarea,
   VersionItem,
   formatBytes,
+  isBrowsable,
   useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
@@ -29,7 +30,6 @@ import {
 } from "@/hooks/useMutations";
 
 import { LicenceEditor } from "./LicenceEditor";
-import { SubsetVersionDialog } from "./SubsetVersionDialog";
 
 const WIDTH_KEY = "damson.detail.w";
 const DEFAULT_WIDTH = 440;
@@ -47,9 +47,12 @@ function readStoredWidth(): number {
 export function AssetDetailPanel({
   assetId,
   onClose,
+  onBrowse,
 }: {
   assetId: number | null;
   onClose: () => void;
+  /** Open the scoped file browser for this asset (browsable packs only). */
+  onBrowse?: (id: number) => void;
 }) {
   const { data: asset, loading } = useAssetDetail(assetId);
   const [width, setWidth] = useState<number>(readStoredWidth);
@@ -94,14 +97,28 @@ export function AssetDetailPanel({
   // back when room reappears.
   const effectiveWidth = Math.min(Math.max(MIN_WIDTH, width), maxWidth);
 
-  const fullscreenButton = !autoFullscreen ? (
-    <IconButton
-      aria-label={userFullscreen ? "Exit fullscreen" : "Fullscreen"}
-      onClick={() => setUserFullscreen((v) => !v)}
-    >
-      {userFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-    </IconButton>
-  ) : null;
+  const canBrowse = !!asset && isBrowsable(asset.files.length);
+  const headerActions = (
+    <>
+      {canBrowse && onBrowse && asset && (
+        <IconButton
+          aria-label="Browse files"
+          title="Browse files"
+          onClick={() => onBrowse(asset.id)}
+        >
+          <FolderOpen size={14} />
+        </IconButton>
+      )}
+      {!autoFullscreen && (
+        <IconButton
+          aria-label={userFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          onClick={() => setUserFullscreen((v) => !v)}
+        >
+          {userFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </IconButton>
+      )}
+    </>
+  );
 
   return (
     <DetailPanel
@@ -115,16 +132,22 @@ export function AssetDetailPanel({
       minWidth={MIN_WIDTH}
       maxWidth={maxWidth}
       fullscreen={isFullscreen}
-      actions={fullscreenButton}
+      actions={headerActions}
     >
       {/* key by asset id so edit state re-initialises from props when a
           different asset opens, instead of syncing via an effect. */}
-      {asset && <AssetDetailBody key={asset.id} asset={asset} />}
+      {asset && (
+        <AssetDetailBody
+          key={asset.id}
+          asset={asset}
+          onBrowse={onBrowse ? () => onBrowse(asset.id) : undefined}
+        />
+      )}
     </DetailPanel>
   );
 }
 
-function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
+function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse?: () => void }) {
   const patch = usePatchAsset();
   const review = useReviewAsset();
   const del = useDeleteAsset();
@@ -137,7 +160,6 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
   const [description, setDescription] = useState(asset.description);
   const [sourceURL, setSourceURL] = useState(asset.source_url);
   const [newTag, setNewTag] = useState("");
-  const [subsetOpen, setSubsetOpen] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   const onSaveHeader = () => {
@@ -281,28 +303,18 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
       </Section>
 
       {/* Files (current version) */}
-      <Section
-        title="Files"
-        accessory={
-          <div className="flex items-center gap-2">
-            <span className="text-caption">{asset.files.length}</span>
-            {asset.current_version_id && asset.files.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                leadingIcon={<GitFork size={12} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSubsetOpen(true);
-                }}
-              >
-                Subset
-              </Button>
-            )}
-          </div>
-        }
-        defaultOpen={false}
-      >
+      <Section title="Files" accessory={`${asset.files.length}`} defaultOpen={false}>
+        {isBrowsable(asset.files.length) && onBrowse && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leadingIcon={<FolderOpen size={12} />}
+            className="mb-2 w-full justify-center"
+            onClick={onBrowse}
+          >
+            Browse all {asset.files.length} files
+          </Button>
+        )}
         <ul className="flex flex-col gap-0.5">
           {asset.files.slice(0, 50).map((f) => (
             <li
@@ -320,14 +332,6 @@ function AssetDetailBody({ asset }: { asset: AssetDetailView }) {
           )}
         </ul>
       </Section>
-
-      <SubsetVersionDialog
-        open={subsetOpen}
-        onOpenChange={setSubsetOpen}
-        assetId={asset.id}
-        versionId={asset.current_version_id ?? null}
-        files={asset.files}
-      />
 
       {/* Licence */}
       <Section title="Licence" defaultOpen>

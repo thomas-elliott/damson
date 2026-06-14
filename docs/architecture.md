@@ -406,12 +406,14 @@ persisted.
 **Subset version** — `POST /api/assets/:id/versions/:vid/subset`
 creates a new version whose `asset_files` rows are a subset of the
 source version. Object keys are reused — no re-upload. Audited as
-`asset.version.subset`. Backend landed in M7; the file-picker UI
-landed in the Alpha leftover-features rollup (PER-71) as a flat
-checkbox-list dialog under `web/src/components/detail/SubsetVersionDialog.tsx`,
-opened from the asset detail panel's Files section. Source version is
-the asset's current version (the only one whose files are loaded into
-the panel today).
+`asset.version.subset`. Backend landed in M7. The file-picking UI is
+the **scoped file browser** (`web/src/components/filebrowser/`): a
+full-page tree browser entered via "Browse files" from a browsable
+asset (current version with more than one file), where the user
+selects files and creates a subset. It superseded the original flat
+checkbox-list dialog (`SubsetVersionDialog`, retired). Source version
+is the asset's current version (the only one whose files are loaded
+into the panel today).
 
 **Async pipeline** — currently deferred. SSE
 `/api/imports/events` and `/api/imports/:id/events` will land when
@@ -823,7 +825,7 @@ in the Alpha leftover-features rollup.
 
 Multi-stage Dockerfile (no CGo; runtime image is slim):
 
-1. `node:24-alpine` — `npm ci` + `vite build` → `web/static/`.
+1. `node:24-alpine` — `pnpm install --frozen-lockfile` + `vite build` → `web/static/`.
 2. `golang:1.26-alpine` — `CGO_ENABLED=0 go build` with
    `-ldflags="-s -w"`, embedding the SPA via `//go:embed`.
 3. `alpine:3.20` — `ca-certificates` + `tzdata`, non-root

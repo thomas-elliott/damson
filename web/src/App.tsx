@@ -24,6 +24,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/library/:assetId" element={<LibraryPage />} />
+        <Route path="/library/:assetId/browse" element={<LibraryPage browse />} />
         <Route path="/queue" element={<QueuePage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
