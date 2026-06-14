@@ -10,7 +10,7 @@ tasks:
       - task --list
 
   install:
-    desc: Install all dependencies for a fresh clone (Go modules, npm, Playwright browsers)
+    desc: Install all dependencies for a fresh clone (Go modules, pnpm, Playwright browsers)
     cmds:
       - go mod download
       - task: install:web:deps
@@ -21,7 +21,7 @@ tasks:
     internal: true
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm install
+      - pnpm install
     status:
       - test -d node_modules
 
@@ -39,7 +39,7 @@ tasks:
         bash -c '
         set -e
         trap "kill 0" INT TERM
-        (cd {{.WEB_DIR}} && npm run dev) &
+        (cd {{.WEB_DIR}} && pnpm run dev) &
         air &
         wait
         '
@@ -49,7 +49,7 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run dev
+      - pnpm run dev
 
   # ── Build ──────────────────────────────────────────────────────────────────
   build:
@@ -63,21 +63,21 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run build
+      - pnpm run build
 
   storybook:
     desc: Storybook dev server (design system)
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run storybook
+      - pnpm run storybook
 
   storybook:build:
     desc: Static Storybook build (smoke test)
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run build-storybook
+      - pnpm run build-storybook
 
   # ── Quality: read-only ─────────────────────────────────────────────────────
   check:
@@ -103,7 +103,7 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run lint
+      - pnpm run lint
 
   format:check:
     desc: Read-only formatting check (gofmt + Prettier)
@@ -127,7 +127,7 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run format:check
+      - pnpm run format:check
 
   mod:tidy:check:
     desc: Verify go.mod / go.sum are tidy (matches CI)
@@ -164,7 +164,7 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run format
+      - pnpm run format
 
   # ── Tests ──────────────────────────────────────────────────────────────────
   test:
@@ -190,7 +190,7 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm test -- --run
+      - pnpm run test -- --run
 
   test:integration:
     desc: Postgres-backed Go integration tests (boots compose Postgres on 55432)
@@ -210,7 +210,7 @@ tasks:
     deps: [install:web:deps, test:e2e:build]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run e2e
+      - pnpm run e2e
 
   test:e2e:postgres:
     desc: Playwright E2E against a Postgres-backed e2e binary (PER-81 search spec)
@@ -223,7 +223,7 @@ tasks:
           trap "$compose down -v >/dev/null 2>&1 || true" EXIT
           $compose up -d --wait
           export DAMSON_TEST_POSTGRES_DSN="postgres://damson:damson@localhost:55432/damson?sslmode=disable"
-          cd {{.WEB_DIR}} && npm run e2e
+          cd {{.WEB_DIR}} && pnpm run e2e
         '
 
   test:e2e:ui:
@@ -231,14 +231,14 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run e2e:ui
+      - pnpm run e2e:ui
 
   test:e2e:install:
-    desc: Install Playwright browser binaries (run once after npm install)
+    desc: Install Playwright browser binaries (run once after pnpm install)
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run e2e:install
+      - pnpm run e2e:install
 
   test:e2e:build:
     desc: Build the e2e test server (cmd/e2e-server) into web/e2e/.bin (SQLite by default; honours DAMSON_TEST_POSTGRES_DSN at runtime)
@@ -251,14 +251,14 @@ tasks:
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm run test:stories -- --run
+      - pnpm run test:stories -- --run
 
   test:watch:
     desc: Vitest watch mode
     deps: [install:web:deps]
     dir: "{{.WEB_DIR}}"
     cmds:
-      - npm test
+      - pnpm run test
 
   test:coverage:
     desc: Generate coverage.html (Go)

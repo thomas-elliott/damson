@@ -118,6 +118,26 @@ export async function fetchMaybeJson<T = unknown>(
   }
 }
 
+// fetchBlob issues an authenticated GET and returns the body as a Blob. The
+// file-serving endpoint forces `application/octet-stream` + a `nosniff`
+// attachment disposition (served blobs are treated as hostile), so a plain
+// `<img src>` can neither authenticate nor render. Fetching the bytes here and
+// re-typing the Blob with a known image MIME lets the caller build a safe
+// object URL for inline preview. `mimeType` overrides the Blob's type.
+export async function fetchBlob(url: string, mimeType?: string): Promise<Blob> {
+  const hdrs = await authHeader();
+  let res = await fetch(url, { headers: hdrs });
+  if (res.status === 401) {
+    if (await renewOrReject()) {
+      res = await fetch(url, { headers: { ...hdrs, ...(await authHeader()) } });
+    }
+    if (res.status === 401) throw new AuthRedirectError();
+  }
+  if (!res.ok) throw new ApiError(res.status, null);
+  const blob = await res.blob();
+  return mimeType ? blob.slice(0, blob.size, mimeType) : blob;
+}
+
 // uploadFile posts a FormData body (single file under the `file` field) and
 // surfaces XHR upload progress via onProgress. Uses XMLHttpRequest because
 // fetch has no upload-progress events yet.

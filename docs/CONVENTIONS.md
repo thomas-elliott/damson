@@ -181,7 +181,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 ## Docker & Release
 
 **Dockerfile** (three-stage, no CGo):
-1. `node:24-alpine` — `npm ci` + `vite build` → `web/static/`
+1. `node:24-alpine` — `pnpm install --frozen-lockfile` + `vite build` → `web/static/`
 2. `golang:1.26-alpine` — `CGO_ENABLED=0 go build` with `-ldflags="-s -w"`, embedding the built SPA via `go:embed`
 3. `alpine:3.20` runtime — `ca-certificates` + `tzdata`, non-root `damson` user, `HEALTHCHECK` hitting `/api/health`
 

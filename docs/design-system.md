@@ -330,8 +330,39 @@ reusable across features, but pre-assume the application's concepts
 - **`ActivityRow`** — audit timeline row with timestamp/actor/action/target
   grid.
 
+### File browser
+
+Components for the scoped file browser (a multi-file asset's manifest, browsed
+as a directory tree). Pure/presentational — the orchestration that wires real
+data + state lives in `web/src/components/filebrowser/`.
+
+- **`fileTypes`** — `FileType` taxonomy, `FILE_TYPE_META` (label + lucide
+  glyph), `FileGlyph`, `fileTypeMeta`, and `fileTypeFromName(path, detectedType?)`
+  which classifies a file by extension (package-extracted files have no
+  `detected_type`).
+- **`fileTree`** — node model (`FileNode`/`FolderNode`/`FlatFile`) + pure
+  helpers: `buildFileTree(manifest)` (groups a flat manifest into a sorted
+  tree), `nodesAtPath`, `flattenFiles`, `typeCounts`, `countFiles`, `pathKey`,
+  `isBrowsable(fileCount)`. Covered by unit tests.
+- **`FileThumb`** / **`FilePlaceholder`** — image-or-placeholder preview
+  surface; image-type files render from a caller-supplied `imageSrc`.
+- **`FolderCard`** / **`FileCard`** — grid tiles (file card has a type badge +
+  selection check + `open` highlight, mirroring `AssetCard`).
+- **`FileBrowserList`** — dense table view of folders + files.
+- **`FileTreeSidebar`** — scope header + in-pack search + directory tree +
+  file-type filter (composes `FilterSidebar`/`SearchInput`/`Section`). Tree rows
+  keep the caret toggle and the navigate target as **sibling** buttons to stay
+  free of the axe nested-interactive violation.
+- **`FileBrowserToolbar`** — breadcrumb path + active filter chips + grid/list
+  toggle (composes `Toolbar`/`Breadcrumb`/`SegmentedControl`).
+- **`FileDetailPanel`** — per-file detail reusing the detail-panel chrome
+  (hero + metadata + path bar + download/subset actions + prev/next stepper).
+- **`FileSelectionBar`** — floating selection bar wrapping `SelectionBar` with
+  the "Create subset" action.
+
 Fixture data for stories lives in `_fixtures.ts` (ASSET_FIXTURES,
-PROJECT_FIXTURES). Shapes mirror `docs/mockup/src/data.jsx`.
+PROJECT_FIXTURES). Shapes mirror `docs/mockup/src/data.jsx`. The file-browser
+stories build their own fixture tree inline.
 
 ---
 

@@ -1,0 +1,122 @@
+import { forwardRef, type HTMLAttributes } from "react";
+import { Check, Folder } from "lucide-react";
+
+import { cn } from "@/design-system/utils";
+import { formatBytes } from "@/design-system/utils/format";
+
+import { FileThumb, type FileThumbProps } from "./FileThumb";
+import type { FileNode } from "./fileTree";
+
+export interface FolderCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onOpen"> {
+  name: string;
+  /** Number of items the folder contains (recursive). */
+  count: number;
+  onOpen?: () => void;
+}
+
+/** Grid tile for a folder — opens into the folder on click. */
+export const FolderCard = forwardRef<HTMLButtonElement, FolderCardProps>(function FolderCard(
+  { className, name, count, onOpen, onClick, ...props },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={(e) => {
+        onOpen?.();
+        onClick?.(e);
+      }}
+      className={cn(
+        "flex flex-col gap-2 rounded-md text-left",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        className,
+      )}
+      {...props}
+    >
+      <div className="grid aspect-square place-items-center rounded-md border border-line bg-panel text-text-3 transition-colors duration-std ease hover:border-line-2 hover:text-text-2">
+        <Folder size={34} strokeWidth={1.25} />
+      </div>
+      <div className="px-0.5">
+        <div className="truncate text-ui font-medium text-text">{name}</div>
+        <div className="mt-0.5 text-caption">
+          {count} {count === 1 ? "item" : "items"}
+        </div>
+      </div>
+    </button>
+  );
+});
+
+export interface FileCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect"> {
+  node: FileNode;
+  selected?: boolean;
+  /** Highlighted as the currently open file in the detail panel. */
+  open?: boolean;
+  /** Shown under the name in flat results mode instead of the size. */
+  pathLabel?: string;
+  imageSrc?: FileThumbProps["imageSrc"];
+  onOpen?: () => void;
+  onSelect?: () => void;
+}
+
+/**
+ * Grid tile for a file — thumbnail with a mono type badge and a selection
+ * check, name + size/path beneath. Selection state mirrors AssetCard.
+ */
+export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function FileCard(
+  { className, node, selected, open, pathLabel, imageSrc, onOpen, onSelect, onClick, ...props },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-pressed={selected}
+      onClick={(e) => {
+        if (e.shiftKey || e.metaKey || e.ctrlKey) onSelect?.();
+        else onOpen?.();
+        onClick?.(e);
+      }}
+      className={cn(
+        "group/file flex flex-col gap-2 rounded-md text-left",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        className,
+      )}
+      {...props}
+    >
+      <div
+        className={cn(
+          "relative aspect-square overflow-hidden rounded-md border border-line bg-panel transition-colors duration-std ease",
+          "group-hover/file:border-line-2",
+          open && "border-line-2",
+          selected && "border-accent ring-2 ring-accent-ring",
+        )}
+      >
+        <FileThumb node={node} imageSrc={imageSrc} />
+        {node.ext && (
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-[3px] bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
+            {node.ext.replace(".", "")}
+          </span>
+        )}
+        <span
+          className={cn(
+            "absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full text-accent-fg transition-opacity duration-std ease",
+            selected ? "bg-accent opacity-100" : "opacity-0",
+          )}
+        >
+          <Check size={11} strokeWidth={3} />
+        </span>
+      </div>
+      <div className="px-0.5">
+        <div className="truncate text-ui font-medium text-text">{node.name}</div>
+        <div className="mt-0.5 truncate text-caption">
+          {pathLabel ? (
+            <span className="font-mono text-text-4">{pathLabel}</span>
+          ) : (
+            formatBytes(node.size)
+          )}
+        </div>
+      </div>
+    </button>
+  );
+});
