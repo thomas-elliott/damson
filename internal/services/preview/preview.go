@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ftrvxmtrx/tga"
+	"github.com/oov/psd"
 	_ "golang.org/x/image/bmp" // bmp decode registration
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/tiff" // tiff decode registration
@@ -82,10 +84,32 @@ func (g *Generator) Generate(ctx context.Context, in Input) (Result, error) {
 
 func classify(filename, detectedType string) string {
 	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".tiff", ".tif", ".bmp":
+	case ".tiff", ".tif", ".bmp", ".tga", ".psd":
 		return "raster"
 	}
 	return ""
+}
+
+// decodeRaster decodes a browser-unopenable raster by extension. TGA has no
+// magic bytes (so image.Decode can't sniff it) and PSD is read for its merged
+// composite; TIFF/BMP go through the registered x/image decoders.
+func decodeRaster(raw []byte, ext string) (image.Image, error) {
+	switch ext {
+	case ".tga":
+		return tga.Decode(bytes.NewReader(raw))
+	case ".psd":
+		p, _, err := psd.Decode(bytes.NewReader(raw), nil)
+		if err != nil {
+			return nil, err
+		}
+		if p.Picker == nil {
+			return nil, fmt.Errorf("psd: no merged composite")
+		}
+		return p.Picker, nil
+	default:
+		img, _, err := image.Decode(bytes.NewReader(raw))
+		return img, err
+	}
 }
 
 // renderRaster decodes a (browser-unopenable) raster, downsamples it, and
@@ -95,16 +119,20 @@ func (g *Generator) renderRaster(ctx context.Context, in Input) (Result, error) 
 	if err != nil {
 		return Result{}, fmt.Errorf("preview read: %w", err)
 	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
-	if err != nil {
-		return Result{}, fmt.Errorf("preview decode config: %w", err)
+	// Cheap pre-decode bomb guard for formats that expose a config without
+	// decoding the pixels (TIFF/BMP/PSD). TGA has no such header, so it relies
+	// on the post-decode bounds check below.
+	if cfg, _, cErr := image.DecodeConfig(bytes.NewReader(raw)); cErr == nil {
+		if int64(cfg.Width)*int64(cfg.Height) > maxPixels {
+			return Result{}, nil // too large — skip, fall back to icon
+		}
 	}
-	if int64(cfg.Width)*int64(cfg.Height) > maxPixels {
-		return Result{}, nil // too large — skip, fall back to icon
-	}
-	src, _, err := image.Decode(bytes.NewReader(raw))
+	src, err := decodeRaster(raw, strings.ToLower(filepath.Ext(in.Filename)))
 	if err != nil {
 		return Result{}, fmt.Errorf("preview decode: %w", err)
+	}
+	if b := src.Bounds(); int64(b.Dx())*int64(b.Dy()) > maxPixels {
+		return Result{}, nil // decoded larger than the ceiling — skip
 	}
 
 	scaled := resample(src, previewMaxEdge)
