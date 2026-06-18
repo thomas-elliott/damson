@@ -27,12 +27,7 @@ tasks:
 
   # ── Dev servers ────────────────────────────────────────────────────────────
   dev:
-    desc: Go server with air hot-reload (API only)
-    cmds:
-      - air
-
-  dev:spa:
-    desc: Backend + Vite SPA in parallel
+    desc: Backend (air hot-reload) + Vite SPA in parallel
     deps: [install:web:deps]
     cmds:
       - |
@@ -43,6 +38,16 @@ tasks:
         air &
         wait
         '
+
+  dev:api:
+    desc: Go server with air hot-reload (API only)
+    cmds:
+      - air
+
+  dev:spa:
+    desc: Alias for dev (backend + Vite SPA in parallel)
+    cmds:
+      - task: dev
 
   dev:web:
     desc: Vite dev server only

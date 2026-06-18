@@ -181,13 +181,10 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return fail("finalize: " + err.Error())
 	}
 
-	// Previewing runs after asset_files are committed (it iterates them) and is
-	// best-effort: a file that can't be rendered is skipped, never failing the
-	// import.
-	if err := transition(StagePreviewing); err != nil {
-		return err
-	}
-	generatePreviews(ctx, deps, jc)
+	// Previewing is decoupled: once asset_files are committed, hand the version
+	// off to the preview processing queue. The import finishes immediately and
+	// previews fill in afterward, tracked on their own queue.
+	enqueuePreviews(ctx, deps, jc)
 
 	if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageDone, ""); err != nil {
 		return fail("finalize done: " + err.Error())
@@ -196,11 +193,15 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	return nil
 }
 
-// generatePreviews renders per-file backend preview derivatives for a version's
-// asset_files and records the resulting object keys. Best-effort and gated by
-// the per-library previews_enabled toggle; any file that can't be rendered is
-// skipped, leaving its preview unset (the SPA falls back to a type icon).
-func generatePreviews(ctx context.Context, deps Deps, jc jobContext) {
+// enqueuePreviews hands a committed version off to the preview processing queue.
+// It marks the version's supported files 'queued' (so they show in the queue
+// immediately) and enqueues the version for the preview worker pool. Gated by
+// the per-library previews_enabled toggle and a nil-safe enqueuer, so a library
+// with previews off — or a server without a preview pool wired — simply skips.
+func enqueuePreviews(ctx context.Context, deps Deps, jc jobContext) {
+	if deps.Previews == nil {
+		return
+	}
 	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
 	if err != nil {
 		slog.Warn("imports: load settings for previews", "err", err, "library_id", jc.libraryID)
@@ -209,45 +210,11 @@ func generatePreviews(ctx context.Context, deps Deps, jc jobContext) {
 	if !settings.PreviewsEnabled {
 		return
 	}
-	var files []models.AssetFile
-	if err := deps.DB.WithContext(ctx).
-		Where("asset_version_id = ?", jc.version.ID).
-		Find(&files).Error; err != nil {
-		slog.Warn("imports: load files for previews", "err", err, "version_id", jc.version.ID)
+	if _, err := preview.MarkVersionQueued(ctx, deps.DB, jc.version.ID, 0); err != nil {
+		slog.Warn("imports: mark previews queued", "err", err, "version_id", jc.version.ID)
 		return
 	}
-	gen := &preview.Generator{Storage: deps.Storage}
-	for _, f := range files {
-		if !preview.Supports(f.RelativePath, f.DetectedType) {
-			continue
-		}
-		blob, bErr := deps.Storage.GetBlob(ctx, f.ObjectKey)
-		if bErr != nil {
-			slog.Warn("imports: fetch blob for preview", "err", bErr, "object_key", f.ObjectKey)
-			continue
-		}
-		res, gErr := gen.Generate(ctx, preview.Input{
-			Reader:       blob,
-			Filename:     f.RelativePath,
-			DetectedType: f.DetectedType,
-		})
-		blob.Close()
-		if gErr != nil {
-			slog.Warn("imports: generate preview", "err", gErr, "path", f.RelativePath)
-			continue
-		}
-		if res.ObjectKey == "" {
-			continue
-		}
-		if err := deps.DB.WithContext(ctx).Model(&models.AssetFile{}).
-			Where("id = ?", f.ID).
-			Updates(map[string]any{
-				"preview_object_key":   res.ObjectKey,
-				"preview_content_type": res.ContentType,
-			}).Error; err != nil {
-			slog.Warn("imports: persist preview", "err", err, "file_id", f.ID)
-		}
-	}
+	deps.Previews.EnqueueVersion(jc.libraryID, jc.version.ID)
 }
 
 // loadJobContext hydrates the asset + version + library bits the pipeline
