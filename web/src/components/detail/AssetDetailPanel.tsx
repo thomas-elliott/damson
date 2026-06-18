@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, FolderOpen, Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
+import { Check, FolderOpen, Maximize2, Minimize2, Pencil, RefreshCw, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -25,6 +25,7 @@ import {
   useDeleteAsset,
   usePatchAsset,
   useRemoveAssetTag,
+  useRequeueAssetPreviews,
   useReviewAsset,
   useReviewLicence,
 } from "@/hooks/useMutations";
@@ -154,6 +155,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   const addTag = useAddAssetTag();
   const removeTag = useRemoveAssetTag();
   const reviewLicence = useReviewLicence();
+  const requeuePreviews = useRequeueAssetPreviews();
 
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(asset.name);
@@ -315,6 +317,16 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             Browse all {asset.files.length} files
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="secondary"
+          leadingIcon={<RefreshCw size={12} />}
+          className="mb-2 w-full justify-center"
+          disabled={requeuePreviews.isPending}
+          onClick={() => requeuePreviews.mutate(asset.id)}
+        >
+          Regenerate previews
+        </Button>
         <ul className="flex flex-col gap-0.5">
           {asset.files.slice(0, 50).map((f) => (
             <li
