@@ -206,7 +206,9 @@ const previewCountsSelect = `v.id AS version_id, a.id AS asset_id, a.name AS ass
 	SUM(CASE WHEN f.preview_status = 'unsupported' THEN 1 ELSE 0 END) AS unsupported`
 
 // computeRollup aggregates one version's per-file statuses into an Event,
-// library-gated. A version with no files yields a zero Event.
+// library-gated. A version with no files matches no rows, leaving a zero-count
+// Event — still tagged with versionID so a terminal "all done" rollup is
+// addressable.
 func computeRollup(ctx context.Context, db *gorm.DB, libraryID, versionID uint) (Event, error) {
 	var row rollupRow
 	err := db.WithContext(ctx).
