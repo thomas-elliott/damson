@@ -27,8 +27,13 @@ export interface FileDetailPanelProps {
   onClose?: () => void;
   onDownload?: () => void;
   onAddToSubset?: () => void;
-  /** Object URL for the open file's bytes, for types that preview inline. */
+  /** Object URL for the open file's bytes, for the default inline-image hero. */
   previewUrl?: string;
+  /**
+   * Hero preview content. When provided (the app passes a per-type preview
+   * dispatcher), it replaces the default image/placeholder hero entirely.
+   */
+  preview?: ReactNode;
   /** Extra detail rows (referenced-by, dimensions, …). */
   extra?: ReactNode;
 }
@@ -50,6 +55,7 @@ export function FileDetailPanel({
   onDownload,
   onAddToSubset,
   previewUrl,
+  preview,
   extra,
 }: FileDetailPanelProps) {
   const meta = fileTypeMeta(node.ftype);
@@ -76,7 +82,7 @@ export function FileDetailPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3">
         <div className="mb-3 aspect-square w-full overflow-hidden rounded-md border border-line bg-bg">
-          <FilePreview node={node} large previewUrl={previewUrl} />
+          {preview ?? <FilePreview node={node} large previewUrl={previewUrl} />}
         </div>
         <h2 className="break-all text-subhead text-text">{node.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption">
