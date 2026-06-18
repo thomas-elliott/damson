@@ -223,17 +223,24 @@ func securityHeaders(oidcOrigin string) gin.HandlerFunc {
 	// silent token renewal in a hidden iframe that navigates to the IdP's
 	// authorize endpoint (frame-src). Local mode makes no cross-origin calls,
 	// so the IdP origin is only whitelisted when it's actually configured.
-	connectSrc := "connect-src 'self'"
+	// blob: in connect-src: wavesurfer fetch()es the audio's blob: object URL to
+	// decode a waveform, and fetch() of a blob: URL is governed by connect-src.
+	connectSrc := "connect-src 'self' blob:"
 	frameSrc := "frame-src 'self'"
 	if oidcOrigin != "" {
 		connectSrc += " " + oidcOrigin
 		frameSrc += " " + oidcOrigin
 	}
+	// blob: is needed across img/media/font because previews fetch file bytes
+	// with auth and render them from blob: object URLs: images and derivative
+	// posters (img-src), inline <audio> (media-src), and live @font-face
+	// specimens (font-src).
 	csp := "default-src 'self'; " +
 		"script-src 'self'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: blob:; " +
-		"font-src 'self' data:; " +
+		"media-src 'self' blob:; " +
+		"font-src 'self' data: blob:; " +
 		connectSrc + "; " +
 		frameSrc + "; " +
 		"object-src 'none'; " +

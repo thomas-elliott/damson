@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FileNode, FileType } from "@/design-system";
 
-import { previewKind, shikiLang } from "./previewKind";
+import { audioMime, isFontFile, previewKind, shikiLang } from "./previewKind";
 
 function node(ext: string, ftype: FileType): FileNode {
   return { type: "file", name: `file${ext}`, ext, ftype, size: 1, objectKey: "k" };
@@ -38,13 +38,35 @@ describe("shikiLang", () => {
   });
 });
 
+describe("audioMime", () => {
+  it("maps native-codec audio to a MIME, excludes AIFF", () => {
+    expect(audioMime(node(".wav", "audio"))).toBe("audio/wav");
+    expect(audioMime(node(".mp3", "audio"))).toBe("audio/mpeg");
+    expect(audioMime(node(".flac", "audio"))).toBe("audio/flac");
+    expect(audioMime(node(".aiff", "audio"))).toBeUndefined();
+    expect(audioMime(node(".aif", "audio"))).toBeUndefined();
+  });
+});
+
+describe("isFontFile", () => {
+  it("recognises sfnt/web font extensions", () => {
+    expect(isFontFile(node(".ttf", "font"))).toBe(true);
+    expect(isFontFile(node(".woff2", "font"))).toBe(true);
+    expect(isFontFile(node(".png", "texture"))).toBe(false);
+  });
+});
+
 describe("previewKind", () => {
-  it("prefers text, then image, then fallback", () => {
+  it("routes each type to its viewer", () => {
     expect(previewKind(node(".cs", "script"))).toBe("text");
     expect(previewKind(node(".yaml", "data"))).toBe("text");
+    expect(previewKind(node(".mp3", "audio"))).toBe("audio");
+    expect(previewKind(node(".otf", "font"))).toBe("font");
+    expect(previewKind(node(".zip", "data"))).toBe("archive");
     expect(previewKind(node(".png", "texture"))).toBe("image");
     expect(previewKind(node(".fbx", "mesh"))).toBe("fallback");
     expect(previewKind(node(".svg", "sprite"))).toBe("fallback"); // SVG not inline yet
+    expect(previewKind(node(".aiff", "audio"))).toBe("fallback"); // AIFF → download-only
     expect(previewKind(null)).toBe("fallback");
   });
 });

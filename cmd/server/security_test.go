@@ -27,6 +27,14 @@ func TestCSPAllowsBlobImages(t *testing.T) {
 	if !strings.Contains(csp, "img-src 'self' data: blob:") {
 		t.Fatalf("CSP must allow blob: images for inline previews; got %q", csp)
 	}
+	// Audio (<audio src=blob:>) and font specimens (@font-face from a blob URL)
+	// both fetch bytes with auth and render from blob: object URLs.
+	if !strings.Contains(csp, "media-src 'self' blob:") {
+		t.Fatalf("CSP must allow blob: media for audio previews; got %q", csp)
+	}
+	if !strings.Contains(csp, "font-src 'self' data: blob:") {
+		t.Fatalf("CSP must allow blob: fonts for font specimens; got %q", csp)
+	}
 	if !strings.Contains(csp, "frame-ancestors") {
 		t.Fatalf("CSP regression: frame-ancestors directive missing; got %q", csp)
 	}
@@ -38,7 +46,7 @@ func TestCSPAllowsBlobImages(t *testing.T) {
 func TestCSPWhitelistsOIDCOrigin(t *testing.T) {
 	const idp = "https://idp.example.com"
 	csp := cspFor(idp)
-	if !strings.Contains(csp, "connect-src 'self' "+idp) {
+	if !strings.Contains(csp, "connect-src 'self' blob: "+idp) {
 		t.Errorf("OIDC origin missing from connect-src; got %q", csp)
 	}
 	if !strings.Contains(csp, "frame-src 'self' "+idp) {
