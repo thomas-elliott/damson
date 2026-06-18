@@ -50,12 +50,13 @@ type assetVersionView struct {
 }
 
 type assetFileView struct {
-	ID           uint   `json:"id"`
-	RelativePath string `json:"relative_path"`
-	SizeBytes    int64  `json:"size_bytes"`
-	ContentHash  string `json:"content_hash"`
-	ObjectKey    string `json:"object_key"`
-	DetectedType string `json:"detected_type,omitempty"`
+	ID               uint   `json:"id"`
+	RelativePath     string `json:"relative_path"`
+	SizeBytes        int64  `json:"size_bytes"`
+	ContentHash      string `json:"content_hash"`
+	ObjectKey        string `json:"object_key"`
+	DetectedType     string `json:"detected_type,omitempty"`
+	PreviewObjectKey string `json:"preview_object_key,omitempty"`
 }
 
 type projectPinView struct {
@@ -164,12 +165,13 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		}
 		for _, f := range files {
 			view.Files = append(view.Files, assetFileView{
-				ID:           f.ID,
-				RelativePath: f.RelativePath,
-				SizeBytes:    f.SizeBytes,
-				ContentHash:  f.ContentHash,
-				ObjectKey:    f.ObjectKey,
-				DetectedType: f.DetectedType,
+				ID:               f.ID,
+				RelativePath:     f.RelativePath,
+				SizeBytes:        f.SizeBytes,
+				ContentHash:      f.ContentHash,
+				ObjectKey:        f.ObjectKey,
+				DetectedType:     f.DetectedType,
+				PreviewObjectKey: f.PreviewObjectKey,
 			})
 		}
 	}

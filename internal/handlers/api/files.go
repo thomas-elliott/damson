@@ -154,6 +154,54 @@ func (h *Handler) getThumb(c *gin.Context) {
 	}
 }
 
+// getPreview streams a per-file preview derivative by object key. Gated on the
+// key being referenced by asset_files.preview_object_key within the current
+// library. Derivatives are server-generated images, so Content-Type is set from
+// the same allowlist as thumbnails; sniffing past it is still forbidden.
+func (h *Handler) getPreview(c *gin.Context) {
+	lib := getLibrary(c)
+	key := c.Param("objectKey")
+	if !objectKeyRE.MatchString(key) {
+		respond400(c, asError("invalid object key"))
+		return
+	}
+	var ref struct {
+		PreviewObjectKey   string
+		PreviewContentType string
+	}
+	err := h.db.WithContext(c.Request.Context()).
+		Table("asset_files AS f").
+		Select("f.preview_object_key AS preview_object_key, f.preview_content_type AS preview_content_type").
+		Joins("JOIN asset_versions v ON v.id = f.asset_version_id").
+		Joins("JOIN assets a ON a.id = v.asset_id").
+		Where("a.library_id = ? AND f.preview_object_key = ?", lib.ID, key).
+		Limit(1).
+		Scan(&ref).Error
+	if err != nil {
+		respond500(c)
+		return
+	}
+	if ref.PreviewObjectKey == "" {
+		respond404(c, "not found")
+		return
+	}
+	r, err := h.storage.GetThumb(c.Request.Context(), key)
+	if err != nil {
+		respond404(c, "not found")
+		return
+	}
+	defer r.Close()
+	ct := ref.PreviewContentType
+	if !allowedThumbContentTypes[ct] {
+		ct = "application/octet-stream"
+	}
+	c.Header("Content-Type", ct)
+	c.Header("Cache-Control", "private, max-age=86400, immutable")
+	if _, err := io.Copy(c.Writer, r); err != nil {
+		return
+	}
+}
+
 // sanitiseFilename strips path separators and control characters from a
 // filename used in a Content-Disposition header. Quotes become underscores so
 // they can't escape the surrounding quoted string.

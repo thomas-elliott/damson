@@ -141,9 +141,10 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/assets/:id/versions/:vid/reextract", h.postReExtract)
 	scoped.POST("/assets/:id/versions/:vid/subset", h.postAssetVersionSubset)
 
-	// Files / thumbnails
+	// Files / thumbnails / preview derivatives
 	scoped.GET("/files/:objectKey", h.getFile)
 	scoped.GET("/thumbs/:objectKey", h.getThumb)
+	scoped.GET("/previews/:objectKey", h.getPreview)
 
 	// Tags (M3)
 	scoped.GET("/tags", h.getTags)
