@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { AssetCard, EmptyState, LicencePill, formatBytes } from "@/design-system";
 import type { AssetRow } from "@/hooks/useDataQueries";
+import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 
 // Cell sizing matches the Tailwind class `minmax(180px, 1fr)` used previously
 // — the virtualiser needs concrete pixel sizes to estimate row height. The
@@ -83,30 +84,7 @@ export function AssetGrid({
                 }}
               >
                 {row.map((a) => (
-                  <AssetCard
-                    key={a.id}
-                    name={a.name}
-                    data-asset-id={a.id}
-                    selected={selectedId === a.id}
-                    onSelect={() => onOpen?.(a.id)}
-                    sub={
-                      <>
-                        <span className="font-mono">{formatBytes(a.size_bytes)}</span>
-                        {a.file_count > 1 && (
-                          <>
-                            <span className="text-text-4">·</span>
-                            <span className="font-mono">{a.file_count} files</span>
-                          </>
-                        )}
-                      </>
-                    }
-                    trailing={
-                      a.licence_spdx ? (
-                        <LicencePill status={a.licence_status ?? "unk"} spdx={a.licence_spdx} />
-                      ) : undefined
-                    }
-                    needsReview={a.needs_review}
-                  />
+                  <GridCard key={a.id} asset={a} selected={selectedId === a.id} onOpen={onOpen} />
                 ))}
               </div>
             );
@@ -114,6 +92,50 @@ export function AssetGrid({
         </div>
       )}
     </div>
+  );
+}
+
+// GridCard renders one asset tile, fetching its server-generated thumbnail as
+// an authenticated blob (the /api/thumbs endpoint needs a bearer token, so a
+// plain <img src> won't do). While the blob loads — or when the asset has no
+// thumbnail — AssetCard falls back to its procedural placeholder.
+function GridCard({
+  asset: a,
+  selected,
+  onOpen,
+}: {
+  asset: AssetRow;
+  selected: boolean;
+  onOpen?: (id: number) => void;
+}) {
+  const imageUrl = useBlobUrl(
+    a.thumbnail_object_key ? `/api/thumbs/${a.thumbnail_object_key}` : undefined,
+  );
+  return (
+    <AssetCard
+      name={a.name}
+      data-asset-id={a.id}
+      imageUrl={imageUrl}
+      selected={selected}
+      onSelect={() => onOpen?.(a.id)}
+      sub={
+        <>
+          <span className="font-mono">{formatBytes(a.size_bytes)}</span>
+          {a.file_count > 1 && (
+            <>
+              <span className="text-text-4">·</span>
+              <span className="font-mono">{a.file_count} files</span>
+            </>
+          )}
+        </>
+      }
+      trailing={
+        a.licence_spdx ? (
+          <LicencePill status={a.licence_status ?? "unk"} spdx={a.licence_spdx} />
+        ) : undefined
+      }
+      needsReview={a.needs_review}
+    />
   );
 }
 
