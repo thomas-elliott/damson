@@ -67,10 +67,7 @@ export function foldPreviewEvent(cached: PreviewCache, ev: PreviewRow): PreviewC
   return { previews: next, total: next.length };
 }
 
-function applyPreviewEvent(
-  queryClient: ReturnType<typeof useQueryClient>,
-  ev: PreviewRow,
-) {
+function applyPreviewEvent(queryClient: ReturnType<typeof useQueryClient>, ev: PreviewRow) {
   queryClient.setQueryData<PreviewCache>(queryKeys.previews, (cached) =>
     foldPreviewEvent(cached, ev),
   );
