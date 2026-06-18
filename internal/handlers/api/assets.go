@@ -209,12 +209,16 @@ func (h *Handler) getAssets(c *gin.Context) {
 	}
 	var rows []row
 	err := base.Session(&gorm.Session{}).
+		// File count and size come from correlated subqueries, not a join +
+		// SUM/COUNT: the base query may fan out (e.g. a tag-path filter joins
+		// asset_tags many-to-many), and the previous SUM(DISTINCT size_bytes)
+		// dedup-by-value silently undercounted whenever two files shared a size.
+		// Subqueries are immune to both.
 		Select(`a.id, a.name, a.needs_review, a.created_at, a.thumbnail_object_key,
-			COALESCE(COUNT(DISTINCT ffc.id), 0) AS file_count,
-			COALESCE(SUM(DISTINCT ffc.size_bytes), 0) AS size_bytes,
+			COALESCE((SELECT COUNT(*) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS file_count,
+			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS size_bytes,
 			COALESCE(cv2.package_kind, '') AS package_kind,
 			COALESCE(l2.detected_type, '') AS licence_spdx`).
-		Joins("LEFT JOIN asset_files ffc ON ffc.asset_version_id = a.current_version_id").
 		Joins("LEFT JOIN asset_versions cv2 ON cv2.id = a.current_version_id").
 		Joins("LEFT JOIN licences l2 ON l2.id = a.licence_id").
 		Group("a.id, cv2.package_kind, l2.detected_type").
