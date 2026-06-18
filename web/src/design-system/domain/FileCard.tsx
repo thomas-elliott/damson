@@ -54,6 +54,8 @@ export interface FileCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, "
   open?: boolean;
   /** Shown under the name in flat results mode instead of the size. */
   pathLabel?: string;
+  /** Resolved thumbnail image URL (object URL) — see FileThumb.imageUrl. */
+  imageUrl?: string;
   imageSrc?: FileThumbProps["imageSrc"];
   onOpen?: () => void;
   onSelect?: () => void;
@@ -64,7 +66,19 @@ export interface FileCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, "
  * check, name + size/path beneath. Selection state mirrors AssetCard.
  */
 export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function FileCard(
-  { className, node, selected, open, pathLabel, imageSrc, onOpen, onSelect, onClick, ...props },
+  {
+    className,
+    node,
+    selected,
+    open,
+    pathLabel,
+    imageUrl,
+    imageSrc,
+    onOpen,
+    onSelect,
+    onClick,
+    ...props
+  },
   ref,
 ) {
   return (
@@ -92,7 +106,7 @@ export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function Fi
           selected && "border-accent ring-2 ring-accent-ring",
         )}
       >
-        <FileThumb node={node} imageSrc={imageSrc} />
+        <FileThumb node={node} imageUrl={imageUrl} imageSrc={imageSrc} />
         {node.ext && (
           <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-[3px] bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
             {node.ext.replace(".", "")}
