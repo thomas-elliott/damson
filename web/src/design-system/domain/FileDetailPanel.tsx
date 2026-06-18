@@ -8,7 +8,7 @@ import { IconButton } from "@/design-system/primitives/IconButton";
 import { Section } from "@/design-system/compositions/Section";
 import { KeyValueList } from "./KeyValueList";
 
-import { FileThumb, type FileThumbProps } from "./FileThumb";
+import { FilePreview } from "./FilePreview";
 import { FileGlyph } from "./FileGlyph";
 import { fileTypeMeta } from "./fileTypes";
 import type { FileNode } from "./fileTree";
@@ -27,7 +27,8 @@ export interface FileDetailPanelProps {
   onClose?: () => void;
   onDownload?: () => void;
   onAddToSubset?: () => void;
-  imageSrc?: FileThumbProps["imageSrc"];
+  /** Object URL for the open file's bytes, for types that preview inline. */
+  previewUrl?: string;
   /** Extra detail rows (referenced-by, dimensions, …). */
   extra?: ReactNode;
 }
@@ -48,7 +49,7 @@ export function FileDetailPanel({
   onClose,
   onDownload,
   onAddToSubset,
-  imageSrc,
+  previewUrl,
   extra,
 }: FileDetailPanelProps) {
   const meta = fileTypeMeta(node.ftype);
@@ -75,7 +76,7 @@ export function FileDetailPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3">
         <div className="mb-3 aspect-square w-full overflow-hidden rounded-md border border-line bg-bg">
-          <FileThumb node={node} large imageSrc={imageSrc} />
+          <FilePreview node={node} large previewUrl={previewUrl} />
         </div>
         <h2 className="break-all text-subhead text-text">{node.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption">
