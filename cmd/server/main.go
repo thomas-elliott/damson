@@ -23,6 +23,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
 )
@@ -99,11 +100,28 @@ func main() {
 	}
 	slog.Info("storage mode", "mode", cfg.StorageMode)
 
+	// Preview pool first, so the import pool can hand finished versions off to
+	// it. Preview generation runs on its own queue, decoupled from import.
+	previewBroadcaster := preview.NewBroadcaster()
+	previewPool := preview.New(preview.Deps{
+		DB:          gormDB,
+		Storage:     store,
+		Broadcaster: previewBroadcaster,
+	}, cfg.ImportWorkers)
+	slog.Info("preview pool", "workers", cfg.ImportWorkers)
+
+	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewPool); err != nil {
+		slog.Warn("preview resume sweep failed", "err", err)
+	} else if resumed > 0 {
+		slog.Info("preview resume sweep", "enqueued", resumed)
+	}
+
 	broadcaster := imports.NewBroadcaster()
 	importPool := imports.New(imports.Deps{
 		DB:          gormDB,
 		Storage:     store,
 		Broadcaster: broadcaster,
+		Previews:    previewPool,
 	}, cfg.ImportWorkers)
 	slog.Info("import pool", "workers", cfg.ImportWorkers)
 
@@ -126,12 +144,14 @@ func main() {
 
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
-		DB:          gormDB,
-		AuthMode:    cfg.AuthMode,
-		Local:       localAuth,
-		Storage:     store,
-		ImportPool:  importPool,
-		Broadcaster: broadcaster,
+		DB:                 gormDB,
+		AuthMode:           cfg.AuthMode,
+		Local:              localAuth,
+		Storage:            store,
+		ImportPool:         importPool,
+		Broadcaster:        broadcaster,
+		PreviewPool:        previewPool,
+		PreviewBroadcaster: previewBroadcaster,
 		// Echoed to the SPA on /api/auth/mode in OIDC mode (empty in local).
 		OIDCAuthority: cfg.OIDCIssuerURL,
 		OIDCClientID:  cfg.OIDCClientID,
@@ -185,6 +205,7 @@ func main() {
 	// still running when ctx expires gets logged; the next boot's resume
 	// sweep picks up whatever remained non-terminal.
 	importPool.Shutdown(shutdownCtx)
+	previewPool.Shutdown(shutdownCtx)
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown", "err", err)
 	}
