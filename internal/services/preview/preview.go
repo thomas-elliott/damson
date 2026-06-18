@@ -25,6 +25,8 @@ import (
 
 	"github.com/ftrvxmtrx/tga"
 	"github.com/oov/psd"
+	"github.com/srwiley/oksvg"
+	"github.com/srwiley/rasterx"
 	_ "golang.org/x/image/bmp" // bmp decode registration
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/tiff" // tiff decode registration
@@ -78,6 +80,8 @@ func (g *Generator) Generate(ctx context.Context, in Input) (Result, error) {
 	switch classify(in.Filename, in.DetectedType) {
 	case "raster":
 		return g.renderRaster(ctx, in)
+	case "svg":
+		return g.renderSVG(ctx, in)
 	}
 	return Result{}, nil
 }
@@ -86,6 +90,8 @@ func classify(filename, detectedType string) string {
 	switch strings.ToLower(filepath.Ext(filename)) {
 	case ".tiff", ".tif", ".bmp", ".tga", ".psd":
 		return "raster"
+	case ".svg":
+		return "svg"
 	}
 	return ""
 }
@@ -155,6 +161,50 @@ func (g *Generator) renderRaster(ctx context.Context, in Input) (Result, error) 
 		return Result{}, err
 	}
 	return Result{ObjectKey: key, ContentType: contentType}, nil
+}
+
+// renderSVG rasterises an SVG to a PNG on the backend, so no active content
+// (script, external refs) ever reaches the browser — matching the hostile-blob
+// posture that keeps SVG out of inline preview. oksvg supports a useful subset;
+// complex SVGs render approximately, and a parse failure leaves the file
+// download-only (zero Result).
+func (g *Generator) renderSVG(ctx context.Context, in Input) (Result, error) {
+	icon, err := oksvg.ReadIconStream(in.Reader)
+	if err != nil {
+		return Result{}, fmt.Errorf("preview svg parse: %w", err)
+	}
+	w, h := svgTarget(icon.ViewBox.W, icon.ViewBox.H, previewMaxEdge)
+	if int64(w)*int64(h) > maxPixels {
+		return Result{}, nil
+	}
+	icon.SetTarget(0, 0, float64(w), float64(h))
+
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	scanner := rasterx.NewScannerGV(w, h, img, img.Bounds())
+	raster := rasterx.NewDasher(w, h, scanner)
+	icon.Draw(raster, 1.0)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return Result{}, fmt.Errorf("preview svg encode: %w", err)
+	}
+	key, err := g.putBytes(ctx, buf.Bytes())
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{ObjectKey: key, ContentType: "image/png"}, nil
+}
+
+// svgTarget renders so the longer edge is maxEdge (vectors upscale crisply),
+// preserving the viewBox aspect ratio. A missing/zero viewBox renders square.
+func svgTarget(vbW, vbH float64, maxEdge int) (int, int) {
+	if vbW <= 0 || vbH <= 0 {
+		return maxEdge, maxEdge
+	}
+	if vbW >= vbH {
+		return maxEdge, int(float64(maxEdge) * vbH / vbW)
+	}
+	return int(float64(maxEdge) * vbW / vbH), maxEdge
 }
 
 // resample scales src down so its longer edge is at most maxEdge, preserving

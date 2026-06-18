@@ -17,6 +17,8 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/joho/godotenv v1.5.1
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f
+	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	golang.org/x/crypto v0.50.0
 	golang.org/x/image v0.39.0
 	gorm.io/driver/postgres v1.6.0
