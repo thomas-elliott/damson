@@ -1,12 +1,15 @@
-import { Suspense, lazy } from "react";
+import { type ReactNode, Suspense, lazy } from "react";
 
 import { FilePreview, type FileNode } from "@/design-system";
 
 import { ImagePreview } from "./previews/ImagePreview";
 import { previewKind } from "./previews/previewKind";
 
-// Heavy (Shiki) — only fetched when a text file is opened.
+// Heavy viewers — each fetched only when its file type is opened.
 const TextPreview = lazy(() => import("./previews/TextPreview"));
+const AudioPreview = lazy(() => import("./previews/AudioPreview"));
+const FontPreview = lazy(() => import("./previews/FontPreview"));
+const ZipPreview = lazy(() => import("./previews/ZipPreview"));
 
 function PaneLoading() {
   return (
@@ -26,14 +29,20 @@ function PaneLoading() {
 export function FilePreviewPane({ node }: { node: FileNode }) {
   switch (previewKind(node)) {
     case "text":
-      return (
-        <Suspense fallback={<PaneLoading />}>
-          <TextPreview node={node} />
-        </Suspense>
-      );
+      return wrap(<TextPreview node={node} />);
+    case "audio":
+      return wrap(<AudioPreview node={node} />);
+    case "font":
+      return wrap(<FontPreview node={node} />);
+    case "archive":
+      return wrap(<ZipPreview node={node} />);
     case "image":
       return <ImagePreview node={node} />;
     default:
       return <FilePreview node={node} large />;
   }
+}
+
+function wrap(viewer: ReactNode) {
+  return <Suspense fallback={<PaneLoading />}>{viewer}</Suspense>;
 }
