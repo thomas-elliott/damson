@@ -60,7 +60,34 @@ export function isFontFile(node: FileNode | null | undefined): boolean {
   return !!node && FONT_EXTS.has(node.ext ?? "");
 }
 
-export type PreviewKind = "text" | "audio" | "font" | "archive" | "pdf" | "image" | "fallback";
+export type MeshFormat = "obj" | "dae" | "gltf" | "fbx";
+
+// Mesh formats with a reliable web (three.js) loader. .blend has none, so it
+// stays download-only. FBX is best-effort (closed format; the loader handles
+// simple meshes).
+const EXT_TO_MESH: Record<string, MeshFormat> = {
+  ".obj": "obj",
+  ".dae": "dae",
+  ".gltf": "gltf",
+  ".glb": "gltf",
+  ".fbx": "fbx",
+};
+
+/** three.js loader format for a 3D file, or undefined when not web-loadable. */
+export function meshFormat(node: FileNode | null | undefined): MeshFormat | undefined {
+  if (!node) return undefined;
+  return EXT_TO_MESH[node.ext ?? ""];
+}
+
+export type PreviewKind =
+  | "text"
+  | "audio"
+  | "font"
+  | "archive"
+  | "pdf"
+  | "mesh"
+  | "image"
+  | "fallback";
 
 /**
  * Which viewer the detail panel should mount for a file. Each type maps to at
@@ -74,6 +101,7 @@ export function previewKind(node: FileNode | null | undefined): PreviewKind {
   if (isFontFile(node)) return "font";
   if (node.ext === ".zip") return "archive";
   if (node.ext === ".pdf") return "pdf";
+  if (meshFormat(node)) return "mesh";
   if (previewImageMime(node)) return "image";
   return "fallback";
 }

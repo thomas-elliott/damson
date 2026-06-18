@@ -64,8 +64,11 @@ describe("previewKind", () => {
     expect(previewKind(node(".otf", "font"))).toBe("font");
     expect(previewKind(node(".zip", "data"))).toBe("archive");
     expect(previewKind(node(".pdf", "doc"))).toBe("pdf");
+    expect(previewKind(node(".obj", "mesh"))).toBe("mesh");
+    expect(previewKind(node(".glb", "mesh"))).toBe("mesh");
+    expect(previewKind(node(".fbx", "mesh"))).toBe("mesh");
     expect(previewKind(node(".png", "texture"))).toBe("image");
-    expect(previewKind(node(".fbx", "mesh"))).toBe("fallback");
+    expect(previewKind(node(".blend", "mesh"))).toBe("fallback"); // no web loader
     expect(previewKind(node(".svg", "sprite"))).toBe("fallback"); // SVG not inline yet
     expect(previewKind(node(".aiff", "audio"))).toBe("fallback"); // AIFF → download-only
     expect(previewKind(null)).toBe("fallback");
