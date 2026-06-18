@@ -344,7 +344,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
                 void downloadFile(openFile.objectKey, openFile.name).catch(() => {});
               }
             }}
-            imageSrc={() => detailUrl}
+            previewUrl={detailUrl}
           />
         </div>
       )}

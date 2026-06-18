@@ -15,23 +15,33 @@ const PREVIEW_MIME: Record<string, string> = {
 };
 
 /**
- * Resolve a previewable image file to an object URL by fetching the blob with
- * auth and re-typing it (see api.ts `fetchBlob`). Returns undefined while
- * loading, on error, or for non-previewable files. The URL is revoked when the
- * file changes or the component unmounts.
+ * The MIME a file should be re-typed to for inline image preview, or undefined
+ * when the file isn't an inline-previewable image. Pure (no React) so the
+ * classification is unit-testable on its own. Later preview stages add their
+ * own MIME resolvers for the types they handle.
  */
-export function useFileObjectUrl(node: FileNode | null | undefined): string | undefined {
+export function previewImageMime(node: FileNode | null | undefined): string | undefined {
+  if (!node || !isImageType(node.ftype)) return undefined;
+  return PREVIEW_MIME[node.ext ?? ""];
+}
+
+/**
+ * Resolve an object key to a `blob:` object URL by fetching the bytes with auth
+ * and re-typing the Blob to `mime` (see api.ts `fetchBlob`). The general
+ * primitive every preview viewer builds on: returns undefined while loading, on
+ * error, or when `objectKey`/`mime` is absent, and revokes the URL when its
+ * inputs change or the component unmounts.
+ */
+export function useObjectUrl(
+  objectKey: string | undefined,
+  mime: string | undefined,
+): string | undefined {
   const [url, setUrl] = useState<string>();
 
-  const objectKey = node?.objectKey;
-  const ext = node?.ext ?? "";
-  const mime = PREVIEW_MIME[ext];
-  const canPreview = !!node && isImageType(node.ftype) && !!objectKey && !!mime;
-
   useEffect(() => {
-    // Not previewable: the previous run's cleanup has already reset the url
-    // (and revoked any object URL), so there's nothing to do synchronously.
-    if (!canPreview || !objectKey) return;
+    // Nothing to fetch: the previous run's cleanup already reset the url (and
+    // revoked any object URL), so there's nothing to do synchronously.
+    if (!objectKey || !mime) return;
     let cancelled = false;
     let created: string | undefined;
     fetchBlob(`/api/files/${objectKey}`, mime)
@@ -48,9 +58,17 @@ export function useFileObjectUrl(node: FileNode | null | undefined): string | un
       if (created) URL.revokeObjectURL(created);
       setUrl(undefined);
     };
-  }, [canPreview, objectKey, mime]);
+  }, [objectKey, mime]);
 
   return url;
+}
+
+/**
+ * Resolve a previewable image file to an object URL. Returns undefined while
+ * loading, on error, or for non-image / non-previewable files.
+ */
+export function useFileObjectUrl(node: FileNode | null | undefined): string | undefined {
+  return useObjectUrl(node?.objectKey, previewImageMime(node));
 }
 
 /**
