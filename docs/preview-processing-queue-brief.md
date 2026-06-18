@@ -106,6 +106,16 @@ and watched independently — mirroring the existing import/review queue.
 
 ---
 
+## Deferred follow-up: derive asset thumbnails from file previews
+
+The library grid only shows an asset thumbnail when one was generated at import —
+loose raster/audio/font files, or Unity packages with an embedded `preview.png`.
+Unity/zip packages without one get no `assets.thumbnail_object_key`. Now that per-file
+preview derivatives exist (PSD/TIFF/BMP/SVG → web image), a future step can pick a
+representative previewable file per thumbnail-less package and generate an asset
+thumbnail from it. **Deferred to its own spec** (decided 2026-06-18). The frontend
+display fix — rendering the existing `thumbnail_object_key` in the grid — shipped first.
+
 ## Constraints (from AGENTS.md / CONVENTIONS.md)
 
 - **Migration parity:** any schema change lands in BOTH a `NNN_*.sql` migration (wrapped in
