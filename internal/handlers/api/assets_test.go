@@ -159,6 +159,31 @@ func TestGetAssets_SizeSumsSameSizedFiles(t *testing.T) {
 	}
 }
 
+func TestAssetFile_PreviewStatusDefaultsUnsupported(t *testing.T) {
+	_, db := newTestHandler(t)
+
+	// A file row created without an explicit PreviewStatus must land on the
+	// schema default ('unsupported'), not the Go empty string — the pipeline
+	// and requeue rely on that to tell "no preview yet" from "queued".
+	f := models.AssetFile{
+		AssetVersionID: 1,
+		RelativePath:   "tex.psd",
+		SizeBytes:      10,
+		ContentHash:    "h",
+		ObjectKey:      "o",
+	}
+	if err := db.Create(&f).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got models.AssetFile
+	if err := db.First(&got, f.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.PreviewStatus != "unsupported" {
+		t.Fatalf("preview_status default: got %q, want %q", got.PreviewStatus, "unsupported")
+	}
+}
+
 func TestGetAssets_ListsOnlyCurrentLibrary(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "thomas@datch.io")
