@@ -12,6 +12,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -19,13 +20,15 @@ import (
 // New(Deps{...}); register routes with AddRoutes. Exported so cmd/server (and
 // out-of-tree tests) can hold a typed handle without leaking the field set.
 type Handler struct {
-	db          *gorm.DB
-	authMode    config.AuthMode
-	local       *auth.LocalAuthenticator // non-nil only in local mode
-	storage     storage.Service          // nil in tests that don't exercise uploads
-	loginRate   *auth.LoginThrottle
-	importPool  *imports.Pool
-	broadcaster *imports.Broadcaster
+	db                 *gorm.DB
+	authMode           config.AuthMode
+	local              *auth.LocalAuthenticator // non-nil only in local mode
+	storage            storage.Service          // nil in tests that don't exercise uploads
+	loginRate          *auth.LoginThrottle
+	importPool         *imports.Pool
+	broadcaster        *imports.Broadcaster
+	previewPool        *preview.Pool
+	previewBroadcaster *preview.Broadcaster
 	// oidcAuthority / oidcClientID are the non-secret OIDC client config
 	// echoed to the SPA via /api/auth/mode in OIDC mode, so the browser
 	// configures oidc-client-ts at runtime instead of baking VITE_OIDC_* at
@@ -50,6 +53,11 @@ type Deps struct {
 	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
 	// the pipeline tolerates a missing broadcaster.
 	Broadcaster *imports.Broadcaster
+	// PreviewPool drains preview jobs (requeue + post-import handoff).
+	// PreviewBroadcaster fans preview rollup events to SSE subscribers. Tests
+	// that don't exercise previews can leave both nil.
+	PreviewPool        *preview.Pool
+	PreviewBroadcaster *preview.Broadcaster
 	// OIDCAuthority / OIDCClientID are the issuer URL + client_id echoed to
 	// the SPA on /api/auth/mode in OIDC mode (the values the browser needs to
 	// start the auth-code+PKCE flow). Ignored in local mode.
@@ -63,13 +71,15 @@ func New(d Deps) *Handler {
 		throttle = auth.NewLoginThrottle(5, time.Minute)
 	}
 	return &Handler{
-		db:          d.DB,
-		authMode:    d.AuthMode,
-		local:       d.Local,
-		storage:     d.Storage,
-		loginRate:   throttle,
-		importPool:  d.ImportPool,
-		broadcaster: d.Broadcaster,
+		db:                 d.DB,
+		authMode:           d.AuthMode,
+		local:              d.Local,
+		storage:            d.Storage,
+		loginRate:          throttle,
+		importPool:         d.ImportPool,
+		broadcaster:        d.Broadcaster,
+		previewPool:        d.PreviewPool,
+		previewBroadcaster: d.PreviewBroadcaster,
 
 		oidcAuthority: d.OIDCAuthority,
 		oidcClientID:  d.OIDCClientID,
