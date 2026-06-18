@@ -80,6 +80,23 @@ export function useFileObjectUrl(node: FileNode | null | undefined): string | un
 }
 
 /**
+ * Resolve a file's best grid thumbnail to an object URL: a backend-rendered
+ * derivative (GET /api/previews/:key, for pro/HDR images and SVG raster) when
+ * one exists, otherwise the file's own bytes for natively-previewable images.
+ * Undefined for everything else (the tile shows its type placeholder). Both
+ * endpoints are bearer-authenticated, so the bytes go through useBlobUrl rather
+ * than a bare <img src>. Only one branch fetches for any given file — derivative
+ * and native are mutually exclusive — so this never double-loads.
+ */
+export function useFileThumbUrl(node: FileNode | null | undefined): string | undefined {
+  const derivative = useBlobUrl(
+    node?.previewObjectKey ? `/api/previews/${node.previewObjectKey}` : undefined,
+  );
+  const native = useFileObjectUrl(node);
+  return derivative ?? native;
+}
+
+/**
  * Download a file by fetching the blob with auth and triggering a save. The
  * endpoint is bearer-authenticated, so a plain anchor href can't be used.
  */
