@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/ftrvxmtrx/tga"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
 
@@ -27,36 +26,13 @@ func newTestStorage(t *testing.T) storage.Service {
 }
 
 func TestSupports(t *testing.T) {
-	for _, name := range []string{"Tex/Albedo.bmp", "scan.TIFF", "sprite.tga", "art.psd"} {
+	for _, name := range []string{"Tex/Albedo.bmp", "scan.TIFF", "art.psd"} {
 		if !Supports(name, "") {
 			t.Errorf("%s should be supported", name)
 		}
 	}
 	if Supports("Player.cs", "") || Supports("clip.wav", "") {
 		t.Error("code/audio should not be backend-previewable")
-	}
-}
-
-func TestGenerate_TGA(t *testing.T) {
-	// TGA has no magic bytes, so this exercises the explicit by-extension decode
-	// path (image.Decode can't sniff it).
-	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
-	for x := 0; x < 16; x++ {
-		for y := 0; y < 16; y++ {
-			img.Set(x, y, color.RGBA{R: 30, G: 200, B: 90, A: 255})
-		}
-	}
-	var buf bytes.Buffer
-	if err := tga.Encode(&buf, img); err != nil {
-		t.Fatalf("encode tga: %v", err)
-	}
-	g := &Generator{Storage: newTestStorage(t)}
-	res, err := g.Generate(context.Background(), Input{Reader: &buf, Filename: "sprite.tga"})
-	if err != nil {
-		t.Fatalf("generate: %v", err)
-	}
-	if !hexKey.MatchString(res.ObjectKey) {
-		t.Errorf("tga should produce a derivative, got key %q", res.ObjectKey)
 	}
 }
 

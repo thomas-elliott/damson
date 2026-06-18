@@ -9,7 +9,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/aws/smithy-go v1.25.1
 	github.com/coreos/go-oidc/v3 v3.18.0
-	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/licensecheck v0.3.1
