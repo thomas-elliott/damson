@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download, FolderPlus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FolderPlus, RefreshCw, X } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
 import { formatBytes } from "@/design-system/utils/format";
@@ -27,6 +27,12 @@ export interface FileDetailPanelProps {
   onClose?: () => void;
   onDownload?: () => void;
   onAddToSubset?: () => void;
+  /** Current backend preview status, shown as a detail row when present. */
+  previewStatus?: string;
+  /** When provided, renders a "Regenerate preview" action for this file. */
+  onRequeuePreview?: () => void;
+  /** Disables the regenerate action while a requeue request is in flight. */
+  requeuePending?: boolean;
   /** Object URL for the open file's bytes, for the default inline-image hero. */
   previewUrl?: string;
   /**
@@ -54,6 +60,9 @@ export function FileDetailPanel({
   onClose,
   onDownload,
   onAddToSubset,
+  previewStatus,
+  onRequeuePreview,
+  requeuePending,
   previewUrl,
   preview,
   extra,
@@ -109,6 +118,16 @@ export function FileDetailPanel({
               <FolderPlus size={12} /> Add to subset
             </Button>
           )}
+          {onRequeuePreview && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onRequeuePreview}
+              disabled={requeuePending}
+            >
+              <RefreshCw size={12} /> Regenerate preview
+            </Button>
+          )}
         </div>
 
         <div className="mt-4">
@@ -127,6 +146,7 @@ export function FileDetailPanel({
                 },
                 { key: "Size", value: formatBytes(node.size), mono: true },
                 ...(node.modified ? [{ key: "Modified", value: node.modified, mono: true }] : []),
+                ...(previewStatus ? [{ key: "Preview", value: previewStatus, mono: true }] : []),
               ]}
             />
           </Section>

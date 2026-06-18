@@ -22,7 +22,7 @@ import {
   type FileType,
 } from "@/design-system";
 import { useAssetDetail } from "@/hooks/useDataQueries";
-import { useCreateSubsetVersion } from "@/hooks/useMutations";
+import { useCreateSubsetVersion, useRequeueFilePreview } from "@/hooks/useMutations";
 import { useKeyboardShortcuts, type KeyBinding } from "@/hooks/useKeyboardShortcuts";
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
@@ -54,6 +54,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           object_key: f.object_key,
           detected_type: f.detected_type,
           preview_object_key: f.preview_object_key,
+          preview_status: f.preview_status,
         })),
       ),
     [asset?.files],
@@ -98,6 +99,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
     : -1;
 
   const create = useCreateSubsetVersion();
+  const requeueFile = useRequeueFilePreview();
   const { saved, flash } = useSavedFlash(2200);
 
   // ---- Handlers ---------------------------------------------------------
@@ -345,6 +347,13 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
                 void downloadFile(openFile.objectKey, openFile.name).catch(() => {});
               }
             }}
+            previewStatus={openFile.previewStatus}
+            onRequeuePreview={
+              openFile.id != null && openFile.previewStatus !== "unsupported"
+                ? () => requeueFile.mutate({ assetId, fileId: openFile.id! })
+                : undefined
+            }
+            requeuePending={requeueFile.isPending}
             preview={<FilePreviewPane node={openFile} />}
           />
         </div>

@@ -57,6 +57,7 @@ type assetFileView struct {
 	ObjectKey        string `json:"object_key"`
 	DetectedType     string `json:"detected_type,omitempty"`
 	PreviewObjectKey string `json:"preview_object_key,omitempty"`
+	PreviewStatus    string `json:"preview_status,omitempty"`
 }
 
 type projectPinView struct {
@@ -172,6 +173,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 				ObjectKey:        f.ObjectKey,
 				DetectedType:     f.DetectedType,
 				PreviewObjectKey: f.PreviewObjectKey,
+				PreviewStatus:    f.PreviewStatus,
 			})
 		}
 	}

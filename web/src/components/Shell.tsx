@@ -4,6 +4,7 @@ import {
   Boxes,
   FileSearch,
   FolderGit2,
+  Images,
   Inbox,
   Library,
   Moon,
@@ -12,7 +13,8 @@ import {
 } from "lucide-react";
 
 import { AppShell, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
-import { useImports, useMe } from "@/hooks/useDataQueries";
+import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
+import { usePreviewEvents } from "@/hooks/usePreviewEvents";
 import { useTheme } from "@/hooks/useTheme";
 
 /**
@@ -38,7 +40,12 @@ function LoadingShell() {
 function DamsonRail() {
   const { pathname } = useLocation();
   const { mode, toggle } = useTheme();
+  const { data: me } = useMe();
   const { total: queueCount } = useImports("in_flight");
+  const { total: processingCount } = usePreviewQueue();
+  // Subscribe here so the processing badge stays live on every page, not just
+  // the queue view.
+  usePreviewEvents(me?.current_library?.id);
   return (
     <NavRail brand={<DamsonBrand />}>
       <RailLink
@@ -53,6 +60,13 @@ function DamsonRail() {
         label="Import queue"
         active={pathname.startsWith("/queue")}
         badge={queueCount > 0 ? queueCount : undefined}
+      />
+      <RailLink
+        to="/processing"
+        icon={<Images size={16} />}
+        label="Processing queue"
+        active={pathname.startsWith("/processing")}
+        badge={processingCount > 0 ? processingCount : undefined}
       />
       <RailLink
         to="/projects"
