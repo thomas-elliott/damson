@@ -36,16 +36,43 @@ export function shikiLang(node: FileNode | null | undefined): string | undefined
   return EXT_TO_LANG[node.ext ?? ""];
 }
 
-export type PreviewKind = "text" | "image" | "fallback";
+// Audio extensions browsers decode natively (so wavesurfer/<audio> can play
+// them). AIFF is deliberately absent — browsers can't reliably decode it, so it
+// stays download-only rather than showing a dead player.
+const AUDIO_MIME: Record<string, string> = {
+  ".wav": "audio/wav",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".flac": "audio/flac",
+};
+
+/** MIME to re-type a natively-playable audio file to, or undefined. */
+export function audioMime(node: FileNode | null | undefined): string | undefined {
+  if (!node) return undefined;
+  return AUDIO_MIME[node.ext ?? ""];
+}
+
+const FONT_EXTS = new Set([".ttf", ".otf", ".woff", ".woff2"]);
+
+/** Whether a file is a browser-renderable font for a live specimen. */
+export function isFontFile(node: FileNode | null | undefined): boolean {
+  return !!node && FONT_EXTS.has(node.ext ?? "");
+}
+
+export type PreviewKind = "text" | "audio" | "font" | "archive" | "image" | "fallback";
 
 /**
- * Which viewer the detail panel should mount for a file. Text wins over image
- * (a file is never both); anything with no inline viewer falls back to the
+ * Which viewer the detail panel should mount for a file. Each type maps to at
+ * most one viewer; anything with no inline viewer falls back to the
  * thumbnail/placeholder.
  */
 export function previewKind(node: FileNode | null | undefined): PreviewKind {
   if (!node) return "fallback";
   if (shikiLang(node)) return "text";
+  if (audioMime(node)) return "audio";
+  if (isFontFile(node)) return "font";
+  if (node.ext === ".zip") return "archive";
   if (previewImageMime(node)) return "image";
   return "fallback";
 }
