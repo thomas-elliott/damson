@@ -103,6 +103,25 @@ func TestGenerate_TIFF_AlphaIsPNG(t *testing.T) {
 	}
 }
 
+func TestGenerate_SVG(t *testing.T) {
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50">` +
+		`<rect width="100" height="50" fill="#caa84a"/></svg>`
+	g := &Generator{Storage: newTestStorage(t)}
+	res, err := g.Generate(context.Background(), Input{
+		Reader:   bytes.NewReader([]byte(svg)),
+		Filename: "logo.svg",
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if res.ContentType != "image/png" {
+		t.Errorf("svg should rasterise to PNG, got %q", res.ContentType)
+	}
+	if !hexKey.MatchString(res.ObjectKey) {
+		t.Errorf("svg should produce a derivative, got key %q", res.ObjectKey)
+	}
+}
+
 func TestGenerate_Unsupported(t *testing.T) {
 	g := &Generator{Storage: newTestStorage(t)}
 	res, err := g.Generate(context.Background(), Input{Reader: bytes.NewReader([]byte("x")), Filename: "lib.dll"})
