@@ -62,25 +62,25 @@ export function PreviewQueuePage() {
 function PreviewQueueRow({ row, onOpen }: { row: PreviewRow; onOpen: () => void }) {
   const processing = row.status === "processing";
   const hasFailures = row.failed > 0;
+  // Denominator is the renderable set (excludes unsupported files, which are
+  // never attempted), so "done/attempted" reflects real preview progress.
+  const attempted = row.done + row.failed + row.processing + row.queued;
+
+  let thumb = <CheckCircle2 size={20} className="text-text-3" />;
+  if (processing) thumb = <Loader2 size={20} className="animate-spin text-text-3" />;
+  else if (hasFailures) thumb = <AlertTriangle size={20} className="text-err" />;
+
   return (
     <QueueItem
       name={row.asset_name || `Version #${row.version_id}`}
-      thumb={
-        processing ? (
-          <Loader2 size={20} className="animate-spin text-text-3" />
-        ) : hasFailures ? (
-          <AlertTriangle size={20} className="text-err" />
-        ) : (
-          <CheckCircle2 size={20} className="text-text-3" />
-        )
-      }
+      thumb={thumb}
       sub={
         <>
           <Badge size="sm" mono tone={processing ? "warn" : "ok"}>
             {row.status}
           </Badge>
           <span className="tabular-nums text-text-3">
-            {row.done}/{row.done + row.failed + row.processing + row.queued} previews
+            {row.done}/{attempted} previews
           </span>
           {hasFailures && <span className="text-err">{row.failed} failed</span>}
           <span className="text-text-4">updated {new Date(row.updated_at).toLocaleString()}</span>
