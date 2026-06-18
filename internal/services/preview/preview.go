@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ftrvxmtrx/tga"
 	"github.com/oov/psd"
 	"github.com/srwiley/oksvg"
 	"github.com/srwiley/rasterx"
@@ -88,7 +87,7 @@ func (g *Generator) Generate(ctx context.Context, in Input) (Result, error) {
 
 func classify(filename, detectedType string) string {
 	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".tiff", ".tif", ".bmp", ".tga", ".psd":
+	case ".tiff", ".tif", ".bmp", ".psd":
 		return "raster"
 	case ".svg":
 		return "svg"
@@ -96,13 +95,11 @@ func classify(filename, detectedType string) string {
 	return ""
 }
 
-// decodeRaster decodes a browser-unopenable raster by extension. TGA has no
-// magic bytes (so image.Decode can't sniff it) and PSD is read for its merged
-// composite; TIFF/BMP go through the registered x/image decoders.
+// decodeRaster decodes a browser-unopenable raster by extension. PSD is read
+// for its merged composite; TIFF/BMP go through the registered x/image
+// decoders.
 func decodeRaster(raw []byte, ext string) (image.Image, error) {
 	switch ext {
-	case ".tga":
-		return tga.Decode(bytes.NewReader(raw))
 	case ".psd":
 		p, _, err := psd.Decode(bytes.NewReader(raw), nil)
 		if err != nil {
