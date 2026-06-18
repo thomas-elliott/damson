@@ -173,6 +173,8 @@ export interface AssetFileView {
   content_hash: string;
   object_key: string;
   detected_type?: string;
+  /** Backend-rendered preview derivative, served from GET /api/previews/:key. */
+  preview_object_key?: string;
 }
 
 export interface AssetTagView {
