@@ -235,8 +235,11 @@ func securityHeaders(oidcOrigin string) gin.HandlerFunc {
 	// with auth and render them from blob: object URLs: images and derivative
 	// posters (img-src), inline <audio> (media-src), and live @font-face
 	// specimens (font-src).
+	// 'wasm-unsafe-eval' lets WebAssembly compile without allowing arbitrary
+	// eval: pdf.js uses WASM image codecs and the glTF viewer uses a Draco WASM
+	// decoder. It is far narrower than 'unsafe-eval'.
 	csp := "default-src 'self'; " +
-		"script-src 'self'; " +
+		"script-src 'self' 'wasm-unsafe-eval'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: blob:; " +
 		"media-src 'self' blob:; " +

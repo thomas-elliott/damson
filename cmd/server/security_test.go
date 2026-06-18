@@ -35,6 +35,10 @@ func TestCSPAllowsBlobImages(t *testing.T) {
 	if !strings.Contains(csp, "font-src 'self' data: blob:") {
 		t.Fatalf("CSP must allow blob: fonts for font specimens; got %q", csp)
 	}
+	// pdf.js image codecs and the glTF Draco decoder compile WebAssembly.
+	if !strings.Contains(csp, "script-src 'self' 'wasm-unsafe-eval'") {
+		t.Fatalf("CSP must allow wasm compilation for pdf.js / Draco; got %q", csp)
+	}
 	if !strings.Contains(csp, "frame-ancestors") {
 		t.Fatalf("CSP regression: frame-ancestors directive missing; got %q", csp)
 	}

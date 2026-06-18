@@ -63,6 +63,7 @@ describe("previewKind", () => {
     expect(previewKind(node(".mp3", "audio"))).toBe("audio");
     expect(previewKind(node(".otf", "font"))).toBe("font");
     expect(previewKind(node(".zip", "data"))).toBe("archive");
+    expect(previewKind(node(".pdf", "doc"))).toBe("pdf");
     expect(previewKind(node(".png", "texture"))).toBe("image");
     expect(previewKind(node(".fbx", "mesh"))).toBe("fallback");
     expect(previewKind(node(".svg", "sprite"))).toBe("fallback"); // SVG not inline yet

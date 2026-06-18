@@ -60,7 +60,7 @@ export function isFontFile(node: FileNode | null | undefined): boolean {
   return !!node && FONT_EXTS.has(node.ext ?? "");
 }
 
-export type PreviewKind = "text" | "audio" | "font" | "archive" | "image" | "fallback";
+export type PreviewKind = "text" | "audio" | "font" | "archive" | "pdf" | "image" | "fallback";
 
 /**
  * Which viewer the detail panel should mount for a file. Each type maps to at
@@ -73,6 +73,7 @@ export function previewKind(node: FileNode | null | undefined): PreviewKind {
   if (audioMime(node)) return "audio";
   if (isFontFile(node)) return "font";
   if (node.ext === ".zip") return "archive";
+  if (node.ext === ".pdf") return "pdf";
   if (previewImageMime(node)) return "image";
   return "fallback";
 }
