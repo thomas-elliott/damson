@@ -26,7 +26,8 @@ import { useCreateSubsetVersion } from "@/hooks/useMutations";
 import { useKeyboardShortcuts, type KeyBinding } from "@/hooks/useKeyboardShortcuts";
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
-import { downloadFile, useFileObjectUrl } from "./useFileObjectUrl";
+import { FilePreviewPane } from "./FilePreviewPane";
+import { downloadFile } from "./useFileObjectUrl";
 
 // Flat search/filter results are capped so a pathological pack can't render
 // tens of thousands of cards. Folder navigation is naturally bounded by the
@@ -94,7 +95,6 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
   const openIndex = openFile
     ? listingFiles.findIndex((f) => pathKey(f.dir, f.name) === openKey)
     : -1;
-  const detailUrl = useFileObjectUrl(openFile);
 
   const create = useCreateSubsetVersion();
   const { saved, flash } = useSavedFlash(2200);
@@ -344,7 +344,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
                 void downloadFile(openFile.objectKey, openFile.name).catch(() => {});
               }
             }}
-            previewUrl={detailUrl}
+            preview={<FilePreviewPane node={openFile} />}
           />
         </div>
       )}
