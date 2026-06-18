@@ -10,6 +10,7 @@ const TextPreview = lazy(() => import("./previews/TextPreview"));
 const AudioPreview = lazy(() => import("./previews/AudioPreview"));
 const FontPreview = lazy(() => import("./previews/FontPreview"));
 const ZipPreview = lazy(() => import("./previews/ZipPreview"));
+const PdfPreview = lazy(() => import("./previews/PdfPreview"));
 const DerivativePreview = lazy(() => import("./previews/DerivativePreview"));
 
 function PaneLoading() {
@@ -28,12 +29,18 @@ function PaneLoading() {
  * add them.
  */
 export function FilePreviewPane({ node }: { node: FileNode }) {
-  // A backend-rendered derivative (pro images, SVG raster, PDF poster) wins for
-  // types the browser can't open directly.
+  const kind = previewKind(node);
+  // PDFs preview interactively with pdf.js in the panel even when a backend
+  // poster exists (the poster only powers the grid thumbnail).
+  if (kind === "pdf") {
+    return wrap(<PdfPreview node={node} />);
+  }
+  // A backend-rendered derivative (pro images, SVG raster) wins for types the
+  // browser can't open directly.
   if (node.previewObjectKey) {
     return wrap(<DerivativePreview node={node} />);
   }
-  switch (previewKind(node)) {
+  switch (kind) {
     case "text":
       return wrap(<TextPreview node={node} />);
     case "audio":
