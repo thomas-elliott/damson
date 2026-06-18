@@ -27,7 +27,7 @@ import { useKeyboardShortcuts, type KeyBinding } from "@/hooks/useKeyboardShortc
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
 import { FilePreviewPane } from "./FilePreviewPane";
-import { downloadFile } from "./useFileObjectUrl";
+import { downloadFile, useFileThumbUrl } from "./useFileObjectUrl";
 
 // Flat search/filter results are capped so a pathological pack can't render
 // tens of thousands of cards. Folder navigation is naturally bounded by the
@@ -288,9 +288,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
               {listingFiles.map((file) => {
                 const key = pathKey(file.dir, file.name);
                 return (
-                  <FileCard
+                  <BrowserFileCard
                     key={key}
-                    node={file}
+                    file={file}
                     selected={selected.has(key)}
                     open={openKey === key}
                     pathLabel={resultsMode ? file.dir.join("/") : undefined}
@@ -359,5 +359,38 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
         </div>
       )}
     </div>
+  );
+}
+
+// BrowserFileCard resolves a file's thumbnail (backend derivative or native
+// image) to an authenticated object URL and renders the grid tile. Kept as its
+// own component so the per-file blob hook has a stable place to run; files with
+// no previewable thumbnail fetch nothing and show their type placeholder.
+function BrowserFileCard({
+  file,
+  selected,
+  open: isOpen,
+  pathLabel,
+  onOpen,
+  onSelect,
+}: {
+  file: FlatFile;
+  selected: boolean;
+  open: boolean;
+  pathLabel?: string;
+  onOpen: () => void;
+  onSelect: () => void;
+}) {
+  const imageUrl = useFileThumbUrl(file);
+  return (
+    <FileCard
+      node={file}
+      imageUrl={imageUrl}
+      selected={selected}
+      open={isOpen}
+      pathLabel={pathLabel}
+      onOpen={onOpen}
+      onSelect={onSelect}
+    />
   );
 }
