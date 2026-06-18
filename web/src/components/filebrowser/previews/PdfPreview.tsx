@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from "pdfjs-dist";
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  type PDFDocumentProxy,
+  type RenderTask,
+} from "pdfjs-dist";
 // Served same-origin (bundled by Vite) so it satisfies the CSP's default-src
 // 'self' worker fallback — no blob: worker needed.
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -62,7 +67,7 @@ export default function PdfPreview({ node }: { node: FileNode }) {
     const canvas = canvasRef.current;
     if (!doc || !canvas || numPages === 0) return;
     let cancelled = false;
-    let task: ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]> | undefined;
+    let task: RenderTask | undefined;
     doc
       .getPage(page)
       .then((pdfPage) => {
