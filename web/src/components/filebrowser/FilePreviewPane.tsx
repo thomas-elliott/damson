@@ -11,6 +11,7 @@ const AudioPreview = lazy(() => import("./previews/AudioPreview"));
 const FontPreview = lazy(() => import("./previews/FontPreview"));
 const ZipPreview = lazy(() => import("./previews/ZipPreview"));
 const PdfPreview = lazy(() => import("./previews/PdfPreview"));
+const MeshPreview = lazy(() => import("./previews/MeshPreview"));
 const DerivativePreview = lazy(() => import("./previews/DerivativePreview"));
 
 function PaneLoading() {
@@ -49,6 +50,8 @@ export function FilePreviewPane({ node }: { node: FileNode }) {
       return wrap(<FontPreview node={node} />);
     case "archive":
       return wrap(<ZipPreview node={node} />);
+    case "mesh":
+      return wrap(<MeshPreview node={node} />);
     case "image":
       return <ImagePreview node={node} />;
     default:
