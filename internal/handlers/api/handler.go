@@ -156,6 +156,12 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.GET("/thumbs/:objectKey", h.getThumb)
 	scoped.GET("/previews/:objectKey", h.getPreview)
 
+	// Preview processing queue + requeue
+	scoped.GET("/previews", h.getPreviewQueue)
+	scoped.GET("/previews/events", h.getPreviewEvents)
+	scoped.POST("/assets/:id/previews/requeue", h.postAssetPreviewRequeue)
+	scoped.POST("/assets/:id/files/:fileId/previews/requeue", h.postFilePreviewRequeue)
+
 	// Tags (M3)
 	scoped.GET("/tags", h.getTags)
 	scoped.POST("/tags", h.postTag)
