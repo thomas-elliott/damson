@@ -31,7 +31,10 @@ describe("foldPreviewEvent", () => {
   });
 
   it("updates an existing version in place rather than duplicating it", () => {
-    const cached = { previews: [row({ version_id: 1, done: 1, processing: 2, queued: 0 })], total: 1 };
+    const cached = {
+      previews: [row({ version_id: 1, done: 1, processing: 2, queued: 0 })],
+      total: 1,
+    };
     const ev = row({ version_id: 1, done: 3, processing: 0, queued: 1 });
     const next = foldPreviewEvent(cached, ev)!;
     expect(next.total).toBe(1);
