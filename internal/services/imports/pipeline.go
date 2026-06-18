@@ -12,6 +12,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
@@ -174,14 +175,79 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		if err := tx.Save(&asset).Error; err != nil {
 			return err
 		}
-		return updateImportStage(tx, jc.importID, StageDone, "")
+		return nil
 	})
 	if err != nil {
 		return fail("finalize: " + err.Error())
 	}
 
+	// Previewing runs after asset_files are committed (it iterates them) and is
+	// best-effort: a file that can't be rendered is skipped, never failing the
+	// import.
+	if err := transition(StagePreviewing); err != nil {
+		return err
+	}
+	generatePreviews(ctx, deps, jc)
+
+	if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageDone, ""); err != nil {
+		return fail("finalize done: " + err.Error())
+	}
 	publish(StageDone, "")
 	return nil
+}
+
+// generatePreviews renders per-file backend preview derivatives for a version's
+// asset_files and records the resulting object keys. Best-effort and gated by
+// the per-library previews_enabled toggle; any file that can't be rendered is
+// skipped, leaving its preview unset (the SPA falls back to a type icon).
+func generatePreviews(ctx context.Context, deps Deps, jc jobContext) {
+	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	if err != nil {
+		slog.Warn("imports: load settings for previews", "err", err, "library_id", jc.libraryID)
+		return
+	}
+	if !settings.PreviewsEnabled {
+		return
+	}
+	var files []models.AssetFile
+	if err := deps.DB.WithContext(ctx).
+		Where("asset_version_id = ?", jc.version.ID).
+		Find(&files).Error; err != nil {
+		slog.Warn("imports: load files for previews", "err", err, "version_id", jc.version.ID)
+		return
+	}
+	gen := &preview.Generator{Storage: deps.Storage}
+	for _, f := range files {
+		if !preview.Supports(f.RelativePath, f.DetectedType) {
+			continue
+		}
+		blob, bErr := deps.Storage.GetBlob(ctx, f.ObjectKey)
+		if bErr != nil {
+			slog.Warn("imports: fetch blob for preview", "err", bErr, "object_key", f.ObjectKey)
+			continue
+		}
+		res, gErr := gen.Generate(ctx, preview.Input{
+			Reader:       blob,
+			Filename:     f.RelativePath,
+			DetectedType: f.DetectedType,
+		})
+		blob.Close()
+		if gErr != nil {
+			slog.Warn("imports: generate preview", "err", gErr, "path", f.RelativePath)
+			continue
+		}
+		if res.ObjectKey == "" {
+			continue
+		}
+		if err := deps.DB.WithContext(ctx).Model(&models.AssetFile{}).
+			Where("id = ?", f.ID).
+			Updates(map[string]any{
+				"preview_object_key":   res.ObjectKey,
+				"preview_content_type": res.ContentType,
+			}).Error; err != nil {
+			slog.Warn("imports: persist preview", "err", err, "file_id", f.ID)
+		}
+	}
 }
 
 // loadJobContext hydrates the asset + version + library bits the pipeline
@@ -316,6 +382,7 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 		ThumbnailsAudioEnabled:  true,
 		ThumbnailsFontEnabled:   true,
 		ThumbnailsUnityPreview:  true,
+		PreviewsEnabled:         true,
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err

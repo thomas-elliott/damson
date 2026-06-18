@@ -53,6 +53,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           size_bytes: f.size_bytes,
           object_key: f.object_key,
           detected_type: f.detected_type,
+          preview_object_key: f.preview_object_key,
         })),
       ),
     [asset?.files],

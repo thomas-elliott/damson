@@ -26,41 +26,49 @@ export function previewImageMime(node: FileNode | null | undefined): string | un
 }
 
 /**
- * Resolve an object key to a `blob:` object URL by fetching the bytes with auth
- * and re-typing the Blob to `mime` (see api.ts `fetchBlob`). The general
- * primitive every preview viewer builds on: returns undefined while loading, on
- * error, or when `objectKey`/`mime` is absent, and revokes the URL when its
+ * Resolve an authenticated endpoint to a `blob:` object URL by fetching the
+ * bytes (see api.ts `fetchBlob`) and optionally re-typing the Blob to `mime`.
+ * The general primitive every preview viewer builds on: returns undefined while
+ * loading, on error, or when `url` is absent, and revokes the URL when its
  * inputs change or the component unmounts.
+ */
+export function useBlobUrl(url: string | undefined, mime?: string): string | undefined {
+  const [objectUrl, setObjectUrl] = useState<string>();
+
+  useEffect(() => {
+    // Nothing to fetch: the previous run's cleanup already reset the url (and
+    // revoked any object URL), so there's nothing to do synchronously.
+    if (!url) return;
+    let cancelled = false;
+    let created: string | undefined;
+    fetchBlob(url, mime)
+      .then((blob) => {
+        if (cancelled) return;
+        created = URL.createObjectURL(blob);
+        setObjectUrl(created);
+      })
+      .catch(() => {
+        if (!cancelled) setObjectUrl(undefined);
+      });
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+      setObjectUrl(undefined);
+    };
+  }, [url, mime]);
+
+  return objectUrl;
+}
+
+/**
+ * Resolve a file's bytes (GET /api/files/:objectKey) to an object URL, re-typed
+ * to `mime`. Undefined while loading, on error, or when either is absent.
  */
 export function useObjectUrl(
   objectKey: string | undefined,
   mime: string | undefined,
 ): string | undefined {
-  const [url, setUrl] = useState<string>();
-
-  useEffect(() => {
-    // Nothing to fetch: the previous run's cleanup already reset the url (and
-    // revoked any object URL), so there's nothing to do synchronously.
-    if (!objectKey || !mime) return;
-    let cancelled = false;
-    let created: string | undefined;
-    fetchBlob(`/api/files/${objectKey}`, mime)
-      .then((blob) => {
-        if (cancelled) return;
-        created = URL.createObjectURL(blob);
-        setUrl(created);
-      })
-      .catch(() => {
-        if (!cancelled) setUrl(undefined);
-      });
-    return () => {
-      cancelled = true;
-      if (created) URL.revokeObjectURL(created);
-      setUrl(undefined);
-    };
-  }, [objectKey, mime]);
-
-  return url;
+  return useBlobUrl(objectKey && mime ? `/api/files/${objectKey}` : undefined, mime);
 }
 
 /**

@@ -12,6 +12,7 @@ const (
 	StageExtracting   = "extracting"
 	StageDetecting    = "detecting"
 	StageThumbnailing = "thumbnailing"
+	StagePreviewing   = "previewing"
 	StageDone         = "done"
 	StageFailed       = "failed"
 )
