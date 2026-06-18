@@ -7,6 +7,12 @@ import { AssetThumb, type ThumbDescriptor } from "./AssetThumb";
 export interface AssetCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect"> {
   name: string;
   thumb?: ThumbDescriptor;
+  /**
+   * Real thumbnail image URL (e.g. an object URL for a server-generated
+   * thumbnail). When set it renders over the procedural `thumb`; while it's
+   * loading or absent, `thumb` is the fallback.
+   */
+  imageUrl?: string;
   /** Short type label shown as an overlay badge on the thumbnail. */
   typeBadge?: ReactNode;
   /** Meta line under the name (file size, file count, etc.). */
@@ -29,6 +35,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
     className,
     name,
     thumb,
+    imageUrl,
     typeBadge,
     sub,
     trailing,
@@ -64,7 +71,11 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           selected && "border-accent ring-2 ring-accent-ring",
         )}
       >
-        <AssetThumb thumb={thumb} />
+        {imageUrl ? (
+          <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <AssetThumb thumb={thumb} />
+        )}
         {typeBadge && (
           <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-[3px] bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
             {typeBadge}
