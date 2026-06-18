@@ -217,3 +217,22 @@ customer's library is dominated by one of these.
   don't build here.
 - **AIFF / rtf / doc / .blend:** download-only for now (each needs a heavy native tool
   disproportionate to the single-binary goal).
+
+## Implementation deviations (recorded during the build)
+
+All 8 stages were implemented and committed; three pieces were deferred as follow-ups,
+each for a concrete reason:
+
+- **EXR (Stage 5)** — deferred. HDR→8-bit tone-mapping warrants dedicated work; it's a
+  minority format. PSD/TIFF/BMP cover the common pro-image cases.
+- **TGA (Stage 5)** — deferred. `github.com/ftrvxmtrx/tga` registers with
+  `image.RegisterFormat("tga", "", …)` — an empty magic prefix that hijacks `image.Decode`
+  binary-wide and broke thumbnail generation. Removed to fix the regression; revisit with a
+  decoder that doesn't register globally (or a vendored decode path).
+- **PDF backend poster (Stage 7)** — deferred. The client pdf.js viewer ships (the in-panel
+  preview); the WASM-PDFium poster (grid thumbnail) is heavy infra (multi-MB embed +
+  wazero) not safely verifiable in an autonomous pass. PDFs currently show a type icon in
+  the grid. *(Deviates from D3's "full" — downgraded to client-only for now.)*
+
+The `previewing` pipeline stage, the per-file derivative model, and the `FilePreviewPane`
+dispatcher are all in place, so each deferred piece is an additive follow-up, not a rework.
