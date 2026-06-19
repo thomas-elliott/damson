@@ -14,7 +14,6 @@ import {
 
 import { AppShell, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
 import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
-import { usePreviewEvents } from "@/hooks/usePreviewEvents";
 import { useTheme } from "@/hooks/useTheme";
 
 /**
@@ -40,12 +39,11 @@ function LoadingShell() {
 function DamsonRail() {
   const { pathname } = useLocation();
   const { mode, toggle } = useTheme();
-  const { data: me } = useMe();
   const { total: queueCount } = useImports("in_flight");
+  // Badge count comes from the query (refreshed on its staleTime); the live SSE
+  // stream is subscribed on the Processing queue page itself, mirroring how the
+  // import queue works — so no always-open EventSource hangs off every page.
   const { total: processingCount } = usePreviewQueue();
-  // Subscribe here so the processing badge stays live on every page, not just
-  // the queue view.
-  usePreviewEvents(me?.current_library?.id);
   return (
     <NavRail brand={<DamsonBrand />}>
       <RailLink
