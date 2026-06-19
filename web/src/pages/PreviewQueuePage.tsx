@@ -11,17 +11,20 @@ import {
   QueueItem,
   Toolbar,
 } from "@/design-system";
-import { usePreviewQueue, type PreviewRow } from "@/hooks/useDataQueries";
+import { usePreviewQueue, useMe, type PreviewRow } from "@/hooks/useDataQueries";
+import { usePreviewEvents } from "@/hooks/usePreviewEvents";
 
 /**
  * Preview processing queue. Backed by GET /api/previews — the per-version
- * rollups still being rendered. Mirrors the import QueuePage. Live updates
- * arrive over /api/previews/events, subscribed once in the app shell's nav
- * rail (always mounted), which folds into this same query. Requeue actions
- * live on the asset/file detail panels, so rows here just open the asset.
+ * rollups still being rendered. Mirrors the import QueuePage: live updates
+ * arrive over /api/previews/events via usePreviewEvents, subscribed here (not
+ * in the always-mounted shell) so no EventSource hangs off every page. Requeue
+ * actions live on the asset/file detail panels, so rows here just open the asset.
  */
 export function PreviewQueuePage() {
   const { data: previews, loading } = usePreviewQueue();
+  const { data: me } = useMe();
+  usePreviewEvents(me?.current_library?.id);
   const navigate = useNavigate();
   return (
     <Shell

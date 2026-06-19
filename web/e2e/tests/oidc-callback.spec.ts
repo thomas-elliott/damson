@@ -140,7 +140,7 @@ async function setupOidcRoutes(
     ),
   );
   await page.route(
-    /\/api\/(assets|tags|projects|collections|imports|settings|audit|admin|files|thumbs)/,
+    /\/api\/(assets|tags|projects|collections|imports|previews|settings|audit|admin|files|thumbs)/,
     (route) => route.fulfill(jsonRoute({})),
   );
   await page.addInitScript(
@@ -240,7 +240,7 @@ test.describe("OIDC sign-in callback", () => {
       }),
     );
     await page.route(
-      /\/api\/(assets|tags|projects|collections|imports|settings|audit|admin|files|thumbs)/,
+      /\/api\/(assets|tags|projects|collections|imports|previews|settings|audit|admin|files|thumbs)/,
       (route) =>
         route.fulfill({
           status: 200,
