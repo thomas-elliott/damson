@@ -106,21 +106,36 @@ steps:
       - DAMSON_TEST_POSTGRES_DSN=postgres://damson:damson@postgres:5432/damson?sslmode=disable pnpm run e2e || echo "postgres-mode e2e failed (non-gating)"
 
   build-push:
-    image: docker:27-cli
+    # buildkit-rootless on the kerbol k8s backend (no docker daemon; replaces DooD). securityContext
+    # via backend_options needs the repo's trusted-security capability. Registry-side layer cache.
+    image: moby/buildkit:rootless
     when:
       - event: push
         branch: main
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock   # reuses tylo's daemon layer cache; needs repo=TRUSTED
+    backend_options:
+      kubernetes:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: Unconfined
+          apparmorProfile:
+            type: Unconfined
     environment:
       GHCR_TOKEN:
         from_secret: ghcr_token
+      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
     commands:
-      - TAG="main-$(echo "$CI_COMMIT_SHA" | cut -c1-7)"
-      - echo "$GHCR_TOKEN" | docker login ghcr.io -u thomas-elliott --password-stdin
-      - docker build -t "ghcr.io/thomas-elliott/damson:$TAG" -t ghcr.io/thomas-elliott/damson:latest .
-      - docker push "ghcr.io/thomas-elliott/damson:$TAG"
-      - docker push ghcr.io/thomas-elliott/damson:latest
+      - export TAG="main-$(echo "$CI_COMMIT_SHA" | cut -c1-7)"
+      - export DOCKER_CONFIG="$HOME/.docker" && mkdir -p "$DOCKER_CONFIG"
+      - echo "{\"auths\":{\"ghcr.io\":{\"auth\":\"$(echo -n "thomas-elliott:$GHCR_TOKEN" | base64 | tr -d '\n')\"}}}" > "$DOCKER_CONFIG/config.json"
+      - |
+        buildctl-daemonless.sh build \
+          --frontend dockerfile.v0 \
+          --local context=. --local dockerfile=. \
+          --output type=image,\"name=ghcr.io/thomas-elliott/damson:$TAG,ghcr.io/thomas-elliott/damson:latest\",push=true \
+          --import-cache type=registry,ref=ghcr.io/thomas-elliott/damson:buildcache \
+          --export-cache type=registry,ref=ghcr.io/thomas-elliott/damson:buildcache,mode=max
 
   bump-test:
     image: alpine:3.20
