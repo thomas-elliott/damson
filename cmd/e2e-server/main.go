@@ -40,6 +40,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -98,11 +99,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	previewBroadcaster := preview.NewBroadcaster()
+	previewPool := preview.New(preview.Deps{
+		DB:          gormDB,
+		Storage:     store,
+		Broadcaster: previewBroadcaster,
+	}, 0)
+
 	broadcaster := imports.NewBroadcaster()
 	importPool := imports.New(imports.Deps{
 		DB:          gormDB,
 		Storage:     store,
 		Broadcaster: broadcaster,
+		Previews:    previewPool,
 	}, 0)
 
 	r := gin.New()
@@ -110,12 +119,14 @@ func main() {
 
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
-		DB:          gormDB,
-		AuthMode:    config.AuthModeLocal,
-		Local:       la,
-		Storage:     store,
-		ImportPool:  importPool,
-		Broadcaster: broadcaster,
+		DB:                 gormDB,
+		AuthMode:           config.AuthModeLocal,
+		Local:              la,
+		Storage:            store,
+		ImportPool:         importPool,
+		Broadcaster:        broadcaster,
+		PreviewPool:        previewPool,
+		PreviewBroadcaster: previewBroadcaster,
 		// Tests fire login/bootstrap rapidly; the production 5-burst rate
 		// limit will spuriously 429 inside a Playwright run. Disable it.
 		LoginThrottle: auth.NewLoginThrottle(1_000_000, time.Hour),

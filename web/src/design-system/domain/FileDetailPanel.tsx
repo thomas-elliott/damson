@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download, FolderPlus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FolderPlus, RefreshCw, X } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
 import { formatBytes } from "@/design-system/utils/format";
@@ -8,7 +8,7 @@ import { IconButton } from "@/design-system/primitives/IconButton";
 import { Section } from "@/design-system/compositions/Section";
 import { KeyValueList } from "./KeyValueList";
 
-import { FileThumb, type FileThumbProps } from "./FileThumb";
+import { FilePreview } from "./FilePreview";
 import { FileGlyph } from "./FileGlyph";
 import { fileTypeMeta } from "./fileTypes";
 import type { FileNode } from "./fileTree";
@@ -27,7 +27,19 @@ export interface FileDetailPanelProps {
   onClose?: () => void;
   onDownload?: () => void;
   onAddToSubset?: () => void;
-  imageSrc?: FileThumbProps["imageSrc"];
+  /** Current backend preview status, shown as a detail row when present. */
+  previewStatus?: string;
+  /** When provided, renders a "Regenerate preview" action for this file. */
+  onRequeuePreview?: () => void;
+  /** Disables the regenerate action while a requeue request is in flight. */
+  requeuePending?: boolean;
+  /** Object URL for the open file's bytes, for the default inline-image hero. */
+  previewUrl?: string;
+  /**
+   * Hero preview content. When provided (the app passes a per-type preview
+   * dispatcher), it replaces the default image/placeholder hero entirely.
+   */
+  preview?: ReactNode;
   /** Extra detail rows (referenced-by, dimensions, …). */
   extra?: ReactNode;
 }
@@ -48,7 +60,11 @@ export function FileDetailPanel({
   onClose,
   onDownload,
   onAddToSubset,
-  imageSrc,
+  previewStatus,
+  onRequeuePreview,
+  requeuePending,
+  previewUrl,
+  preview,
   extra,
 }: FileDetailPanelProps) {
   const meta = fileTypeMeta(node.ftype);
@@ -75,7 +91,7 @@ export function FileDetailPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3">
         <div className="mb-3 aspect-square w-full overflow-hidden rounded-md border border-line bg-bg">
-          <FileThumb node={node} large imageSrc={imageSrc} />
+          {preview ?? <FilePreview node={node} large previewUrl={previewUrl} />}
         </div>
         <h2 className="break-all text-subhead text-text">{node.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption">
@@ -102,6 +118,16 @@ export function FileDetailPanel({
               <FolderPlus size={12} /> Add to subset
             </Button>
           )}
+          {onRequeuePreview && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onRequeuePreview}
+              disabled={requeuePending}
+            >
+              <RefreshCw size={12} /> Regenerate preview
+            </Button>
+          )}
         </div>
 
         <div className="mt-4">
@@ -120,6 +146,7 @@ export function FileDetailPanel({
                 },
                 { key: "Size", value: formatBytes(node.size), mono: true },
                 ...(node.modified ? [{ key: "Modified", value: node.modified, mono: true }] : []),
+                ...(previewStatus ? [{ key: "Preview", value: previewStatus, mono: true }] : []),
               ]}
             />
           </Section>

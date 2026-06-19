@@ -46,7 +46,16 @@ type AssetFile struct {
 	ObjectKey      string `gorm:"not null"`
 	DetectedType   string
 	UnityGUID      string
-	CreatedAt      time.Time
+	// Backend-rendered preview derivative (e.g. a flattened/rasterised image),
+	// stored content-addressed in the thumb namespace. Empty when the file has
+	// no backend preview.
+	PreviewObjectKey   string
+	PreviewContentType string
+	// PreviewStatus is the first-class state of this file's backend preview:
+	// unsupported | queued | processing | done | failed. Drives the preview
+	// processing queue and requeue; see services/preview for the constants.
+	PreviewStatus string `gorm:"not null;default:unsupported"`
+	CreatedAt     time.Time
 }
 
 func (AssetFile) TableName() string { return "asset_files" }
