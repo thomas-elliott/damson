@@ -311,6 +311,41 @@ export function useRetryImport() {
   });
 }
 
+// useRequeueAssetPreviews regenerates every supported file's preview for an
+// asset's current version. The asset detail (file statuses) and the preview
+// queue are refreshed so the new "queued" rows appear immediately.
+export function useRequeueAssetPreviews() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (assetId: number) =>
+      fetchJson<{ asset_id: number; version_id: number; queued: number }>(
+        `/api/assets/${assetId}/previews/requeue`,
+        { method: "POST" },
+      ),
+    onSuccess: (_d, assetId) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(assetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.previews });
+    },
+  });
+}
+
+// useRequeueFilePreview regenerates the preview for a single file of an asset's
+// current version.
+export function useRequeueFilePreview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { assetId: number; fileId: number }) =>
+      fetchJson<{ asset_id: number; version_id: number; file_id: number }>(
+        `/api/assets/${input.assetId}/files/${input.fileId}/previews/requeue`,
+        { method: "POST" },
+      ),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.assetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.previews });
+    },
+  });
+}
+
 export function useInviteMember() {
   const qc = useQueryClient();
   return useMutation({

@@ -20,6 +20,7 @@ export const queryKeys = {
   adminAudit: (filters?: Record<string, string | number | boolean>) =>
     filters ? (["adminAudit", filters] as const) : (["adminAudit"] as const),
   imports: ["imports"] as const,
+  previews: ["previews"] as const,
   libraries: ["libraries"] as const,
   libraryMembers: (libraryId: number) => ["libraries", libraryId, "members"] as const,
   adminUsers: ["adminUsers"] as const,

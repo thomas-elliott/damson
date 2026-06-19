@@ -111,6 +111,79 @@ func TestPostImport_RejectsWithoutLibrary(t *testing.T) {
 	requireStatus(t, w, http.StatusForbidden)
 }
 
+func TestGetAssets_SizeSumsSameSizedFiles(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "thomas@datch.io")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	asset := models.Asset{LibraryID: lib.ID, Name: "pack"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	asset.CurrentVersionID = &v.ID
+	if err := db.Save(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	// Three files, two sharing a size. A SUM(DISTINCT size_bytes) would dedupe
+	// to 100+50=150; the real total is 250 across 3 files.
+	for i, size := range []int64{100, 100, 50} {
+		f := models.AssetFile{
+			AssetVersionID: v.ID,
+			RelativePath:   "f" + uintStr(uint(i)),
+			SizeBytes:      size,
+			ContentHash:    "h",
+			ObjectKey:      "o",
+		}
+		if err := db.Create(&f).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/assets")
+	requireStatus(t, w, http.StatusOK)
+
+	body := jsonResponse[assetListResponse](t, w)
+	if len(body.Assets) != 1 {
+		t.Fatalf("expected 1 asset, got %d", len(body.Assets))
+	}
+	if got := body.Assets[0].SizeBytes; got != 250 {
+		t.Fatalf("size_bytes: got %d, want 250 (same-sized files must not dedupe)", got)
+	}
+	if got := body.Assets[0].FileCount; got != 3 {
+		t.Fatalf("file_count: got %d, want 3", got)
+	}
+}
+
+func TestAssetFile_PreviewStatusDefaultsUnsupported(t *testing.T) {
+	_, db := newTestHandler(t)
+
+	// A file row created without an explicit PreviewStatus must land on the
+	// schema default ('unsupported'), not the Go empty string — the pipeline
+	// and requeue rely on that to tell "no preview yet" from "queued".
+	f := models.AssetFile{
+		AssetVersionID: 1,
+		RelativePath:   "tex.psd",
+		SizeBytes:      10,
+		ContentHash:    "h",
+		ObjectKey:      "o",
+	}
+	if err := db.Create(&f).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got models.AssetFile
+	if err := db.First(&got, f.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.PreviewStatus != "unsupported" {
+		t.Fatalf("preview_status default: got %q, want %q", got.PreviewStatus, "unsupported")
+	}
+}
+
 func TestGetAssets_ListsOnlyCurrentLibrary(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "thomas@datch.io")

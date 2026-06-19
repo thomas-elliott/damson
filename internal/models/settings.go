@@ -22,6 +22,7 @@ type LibrarySettings struct {
 	ThumbnailsAudioEnabled  bool   `gorm:"not null;default:true"`
 	ThumbnailsFontEnabled   bool   `gorm:"not null;default:true"`
 	ThumbnailsUnityPreview  bool   `gorm:"not null;default:true"`
+	PreviewsEnabled         bool   `gorm:"not null;default:true"`
 	AuditRetentionDays      *int
 	UpdatedAt               time.Time
 	UpdatedByUserID         *uint

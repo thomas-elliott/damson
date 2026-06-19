@@ -4,6 +4,7 @@ import {
   Boxes,
   FileSearch,
   FolderGit2,
+  Images,
   Inbox,
   Library,
   Moon,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { AppShell, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
-import { useImports, useMe } from "@/hooks/useDataQueries";
+import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
 import { useTheme } from "@/hooks/useTheme";
 
 /**
@@ -39,6 +40,10 @@ function DamsonRail() {
   const { pathname } = useLocation();
   const { mode, toggle } = useTheme();
   const { total: queueCount } = useImports("in_flight");
+  // Badge count comes from the query (refreshed on its staleTime); the live SSE
+  // stream is subscribed on the Processing queue page itself, mirroring how the
+  // import queue works — so no always-open EventSource hangs off every page.
+  const { total: processingCount } = usePreviewQueue();
   return (
     <NavRail brand={<DamsonBrand />}>
       <RailLink
@@ -53,6 +58,13 @@ function DamsonRail() {
         label="Import queue"
         active={pathname.startsWith("/queue")}
         badge={queueCount > 0 ? queueCount : undefined}
+      />
+      <RailLink
+        to="/processing"
+        icon={<Images size={16} />}
+        label="Processing queue"
+        active={pathname.startsWith("/processing")}
+        badge={processingCount > 0 ? processingCount : undefined}
       />
       <RailLink
         to="/projects"

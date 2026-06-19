@@ -9,6 +9,7 @@ export * from "./FileBrowserToolbar";
 export * from "./FileCard";
 export * from "./FileDetailPanel";
 export * from "./FileGlyph";
+export * from "./FilePreview";
 export * from "./FileSelectionBar";
 export * from "./FileThumb";
 export * from "./FileTreeSidebar";
