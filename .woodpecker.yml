@@ -133,13 +133,14 @@ steps:
     commands:
       - apk add --no-cache git curl
       - curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.44.6/yq_linux_amd64 -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
-      - IMAGE_REF="ghcr.io/thomas-elliott/damson:main-$(echo "$CI_COMMIT_SHA" | cut -c1-7)"
+      - TAG="main-$(echo "$CI_COMMIT_SHA" | cut -c1-7)"
       - git clone --depth 1 "https://x-access-token:$GITOPS_TOKEN@github.com/thomas-elliott/gitops.git" gitops
       - cd gitops
-      - IMAGE_REF="$IMAGE_REF" yq -i '.services.damson.image = strenv(IMAGE_REF)' projects/damson-test/compose.yaml
+      # test env is now the kerbol k8s cluster (ArgoCD watches k8s/); bump the kustomize image tag.
+      - TAG="$TAG" yq -i '(.images[] | select(.name == "ghcr.io/thomas-elliott/damson")).newTag = strenv(TAG)' k8s/test/damson/kustomization.yaml
       - git config user.email thomaselliott@outlook.com
       - git config user.name 'woodpecker[bot]'
-      - git diff --quiet || { git commit -am "bump damson-test -> $IMAGE_REF"; git push; }
+      - git diff --quiet || { git commit -am "bump damson-test -> $TAG"; git push; }
 
   release-promote:
     # crane:debug ships no /bin/sh, but Woodpecker runs step commands through
