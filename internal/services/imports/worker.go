@@ -21,12 +21,23 @@ type Job struct {
 	LibraryID uint
 }
 
+// PreviewEnqueuer hands a committed version off to the preview processing
+// queue. Defined here (not as a concrete *preview.Pool) so the import package
+// depends only on the enqueue behaviour, keeping the two pipelines decoupled.
+type PreviewEnqueuer interface {
+	EnqueueVersion(libraryID, versionID uint)
+}
+
 // Deps are the long-lived collaborators every pipeline run needs. They live
 // on the Pool and are passed into Run.
 type Deps struct {
 	DB          *gorm.DB
 	Storage     storage.Service
 	Broadcaster *Broadcaster
+	// Previews receives each version after its asset_files are committed, so
+	// preview generation runs on its own queue instead of blocking the import.
+	// Optional — a nil enqueuer simply skips the handoff.
+	Previews PreviewEnqueuer
 }
 
 // Pool is a bounded worker pool that drains a job queue. Construct via

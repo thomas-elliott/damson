@@ -152,6 +152,7 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 		ThumbnailsAudioEnabled:  true,
 		ThumbnailsFontEnabled:   true,
 		ThumbnailsUnityPreview:  true,
+		PreviewsEnabled:         true,
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err

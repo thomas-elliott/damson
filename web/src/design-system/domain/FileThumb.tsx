@@ -12,6 +12,12 @@ export interface FileThumbProps {
   /** Larger glyph for the detail-panel hero. */
   large?: boolean;
   /**
+   * A resolved thumbnail image URL (e.g. an object URL the caller fetched for a
+   * derivative or native image). Rendered directly when set, taking priority
+   * over `imageSrc` — the caller owns the decision of what's renderable.
+   */
+  imageUrl?: string;
+  /**
    * Resolve a file's object key to a previewable image URL. When provided and
    * the node is an image type, the thumbnail renders the real file; otherwise
    * a type placeholder is shown. Defaults to none (always placeholder).
@@ -26,8 +32,8 @@ export interface FileThumbProps {
  * endpoint (via `imageSrc`); fixtures may instead carry a procedural `thumb`
  * descriptor. Everything else falls back to a type-styled placeholder.
  */
-export function FileThumb({ node, large, imageSrc, className, style }: FileThumbProps) {
-  const src = isImageType(node.ftype) ? imageSrc?.(node) : undefined;
+export function FileThumb({ node, large, imageUrl, imageSrc, className, style }: FileThumbProps) {
+  const src = imageUrl ?? (isImageType(node.ftype) ? imageSrc?.(node) : undefined);
   if (src) {
     return (
       <img

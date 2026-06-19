@@ -23,6 +23,10 @@ export interface FileNode {
   modified?: string;
   /** Object key for fetching/previewing via GET /api/files/:objectKey. */
   objectKey?: string;
+  /** Backend-rendered preview derivative, served from GET /api/previews/:key. */
+  previewObjectKey?: string;
+  /** First-class preview state: unsupported | queued | processing | done | failed. */
+  previewStatus?: string;
   /** Optional procedural thumbnail descriptor (fixtures/preview). */
   thumb?: ThumbDescriptor;
 }
@@ -63,6 +67,8 @@ export interface ManifestEntry {
   size_bytes: number;
   object_key?: string;
   detected_type?: string;
+  preview_object_key?: string;
+  preview_status?: string;
   modified?: string;
 }
 
@@ -99,6 +105,8 @@ export function buildFileTree(entries: ManifestEntry[]): TreeNode[] {
       size: entry.size_bytes,
       modified: entry.modified,
       objectKey: entry.object_key,
+      previewObjectKey: entry.preview_object_key,
+      previewStatus: entry.preview_status,
     });
   }
 

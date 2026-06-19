@@ -12,6 +12,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
@@ -174,14 +175,46 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		if err := tx.Save(&asset).Error; err != nil {
 			return err
 		}
-		return updateImportStage(tx, jc.importID, StageDone, "")
+		return nil
 	})
 	if err != nil {
 		return fail("finalize: " + err.Error())
 	}
 
+	// Previewing is decoupled: once asset_files are committed, hand the version
+	// off to the preview processing queue. The import finishes immediately and
+	// previews fill in afterward, tracked on their own queue.
+	enqueuePreviews(ctx, deps, jc)
+
+	if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageDone, ""); err != nil {
+		return fail("finalize done: " + err.Error())
+	}
 	publish(StageDone, "")
 	return nil
+}
+
+// enqueuePreviews hands a committed version off to the preview processing queue.
+// It marks the version's supported files 'queued' (so they show in the queue
+// immediately) and enqueues the version for the preview worker pool. Gated by
+// the per-library previews_enabled toggle and a nil-safe enqueuer, so a library
+// with previews off — or a server without a preview pool wired — simply skips.
+func enqueuePreviews(ctx context.Context, deps Deps, jc jobContext) {
+	if deps.Previews == nil {
+		return
+	}
+	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	if err != nil {
+		slog.Warn("imports: load settings for previews", "err", err, "library_id", jc.libraryID)
+		return
+	}
+	if !settings.PreviewsEnabled {
+		return
+	}
+	if _, err := preview.MarkVersionQueued(ctx, deps.DB, jc.version.ID, 0); err != nil {
+		slog.Warn("imports: mark previews queued", "err", err, "version_id", jc.version.ID)
+		return
+	}
+	deps.Previews.EnqueueVersion(jc.libraryID, jc.version.ID)
 }
 
 // loadJobContext hydrates the asset + version + library bits the pipeline
@@ -316,6 +349,7 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 		ThumbnailsAudioEnabled:  true,
 		ThumbnailsFontEnabled:   true,
 		ThumbnailsUnityPreview:  true,
+		PreviewsEnabled:         true,
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err

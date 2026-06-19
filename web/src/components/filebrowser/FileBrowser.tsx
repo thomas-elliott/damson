@@ -22,11 +22,12 @@ import {
   type FileType,
 } from "@/design-system";
 import { useAssetDetail } from "@/hooks/useDataQueries";
-import { useCreateSubsetVersion } from "@/hooks/useMutations";
+import { useCreateSubsetVersion, useRequeueFilePreview } from "@/hooks/useMutations";
 import { useKeyboardShortcuts, type KeyBinding } from "@/hooks/useKeyboardShortcuts";
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
-import { downloadFile, useFileObjectUrl } from "./useFileObjectUrl";
+import { FilePreviewPane } from "./FilePreviewPane";
+import { downloadFile, useFileThumbUrl } from "./useFileObjectUrl";
 
 // Flat search/filter results are capped so a pathological pack can't render
 // tens of thousands of cards. Folder navigation is naturally bounded by the
@@ -52,6 +53,8 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           size_bytes: f.size_bytes,
           object_key: f.object_key,
           detected_type: f.detected_type,
+          preview_object_key: f.preview_object_key,
+          preview_status: f.preview_status,
         })),
       ),
     [asset?.files],
@@ -94,9 +97,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
   const openIndex = openFile
     ? listingFiles.findIndex((f) => pathKey(f.dir, f.name) === openKey)
     : -1;
-  const detailUrl = useFileObjectUrl(openFile);
 
   const create = useCreateSubsetVersion();
+  const requeueFile = useRequeueFilePreview();
   const { saved, flash } = useSavedFlash(2200);
 
   // ---- Handlers ---------------------------------------------------------
@@ -285,9 +288,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
               {listingFiles.map((file) => {
                 const key = pathKey(file.dir, file.name);
                 return (
-                  <FileCard
+                  <BrowserFileCard
                     key={key}
-                    node={file}
+                    file={file}
                     selected={selected.has(key)}
                     open={openKey === key}
                     pathLabel={resultsMode ? file.dir.join("/") : undefined}
@@ -344,10 +347,50 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
                 void downloadFile(openFile.objectKey, openFile.name).catch(() => {});
               }
             }}
-            imageSrc={() => detailUrl}
+            previewStatus={openFile.previewStatus}
+            onRequeuePreview={
+              openFile.id != null && openFile.previewStatus !== "unsupported"
+                ? () => requeueFile.mutate({ assetId, fileId: openFile.id! })
+                : undefined
+            }
+            requeuePending={requeueFile.isPending}
+            preview={<FilePreviewPane node={openFile} />}
           />
         </div>
       )}
     </div>
+  );
+}
+
+// BrowserFileCard resolves a file's thumbnail (backend derivative or native
+// image) to an authenticated object URL and renders the grid tile. Kept as its
+// own component so the per-file blob hook has a stable place to run; files with
+// no previewable thumbnail fetch nothing and show their type placeholder.
+function BrowserFileCard({
+  file,
+  selected,
+  open: isOpen,
+  pathLabel,
+  onOpen,
+  onSelect,
+}: {
+  file: FlatFile;
+  selected: boolean;
+  open: boolean;
+  pathLabel?: string;
+  onOpen: () => void;
+  onSelect: () => void;
+}) {
+  const imageUrl = useFileThumbUrl(file);
+  return (
+    <FileCard
+      node={file}
+      imageUrl={imageUrl}
+      selected={selected}
+      open={isOpen}
+      pathLabel={pathLabel}
+      onOpen={onOpen}
+      onSelect={onSelect}
+    />
   );
 }

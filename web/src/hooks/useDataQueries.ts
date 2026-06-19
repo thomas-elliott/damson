@@ -173,6 +173,10 @@ export interface AssetFileView {
   content_hash: string;
   object_key: string;
   detected_type?: string;
+  /** Backend-rendered preview derivative, served from GET /api/previews/:key. */
+  preview_object_key?: string;
+  /** First-class preview state: unsupported | queued | processing | done | failed. */
+  preview_status?: PreviewStatus;
 }
 
 export interface AssetTagView {
@@ -578,6 +582,48 @@ export function useImports(
   });
   return {
     data: q.data?.imports ?? [],
+    total: q.data?.total ?? 0,
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
+
+// -- /api/previews (processing queue) --------------------------------------
+
+export type PreviewStatus = "unsupported" | "queued" | "processing" | "done" | "failed";
+
+/** Per-version rollup of its files' preview statuses — one processing-queue row. */
+export interface PreviewRow {
+  version_id: number;
+  asset_id: number;
+  asset_name: string;
+  status: "processing" | "queued" | "done";
+  total: number;
+  done: number;
+  failed: number;
+  processing: number;
+  queued: number;
+  unsupported: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PreviewListResponse {
+  previews: PreviewRow[];
+  total: number;
+}
+
+export function usePreviewQueue(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.previews,
+    queryFn: () => fetchJson<PreviewListResponse>("/api/previews"),
+    staleTime: 15 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.previews ?? [],
     total: q.data?.total ?? 0,
     loading: q.isPending,
     error: q.error,

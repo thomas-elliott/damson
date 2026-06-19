@@ -23,6 +23,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
 )
@@ -99,11 +100,28 @@ func main() {
 	}
 	slog.Info("storage mode", "mode", cfg.StorageMode)
 
+	// Preview pool first, so the import pool can hand finished versions off to
+	// it. Preview generation runs on its own queue, decoupled from import.
+	previewBroadcaster := preview.NewBroadcaster()
+	previewPool := preview.New(preview.Deps{
+		DB:          gormDB,
+		Storage:     store,
+		Broadcaster: previewBroadcaster,
+	}, cfg.ImportWorkers)
+	slog.Info("preview pool", "workers", cfg.ImportWorkers)
+
+	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewPool); err != nil {
+		slog.Warn("preview resume sweep failed", "err", err)
+	} else if resumed > 0 {
+		slog.Info("preview resume sweep", "enqueued", resumed)
+	}
+
 	broadcaster := imports.NewBroadcaster()
 	importPool := imports.New(imports.Deps{
 		DB:          gormDB,
 		Storage:     store,
 		Broadcaster: broadcaster,
+		Previews:    previewPool,
 	}, cfg.ImportWorkers)
 	slog.Info("import pool", "workers", cfg.ImportWorkers)
 
@@ -126,12 +144,14 @@ func main() {
 
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
-		DB:          gormDB,
-		AuthMode:    cfg.AuthMode,
-		Local:       localAuth,
-		Storage:     store,
-		ImportPool:  importPool,
-		Broadcaster: broadcaster,
+		DB:                 gormDB,
+		AuthMode:           cfg.AuthMode,
+		Local:              localAuth,
+		Storage:            store,
+		ImportPool:         importPool,
+		Broadcaster:        broadcaster,
+		PreviewPool:        previewPool,
+		PreviewBroadcaster: previewBroadcaster,
 		// Echoed to the SPA on /api/auth/mode in OIDC mode (empty in local).
 		OIDCAuthority: cfg.OIDCIssuerURL,
 		OIDCClientID:  cfg.OIDCClientID,
@@ -185,6 +205,7 @@ func main() {
 	// still running when ctx expires gets logged; the next boot's resume
 	// sweep picks up whatever remained non-terminal.
 	importPool.Shutdown(shutdownCtx)
+	previewPool.Shutdown(shutdownCtx)
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown", "err", err)
 	}
@@ -223,17 +244,27 @@ func securityHeaders(oidcOrigin string) gin.HandlerFunc {
 	// silent token renewal in a hidden iframe that navigates to the IdP's
 	// authorize endpoint (frame-src). Local mode makes no cross-origin calls,
 	// so the IdP origin is only whitelisted when it's actually configured.
-	connectSrc := "connect-src 'self'"
+	// blob: in connect-src: wavesurfer fetch()es the audio's blob: object URL to
+	// decode a waveform, and fetch() of a blob: URL is governed by connect-src.
+	connectSrc := "connect-src 'self' blob:"
 	frameSrc := "frame-src 'self'"
 	if oidcOrigin != "" {
 		connectSrc += " " + oidcOrigin
 		frameSrc += " " + oidcOrigin
 	}
+	// blob: is needed across img/media/font because previews fetch file bytes
+	// with auth and render them from blob: object URLs: images and derivative
+	// posters (img-src), inline <audio> (media-src), and live @font-face
+	// specimens (font-src).
+	// 'wasm-unsafe-eval' lets WebAssembly compile without allowing arbitrary
+	// eval: pdf.js uses WASM image codecs and the glTF viewer uses a Draco WASM
+	// decoder. It is far narrower than 'unsafe-eval'.
 	csp := "default-src 'self'; " +
-		"script-src 'self'; " +
+		"script-src 'self' 'wasm-unsafe-eval'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: blob:; " +
-		"font-src 'self' data:; " +
+		"media-src 'self' blob:; " +
+		"font-src 'self' data: blob:; " +
 		connectSrc + "; " +
 		frameSrc + "; " +
 		"object-src 'none'; " +

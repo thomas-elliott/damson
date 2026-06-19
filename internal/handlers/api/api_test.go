@@ -16,6 +16,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -37,13 +38,17 @@ func newTestHandler(t *testing.T) (*Handler, *gorm.DB) {
 	db := newTestDB(t)
 	store := newTestStorage(t)
 	bc := imports.NewBroadcaster()
-	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc})
+	pbc := preview.NewBroadcaster()
+	previewPool := preview.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
+	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	return New(Deps{
-		DB:          db,
-		AuthMode:    config.AuthModeOIDC,
-		Storage:     store,
-		ImportPool:  pool,
-		Broadcaster: bc,
+		DB:                 db,
+		AuthMode:           config.AuthModeOIDC,
+		Storage:            store,
+		ImportPool:         pool,
+		Broadcaster:        bc,
+		PreviewPool:        previewPool,
+		PreviewBroadcaster: pbc,
 		// Non-secret OIDC config the SPA reads off /api/auth/mode.
 		OIDCAuthority: "https://auth.example.com",
 		OIDCClientID:  "damson",
@@ -59,14 +64,18 @@ func newTestHandlerLocal(t *testing.T) (*Handler, *gorm.DB, *auth.LocalAuthentic
 	}
 	store := newTestStorage(t)
 	bc := imports.NewBroadcaster()
-	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc})
+	pbc := preview.NewBroadcaster()
+	previewPool := preview.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
+	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	return New(Deps{
-		DB:          db,
-		AuthMode:    config.AuthModeLocal,
-		Local:       la,
-		Storage:     store,
-		ImportPool:  pool,
-		Broadcaster: bc,
+		DB:                 db,
+		AuthMode:           config.AuthModeLocal,
+		Local:              la,
+		Storage:            store,
+		ImportPool:         pool,
+		Broadcaster:        bc,
+		PreviewPool:        previewPool,
+		PreviewBroadcaster: pbc,
 	}), db, la
 }
 
