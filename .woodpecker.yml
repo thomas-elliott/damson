@@ -194,7 +194,7 @@ steps:
       - IMAGE_REF="ghcr.io/thomas-elliott/damson:${CI_COMMIT_TAG#v}"
       - git clone --depth 1 "https://x-access-token:$GITOPS_TOKEN@github.com/thomas-elliott/gitops.git" gitops
       - cd gitops
-      - IMAGE_REF="$IMAGE_REF" yq -i '.services.damson.image = strenv(IMAGE_REF)' projects/damson/compose.yaml
+      - NEWTAG="${CI_COMMIT_TAG#v}" yq -i '(.images[] | select(.name == "ghcr.io/thomas-elliott/damson")).newTag = strenv(NEWTAG)' k8s/prod/damson/kustomization.yaml
       - git config user.email thomaselliott@outlook.com
       - git config user.name 'woodpecker[bot]'
       - git diff --quiet || { git commit -am "release damson -> $IMAGE_REF"; git push; }
