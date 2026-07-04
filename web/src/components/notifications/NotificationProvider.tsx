@@ -13,6 +13,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { isUploadAbortedError, uploadFile } from "@/api";
 import { queryKeys } from "@/lib/queryKeys";
 
+import { NotificationCentre } from "./NotificationCentre";
+
 export type NotificationTone = "info" | "success" | "warn" | "error";
 
 export interface AppNotification {
@@ -199,7 +201,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     toggleOpen,
   ]);
 
-  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
+  return (
+    <NotificationContext.Provider value={value}>
+      {children}
+      <NotificationCentre />
+    </NotificationContext.Provider>
+  );
 }
 
 export function useNotifications(): NotificationContextValue {
