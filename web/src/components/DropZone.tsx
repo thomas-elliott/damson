@@ -18,7 +18,7 @@ export function useDropZoneOpen() {
 }
 
 /**
- * Drop-target wrapper for the library grid. Drops anywhere inside hand the
+ * Drop-target wrapper for the library grid. A drop anywhere inside hands the
  * files to the notification centre's upload queue, which owns the transfer so
  * it survives navigation. Click-to-open is explicit — children keep their own
  * click behaviour; the Upload toolbar button opens the picker via

@@ -5,6 +5,7 @@ import { MINUTE } from "@/lib/cachePolicy";
 import { emitNotification } from "@/lib/notificationBridge";
 
 export const queryClient = new QueryClient({
+  // Mutation errors only — routing query errors here would be noisy on every background refetch.
   mutationCache: new MutationCache({
     onError: (error: unknown) => {
       if (isAuthRedirectError(error)) return;

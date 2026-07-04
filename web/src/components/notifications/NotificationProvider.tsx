@@ -65,6 +65,7 @@ const READ_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function newId(): string {
   try {
+    // crypto.randomUUID throws outside secure contexts (e.g. plain-http LAN hosts).
     return crypto.randomUUID();
   } catch {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
