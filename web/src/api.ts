@@ -208,6 +208,7 @@ export function uploadFile(
         cleanup();
         reject(new ApiError(0, null, "network error"));
       };
+      // An abort during the token await above won't fire the listener, so re-check.
       if (signal?.aborted) {
         cleanup();
         reject(new UploadAbortedError());
