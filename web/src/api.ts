@@ -25,6 +25,17 @@ export function isAuthRedirectError(err: unknown): err is AuthRedirectError {
   return err instanceof AuthRedirectError;
 }
 
+export class UploadAbortedError extends Error {
+  constructor() {
+    super("upload aborted");
+    this.name = "UploadAbortedError";
+  }
+}
+
+export function isUploadAbortedError(err: unknown): err is UploadAbortedError {
+  return err instanceof UploadAbortedError;
+}
+
 async function authHeader(): Promise<Record<string, string>> {
   const token = await getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -145,8 +156,13 @@ export function uploadFile(
   url: string,
   file: File,
   onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new UploadAbortedError());
+      return;
+    }
     void (async () => {
       const token = await getAccessToken();
       const form = new FormData();
@@ -156,10 +172,19 @@ export function uploadFile(
       xhr.open("POST", url);
       if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
+      const onAbort = () => xhr.abort();
+      signal?.addEventListener("abort", onAbort);
+      const cleanup = () => signal?.removeEventListener("abort", onAbort);
+
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
       };
+      xhr.onabort = () => {
+        cleanup();
+        reject(new UploadAbortedError());
+      };
       xhr.onload = () => {
+        cleanup();
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             resolve(JSON.parse(xhr.responseText || "{}"));
@@ -179,7 +204,16 @@ export function uploadFile(
           reject(new ApiError(xhr.status, xhr.responseText, msg));
         }
       };
-      xhr.onerror = () => reject(new ApiError(0, null, "network error"));
+      xhr.onerror = () => {
+        cleanup();
+        reject(new ApiError(0, null, "network error"));
+      };
+      // An abort during the token await above won't fire the listener, so re-check.
+      if (signal?.aborted) {
+        cleanup();
+        reject(new UploadAbortedError());
+        return;
+      }
       xhr.send(form);
     })();
   });
