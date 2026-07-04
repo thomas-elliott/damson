@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
 import {
+  Bell,
   Boxes,
   FileSearch,
   FolderGit2,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { AppShell, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -44,6 +46,8 @@ function DamsonRail() {
   // stream is subscribed on the Processing queue page itself, mirroring how the
   // import queue works — so no always-open EventSource hangs off every page.
   const { total: processingCount } = usePreviewQueue();
+  const { unreadCount, inFlightCount, toggleOpen } = useNotifications();
+  const notifBadge = unreadCount + inFlightCount;
   return (
     <NavRail brand={<DamsonBrand />}>
       <RailLink
@@ -89,6 +93,12 @@ function DamsonRail() {
         icon={mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
         onSelect={toggle}
+      />
+      <NavRailItem
+        icon={<Bell size={16} />}
+        label="Notifications"
+        badge={notifBadge > 0 ? notifBadge : undefined}
+        onSelect={toggleOpen}
       />
       <RailLink
         to="/settings"
