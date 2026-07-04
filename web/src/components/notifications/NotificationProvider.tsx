@@ -11,6 +11,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { isUploadAbortedError, uploadFile } from "@/api";
+import { setNotifier } from "@/lib/notificationBridge";
 import { queryKeys } from "@/lib/queryKeys";
 
 import { NotificationCentre } from "./NotificationCentre";
@@ -154,6 +155,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     (input: NotifyInput) => pushNotification({ ...input, source: "toast" }),
     [pushNotification],
   );
+
+  useEffect(() => {
+    setNotifier(notify);
+    return () => setNotifier(null);
+  }, [notify]);
 
   const markRead = useCallback((id: string) => {
     setNotifications((prev) =>
