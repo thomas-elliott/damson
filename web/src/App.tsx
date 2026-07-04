@@ -20,24 +20,24 @@ export default function App() {
   return (
     <NotificationProvider>
       <Routes>
-      <Route path="/auth/callback" element={<LoginCallbackPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/bootstrap" element={<BootstrapPage />} />
-      <Route element={<AuthGuard />}>
-        <Route path="/" element={<Navigate to="/library" replace />} />
-        <Route path="/library" element={<LibraryPage />} />
-        <Route path="/library/:assetId" element={<LibraryPage />} />
-        <Route path="/library/:assetId/browse" element={<LibraryPage browse />} />
-        <Route path="/queue" element={<QueuePage />} />
-        <Route path="/processing" element={<PreviewQueuePage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/projects/:id" element={<ProjectDetailPage />} />
-        <Route path="/collections" element={<CollectionsPage />} />
-        <Route path="/collections/:id" element={<CollectionDetailPage />} />
-        <Route path="/audit" element={<AuditPage />} />
-        <Route path="/admin/audit" element={<AdminAuditPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Route>
+        <Route path="/auth/callback" element={<LoginCallbackPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/bootstrap" element={<BootstrapPage />} />
+        <Route element={<AuthGuard />}>
+          <Route path="/" element={<Navigate to="/library" replace />} />
+          <Route path="/library" element={<LibraryPage />} />
+          <Route path="/library/:assetId" element={<LibraryPage />} />
+          <Route path="/library/:assetId/browse" element={<LibraryPage browse />} />
+          <Route path="/queue" element={<QueuePage />} />
+          <Route path="/processing" element={<PreviewQueuePage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
+          <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/collections/:id" element={<CollectionDetailPage />} />
+          <Route path="/audit" element={<AuditPage />} />
+          <Route path="/admin/audit" element={<AdminAuditPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
       </Routes>
     </NotificationProvider>
   );
