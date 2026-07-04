@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router";
 
+import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import { AdminAuditPage } from "@/pages/AdminAuditPage";
 import { AuditPage } from "@/pages/AuditPage";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -17,7 +18,8 @@ import { SettingsPage } from "@/pages/SettingsPage";
 
 export default function App() {
   return (
-    <Routes>
+    <NotificationProvider>
+      <Routes>
       <Route path="/auth/callback" element={<LoginCallbackPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/bootstrap" element={<BootstrapPage />} />
@@ -36,6 +38,7 @@ export default function App() {
         <Route path="/admin/audit" element={<AdminAuditPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
-    </Routes>
+      </Routes>
+    </NotificationProvider>
   );
 }
