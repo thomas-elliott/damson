@@ -65,6 +65,8 @@ export function StorageCleanupSection() {
     if (!ok) return;
     del.mutate(keys, {
       onSuccess: (res) => {
+        // The response gives counts + skipped, not the deleted keys — derive
+        // deleted as requested minus skipped.
         const skippedIds = new Set(res.skipped.map(candId));
         const deletedIds = new Set(keys.map(candId).filter((id) => !skippedIds.has(id)));
         setCandidates((prev) => prev.filter((c) => !deletedIds.has(candId(c))));

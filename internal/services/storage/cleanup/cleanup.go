@@ -78,6 +78,8 @@ func FindOrphans(ctx context.Context, store storage.Service, db *gorm.DB, minAge
 			if o.LastModified.After(cutoff) {
 				continue
 			}
+			// Metadata is a display aid; a stat failure (e.g. the object vanished
+			// mid-scan) must not abort the sweep.
 			meta, err := store.StatMeta(ctx, prefix, o.Key)
 			if err != nil {
 				meta = storage.ObjectMeta{}
@@ -150,6 +152,8 @@ func DeleteOrphans(ctx context.Context, store storage.Service, db *gorm.DB, keys
 			skip(k, "delete failed: "+err.Error())
 			continue
 		}
+		// Best-effort: the bucket delete already happened and can't join a DB
+		// transaction, so a failed audit write is logged, not fatal.
 		if err := audit.Write(db.WithContext(ctx), audit.Entry{
 			UserID:     actor,
 			ActionType: "admin.storage.orphan_delete",

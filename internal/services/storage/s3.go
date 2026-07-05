@@ -105,6 +105,7 @@ func (s *S3) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
 			if obj.Key == nil {
 				continue
 			}
+			// Keys are "<prefix>/<hh>/<hash>"; the bare hash is the last segment.
 			info := ObjectInfo{Key: path.Base(*obj.Key)}
 			if obj.Size != nil {
 				info.Size = *obj.Size
