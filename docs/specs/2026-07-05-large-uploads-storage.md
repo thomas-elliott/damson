@@ -198,3 +198,15 @@ Ordered stages; roughly one commit each.
   first-uploader-wins is acceptable: content-addressed dedup means a shared blob
   records only the first uploader; this is a DB-loss fallback, not the sweep
   mechanism.
+- `internal/handlers/api/assets.go` `postImport` — why rows are created before
+  the upload: the object metadata needs the asset/version IDs, which only exist
+  once the rows are written. The transient empty-key window is safe — the
+  pipeline is only enqueued after the key is set, and a crash in between leaves
+  a keyless version that `ResumeInFlight` marks failed.
+- `internal/handlers/api/assets.go` `cleanupFailedUpload` — why best-effort
+  delete: an upload failure after row creation would otherwise leave orphan
+  asset/version/import rows.
+- `internal/services/extract/unitypackage.go` `EntryMeta` — why archive-level
+  only (no per-entry filename): the pathname sidecar entry may arrive after the
+  asset entry in the tar stream, so it is not reliably known when the content
+  blob is written.
