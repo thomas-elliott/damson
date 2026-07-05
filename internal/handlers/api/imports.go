@@ -45,7 +45,7 @@ type importListResponse struct {
 func (h *Handler) getImports(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	limit, offset := parsePagination(c)
@@ -67,7 +67,7 @@ func (h *Handler) getImports(c *gin.Context) {
 
 	var total int64
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -89,7 +89,7 @@ func (h *Handler) getImports(c *gin.Context) {
 		Offset(offset).
 		Scan(&rows).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -113,7 +113,7 @@ func (h *Handler) getImports(c *gin.Context) {
 func (h *Handler) getImport(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	id, ok := parseIDParam(c, "id")
@@ -139,7 +139,7 @@ func (h *Handler) getImport(c *gin.Context) {
 		Select("i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at, a.created_at, a.needs_review").
 		Scan(&r).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if r.ID == 0 {
@@ -165,17 +165,17 @@ func (h *Handler) getImport(c *gin.Context) {
 // it to the worker pool — same code path as a first-time upload.
 func (h *Handler) postImportRetry(c *gin.Context) {
 	if h.storage == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
+		respond500(c, errStorageNotConfigured)
 		return
 	}
 	if h.importPool == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "import pool not configured"})
+		respond500(c, errImportPoolNotConfigured)
 		return
 	}
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	if lib == nil || u == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	id, ok := parseIDParam(c, "id")
@@ -190,12 +190,12 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	var asset models.Asset
 	if err := h.db.WithContext(c.Request.Context()).First(&asset, imp.AssetID).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if asset.LibraryID != lib.ID {
@@ -216,7 +216,7 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		Order("import_date DESC").
 		First(&version).Error
 	if verr != nil && !errors.Is(verr, gorm.ErrRecordNotFound) {
-		respond500(c)
+		respond500(c, verr)
 		return
 	}
 
@@ -249,7 +249,7 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 
 	nextLabel, nlErr := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
 	if nlErr != nil {
-		respond500(c)
+		respond500(c, nlErr)
 		return
 	}
 
@@ -278,7 +278,7 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -297,12 +297,12 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 // from the broadcaster until the client disconnects.
 func (h *Handler) getImportEvents(c *gin.Context) {
 	if h.broadcaster == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "broadcaster not configured"})
+		respond500(c, errBroadcasterNotConfigured)
 		return
 	}
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	streamImportEvents(c, h, lib.ID, 0)
@@ -313,12 +313,12 @@ func (h *Handler) getImportEvents(c *gin.Context) {
 // done without subscribing to the entire library feed.
 func (h *Handler) getImportEventsByID(c *gin.Context) {
 	if h.broadcaster == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "broadcaster not configured"})
+		respond500(c, errBroadcasterNotConfigured)
 		return
 	}
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	id, ok := parseIDParam(c, "id")
@@ -329,7 +329,7 @@ func (h *Handler) getImportEventsByID(c *gin.Context) {
 	// will only ever receive other libraries' events.
 	_, found, err := imports.LoadEvent(c.Request.Context(), h.db, lib.ID, id)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if !found {

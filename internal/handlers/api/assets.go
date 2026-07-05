@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -181,7 +182,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 func (h *Handler) getAssets(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	limit, offset := parsePagination(c)
@@ -192,7 +193,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 	var total int64
 	// Clone before adding SELECT/GROUP so Count runs cleanly.
 	if err := base.Session(&gorm.Session{}).Distinct("a.id").Count(&total).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -227,7 +228,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		Offset(offset).
 		Scan(&rows).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -281,17 +282,17 @@ type importResponse struct {
 // to /api/imports/events for stage transitions.
 func (h *Handler) postImport(c *gin.Context) {
 	if h.storage == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
+		respond500(c, errStorageNotConfigured)
 		return
 	}
 	if h.importPool == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "import pool not configured"})
+		respond500(c, errImportPoolNotConfigured)
 		return
 	}
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	if lib == nil || u == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 
@@ -309,8 +310,7 @@ func (h *Handler) postImport(c *gin.Context) {
 
 	objectKey, size, err := h.storage.PutBlob(c.Request.Context(), src)
 	if err != nil {
-		slog.Warn("storage put failed", "err", err, "library_id", lib.ID)
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage put failed"})
+		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
 		return
 	}
 
@@ -380,7 +380,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 
@@ -395,13 +395,13 @@ func (h *Handler) postImport(c *gin.Context) {
 // current_version_id switches to the new version.
 func (h *Handler) postReExtract(c *gin.Context) {
 	if h.storage == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
+		respond500(c, errStorageNotConfigured)
 		return
 	}
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	if lib == nil || u == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 
@@ -423,7 +423,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 
@@ -436,7 +436,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage {
@@ -446,7 +446,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 
 	blob, err := h.storage.GetBlob(c.Request.Context(), source.OriginalPackageObjectKey)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 	defer blob.Close()
@@ -460,7 +460,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 
 	nextLabel, err := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 
@@ -502,7 +502,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 

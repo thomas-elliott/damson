@@ -59,7 +59,7 @@ func (h *Handler) requireLibrary() gin.HandlerFunc {
 			Limit(1).
 			Scan(&row).Error
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			respond500(c, err)
 			return
 		}
 		if row.LibraryID == 0 {

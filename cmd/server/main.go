@@ -5,12 +5,16 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +25,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/db"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
+	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
@@ -137,8 +142,9 @@ func main() {
 	go purger.Run(purgeCtx)
 
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(requestID())
 	r.Use(requestLogger())
+	r.Use(gin.CustomRecovery(recoveryHandler))
 	r.Use(securityHeaders(oidcCSPOrigin(cfg)))
 	r.Use(jsonBodyCap(maxJSONBodyBytes))
 
@@ -293,9 +299,60 @@ func jsonBodyCap(limit int64) gin.HandlerFunc {
 	}
 }
 
-// requestLogger emits one slog line per HTTP request with method, path,
-// status, and duration. 5xx logs at error, 4xx at warn, everything else info.
-// Deliberately minimal — no request bodies, no headers (don't leak tokens).
+const (
+	requestIDHeader = "X-Request-Id"
+	requestIDKey    = "damson.request_id"
+
+	// Mirror the unexported context keys set by the auth / api packages.
+	userContextKey    = "damson.user"
+	libraryContextKey = "damson.library"
+)
+
+// requestID honours an inbound X-Request-Id (so a correlation id set by a
+// reverse proxy or the SPA survives) and otherwise mints one. It's stored on
+// the context and echoed on the response so a client can quote it in a bug
+// report.
+func requestID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.GetHeader(requestIDHeader)
+		if id == "" {
+			id = newRequestID()
+		}
+		c.Set(requestIDKey, id)
+		c.Header(requestIDHeader, id)
+		c.Next()
+	}
+}
+
+func newRequestID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "unknown"
+	}
+	return hex.EncodeToString(b[:])
+}
+
+// recoveryHandler converts a handler panic into a structured error log with a
+// stack trace and attaches it to c.Errors so requestLogger surfaces it on the
+// request line, then responds 500.
+func recoveryHandler(c *gin.Context, recovered any) {
+	err := fmt.Errorf("panic: %v", recovered)
+	_ = c.Error(err)
+	slog.Error("panic recovered",
+		"err", err,
+		"method", c.Request.Method,
+		"path", c.Request.URL.Path,
+		"request_id", c.GetString(requestIDKey),
+		"stack", string(debug.Stack()),
+	)
+	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+}
+
+// requestLogger emits one slog line per HTTP request. 5xx logs at error, 4xx
+// at warn, everything else info. On 4xx/5xx it surfaces the cause(s) that
+// handlers attached via respond400/respond500 (c.Errors), so an error is no
+// longer swallowed behind a bare status. No request bodies or headers (don't
+// leak tokens).
 func requestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -306,6 +363,24 @@ func requestLogger() gin.HandlerFunc {
 			"path", c.Request.URL.Path,
 			"status", status,
 			"duration_ms", time.Since(start).Milliseconds(),
+			"remote_ip", c.ClientIP(),
+			"request_id", c.GetString(requestIDKey),
+		}
+		if n := c.Writer.Size(); n >= 0 {
+			attrs = append(attrs, "bytes_out", n)
+		}
+		if u, ok := c.Get(userContextKey); ok {
+			if user, ok := u.(*models.User); ok && user != nil {
+				attrs = append(attrs, "user_id", user.ID)
+			}
+		}
+		if l, ok := c.Get(libraryContextKey); ok {
+			if lib, ok := l.(*models.Library); ok && lib != nil {
+				attrs = append(attrs, "library_id", lib.ID)
+			}
+		}
+		if len(c.Errors) > 0 {
+			attrs = append(attrs, "err", strings.Join(c.Errors.Errors(), "; "))
 		}
 		switch {
 		case status >= 500:
@@ -328,9 +403,34 @@ func newLogger() *slog.Logger {
 	case "error":
 		level = slog.LevelError
 	}
-	opts := &slog.HandlerOptions{Level: level}
+	opts := &slog.HandlerOptions{Level: level, AddSource: true}
+	var h slog.Handler
 	if os.Getenv("DAMSON_LOG_FORMAT") == "text" {
-		return slog.New(slog.NewTextHandler(os.Stdout, opts))
+		h = slog.NewTextHandler(os.Stdout, opts)
+	} else {
+		h = slog.NewJSONHandler(os.Stdout, opts)
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	return slog.New(h).With("service", "damson", "version", readVersion())
+}
+
+// readVersion returns a best-effort build identifier for the version log
+// field: the module version when built with `go install`, else the VCS
+// revision `go build` stamps, else "dev".
+func readVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	if info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	for _, s := range info.Settings {
+		if s.Key == "vcs.revision" && s.Value != "" {
+			if len(s.Value) > 12 {
+				return s.Value[:12]
+			}
+			return s.Value
+		}
+	}
+	return "dev"
 }

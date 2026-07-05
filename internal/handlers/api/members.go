@@ -54,7 +54,7 @@ func (h *Handler) getLibraryMembers(c *gin.Context) {
 		Order("u.display_name").
 		Scan(&rows).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	out := make([]memberView, len(rows))
@@ -137,12 +137,12 @@ func (h *Handler) postLibraryMember(c *gin.Context) {
 				respond400(c, cErr)
 				return
 			}
-			respond500(c)
+			respond500(c, cErr)
 			return
 		}
 		u = *created
 	case err != nil:
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -156,7 +156,7 @@ func (h *Handler) postLibraryMember(c *gin.Context) {
 		return
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -189,7 +189,7 @@ func (h *Handler) postLibraryMember(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -240,7 +240,7 @@ func (h *Handler) patchLibraryMember(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if mem.Role == "admin" && role != "admin" {
@@ -249,7 +249,7 @@ func (h *Handler) patchLibraryMember(c *gin.Context) {
 			Model(&models.LibraryMembership{}).
 			Where("library_id = ? AND role = ?", libID, "admin").
 			Count(&adminCount).Error; err != nil {
-			respond500(c)
+			respond500(c, err)
 			return
 		}
 		if adminCount <= 1 {
@@ -279,7 +279,7 @@ func (h *Handler) patchLibraryMember(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"user_id": userID, "role": role})
@@ -311,7 +311,7 @@ func (h *Handler) deleteLibraryMember(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if mem.Role == "admin" {
@@ -320,7 +320,7 @@ func (h *Handler) deleteLibraryMember(c *gin.Context) {
 			Model(&models.LibraryMembership{}).
 			Where("library_id = ? AND role = ?", libID, "admin").
 			Count(&adminCount).Error; err != nil {
-			respond500(c)
+			respond500(c, err)
 			return
 		}
 		if adminCount <= 1 {
@@ -367,7 +367,7 @@ func (h *Handler) deleteLibraryMember(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)

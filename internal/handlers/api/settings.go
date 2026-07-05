@@ -46,7 +46,7 @@ func (h *Handler) getLibrarySettings(c *gin.Context) {
 	lib := getLibrary(c)
 	s, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, settingsViewFrom(s))
@@ -126,7 +126,7 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, settingsViewFrom(&out))

@@ -30,7 +30,7 @@ func (h *Handler) getAdminUsers(c *gin.Context) {
 	if err := h.db.WithContext(c.Request.Context()).
 		Order("display_name").
 		Find(&users).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	out := make([]adminUserView, len(users))
@@ -73,7 +73,7 @@ func (h *Handler) patchAdminUser(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -92,7 +92,7 @@ func (h *Handler) patchAdminUser(c *gin.Context) {
 				Model(&models.User{}).
 				Where("role = ?", "sysadmin").
 				Count(&sysCount).Error; err != nil {
-				respond500(c)
+				respond500(c, err)
 				return
 			}
 			if sysCount <= 1 {
@@ -114,7 +114,7 @@ func (h *Handler) patchAdminUser(c *gin.Context) {
 		}
 		// Reload to pick up the freshly-rotated TokensValidAfter.
 		if err := h.db.WithContext(c.Request.Context()).First(&u, id).Error; err != nil {
-			respond500(c)
+			respond500(c, err)
 			return
 		}
 	}
@@ -150,7 +150,7 @@ func (h *Handler) patchAdminUser(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, adminUserView{
@@ -172,7 +172,7 @@ func (h *Handler) getServerSettings(c *gin.Context) {
 	}
 	s, err := loadOrCreateServerSettings(h.db.WithContext(c.Request.Context()))
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, serverSettingsView{
@@ -234,7 +234,7 @@ func (h *Handler) patchServerSettings(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, serverSettingsView{

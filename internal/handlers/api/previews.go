@@ -26,12 +26,12 @@ type previewQueueResponse struct {
 func (h *Handler) getPreviewQueue(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	events, err := preview.InFlight(c.Request.Context(), h.db, lib.ID)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, previewQueueResponse{Previews: events, Total: len(events)})
@@ -44,7 +44,7 @@ func (h *Handler) getPreviewQueue(c *gin.Context) {
 func (h *Handler) postAssetPreviewRequeue(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	id, ok := parseIDParam(c, "id")
@@ -69,7 +69,7 @@ func (h *Handler) postAssetPreviewRequeue(c *gin.Context) {
 
 	queued, err := preview.MarkVersionQueued(c.Request.Context(), h.db, *asset.CurrentVersionID, 0)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if h.previewPool != nil {
@@ -88,7 +88,7 @@ func (h *Handler) postAssetPreviewRequeue(c *gin.Context) {
 func (h *Handler) postFilePreviewRequeue(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	id, ok := parseIDParam(c, "id")
@@ -130,7 +130,7 @@ func (h *Handler) postFilePreviewRequeue(c *gin.Context) {
 	}
 
 	if _, err := preview.MarkVersionQueued(c.Request.Context(), h.db, *asset.CurrentVersionID, file.ID); err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if h.previewPool != nil {
@@ -149,7 +149,7 @@ func (h *Handler) postFilePreviewRequeue(c *gin.Context) {
 func (h *Handler) previewsEnabled(c *gin.Context, libraryID uint) bool {
 	settings, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), libraryID)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return false
 	}
 	if !settings.PreviewsEnabled {
@@ -164,12 +164,12 @@ func (h *Handler) previewsEnabled(c *gin.Context, libraryID uint) bool {
 // then forward events until the client disconnects.
 func (h *Handler) getPreviewEvents(c *gin.Context) {
 	if h.previewBroadcaster == nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "preview broadcaster not configured"})
+		respond500(c, errPreviewBroadcasterNotConfigured)
 		return
 	}
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 
