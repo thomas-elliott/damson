@@ -481,7 +481,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
-	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage {
+	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage || source.OriginalPackagePurged {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "source version has no retained package"})
 		return
 	}
