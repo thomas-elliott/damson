@@ -105,7 +105,15 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		if gerr != nil {
 			return fail("fetch blob: " + gerr.Error())
 		}
-		ex := &extract.UnityExtractor{Storage: deps.Storage}
+		ex := &extract.UnityExtractor{
+			Storage: deps.Storage,
+			EntryMeta: storage.ObjectMeta{
+				LibraryID: jc.libraryID,
+				AssetID:   jc.asset.ID,
+				VersionID: jc.version.ID,
+				Kind:      "unitypackage-asset",
+			},
+		}
 		res, xerr := ex.Extract(ctx, blob)
 		blob.Close()
 		if xerr != nil {
