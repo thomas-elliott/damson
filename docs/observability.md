@@ -39,29 +39,34 @@ Import pipeline failures are logged at `error` with `import_id` and
 `library_id` (`internal/services/imports/worker.go`); the per-stage failure
 reason is also persisted to `asset_imports.error` and streamed over SSE.
 
-## Shipping to VictoriaLogs (Grafana Alloy)
+## Shipping to VictoriaLogs
 
-The stdout JSON is collected by Alloy and pushed to VictoriaLogs' Loki
-endpoint, which auto-parses the JSON line into queryable fields. See
-[`deploy/alloy/config.alloy`](../deploy/alloy/config.alloy). The ingest URL
-maps slog's `msg`/`time` onto VL's native `_msg`/`_time` and uses `service` as
-the single stream field.
+Damson runs on the k8s cluster, where the cluster-wide Alloy collector
+(the `k8s-monitoring` chart) already tails every pod's stdout and pushes it to
+VictoriaLogs — no per-app collector or config is needed. VictoriaLogs
+auto-parses the JSON line into queryable fields, and the cluster ingest URL's
+`_msg_field` list includes `msg`, so slog's message maps onto VL's native
+`_msg`. The remaining slog keys (`level`, `status`, `path`, `duration_ms`,
+`request_id`, `err`, …) become queryable fields as-is.
+
+Logs are scoped by k8s namespace: `damson-prod` (prod) and `damson-test`
+(test).
 
 ### Useful LogsQL queries
 
 ```logsql
 # Every server error with its cause and correlation id
-status:>=500 | fields _time, path, err, request_id, user_id
+namespace:="damson-prod" status:>=500 | fields _time, path, err, request_id, user_id
 
 # Trace one request end-to-end
-request_id:"<id from the X-Request-Id response header>"
+namespace:="damson-prod" request_id:"<id from the X-Request-Id response header>"
 
 # Upload failures (the POST /api/imports handler + async pipeline)
-path:"/api/imports" status:>=500 | fields _time, err, request_id
+namespace:="damson-prod" path:"/api/imports" status:>=500 | fields _time, err, request_id
 
 # Async import pipeline failures
-msg:"import pipeline failed" | fields _time, import_id, library_id, err
+namespace:="damson-prod" msg:"import pipeline failed" | fields _time, import_id, library_id, err
 
 # Slowest requests in the last hour
-_time:1h | sort by (duration_ms desc) | limit 20
+namespace:="damson-prod" _time:1h | sort by (duration_ms desc) | limit 20
 ```
