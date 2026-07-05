@@ -34,6 +34,8 @@ import {
 } from "@/hooks/useMutations";
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
+import { StorageCleanupSection } from "./StorageCleanupSection";
+
 type ServerSettings = NonNullable<ReturnType<typeof useServerSettings>["data"]>;
 
 /**
@@ -47,6 +49,7 @@ export function ServerAdminSection() {
     <>
       <ServerSettingsForm />
       <UsersSection />
+      <StorageCleanupSection />
     </>
   );
 }
