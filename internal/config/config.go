@@ -75,6 +75,12 @@ type Config struct {
 	// Defaults to 24h; an unparseable or non-positive value falls back to
 	// the default.
 	AuditPurgeInterval time.Duration
+
+	// OrphanMinAge is the minimum age an object must reach before the manual
+	// storage-cleanup sweep will consider it orphaned. It guards against
+	// deleting in-flight uploads whose DB rows have not yet committed. Defaults
+	// to 7 days; an unparseable or non-positive value falls back to the default.
+	OrphanMinAge time.Duration
 }
 
 func Load() Config {
@@ -106,6 +112,7 @@ func Load() Config {
 		GinMode:            os.Getenv("GIN_MODE"),
 		ImportWorkers:      parseImportWorkers(os.Getenv("DAMSON_IMPORT_WORKERS")),
 		AuditPurgeInterval: parseAuditPurgeInterval(os.Getenv("DAMSON_AUDIT_PURGE_INTERVAL")),
+		OrphanMinAge:       parseOrphanMinAge(os.Getenv("DAMSON_ORPHAN_MIN_AGE")),
 	}
 
 	switch authMode {
@@ -214,6 +221,21 @@ func parseAuditPurgeInterval(raw string) time.Duration {
 	d, err := time.ParseDuration(raw)
 	if err != nil || d <= 0 {
 		return defaultAuditPurgeInterval
+	}
+	return d
+}
+
+const defaultOrphanMinAge = 7 * 24 * time.Hour
+
+// parseOrphanMinAge reads DAMSON_ORPHAN_MIN_AGE as a Go duration string.
+// Empty / unparseable / non-positive values fall back to defaultOrphanMinAge.
+func parseOrphanMinAge(raw string) time.Duration {
+	if raw == "" {
+		return defaultOrphanMinAge
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return defaultOrphanMinAge
 	}
 	return d
 }

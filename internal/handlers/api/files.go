@@ -66,15 +66,16 @@ func (h *Handler) getFile(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
+	fromOriginal := false
 	if ref.RelativePath == "" {
 		// Also check original_package_object_key — Unity originals don't have
-		// asset_files rows.
+		// asset_files rows and live under the originals/ prefix.
 		var asset models.Asset
 		err := h.db.WithContext(c.Request.Context()).
 			Table("assets AS a").
 			Select("a.name").
 			Joins("JOIN asset_versions v ON v.asset_id = a.id").
-			Where("a.library_id = ? AND v.original_package_object_key = ?", lib.ID, key).
+			Where("a.library_id = ? AND v.original_package_object_key = ? AND v.package_kind IN ? AND v.original_package_purged = false", lib.ID, key, []string{"unitypackage", "zip"}).
 			Limit(1).
 			Scan(&asset).Error
 		if err != nil {
@@ -86,14 +87,19 @@ func (h *Handler) getFile(c *gin.Context) {
 			return
 		}
 		ref.RelativePath = asset.Name + ".unitypackage"
+		fromOriginal = true
 	}
 
-	size, exists, herr := h.storage.HeadBlob(c.Request.Context(), key)
+	head, get := h.storage.HeadBlob, h.storage.GetBlob
+	if fromOriginal {
+		head, get = h.storage.HeadOriginal, h.storage.GetOriginal
+	}
+	size, exists, herr := head(c.Request.Context(), key)
 	if herr != nil || !exists {
 		respond404(c, "not found")
 		return
 	}
-	r, err := h.storage.GetBlob(c.Request.Context(), key)
+	r, err := get(c.Request.Context(), key)
 	if err != nil {
 		respond404(c, "not found")
 		return
