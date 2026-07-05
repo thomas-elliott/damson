@@ -7,6 +7,11 @@ import (
 	"github.com/thomas-elliott/damson/internal/config"
 )
 
+var (
+	_ Service = (*S3)(nil)
+	_ Service = (*LocalFS)(nil)
+)
+
 // New constructs a Service from the supplied config. Picks between the local
 // filesystem and S3 backends based on cfg.StorageMode.
 func New(ctx context.Context, cfg config.Config) (Service, error) {

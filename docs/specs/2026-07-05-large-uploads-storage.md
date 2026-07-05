@@ -181,3 +181,20 @@ Ordered stages; roughly one commit each.
   and no dual-prefix retrieval fallback needed.
 - **Orphan-GC sweep:** explicitly out of scope; this change only lays the
   groundwork (metadata + `Delete`).
+
+## Deferred comments
+
+- `internal/services/storage/s3.go` `putHashed` — why it streams to a temp file
+  before uploading: bounds resident memory (the old `io.ReadAll` buffered the
+  whole file and OOM'd >500 MB); temp lives in `os.TempDir()` where the deploy
+  mounts a large tmpfs.
+- `internal/services/storage/s3.go` `putHashed` — why `tmp.Seek(0, io.SeekStart)`
+  before `Upload`: the hashing `io.Copy` left the file offset at EOF; the
+  uploader would otherwise send zero bytes.
+- `internal/services/storage/localfs.go` `writeSidecar` — why best-effort (never
+  fails the object write): the sidecar is a fallback aid, not authoritative;
+  the DB remains source of truth.
+- `internal/services/storage/storage.go` `ObjectMeta` — why write-once /
+  first-uploader-wins is acceptable: content-addressed dedup means a shared blob
+  records only the first uploader; this is a DB-loss fallback, not the sweep
+  mechanism.
