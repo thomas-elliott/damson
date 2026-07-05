@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strconv"
 	"time"
@@ -13,8 +14,20 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
+
+func OpenOriginal(ctx context.Context, s storage.Service, v models.AssetVersion) (io.ReadCloser, error) {
+	if isArchiveKind(v.PackageKind) {
+		return s.GetOriginal(ctx, v.OriginalPackageObjectKey)
+	}
+	return s.GetBlob(ctx, v.OriginalPackageObjectKey)
+}
+
+func isArchiveKind(kind string) bool {
+	return kind == "unitypackage" || kind == "zip"
+}
 
 // jobContext holds everything the pipeline needs about a job, hydrated from
 // the database at the start of Run. Centralizing the load makes Run a
@@ -88,7 +101,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 
 	var extracted *extract.UnityResult
 	if jc.isUnity {
-		blob, gerr := deps.Storage.GetBlob(ctx, jc.version.OriginalPackageObjectKey)
+		blob, gerr := OpenOriginal(ctx, deps.Storage, jc.version)
 		if gerr != nil {
 			return fail("fetch blob: " + gerr.Error())
 		}
@@ -125,7 +138,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 				Font:   settings.ThumbnailsFontEnabled,
 			}
 			filename, contentType := looseSourceMetadata(deps.DB.WithContext(ctx), jc.version.ID, jc.asset.Name)
-			blob, bErr := deps.Storage.GetBlob(ctx, jc.version.OriginalPackageObjectKey)
+			blob, bErr := OpenOriginal(ctx, deps.Storage, jc.version)
 			if bErr != nil {
 				slog.Warn("imports: fetch blob for thumbnail", "err", bErr, "object_key", jc.version.OriginalPackageObjectKey)
 			} else {
