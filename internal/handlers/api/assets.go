@@ -309,18 +309,26 @@ func (h *Handler) postImport(c *gin.Context) {
 	}
 	defer src.Close()
 
-	objectKey, size, err := h.storage.PutBlob(c.Request.Context(), src, storage.ObjectMeta{})
-	if err != nil {
-		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
-		return
-	}
-
 	filename := filepath.Base(fh.Filename)
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "upload"
 	}
 	isUnity := strings.EqualFold(filepath.Ext(filename), ".unitypackage")
 	contentType := fh.Header.Get("Content-Type")
+
+	var (
+		objectKey string
+		size      int64
+	)
+	if isUnity {
+		objectKey, size, err = h.storage.PutOriginal(c.Request.Context(), src, storage.ObjectMeta{})
+	} else {
+		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, storage.ObjectMeta{})
+	}
+	if err != nil {
+		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+		return
+	}
 
 	var (
 		assetID  uint
@@ -445,7 +453,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 
-	blob, err := h.storage.GetBlob(c.Request.Context(), source.OriginalPackageObjectKey)
+	blob, err := imports.OpenOriginal(c.Request.Context(), h.storage, source)
 	if err != nil {
 		respond500(c, err)
 		return

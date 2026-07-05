@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/hex"
 	"net/http"
 	"strconv"
@@ -144,6 +145,51 @@ func TestPostImport_UnityPackage_ExtractsFiles(t *testing.T) {
 	// Preview harvested → asset.thumbnail_object_key points into thumbs/.
 	if asset.ThumbnailObjectKey == "" || asset.ThumbnailContentType != "image/png" {
 		t.Fatalf("preview not harvested onto asset: %+v", asset)
+	}
+}
+
+func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+	ctx := context.Background()
+
+	// A Unity archive lands under originals/, never in the blob pool.
+	pkg := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x05), pathname: "Assets/a.bin", content: []byte("a")},
+	})
+	body, ctype := buildMultipart(t, "file", "Kit.unitypackage", pkg)
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	unityResp := jsonResponse[importEnqueueResponse](t, w)
+
+	var uv models.AssetVersion
+	if err := db.Where("asset_id = ?", unityResp.AssetID).First(&uv).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := h.storage.HeadOriginal(ctx, uv.OriginalPackageObjectKey); !ok {
+		t.Fatalf("unity archive not stored under originals/")
+	}
+	if _, ok, _ := h.storage.HeadBlob(ctx, uv.OriginalPackageObjectKey); ok {
+		t.Fatalf("unity archive leaked into blobs/ — routing regressed to PutBlob")
+	}
+
+	// A loose upload's content stays in blobs/ and is absent from originals/.
+	lbody, lctype := buildMultipart(t, "file", "logo.png", []byte("png-bytes"))
+	lw := postMultipart(r, "/api/imports", lbody, lctype)
+	requireStatus(t, lw, http.StatusAccepted)
+	looseResp := jsonResponse[importEnqueueResponse](t, lw)
+
+	var lv models.AssetVersion
+	if err := db.Where("asset_id = ?", looseResp.AssetID).First(&lv).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := h.storage.HeadBlob(ctx, lv.OriginalPackageObjectKey); !ok {
+		t.Fatalf("loose content not stored under blobs/")
+	}
+	if _, ok, _ := h.storage.HeadOriginal(ctx, lv.OriginalPackageObjectKey); ok {
+		t.Fatalf("loose content leaked into originals/")
 	}
 }
 
