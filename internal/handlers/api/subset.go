@@ -28,7 +28,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
 	if lib == nil || u == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	assetID, ok := parseIDParam(c, "id")
@@ -49,7 +49,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	if err := h.db.WithContext(c.Request.Context()).
 		Where("asset_version_id = ? AND id IN ?", source.ID, req.FileIDs).
 		Find(&sourceFiles).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if len(sourceFiles) != len(req.FileIDs) {
@@ -92,7 +92,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	if label == "" {
 		next, err := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
 		if err != nil {
-			respond500(c)
+			respond500(c, err)
 			return
 		}
 		label = next
@@ -148,7 +148,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 

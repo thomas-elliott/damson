@@ -55,7 +55,7 @@ func (h *Handler) getProjects(c *gin.Context) {
 		Order("p.name").
 		Scan(&rows).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	out := make([]projectView, len(rows))
@@ -192,7 +192,7 @@ func (h *Handler) getProject(c *gin.Context) {
 			respond404(c, "project not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -225,7 +225,7 @@ func (h *Handler) getProject(c *gin.Context) {
 		Order("a.name").
 		Scan(&pins).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	out := projectDetailView{

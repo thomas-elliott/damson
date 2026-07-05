@@ -85,7 +85,7 @@ func (h *Handler) getLicence(c *gin.Context) {
 			respond404(c, "asset not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if asset.LicenceID == nil {
@@ -98,7 +98,7 @@ func (h *Handler) getLicence(c *gin.Context) {
 			respond404(c, "no licence")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, licenceViewFrom(&l))
@@ -288,7 +288,7 @@ func (h *Handler) getDetectLicenceFromFiles(c *gin.Context) {
 		return
 	}
 	if h.storage == nil {
-		respond500(c)
+		respond500(c, errStorageNotConfigured)
 		return
 	}
 	var asset models.Asset
@@ -299,7 +299,7 @@ func (h *Handler) getDetectLicenceFromFiles(c *gin.Context) {
 			respond404(c, "asset not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if asset.CurrentVersionID == nil {
@@ -310,7 +310,7 @@ func (h *Handler) getDetectLicenceFromFiles(c *gin.Context) {
 	if err := h.db.WithContext(c.Request.Context()).
 		Where("asset_version_id = ?", *asset.CurrentVersionID).
 		Find(&files).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	candidate := pickLicenceCandidate(files)
@@ -320,7 +320,7 @@ func (h *Handler) getDetectLicenceFromFiles(c *gin.Context) {
 	}
 	blob, err := h.storage.GetBlob(c.Request.Context(), candidate.ObjectKey)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	defer blob.Close()

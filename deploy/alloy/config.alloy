@@ -1,0 +1,50 @@
+// Grafana Alloy -> VictoriaLogs pipeline for Damson.
+//
+// Damson writes structured JSON to stdout (one object per line; keys: time,
+// level, msg, source, service, version, request_id, plus per-event fields).
+// VictoriaLogs' Loki push endpoint auto-parses a JSON log line into queryable
+// fields, so this pipeline just tails the container and forwards the raw
+// lines. The field mapping (which JSON key is the message / timestamp / stream)
+// lives in the ingest URL query params on loki.write below.
+//
+// Run Alloy with access to the Docker socket, e.g.:
+//   docker run -v /var/run/docker.sock:/var/run/docker.sock:ro \
+//     -v ./deploy/alloy/config.alloy:/etc/alloy/config.alloy \
+//     grafana/alloy:latest run /etc/alloy/config.alloy
+
+discovery.docker "all" {
+	host = "unix:///var/run/docker.sock"
+}
+
+// Keep only the Damson container(s). Adjust the regex to match your container
+// or compose service name.
+discovery.relabel "damson" {
+	targets = discovery.docker.all.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = ".*damson.*"
+		action        = "keep"
+	}
+}
+
+loki.source.docker "damson" {
+	host    = "unix:///var/run/docker.sock"
+	targets = discovery.relabel.damson.output
+
+	// `service` becomes the log stream field (see _stream_fields below). Keep
+	// it low-cardinality — one value per logical service.
+	labels     = { service = "damson" }
+	forward_to = [loki.write.victorialogs.receiver]
+}
+
+loki.write "victorialogs" {
+	endpoint {
+		// _msg_field / _time_field map slog's default JSON keys (msg, time)
+		// onto VictoriaLogs' native _msg / _time. _stream_fields keeps stream
+		// cardinality low (one stream per service). Do NOT append
+		// disable_message_parsing — we rely on VL expanding the JSON line into
+		// individual fields (status, err, request_id, path, ...).
+		url = "http://victorialogs:9428/insert/loki/api/v1/push?_msg_field=msg&_time_field=time&_stream_fields=service"
+	}
+}

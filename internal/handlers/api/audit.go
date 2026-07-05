@@ -174,7 +174,7 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 func (h *Handler) getLibraryAudit(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	f := parseAuditFilters(c)
@@ -185,7 +185,7 @@ func (h *Handler) getLibraryAudit(c *gin.Context) {
 		Where("a.library_id = ?", lib.ID)
 	entries, total, err := loadAuditPage(c, base, f, limit, offset, false)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, auditListResponse{Entries: entries, Total: total})
@@ -197,7 +197,7 @@ func (h *Handler) getLibraryAudit(c *gin.Context) {
 func (h *Handler) getAssetAudit(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	id, ok := parseIDParam(c, "id")
@@ -213,7 +213,7 @@ func (h *Handler) getAssetAudit(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -224,7 +224,7 @@ func (h *Handler) getAssetAudit(c *gin.Context) {
 		Where("a.library_id = ? AND a.target_type = ? AND a.target_id = ?", lib.ID, "asset", asset.ID)
 	entries, total, err := loadAuditPage(c, base, f, limit, offset, false)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, auditListResponse{Entries: entries, Total: total})
@@ -235,7 +235,7 @@ func (h *Handler) getAssetAudit(c *gin.Context) {
 func (h *Handler) getProjectAudit(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
-		respond500(c)
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
 	id, ok := parseIDParam(c, "id")
@@ -251,7 +251,7 @@ func (h *Handler) getProjectAudit(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -262,7 +262,7 @@ func (h *Handler) getProjectAudit(c *gin.Context) {
 		Where("a.library_id = ? AND a.target_type = ? AND a.target_id = ?", lib.ID, "project", project.ID)
 	entries, total, err := loadAuditPage(c, base, f, limit, offset, false)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, auditListResponse{Entries: entries, Total: total})
@@ -294,7 +294,7 @@ func (h *Handler) getAdminAudit(c *gin.Context) {
 	}
 	entries, total, err := loadAuditPage(c, base, f, limit, offset, includeLibraryName)
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, auditListResponse{Entries: entries, Total: total})

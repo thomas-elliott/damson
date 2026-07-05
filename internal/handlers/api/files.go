@@ -63,7 +63,7 @@ func (h *Handler) getFile(c *gin.Context) {
 		Limit(1).
 		Scan(&ref).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if ref.RelativePath == "" {
@@ -78,7 +78,7 @@ func (h *Handler) getFile(c *gin.Context) {
 			Limit(1).
 			Scan(&asset).Error
 		if err != nil {
-			respond500(c)
+			respond500(c, err)
 			return
 		}
 		if asset.Name == "" {
@@ -128,7 +128,7 @@ func (h *Handler) getThumb(c *gin.Context) {
 			respond404(c, "not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	size, exists, herr := h.storage.HeadBlob(c.Request.Context(), key)
@@ -178,7 +178,7 @@ func (h *Handler) getPreview(c *gin.Context) {
 		Limit(1).
 		Scan(&ref).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	if ref.PreviewObjectKey == "" {
