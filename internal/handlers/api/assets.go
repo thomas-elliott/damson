@@ -17,6 +17,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
 type assetGridRow struct {
@@ -308,7 +309,7 @@ func (h *Handler) postImport(c *gin.Context) {
 	}
 	defer src.Close()
 
-	objectKey, size, err := h.storage.PutBlob(c.Request.Context(), src)
+	objectKey, size, err := h.storage.PutBlob(c.Request.Context(), src, storage.ObjectMeta{})
 	if err != nil {
 		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
 		return

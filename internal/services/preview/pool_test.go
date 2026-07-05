@@ -28,7 +28,7 @@ func seedRenderableFile(t *testing.T, db *gorm.DB, store storage.Service, librar
 	if err := bmp.Encode(&buf, img); err != nil {
 		t.Fatalf("encode bmp: %v", err)
 	}
-	key, _, err := store.PutBlob(context.Background(), bytes.NewReader(buf.Bytes()))
+	key, _, err := store.PutBlob(context.Background(), bytes.NewReader(buf.Bytes()), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put blob: %v", err)
 	}
