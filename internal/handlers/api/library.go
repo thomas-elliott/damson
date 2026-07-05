@@ -47,7 +47,7 @@ func (h *Handler) getLibraries(c *gin.Context) {
 		Order("l.name").
 		Scan(&rows).Error
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 
@@ -118,7 +118,7 @@ func (h *Handler) postLibrary(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{
@@ -156,7 +156,7 @@ func (h *Handler) patchLibrary(c *gin.Context) {
 			respond404(c, "library not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	before := map[string]any{}
@@ -198,7 +198,7 @@ func (h *Handler) patchLibrary(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -396,13 +396,13 @@ func (h *Handler) postCurrentLibrary(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 
 	u.CurrentLibraryID = &req.LibraryID
 	if err := h.db.WithContext(c.Request.Context()).Save(u).Error; err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"library_id": req.LibraryID})

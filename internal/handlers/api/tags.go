@@ -40,7 +40,7 @@ func (h *Handler) getTags(c *gin.Context) {
 		Order("t.path").
 		Scan(&rows).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	out := make([]tagView, len(rows))
@@ -104,7 +104,7 @@ func (h *Handler) postTag(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{

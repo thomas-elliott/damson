@@ -89,7 +89,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 			respond404(c, "asset not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		Order("v.import_date DESC").
 		Scan(&versions).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	for _, v := range versions {
@@ -161,7 +161,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 			Where("asset_version_id = ?", *asset.CurrentVersionID).
 			Order("relative_path").
 			Find(&files).Error; err != nil {
-			respond500(c)
+			respond500(c, err)
 			return
 		}
 		for _, f := range files {
@@ -191,7 +191,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		Where("at.asset_id = ?", asset.ID).
 		Order("t.path").
 		Scan(&tagRows).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	for _, t := range tagRows {
@@ -222,7 +222,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		Joins("JOIN asset_versions v ON v.id = pin.pinned_version_id").
 		Where("pin.asset_id = ? AND p.library_id = ?", asset.ID, lib.ID).
 		Scan(&pins).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	for _, p := range pins {
@@ -246,7 +246,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		Joins("JOIN collections c ON c.id = ca.collection_id").
 		Where("ca.asset_id = ? AND c.library_id = ?", asset.ID, lib.ID).
 		Scan(&collRows).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	for _, cv := range collRows {

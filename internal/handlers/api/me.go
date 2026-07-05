@@ -79,7 +79,7 @@ func (h *Handler) patchMe(c *gin.Context) {
 			"email":        email,
 			"display_name": displayName,
 		}).Error; err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 	u.Email = email
@@ -126,7 +126,7 @@ func (h *Handler) respondMe(c *gin.Context, u *models.User) {
 			// from. Omit the block so the SPA surfaces the "no library access
 			// yet" state.
 		default:
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			respond500(c, err)
 			return
 		}
 	}

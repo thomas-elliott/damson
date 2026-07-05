@@ -53,7 +53,7 @@ func (h *Handler) getAuthMode(c *gin.Context) {
 	case config.AuthModeLocal:
 		var n int64
 		if err := h.db.WithContext(c.Request.Context()).Model(&models.User{}).Count(&n).Error; err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			respond500(c, err)
 			return
 		}
 		resp.NeedsBootstrap = n == 0
@@ -92,7 +92,7 @@ func (h *Handler) postAuthLogin(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, loginResponse{Token: token, ExpiresAt: exp})
@@ -117,7 +117,7 @@ func (h *Handler) postAuthRefresh(c *gin.Context) {
 	}
 	token, exp, err := h.local.Refresh(u)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, loginResponse{Token: token, ExpiresAt: exp})
@@ -155,7 +155,7 @@ func (h *Handler) postAuthBootstrap(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 
@@ -164,7 +164,7 @@ func (h *Handler) postAuthBootstrap(c *gin.Context) {
 	// hashed this password, so it will succeed.
 	token, exp, err := h.local.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, loginResponse{Token: token, ExpiresAt: exp})

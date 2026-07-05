@@ -43,7 +43,7 @@ func (h *Handler) getCollections(c *gin.Context) {
 		Order("c.name").
 		Scan(&rows).Error
 	if err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	out := make([]collectionView, len(rows))
@@ -123,7 +123,7 @@ func (h *Handler) getCollection(c *gin.Context) {
 			respond404(c, "collection not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	var count int64
@@ -131,7 +131,7 @@ func (h *Handler) getCollection(c *gin.Context) {
 		Model(&models.CollectionAsset{}).
 		Where("collection_id = ?", coll.ID).
 		Count(&count).Error; err != nil {
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, collectionView{
@@ -281,7 +281,7 @@ func (h *Handler) postCollectionAsset(c *gin.Context) {
 			respond404(c, "collection or asset not found")
 			return
 		}
-		respond500(c)
+		respond500(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)

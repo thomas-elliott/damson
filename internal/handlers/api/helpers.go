@@ -3,22 +3,38 @@ package api
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-// respond500 writes the canonical generic 500 body. Don't leak internals.
-func respond500(c *gin.Context) {
+// Sentinels for the "should never happen" context/config guards so a swept
+// respond500 always carries a non-nil, greppable cause into the request log.
+var (
+	errRequestContextIncomplete        = errors.New("required request context missing")
+	errStorageNotConfigured            = errors.New("storage not configured")
+	errImportPoolNotConfigured         = errors.New("import pool not configured")
+	errBroadcasterNotConfigured        = errors.New("broadcaster not configured")
+	errPreviewBroadcasterNotConfigured = errors.New("preview broadcaster not configured")
+)
+
+// respond500 attaches the real cause to c.Errors (surfaced on the request
+// log line by requestLogger) and writes the canonical generic 500 body.
+// Don't leak internals in the response; the cause goes to the logs only.
+func respond500(c *gin.Context, err error) {
+	if err != nil {
+		_ = c.Error(err)
+	}
 	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 }
 
-// respond400 logs the real error and responds with err.Error() per
-// CONVENTIONS.md ("400 includes err.Error()").
+// respond400 attaches the real error (surfaced on the request log line) and
+// responds with err.Error() per CONVENTIONS.md ("400 includes err.Error()").
 func respond400(c *gin.Context, err error) {
-	slog.Warn("400 bad request", "path", c.FullPath(), "err", err)
+	if err != nil {
+		_ = c.Error(err)
+	}
 	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 }
 
@@ -72,7 +88,7 @@ func respondGORM(c *gin.Context, err error, notFoundMsg string) {
 	case errors.Is(err, errConflict):
 		respond409(c, trimSentinelPrefix(err.Error(), "conflict: "))
 	default:
-		respond500(c)
+		respond500(c, err)
 	}
 }
 

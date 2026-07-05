@@ -80,7 +80,7 @@ func (p *Pool) worker() {
 	for job := range p.jobs {
 		ctx := context.Background()
 		if err := Run(ctx, p.deps, job); err != nil {
-			slog.Warn("import pipeline failed", "import_id", job.ImportID, "err", err)
+			slog.Error("import pipeline failed", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
 		}
 	}
 }
@@ -90,7 +90,7 @@ func (p *Pool) worker() {
 func (p *Pool) Enqueue(job Job) {
 	if p.sync {
 		if err := Run(context.Background(), p.deps, job); err != nil {
-			slog.Warn("sync import pipeline failed", "import_id", job.ImportID, "err", err)
+			slog.Error("sync import pipeline failed", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
 		}
 		return
 	}
