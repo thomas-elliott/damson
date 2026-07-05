@@ -210,3 +210,13 @@ Ordered stages; roughly one commit each.
   only (no per-entry filename): the pathname sidecar entry may arrive after the
   asset entry in the tar stream, so it is not reliably known when the content
   blob is written.
+- `internal/services/imports/pipeline.go` `maybePurgeOriginal` — why the
+  live-referrer count guards `DeleteOriginal`: originals are content-addressed,
+  so the same archive uploaded to another asset shares one object; only delete
+  when no non-purged version still needs it. The per-version purged flag is set
+  regardless.
+- `internal/services/imports/pipeline.go` — why the purge runs after the import
+  is marked `StageDone`: a crash between purge and Done would otherwise make
+  `ResumeInFlight` re-run extraction against a deleted original and fail an
+  otherwise-complete asset; deferring past Done makes the crash window leave a
+  lingering object (future orphan-GC territory) instead.

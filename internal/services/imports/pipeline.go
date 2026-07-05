@@ -211,7 +211,45 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return fail("finalize done: " + err.Error())
 	}
 	publish(StageDone, "")
+
+	if jc.isUnity {
+		maybePurgeOriginal(ctx, deps, jc)
+	}
 	return nil
+}
+
+func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
+	if jc.version.OriginalPackageObjectKey == "" {
+		return
+	}
+	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	if err != nil {
+		slog.Warn("imports: load settings for purge", "err", err, "library_id", jc.libraryID)
+		return
+	}
+	if settings.RetainOriginalPackages {
+		return
+	}
+
+	var liveReferrers int64
+	if err := deps.DB.WithContext(ctx).Model(&models.AssetVersion{}).
+		Where("original_package_object_key = ? AND id <> ? AND original_package_purged = ?",
+			jc.version.OriginalPackageObjectKey, jc.version.ID, false).
+		Count(&liveReferrers).Error; err != nil {
+		slog.Warn("imports: count original referrers", "err", err, "version_id", jc.version.ID)
+		return
+	}
+	if liveReferrers == 0 {
+		if err := deps.Storage.DeleteOriginal(ctx, jc.version.OriginalPackageObjectKey); err != nil {
+			slog.Warn("imports: purge original blob", "err", err, "object_key", jc.version.OriginalPackageObjectKey)
+			return
+		}
+	}
+	if err := deps.DB.WithContext(ctx).Model(&models.AssetVersion{}).
+		Where("id = ?", jc.version.ID).
+		Update("original_package_purged", true).Error; err != nil {
+		slog.Warn("imports: mark original purged", "err", err, "version_id", jc.version.ID)
+	}
 }
 
 // enqueuePreviews hands a committed version off to the preview processing queue.
