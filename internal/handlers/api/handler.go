@@ -29,6 +29,7 @@ type Handler struct {
 	broadcaster        *imports.Broadcaster
 	previewPool        *preview.Pool
 	previewBroadcaster *preview.Broadcaster
+	orphanMinAge       time.Duration
 	// oidcAuthority / oidcClientID are the non-secret OIDC client config
 	// echoed to the SPA via /api/auth/mode in OIDC mode, so the browser
 	// configures oidc-client-ts at runtime instead of baking VITE_OIDC_* at
@@ -58,6 +59,9 @@ type Deps struct {
 	// that don't exercise previews can leave both nil.
 	PreviewPool        *preview.Pool
 	PreviewBroadcaster *preview.Broadcaster
+	// OrphanMinAge is the minimum object age the storage-cleanup sweep respects.
+	// Zero means "use the built-in default" so tests need not set it.
+	OrphanMinAge time.Duration
 	// OIDCAuthority / OIDCClientID are the issuer URL + client_id echoed to
 	// the SPA on /api/auth/mode in OIDC mode (the values the browser needs to
 	// start the auth-code+PKCE flow). Ignored in local mode.
@@ -70,6 +74,10 @@ func New(d Deps) *Handler {
 	if throttle == nil {
 		throttle = auth.NewLoginThrottle(5, time.Minute)
 	}
+	minAge := d.OrphanMinAge
+	if minAge <= 0 {
+		minAge = 7 * 24 * time.Hour
+	}
 	return &Handler{
 		db:                 d.DB,
 		authMode:           d.AuthMode,
@@ -80,6 +88,7 @@ func New(d Deps) *Handler {
 		broadcaster:        d.Broadcaster,
 		previewPool:        d.PreviewPool,
 		previewBroadcaster: d.PreviewBroadcaster,
+		orphanMinAge:       minAge,
 
 		oidcAuthority: d.OIDCAuthority,
 		oidcClientID:  d.OIDCClientID,
@@ -129,6 +138,8 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	authed.GET("/admin/settings", h.getServerSettings)
 	authed.PATCH("/admin/settings", h.patchServerSettings)
 	authed.GET("/admin/audit", h.getAdminAudit)
+	authed.POST("/admin/storage/cleanup/scan", h.postStorageCleanupScan)
+	authed.POST("/admin/storage/cleanup/delete", h.postStorageCleanupDelete)
 
 	// Authenticated + library-scoped
 	scoped := authed.Group("")
