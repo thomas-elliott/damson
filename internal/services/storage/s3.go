@@ -122,9 +122,9 @@ func (s *S3) PresignGet(ctx context.Context, key string, ttl time.Duration) (str
 	return req.URL, nil
 }
 
-// putHashed buffers + hashes before uploading. S3 needs Content-Length and
-// seekable bodies; the streaming variant would need multipart uploads which
-// we defer until real-world sizes justify the complexity.
+// putHashed streams r to a temp file (in os.TempDir()) while hashing, then
+// multipart-uploads the seekable file. Memory stays bounded regardless of
+// upload size.
 func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	tmp, err := os.CreateTemp("", "damson-upload-*")
 	if err != nil {
@@ -157,6 +157,7 @@ func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta Obj
 		return "", 0, err
 	}
 
+	// The hashing io.Copy left the offset at EOF; rewind before the upload.
 	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
 		return "", 0, err
 	}

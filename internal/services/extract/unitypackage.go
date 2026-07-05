@@ -45,6 +45,9 @@ type UnityResult struct {
 type UnityExtractor struct {
 	Storage storage.Service
 
+	// EntryMeta stamps extracted content blobs with archive-level context only:
+	// the per-entry pathname arrives in a separate tar entry that may follow the
+	// content, so it isn't known when the blob is written.
 	EntryMeta storage.ObjectMeta
 
 	// MaxEntrySize caps the uncompressed size of any single tar entry.
