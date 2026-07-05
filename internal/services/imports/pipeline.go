@@ -212,6 +212,8 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	}
 	publish(StageDone, "")
 
+	// Purge only after the import is marked done: a crash before Done would let
+	// ResumeInFlight re-run extraction against an archive we already deleted.
 	if jc.isUnity {
 		maybePurgeOriginal(ctx, deps, jc)
 	}
@@ -239,6 +241,9 @@ func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 		slog.Warn("imports: count original referrers", "err", err, "version_id", jc.version.ID)
 		return
 	}
+	// Originals are content-addressed, so an identical archive uploaded to
+	// another asset shares one object; only delete it when no other live
+	// version still references it. The per-version flag is set regardless.
 	if liveReferrers == 0 {
 		if err := deps.Storage.DeleteOriginal(ctx, jc.version.OriginalPackageObjectKey); err != nil {
 			slog.Warn("imports: purge original blob", "err", err, "object_key", jc.version.OriginalPackageObjectKey)

@@ -46,6 +46,8 @@ const (
 	packageKindLoose        = "loose"
 	packageKindUnityPackage = "unitypackage"
 
+	// MaxBytesReader caps the whole multipart body, not just the file, so the
+	// limit needs headroom for the boundary and part-header framing.
 	multipartOverheadBytes = 1 << 20
 )
 
@@ -337,6 +339,10 @@ func (h *Handler) postImport(c *gin.Context) {
 		packageKind = packageKindUnityPackage
 	}
 
+	// Create the rows before the upload so the object metadata can carry the
+	// asset/version IDs. The version's object key is set after the upload and
+	// the import is enqueued only once it is, so a crash in between leaves a
+	// keyless version that ResumeInFlight fails rather than a live import.
 	var (
 		assetID   uint
 		versionID uint
@@ -434,6 +440,8 @@ func (h *Handler) postImport(c *gin.Context) {
 	c.JSON(http.StatusAccepted, importEnqueueResponse{AssetID: assetID, ImportID: importID})
 }
 
+// cleanupFailedUpload removes the asset/version/import rows created for an
+// upload that then failed to store, so no keyless orphan rows are left behind.
 func (h *Handler) cleanupFailedUpload(ctx context.Context, assetID uint) {
 	db := h.db.WithContext(ctx)
 	if err := db.Where("asset_id = ?", assetID).Delete(&models.AssetImport{}).Error; err != nil {
