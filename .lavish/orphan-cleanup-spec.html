@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Manual Orphan Storage Cleanup — Spec Alignment</title>
+<style>
+  :root {
+    --bg: oklch(0.195 0.006 70); --panel: oklch(0.225 0.006 70);
+    --surface: oklch(0.258 0.007 70); --surface-2: oklch(0.295 0.008 70);
+    --line: oklch(0.325 0.008 70); --line-2: oklch(0.385 0.008 70);
+    --text: oklch(0.93 0.005 80); --text-2: oklch(0.78 0.006 80);
+    --text-3: oklch(0.7 0.006 80); --text-4: oklch(0.6 0.006 80);
+    --accent: oklch(0.82 0.15 86); --accent-2: oklch(0.74 0.15 86);
+    --accent-tint: oklch(0.82 0.15 86 / 0.16); --accent-fg: oklch(0.18 0.02 86);
+    --ok: oklch(0.72 0.12 155); --ok-tint: oklch(0.72 0.12 155 / 0.16);
+    --warn: oklch(0.78 0.13 85); --warn-tint: oklch(0.78 0.13 85 / 0.16);
+    --err: oklch(0.68 0.17 28); --err-tint: oklch(0.68 0.17 28 / 0.16);
+    --unk: oklch(0.72 0.01 80); --unk-tint: oklch(0.72 0.01 80 / 0.2);
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; min-width: 0; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.55; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 28px 140px; }
+  h1 { font-size: 27px; letter-spacing: -0.02em; margin: 0 0 6px; }
+  h2 { font-size: 19px; letter-spacing: -0.01em; margin: 44px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 15px; margin: 22px 0 8px; color: var(--text); }
+  p { color: var(--text-2); margin: 9px 0; }
+  .sub { color: var(--text-3); font-size: 14px; }
+  .mono { font-family: var(--mono); }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--text); }
+  a { color: var(--accent); }
+  .lede { font-size: 15.5px; color: var(--text-2); }
+  .pills { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 4px; }
+  .pill { font-size: 12px; font-family: var(--mono); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--text-3); background: var(--panel); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin: 14px 0; }
+  .card.tight { padding: 14px 16px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px,100%), 1fr)); gap: 14px; }
+  .muted { color: var(--text-3); font-size: 13.5px; }
+  .fl { font-family: var(--mono); font-size: 11.5px; color: var(--text-4); }
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 10px 0 4px; }
+  .step { flex: 1 1 150px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; }
+  .step .k { font-family: var(--mono); font-size: 11px; color: var(--text-4); }
+  .step .v { font-size: 12.5px; color: var(--text-2); margin-top: 3px; }
+  .step.new { border-color: var(--accent-2); background: var(--accent-tint); }
+  .step.new .v { color: var(--text); }
+  .arrow { align-self: center; color: var(--text-4); font-family: var(--mono); }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--text-4); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td .ft { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+  tr:last-child td { border-bottom: none; }
+  .tag { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+  .t-backend { background: var(--accent-tint); color: var(--accent); }
+  .t-ok { background: var(--ok-tint); color: var(--ok); }
+  .t-meta { background: var(--unk-tint); color: var(--text-2); }
+  .t-err { background: var(--err-tint); color: var(--err); }
+  .t-warn { background: var(--warn-tint); color: var(--warn); }
+  .callout { border-left: 3px solid var(--accent-2); background: var(--surface); border-radius: 0 9px 9px 0; padding: 12px 16px; margin: 12px 0; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.warn strong { color: var(--warn); }
+  .callout.err { border-left-color: var(--err); }
+  .callout.err strong { color: var(--err); }
+  .callout strong { color: var(--accent); }
+  ol.stages { list-style: none; counter-reset: s; padding: 0; margin: 12px 0; }
+  ol.stages > li { counter-increment: s; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 14px 18px 14px 54px; margin: 10px 0; }
+  ol.stages > li::before { content: counter(s); position: absolute; left: 14px; top: 14px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-family: var(--mono); font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+  .st-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .st-meta { font-size: 12px; font-family: var(--mono); color: var(--text-4); margin-left: 8px; }
+  .st-body { color: var(--text-2); font-size: 13.5px; margin-top: 4px; }
+  .st-body code { font-size: 0.82em; }
+  .opt { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; margin: 8px 0; cursor: pointer; }
+  .opt:hover { border-color: var(--line-2); }
+  .opt input { margin-right: 8px; }
+  .opt .rec { font-size: 11px; font-family: var(--mono); color: var(--ok); margin-left: 6px; }
+  .opt .ex { color: var(--text-3); font-size: 13px; margin: 5px 0 0 24px; }
+  .qbtn { font-family: var(--sans); font-size: 13px; font-weight: 600; background: var(--accent); color: var(--accent-fg); border: none; border-radius: 8px; padding: 8px 16px; margin-top: 8px; cursor: pointer; }
+  .qbtn:hover { background: var(--accent-2); }
+  .qwrap { margin: 10px 0 4px; }
+  .dnum { font-family: var(--mono); color: var(--accent); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Manual orphan storage cleanup</h1>
+  <p class="lede">A sysadmin-triggered sweep that finds objects in the store no longer referenced by the database, shows them (with any metadata) for review, and deletes only what's confirmed. Deliberately manual for v1 — automation comes later, once we trust it.</p>
+  <div class="pills">
+    <span class="pill">branch: feat/large-uploads-storage</span>
+    <span class="pill">backend + frontend</span>
+    <span class="pill">sysadmin-only</span>
+    <span class="pill">builds on the storage overhaul</span>
+  </div>
+
+  <h2>The problem &amp; the gap</h2>
+  <p>Deleting an asset removes its DB rows but <em>never touches the store</em> — <code>deleteAsset</code> at <span class="fl">assets_crud.go:350</span> comments <em>"Blob storage is untouched — content-addressed, GC is a later job."</em> Failed imports, replaced thumbnails, and purge misfires leave the same dangling objects. Nothing reclaims them today.</p>
+  <p>The storage interface can't even <em>see</em> what's there: it has <code>DeleteOriginal</code> but no <code>List</code>, no <code>DeleteBlob</code>, no <code>DeleteThumb</code>. The metadata we just added (<span class="fl">storage.go:17</span>) was designed <em>"as a fallback for DB-loss recovery and orphan sweeps"</em> — this is the sweep it anticipated.</p>
+
+  <h2>What counts as an orphan</h2>
+  <p>An object is orphaned when its content-hash key is referenced by <strong>no</strong> live DB row. Because storage is content-addressed and deduped, "referenced" means the union across every column that can point at a key:</p>
+  <table>
+    <thead><tr><th>Prefix</th><th>Live references (the "known set")</th></tr></thead>
+    <tbody>
+      <tr><td><code>blobs/</code></td><td class="ft">asset_files.object_key</td></tr>
+      <tr><td><code>thumbs/</code></td><td class="ft">assets.thumbnail_object_key &nbsp;∪&nbsp; asset_files.preview_object_key</td></tr>
+      <tr><td><code>originals/</code></td><td class="ft">asset_versions.original_package_object_key &nbsp;<span class="tag t-warn">WHERE purged = false</span></td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Purged originals (<code>original_package_purged = true</code>) are excluded from the known set on purpose: the DB already says that object should be gone, so a leftover from a failed purge becomes a legitimate cleanup target. If the same content hash is still referenced by a non-purged version, the union keeps it safe.</p>
+
+  <h2>The flow</h2>
+  <div class="flow">
+    <div class="step new"><div class="k">1 · SCAN</div><div class="v">List all three prefixes, diff against the known set, apply the age filter → candidate list</div></div>
+    <div class="arrow">→</div>
+    <div class="step new"><div class="k">2 · REVIEW</div><div class="v">Sysadmin sees each candidate: prefix, key, size, age, and metadata (filename / IDs) if present</div></div>
+    <div class="arrow">→</div>
+    <div class="step new"><div class="k">3 · DELETE</div><div class="v">Confirm selection → re-verify each is <em>still</em> orphaned + old enough → delete → audit-log each</div></div>
+  </div>
+
+  <div class="callout err">
+    <strong>The one dangerous failure mode: deleting in-flight uploads.</strong>
+    <p style="margin:8px 0 0">Objects are written to the store <em>before</em> their DB rows commit (the whole D1 upload-ordering from the last spec; extraction also writes blobs before <code>asset_files</code> exist). A scan running mid-import would see freshly-written, not-yet-referenced objects and flag them as orphans. Two independent guards stop this:</p>
+    <ul style="margin:8px 0 0; color:var(--text-2); font-size:13.5px">
+      <li><strong>Minimum-age filter</strong> — objects newer than a threshold (default 7 days) are never candidates. Covers the entire write→commit window with enormous margin.</li>
+      <li><strong>Re-verify at delete time</strong> — between scan and confirm, dedup means a brand-new upload could reference an "orphan" hash. Each key is re-checked (not-referenced + old-enough + still-exists) immediately before <code>Delete</code>; anything that changed is skipped with a reason.</li>
+    </ul>
+  </div>
+
+  <h2>Chosen approach</h2>
+  <p>A pair of sysadmin-only endpoints reusing the existing admin surface (<code>requireSysadmin</code>, routes at <span class="fl">handler.go:126</span>), a small orphan-detection service that generalises the reference-count logic already in <code>maybePurgeOriginal</code> (<span class="fl">pipeline.go:223</span>), and a review panel in the existing <code>ServerAdminSection</code>. Deletions are audited server-level via the existing <code>audit.Write</code>.</p>
+
+  <div class="grid2">
+    <div class="card tight">
+      <h3 style="margin-top:0">New storage primitives</h3>
+      <p class="muted" style="margin:2px 0 0"><code>List(ctx, prefix)</code> → keys + size + last-modified (cheap, one paginated <code>ListObjectsV2</code>).<br>
+      <code>StatMeta(ctx, prefix, key)</code> → HEAD/sidecar → <code>ObjectMeta</code> (only for candidates).<br>
+      <code>Delete(ctx, prefix, key)</code> → generic delete; <code>DeleteOriginal</code> becomes a thin wrapper.</p>
+    </div>
+    <div class="card tight">
+      <h3 style="margin-top:0">Cost shape</h3>
+      <p class="muted" style="margin:2px 0 0">List is one paginated call per prefix. Metadata needs a HEAD per object — so we fetch it <em>only for the orphan candidates</em>, not the whole bucket. Thumbs carry no metadata (written via <code>PutThumb</code>), so their rows just show none.</p>
+    </div>
+  </div>
+
+  <h2>Task breakdown</h2>
+  <ol class="stages">
+    <li><span class="st-title">Storage enumeration + deletion primitives</span><span class="st-meta">storage.go · s3.go · localfs.go · fakes</span>
+      <div class="st-body">Add <code>List</code>, <code>StatMeta</code>, generic <code>Delete</code> to <code>Service</code>. S3: <code>ListObjectsV2</code> pagination, <code>HeadObject</code> + a <code>metaFromS3</code> reverse of <code>metaToS3</code>, <code>DeleteObject</code>. LocalFS: walk the prefix dir, read the <code>.meta.json</code> sidecar, <code>os.Remove</code>. Update in-memory test fakes. <code>DeleteOriginal</code> delegates to <code>Delete</code>. No caller behaviour change.</div></li>
+    <li><span class="st-title">Orphan-detection service</span><span class="st-meta">internal/services/storage/cleanup (new)</span>
+      <div class="st-body"><code>FindOrphans(ctx, store, db, minAge, now)</code> builds the prefix-accurate known sets, lists each prefix, diffs, drops anything newer than <code>minAge</code>, and stat-fetches metadata for survivors. <code>DeleteOrphans(ctx, store, db, keys, minAge, now)</code> re-verifies each key then deletes + audits, returning deleted / skipped(+reason) / freed-bytes. Unit-tested against the fake + sqlite.</div></li>
+    <li><span class="st-title">Admin endpoints + config knob</span><span class="st-meta">handler.go · new storage_cleanup.go · config.go</span>
+      <div class="st-body"><code>POST /admin/storage/cleanup/scan</code> and <code>/delete</code>, both <code>requireSysadmin</code>. Min-age read from config. Delete body carries an explicit <code>[{prefix,key}]</code> list so the user deletes exactly what they reviewed.</div></li>
+    <li><span class="st-title">Frontend review-then-delete panel</span><span class="st-meta">ServerAdminSection.tsx · api.ts · hooks</span>
+      <div class="st-body">A "Storage cleanup" sub-section: <em>Scan</em> button → candidate table (prefix, key, size, age, filename/IDs), select-all + per-row checkboxes, freed-bytes summary, <em>Delete selected</em> behind a <code>ConfirmDialog</code>. New query/mutation hooks + <code>api.ts</code> calls. No SSE.</div></li>
+  </ol>
+
+  <h2>Scope boundaries</h2>
+  <div class="grid2">
+    <div class="card tight"><h3 style="margin-top:0; color:var(--ok)">In scope</h3><p class="muted" style="margin:2px 0 0">Manual scan + review + delete over blobs/thumbs/originals; new List/Delete/StatMeta primitives; sysadmin UI; per-deletion audit.</p></div>
+    <div class="card tight"><h3 style="margin-top:0; color:var(--text-4)">Out of scope (later)</h3><p class="muted" style="margin:2px 0 0">Automatic/scheduled sweeps (the <code>audit.Purger</code> ticker is the template when we're confident); DB-side GC of soft-deleted rows; reconciling <em>missing</em> objects (DB row → no object).</p></div>
+  </div>
+
+  <h2>Decisions to confirm</h2>
+  <p class="sub">Pick each and queue it; add a note on anything you want changed. Or just sign off on the recommended set at the bottom.</p>
+
+  <form data-lavish-question="d1" class="qwrap" onsubmit="event.preventDefault(); const v=new FormData(event.currentTarget).get('d1'); if(v) window.lavish.queuePrompt('D1 (scan execution model): '+v, {tag:'choice', text:'D1: '+v, element:event.currentTarget, data:{question:'d1', answer:v}});">
+    <h3><span class="dnum">D1</span> — Scan execution model</h3>
+    <label class="opt"><input type="radio" name="d1" value="Synchronous endpoint returning the candidate list" checked> Synchronous endpoint <span class="rec">◆ recommended</span>
+      <div class="ex">Scan runs in the request, returns candidates as JSON; result lives in React state for review. No new table, no SSE. Simplest; fine for a deliberate, infrequent admin action. Risk: a very large bucket makes the request slow.</div></label>
+    <label class="opt"><input type="radio" name="d1" value="Async DB-backed job with SSE progress"> Async DB-backed job + SSE
+      <div class="ex">Clone the preview/import queue: a run row, worker, live progress, survives reload. Robust for huge buckets but a lot of new machinery for v1.</div></label>
+    <button type="submit" class="qbtn">Queue D1</button>
+  </form>
+
+  <form data-lavish-question="d2" class="qwrap" onsubmit="event.preventDefault(); const v=new FormData(event.currentTarget).get('d2'); if(v) window.lavish.queuePrompt('D2 (known-set precision): '+v, {tag:'choice', text:'D2: '+v, element:event.currentTarget, data:{question:'d2', answer:v}});">
+    <h3><span class="dnum">D2</span> — Known-set precision &amp; purged originals</h3>
+    <label class="opt"><input type="radio" name="d2" value="Prefix-accurate known sets; purged originals are eligible for cleanup" checked> Prefix-accurate; purged eligible <span class="rec">◆ recommended</span>
+      <div class="ex">Each prefix diffed against exactly the columns that reference it; <code>purged=true</code> originals excluded from the known set, so failed purges get reclaimed.</div></label>
+    <label class="opt"><input type="radio" name="d2" value="Global union of all key columns (over-safe), purged keys kept as known"> Global union (over-safe)
+      <div class="ex">One combined set of every referenced hash; never deletes a hash referenced anywhere. Simpler, but leaves failed-purge originals behind forever.</div></label>
+    <button type="submit" class="qbtn">Queue D2</button>
+  </form>
+
+  <form data-lavish-question="d3" class="qwrap" onsubmit="event.preventDefault(); const v=new FormData(event.currentTarget).get('d3'); if(v) window.lavish.queuePrompt('D3 (min-age safety knob): '+v, {tag:'choice', text:'D3: '+v, element:event.currentTarget, data:{question:'d3', answer:v}});">
+    <h3><span class="dnum">D3</span> — Minimum-age safety knob</h3>
+    <label class="opt"><input type="radio" name="d3" value="Config env var DAMSON_ORPHAN_MIN_AGE, default 7d" checked> Config env var, default 7d <span class="rec">◆ recommended</span>
+      <div class="ex">Mirrors <code>DAMSON_AUDIT_PURGE_INTERVAL</code>. No settings-form or migration churn; ops tune it via env.</div></label>
+    <label class="opt"><input type="radio" name="d3" value="ServerSettings field, admin-editable in the UI"> ServerSettings field (admin-editable)
+      <div class="ex">Adds a column + migration + view/patch structs + a settings-form control. Tunable without redeploy, but more surface for v1.</div></label>
+    <button type="submit" class="qbtn">Queue D3</button>
+  </form>
+
+  <div class="card" style="border-color:var(--accent-2); background:var(--accent-tint)">
+    <h3 style="margin-top:0">Sign off on the recommended set</h3>
+    <p class="muted" style="margin:2px 0 10px">Sync scan (D1·A) · prefix-accurate + purged-eligible (D2·A) · config min-age 24h (D3·A) · re-verify-before-delete + per-deletion audit as the non-negotiable safety design. Four stages, this branch.</p>
+    <span class="qbtn" data-lavish-action role="button" tabindex="0" onclick="window.lavish.queuePrompt('Signed off: recommended set — D1·A synchronous scan, D2·A prefix-accurate with purged-eligible, D3·A config min-age 24h, re-verify-before-delete. Proceed to implement across the four stages on this branch.', {tag:'approve', text:'Signed off — proceed to implement'});">✓ Sign off — proceed to implement</span>
+  </div>
+
+  <p class="sub" style="margin-top:22px">Anything to change? Select text or annotate any element to leave a note, or queue a decision above. I'll fold your feedback in before writing the spec file.</p>
+
+</div>
+</body>
+</html>

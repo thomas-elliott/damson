@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"time"
 
@@ -86,9 +87,52 @@ func (s *S3) HeadOriginal(ctx context.Context, key string) (int64, bool, error) 
 }
 
 func (s *S3) DeleteOriginal(ctx context.Context, key string) error {
+	return s.Delete(ctx, "originals", key)
+}
+
+func (s *S3) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
+	var out []ObjectInfo
+	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
+		Bucket: &s.bucket,
+		Prefix: aws.String(prefix + "/"),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range page.Contents {
+			if obj.Key == nil {
+				continue
+			}
+			info := ObjectInfo{Key: path.Base(*obj.Key)}
+			if obj.Size != nil {
+				info.Size = *obj.Size
+			}
+			if obj.LastModified != nil {
+				info.LastModified = *obj.LastModified
+			}
+			out = append(out, info)
+		}
+	}
+	return out, nil
+}
+
+func (s *S3) StatMeta(ctx context.Context, prefix, key string) (ObjectMeta, error) {
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: &s.bucket,
+		Key:    aws.String(prefix + "/" + shardedKey(key)),
+	})
+	if err != nil {
+		return ObjectMeta{}, err
+	}
+	return metaFromS3(out.Metadata), nil
+}
+
+func (s *S3) Delete(ctx context.Context, prefix, key string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: &s.bucket,
-		Key:    aws.String("originals/" + shardedKey(key)),
+		Key:    aws.String(prefix + "/" + shardedKey(key)),
 	})
 	return err
 }
@@ -197,6 +241,27 @@ func metaToS3(m ObjectMeta) map[string]string {
 		return nil
 	}
 	return md
+}
+
+// metaFromS3 reverses metaToS3, decoding S3 user metadata back into ObjectMeta.
+// Malformed numeric fields decode to zero rather than erroring — the metadata
+// is a best-effort fallback, not authoritative.
+func metaFromS3(md map[string]string) ObjectMeta {
+	var m ObjectMeta
+	if v, err := url.QueryUnescape(md["filename"]); err == nil {
+		m.Filename = v
+	}
+	if v, err := strconv.ParseUint(md["library-id"], 10, 64); err == nil {
+		m.LibraryID = uint(v)
+	}
+	if v, err := strconv.ParseUint(md["asset-id"], 10, 64); err == nil {
+		m.AssetID = uint(v)
+	}
+	if v, err := strconv.ParseUint(md["version-id"], 10, 64); err == nil {
+		m.VersionID = uint(v)
+	}
+	m.Kind = md["kind"]
+	return m
 }
 
 func (s *S3) get(ctx context.Context, key string) (io.ReadCloser, error) {
