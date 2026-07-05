@@ -220,3 +220,7 @@ Ordered stages; roughly one commit each.
   `ResumeInFlight` re-run extraction against a deleted original and fail an
   otherwise-complete asset; deferring past Done makes the crash window leave a
   lingering object (future orphan-GC territory) instead.
+- `internal/handlers/api/assets.go` `multipartOverheadBytes` — why the cap is
+  `MaxUploadBytes + 1 MiB`: `MaxBytesReader` limits the whole multipart body, not
+  just the file, so headroom leaves room for the boundary/part-header overhead
+  around a file at exactly the limit.
