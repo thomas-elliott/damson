@@ -79,6 +79,34 @@ func (f *fakeStorage) DeleteOriginal(_ context.Context, key string) error {
 	return nil
 }
 
+func (f *fakeStorage) bucket(prefix string) map[string][]byte {
+	switch prefix {
+	case "thumbs":
+		return f.thumbs
+	case "originals":
+		return f.originals
+	default:
+		return f.blobs
+	}
+}
+
+func (f *fakeStorage) List(_ context.Context, prefix string) ([]storage.ObjectInfo, error) {
+	var out []storage.ObjectInfo
+	for key, data := range f.bucket(prefix) {
+		out = append(out, storage.ObjectInfo{Key: key, Size: int64(len(data))})
+	}
+	return out, nil
+}
+
+func (f *fakeStorage) StatMeta(_ context.Context, _ string, key string) (storage.ObjectMeta, error) {
+	return f.meta[key], nil
+}
+
+func (f *fakeStorage) Delete(_ context.Context, prefix, key string) error {
+	delete(f.bucket(prefix), key)
+	return nil
+}
+
 func (f *fakeStorage) PutThumb(_ context.Context, key string, r io.Reader) error {
 	data, err := io.ReadAll(r)
 	if err != nil {

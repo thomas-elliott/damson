@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -62,8 +63,12 @@ func (l *LocalFS) HeadOriginal(ctx context.Context, key string) (int64, bool, er
 	return l.statHashed("originals", key)
 }
 
-func (l *LocalFS) DeleteOriginal(_ context.Context, key string) error {
-	path, err := l.pathFor("originals", key)
+func (l *LocalFS) DeleteOriginal(ctx context.Context, key string) error {
+	return l.Delete(ctx, "originals", key)
+}
+
+func (l *LocalFS) Delete(_ context.Context, prefix, key string) error {
+	path, err := l.pathFor(prefix, key)
 	if err != nil {
 		return err
 	}
@@ -74,6 +79,55 @@ func (l *LocalFS) DeleteOriginal(_ context.Context, key string) error {
 		return err
 	}
 	return nil
+}
+
+func (l *LocalFS) List(_ context.Context, prefix string) ([]ObjectInfo, error) {
+	root := filepath.Join(l.root, prefix)
+	var out []ObjectInfo
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() || strings.HasSuffix(p, metaSuffix) {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		out = append(out, ObjectInfo{
+			Key:          filepath.Base(p),
+			Size:         info.Size(),
+			LastModified: info.ModTime(),
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (l *LocalFS) StatMeta(_ context.Context, prefix, key string) (ObjectMeta, error) {
+	path, err := l.pathFor(prefix, key)
+	if err != nil {
+		return ObjectMeta{}, err
+	}
+	data, err := os.ReadFile(path + metaSuffix)
+	if errors.Is(err, os.ErrNotExist) {
+		return ObjectMeta{}, nil
+	}
+	if err != nil {
+		return ObjectMeta{}, err
+	}
+	var m ObjectMeta
+	if err := json.Unmarshal(data, &m); err != nil {
+		return ObjectMeta{}, err
+	}
+	return m, nil
 }
 
 func (l *LocalFS) PutThumb(ctx context.Context, key string, r io.Reader) error {
