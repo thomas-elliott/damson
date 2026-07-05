@@ -176,7 +176,7 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 			if totalBytes > maxTotal {
 				return nil, fmt.Errorf("extract: total size exceeds cap (>%d bytes)", maxTotal)
 			}
-			key, size, perr := e.Storage.PutBlob(ctx, io.LimitReader(tr, maxEntry+1))
+			key, size, perr := e.Storage.PutBlob(ctx, io.LimitReader(tr, maxEntry+1), storage.ObjectMeta{})
 			if perr != nil {
 				return nil, fmt.Errorf("put blob %s: %w", hdr.Name, perr)
 			}

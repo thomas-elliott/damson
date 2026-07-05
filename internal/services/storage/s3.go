@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -56,8 +58,8 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 	return &S3{client: client, bucket: cfg.Bucket}, nil
 }
 
-func (s *S3) PutBlob(ctx context.Context, r io.Reader) (string, int64, error) {
-	return s.putHashed(ctx, "blobs", r)
+func (s *S3) PutBlob(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	return s.putHashed(ctx, "blobs", r, meta)
 }
 
 func (s *S3) GetBlob(ctx context.Context, key string) (io.ReadCloser, error) {
@@ -66,6 +68,26 @@ func (s *S3) GetBlob(ctx context.Context, key string) (io.ReadCloser, error) {
 
 func (s *S3) HeadBlob(ctx context.Context, key string) (int64, bool, error) {
 	return s.head(ctx, "blobs/"+shardedKey(key))
+}
+
+func (s *S3) PutOriginal(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	return s.putHashed(ctx, "originals", r, meta)
+}
+
+func (s *S3) GetOriginal(ctx context.Context, key string) (io.ReadCloser, error) {
+	return s.get(ctx, "originals/"+shardedKey(key))
+}
+
+func (s *S3) HeadOriginal(ctx context.Context, key string) (int64, bool, error) {
+	return s.head(ctx, "originals/"+shardedKey(key))
+}
+
+func (s *S3) DeleteOriginal(ctx context.Context, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &s.bucket,
+		Key:    aws.String("originals/" + shardedKey(key)),
+	})
+	return err
 }
 
 func (s *S3) PutThumb(ctx context.Context, key string, r io.Reader) error {
@@ -100,7 +122,7 @@ func (s *S3) PresignGet(ctx context.Context, key string, ttl time.Duration) (str
 // putHashed buffers + hashes before uploading. S3 needs Content-Length and
 // seekable bodies; the streaming variant would need multipart uploads which
 // we defer until real-world sizes justify the complexity.
-func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader) (string, int64, error) {
+func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	buf, err := io.ReadAll(r)
 	if err != nil {
 		return "", 0, err
@@ -123,14 +145,41 @@ func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader) (string,
 	}
 
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: &s.bucket,
-		Key:    &objectKey,
-		Body:   bytes.NewReader(buf),
+		Bucket:   &s.bucket,
+		Key:      &objectKey,
+		Body:     bytes.NewReader(buf),
+		Metadata: metaToS3(meta),
 	})
 	if err != nil {
 		return "", 0, err
 	}
 	return key, int64(len(buf)), nil
+}
+
+// metaToS3 renders ObjectMeta as S3 user metadata. Keys are lowercase-hyphen
+// header tokens; the filename is URL-encoded so non-ASCII values stay valid
+// header content. Returns nil when nothing is set so PutObject omits it.
+func metaToS3(m ObjectMeta) map[string]string {
+	md := map[string]string{}
+	if m.Filename != "" {
+		md["filename"] = url.QueryEscape(m.Filename)
+	}
+	if m.LibraryID != 0 {
+		md["library-id"] = strconv.FormatUint(uint64(m.LibraryID), 10)
+	}
+	if m.AssetID != 0 {
+		md["asset-id"] = strconv.FormatUint(uint64(m.AssetID), 10)
+	}
+	if m.VersionID != 0 {
+		md["version-id"] = strconv.FormatUint(uint64(m.VersionID), 10)
+	}
+	if m.Kind != "" {
+		md["kind"] = m.Kind
+	}
+	if len(md) == 0 {
+		return nil
+	}
+	return md
 }
 
 func (s *S3) get(ctx context.Context, key string) (io.ReadCloser, error) {

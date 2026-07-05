@@ -11,22 +11,28 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
 // fakeStorage implements storage.Service with in-memory maps for tests.
 type fakeStorage struct {
-	blobs  map[string][]byte
-	thumbs map[string][]byte
+	blobs     map[string][]byte
+	thumbs    map[string][]byte
+	originals map[string][]byte
+	meta      map[string]storage.ObjectMeta
 }
 
 func newFakeStorage() *fakeStorage {
 	return &fakeStorage{
-		blobs:  map[string][]byte{},
-		thumbs: map[string][]byte{},
+		blobs:     map[string][]byte{},
+		thumbs:    map[string][]byte{},
+		originals: map[string][]byte{},
+		meta:      map[string]storage.ObjectMeta{},
 	}
 }
 
-func (f *fakeStorage) PutBlob(_ context.Context, r io.Reader) (string, int64, error) {
+func (f *fakeStorage) PutBlob(_ context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return "", 0, err
@@ -34,6 +40,7 @@ func (f *fakeStorage) PutBlob(_ context.Context, r io.Reader) (string, int64, er
 	sum := sha256.Sum256(data)
 	key := hex.EncodeToString(sum[:])
 	f.blobs[key] = data
+	f.meta[key] = meta
 	return key, int64(len(data)), nil
 }
 
@@ -44,6 +51,32 @@ func (f *fakeStorage) GetBlob(_ context.Context, key string) (io.ReadCloser, err
 func (f *fakeStorage) HeadBlob(_ context.Context, key string) (int64, bool, error) {
 	b, ok := f.blobs[key]
 	return int64(len(b)), ok, nil
+}
+
+func (f *fakeStorage) PutOriginal(_ context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return "", 0, err
+	}
+	sum := sha256.Sum256(data)
+	key := hex.EncodeToString(sum[:])
+	f.originals[key] = data
+	f.meta[key] = meta
+	return key, int64(len(data)), nil
+}
+
+func (f *fakeStorage) GetOriginal(_ context.Context, key string) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(f.originals[key])), nil
+}
+
+func (f *fakeStorage) HeadOriginal(_ context.Context, key string) (int64, bool, error) {
+	b, ok := f.originals[key]
+	return int64(len(b)), ok, nil
+}
+
+func (f *fakeStorage) DeleteOriginal(_ context.Context, key string) error {
+	delete(f.originals, key)
+	return nil
 }
 
 func (f *fakeStorage) PutThumb(_ context.Context, key string, r io.Reader) error {

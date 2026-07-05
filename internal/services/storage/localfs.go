@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ func NewLocalFS(root, baseURL string) (*LocalFS, error) {
 	if root == "" {
 		return nil, errors.New("local storage: root path required")
 	}
-	for _, sub := range []string{"blobs", "thumbs"} {
+	for _, sub := range []string{"blobs", "thumbs", "originals"} {
 		if err := os.MkdirAll(filepath.Join(root, sub), 0o755); err != nil {
 			return nil, fmt.Errorf("mkdir %s: %w", sub, err)
 		}
@@ -37,8 +38,8 @@ func NewLocalFS(root, baseURL string) (*LocalFS, error) {
 	return &LocalFS{root: root, baseURL: baseURL}, nil
 }
 
-func (l *LocalFS) PutBlob(ctx context.Context, r io.Reader) (string, int64, error) {
-	return l.putHashed(ctx, "blobs", r)
+func (l *LocalFS) PutBlob(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	return l.putHashed(ctx, "blobs", r, meta)
 }
 
 func (l *LocalFS) GetBlob(ctx context.Context, key string) (io.ReadCloser, error) {
@@ -47,6 +48,32 @@ func (l *LocalFS) GetBlob(ctx context.Context, key string) (io.ReadCloser, error
 
 func (l *LocalFS) HeadBlob(ctx context.Context, key string) (int64, bool, error) {
 	return l.statHashed("blobs", key)
+}
+
+func (l *LocalFS) PutOriginal(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	return l.putHashed(ctx, "originals", r, meta)
+}
+
+func (l *LocalFS) GetOriginal(ctx context.Context, key string) (io.ReadCloser, error) {
+	return l.openHashed("originals", key)
+}
+
+func (l *LocalFS) HeadOriginal(ctx context.Context, key string) (int64, bool, error) {
+	return l.statHashed("originals", key)
+}
+
+func (l *LocalFS) DeleteOriginal(_ context.Context, key string) error {
+	path, err := l.pathFor("originals", key)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := os.Remove(path + metaSuffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func (l *LocalFS) PutThumb(ctx context.Context, key string, r io.Reader) error {
@@ -74,7 +101,7 @@ func (l *LocalFS) PresignGet(ctx context.Context, key string, ttl time.Duration)
 // putHashed streams r to a temp file, computes its SHA-256, renames into the
 // final two-char-sharded path. If the file already exists we delete the temp
 // and return the existing key — same contract as the S3 backend.
-func (l *LocalFS) putHashed(_ context.Context, prefix string, r io.Reader) (string, int64, error) {
+func (l *LocalFS) putHashed(_ context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	tmp, err := os.CreateTemp(l.root, "upload-*")
 	if err != nil {
 		return "", 0, err
@@ -117,7 +144,24 @@ func (l *LocalFS) putHashed(_ context.Context, prefix string, r io.Reader) (stri
 		_ = os.Remove(tmpPath)
 		return "", 0, err
 	}
+	writeSidecar(finalPath, meta)
 	return key, n, nil
+}
+
+const metaSuffix = ".meta.json"
+
+// writeSidecar records ObjectMeta next to the blob as `<path>.meta.json`, the
+// LocalFS equivalent of S3 user metadata. Best-effort: a sidecar write failure
+// never fails the object write, since the metadata is a fallback aid only.
+func writeSidecar(objectPath string, meta ObjectMeta) {
+	if (meta == ObjectMeta{}) {
+		return
+	}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(objectPath+metaSuffix, data, 0o644)
 }
 
 func (l *LocalFS) openHashed(prefix, key string) (io.ReadCloser, error) {
