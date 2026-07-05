@@ -535,3 +535,45 @@ export function useDeleteLibrary() {
     },
   });
 }
+
+export interface StorageCleanupCandidate {
+  prefix: string;
+  key: string;
+  size: number;
+  last_modified: string;
+  filename?: string;
+  library_id?: number;
+  asset_id?: number;
+  version_id?: number;
+  kind?: string;
+}
+
+export interface StorageCleanupScan {
+  min_age_seconds: number;
+  total_count: number;
+  total_bytes: number;
+  candidates: StorageCleanupCandidate[];
+}
+
+export interface StorageCleanupDeleteResult {
+  deleted_count: number;
+  freed_bytes: number;
+  skipped: { prefix: string; key: string; reason: string }[];
+}
+
+export function useStorageCleanupScan() {
+  return useMutation({
+    mutationFn: async () =>
+      fetchJson<StorageCleanupScan>(`/api/admin/storage/cleanup/scan`, { method: "POST" }),
+  });
+}
+
+export function useStorageCleanupDelete() {
+  return useMutation({
+    mutationFn: async (keys: { prefix: string; key: string }[]) =>
+      fetchJson<StorageCleanupDeleteResult>(`/api/admin/storage/cleanup/delete`, {
+        method: "POST",
+        body: JSON.stringify({ keys }),
+      }),
+  });
+}

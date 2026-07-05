@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
 type assetGridRow struct {
@@ -43,6 +45,10 @@ const (
 
 	packageKindLoose        = "loose"
 	packageKindUnityPackage = "unitypackage"
+
+	// MaxBytesReader caps the whole multipart body, not just the file, so the
+	// limit needs headroom for the boundary and part-header framing.
+	multipartOverheadBytes = 1 << 20
 )
 
 // assetListFilters carries the decoded query params for getAssets. Empty
@@ -296,8 +302,22 @@ func (h *Handler) postImport(c *gin.Context) {
 		return
 	}
 
+	settings, err := loadOrCreateServerSettings(h.db.WithContext(c.Request.Context()))
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+	if settings.MaxUploadBytes > 0 {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, settings.MaxUploadBytes+multipartOverheadBytes)
+	}
+
 	fh, err := c.FormFile("file")
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": "upload exceeds the maximum allowed size"})
+			return
+		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing 'file' form field"})
 		return
 	}
@@ -308,23 +328,26 @@ func (h *Handler) postImport(c *gin.Context) {
 	}
 	defer src.Close()
 
-	objectKey, size, err := h.storage.PutBlob(c.Request.Context(), src)
-	if err != nil {
-		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
-		return
-	}
-
 	filename := filepath.Base(fh.Filename)
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "upload"
 	}
 	isUnity := strings.EqualFold(filepath.Ext(filename), ".unitypackage")
 	contentType := fh.Header.Get("Content-Type")
+	packageKind := packageKindLoose
+	if isUnity {
+		packageKind = packageKindUnityPackage
+	}
 
+	// Create the rows before the upload so the object metadata can carry the
+	// asset/version IDs. The version's object key is set after the upload and
+	// the import is enqueued only once it is, so a crash in between leaves a
+	// keyless version that ResumeInFlight fails rather than a live import.
 	var (
-		assetID  uint
-		importID uint
-		libID    = lib.ID
+		assetID   uint
+		versionID uint
+		importID  uint
+		libID     = lib.ID
 	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		asset := models.Asset{
@@ -337,35 +360,14 @@ func (h *Handler) postImport(c *gin.Context) {
 			return err
 		}
 		version := models.AssetVersion{
-			AssetID:                  asset.ID,
-			VersionLabel:             "v1",
-			ImportDate:               time.Now().UTC(),
-			CreatedByUserID:          &u.ID,
-			OriginalPackageObjectKey: objectKey,
-		}
-		if isUnity {
-			version.PackageKind = packageKindUnityPackage
-		} else {
-			version.PackageKind = packageKindLoose
+			AssetID:         asset.ID,
+			VersionLabel:    "v1",
+			ImportDate:      time.Now().UTC(),
+			CreatedByUserID: &u.ID,
+			PackageKind:     packageKind,
 		}
 		if err := tx.Create(&version).Error; err != nil {
 			return err
-		}
-		// Loose uploads: write the single asset_files row now so the
-		// pipeline has filename + content type available for thumbnail
-		// detection. Unity uploads write asset_files after extraction.
-		if !isUnity {
-			f := models.AssetFile{
-				AssetVersionID: version.ID,
-				RelativePath:   filename,
-				SizeBytes:      size,
-				ContentHash:    objectKey,
-				ObjectKey:      objectKey,
-				DetectedType:   contentType,
-			}
-			if err := tx.Create(&f).Error; err != nil {
-				return err
-			}
 		}
 		imp := models.AssetImport{
 			AssetID:   asset.ID,
@@ -376,7 +378,56 @@ func (h *Handler) postImport(c *gin.Context) {
 			return err
 		}
 		assetID = asset.ID
+		versionID = version.ID
 		importID = imp.ID
+		return nil
+	})
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+
+	meta := storage.ObjectMeta{
+		Filename:  filename,
+		LibraryID: libID,
+		AssetID:   assetID,
+		VersionID: versionID,
+		Kind:      packageKind,
+	}
+	var (
+		objectKey string
+		size      int64
+	)
+	if isUnity {
+		objectKey, size, err = h.storage.PutOriginal(c.Request.Context(), src, meta)
+	} else {
+		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
+	}
+	if err != nil {
+		h.cleanupFailedUpload(c.Request.Context(), assetID)
+		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+		return
+	}
+
+	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.AssetVersion{}).
+			Where("id = ?", versionID).
+			Update("original_package_object_key", objectKey).Error; err != nil {
+			return err
+		}
+		if !isUnity {
+			f := models.AssetFile{
+				AssetVersionID: versionID,
+				RelativePath:   filename,
+				SizeBytes:      size,
+				ContentHash:    objectKey,
+				ObjectKey:      objectKey,
+				DetectedType:   contentType,
+			}
+			if err := tx.Create(&f).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -387,6 +438,21 @@ func (h *Handler) postImport(c *gin.Context) {
 	h.importPool.Enqueue(imports.Job{ImportID: importID, LibraryID: libID})
 
 	c.JSON(http.StatusAccepted, importEnqueueResponse{AssetID: assetID, ImportID: importID})
+}
+
+// cleanupFailedUpload removes the asset/version/import rows created for an
+// upload that then failed to store, so no keyless orphan rows are left behind.
+func (h *Handler) cleanupFailedUpload(ctx context.Context, assetID uint) {
+	db := h.db.WithContext(ctx)
+	if err := db.Where("asset_id = ?", assetID).Delete(&models.AssetImport{}).Error; err != nil {
+		slog.Warn("import: cleanup failed upload (imports)", "err", err, "asset_id", assetID)
+	}
+	if err := db.Where("asset_id = ?", assetID).Delete(&models.AssetVersion{}).Error; err != nil {
+		slog.Warn("import: cleanup failed upload (versions)", "err", err, "asset_id", assetID)
+	}
+	if err := db.Delete(&models.Asset{}, assetID).Error; err != nil {
+		slog.Warn("import: cleanup failed upload (asset)", "err", err, "asset_id", assetID)
+	}
 }
 
 // postReExtract creates a new AssetVersion by re-reading the original
@@ -439,18 +505,25 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
-	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage {
+	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage || source.OriginalPackagePurged {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "source version has no retained package"})
 		return
 	}
 
-	blob, err := h.storage.GetBlob(c.Request.Context(), source.OriginalPackageObjectKey)
+	blob, err := imports.OpenOriginal(c.Request.Context(), h.storage, source)
 	if err != nil {
 		respond500(c, err)
 		return
 	}
 	defer blob.Close()
-	ex := &extract.UnityExtractor{Storage: h.storage}
+	ex := &extract.UnityExtractor{
+		Storage: h.storage,
+		EntryMeta: storage.ObjectMeta{
+			LibraryID: lib.ID,
+			AssetID:   asset.ID,
+			Kind:      "unitypackage-asset",
+		},
+	}
 	result, err := ex.Extract(c.Request.Context(), blob)
 	if err != nil {
 		slog.Warn("unity re-extract failed", "err", err, "asset_id", asset.ID, "version_id", source.ID)

@@ -158,6 +158,7 @@ func main() {
 		Broadcaster:        broadcaster,
 		PreviewPool:        previewPool,
 		PreviewBroadcaster: previewBroadcaster,
+		OrphanMinAge:       cfg.OrphanMinAge,
 		// Echoed to the SPA on /api/auth/mode in OIDC mode (empty in local).
 		OIDCAuthority: cfg.OIDCIssuerURL,
 		OIDCClientID:  cfg.OIDCClientID,

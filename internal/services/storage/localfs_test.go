@@ -19,7 +19,7 @@ func TestLocalFS_PutBlob_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	payload := []byte("hello damson")
-	key, size, err := s.PutBlob(ctx, bytes.NewReader(payload))
+	key, size, err := s.PutBlob(ctx, bytes.NewReader(payload), ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put: %v", err)
 	}
@@ -60,11 +60,11 @@ func TestLocalFS_PutBlob_Dedupes(t *testing.T) {
 	ctx := context.Background()
 
 	payload := []byte("same bytes, different uploads")
-	k1, _, err := s.PutBlob(ctx, bytes.NewReader(payload))
+	k1, _, err := s.PutBlob(ctx, bytes.NewReader(payload), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	k2, _, err := s.PutBlob(ctx, bytes.NewReader(payload))
+	k2, _, err := s.PutBlob(ctx, bytes.NewReader(payload), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
