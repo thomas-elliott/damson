@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 )
@@ -33,8 +35,9 @@ type S3Config struct {
 // S3 implements Service against an S3-compatible bucket. Blobs and thumbs
 // share the bucket under two prefixes; both are content-addressed by SHA-256.
 type S3 struct {
-	client *s3.Client
-	bucket string
+	client   *s3.Client
+	uploader *manager.Uploader
+	bucket   string
 }
 
 func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
@@ -55,7 +58,7 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 		o.UsePathStyle = cfg.ForcePathStyle
 	})
 
-	return &S3{client: client, bucket: cfg.Bucket}, nil
+	return &S3{client: client, uploader: manager.NewUploader(client), bucket: cfg.Bucket}, nil
 }
 
 func (s *S3) PutBlob(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
@@ -123,12 +126,22 @@ func (s *S3) PresignGet(ctx context.Context, key string, ttl time.Duration) (str
 // seekable bodies; the streaming variant would need multipart uploads which
 // we defer until real-world sizes justify the complexity.
 func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	buf, err := io.ReadAll(r)
+	tmp, err := os.CreateTemp("", "damson-upload-*")
 	if err != nil {
 		return "", 0, err
 	}
-	sum := sha256.Sum256(buf)
-	key := hex.EncodeToString(sum[:])
+	tmpPath := tmp.Name()
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+	}()
+
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(tmp, h), r)
+	if err != nil {
+		return "", 0, err
+	}
+	key := hex.EncodeToString(h.Sum(nil))
 	objectKey := prefix + "/" + shardedKey(key)
 
 	// HEAD first — skip upload if the blob is already there.
@@ -137,23 +150,26 @@ func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta Obj
 		Key:    &objectKey,
 	})
 	if err == nil {
-		return key, int64(len(buf)), nil
+		return key, n, nil
 	}
 	var apiErr smithy.APIError
 	if !errors.As(err, &apiErr) || apiErr.ErrorCode() != "NotFound" {
 		return "", 0, err
 	}
 
-	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		return "", 0, err
+	}
+	_, err = s.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:   &s.bucket,
 		Key:      &objectKey,
-		Body:     bytes.NewReader(buf),
+		Body:     tmp,
 		Metadata: metaToS3(meta),
 	})
 	if err != nil {
 		return "", 0, err
 	}
-	return key, int64(len(buf)), nil
+	return key, n, nil
 }
 
 // metaToS3 renders ObjectMeta as S3 user metadata. Keys are lowercase-hyphen
