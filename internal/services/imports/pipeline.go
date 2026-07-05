@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strconv"
 	"time"
@@ -13,8 +14,20 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
+
+func OpenOriginal(ctx context.Context, s storage.Service, v models.AssetVersion) (io.ReadCloser, error) {
+	if isArchiveKind(v.PackageKind) {
+		return s.GetOriginal(ctx, v.OriginalPackageObjectKey)
+	}
+	return s.GetBlob(ctx, v.OriginalPackageObjectKey)
+}
+
+func isArchiveKind(kind string) bool {
+	return kind == "unitypackage" || kind == "zip"
+}
 
 // jobContext holds everything the pipeline needs about a job, hydrated from
 // the database at the start of Run. Centralizing the load makes Run a
@@ -88,11 +101,19 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 
 	var extracted *extract.UnityResult
 	if jc.isUnity {
-		blob, gerr := deps.Storage.GetBlob(ctx, jc.version.OriginalPackageObjectKey)
+		blob, gerr := OpenOriginal(ctx, deps.Storage, jc.version)
 		if gerr != nil {
 			return fail("fetch blob: " + gerr.Error())
 		}
-		ex := &extract.UnityExtractor{Storage: deps.Storage}
+		ex := &extract.UnityExtractor{
+			Storage: deps.Storage,
+			EntryMeta: storage.ObjectMeta{
+				LibraryID: jc.libraryID,
+				AssetID:   jc.asset.ID,
+				VersionID: jc.version.ID,
+				Kind:      "unitypackage-asset",
+			},
+		}
 		res, xerr := ex.Extract(ctx, blob)
 		blob.Close()
 		if xerr != nil {
@@ -125,7 +146,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 				Font:   settings.ThumbnailsFontEnabled,
 			}
 			filename, contentType := looseSourceMetadata(deps.DB.WithContext(ctx), jc.version.ID, jc.asset.Name)
-			blob, bErr := deps.Storage.GetBlob(ctx, jc.version.OriginalPackageObjectKey)
+			blob, bErr := OpenOriginal(ctx, deps.Storage, jc.version)
 			if bErr != nil {
 				slog.Warn("imports: fetch blob for thumbnail", "err", bErr, "object_key", jc.version.OriginalPackageObjectKey)
 			} else {
@@ -190,7 +211,50 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return fail("finalize done: " + err.Error())
 	}
 	publish(StageDone, "")
+
+	// Purge only after the import is marked done: a crash before Done would let
+	// ResumeInFlight re-run extraction against an archive we already deleted.
+	if jc.isUnity {
+		maybePurgeOriginal(ctx, deps, jc)
+	}
 	return nil
+}
+
+func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
+	if jc.version.OriginalPackageObjectKey == "" {
+		return
+	}
+	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	if err != nil {
+		slog.Warn("imports: load settings for purge", "err", err, "library_id", jc.libraryID)
+		return
+	}
+	if settings.RetainOriginalPackages {
+		return
+	}
+
+	var liveReferrers int64
+	if err := deps.DB.WithContext(ctx).Model(&models.AssetVersion{}).
+		Where("original_package_object_key = ? AND id <> ? AND original_package_purged = ?",
+			jc.version.OriginalPackageObjectKey, jc.version.ID, false).
+		Count(&liveReferrers).Error; err != nil {
+		slog.Warn("imports: count original referrers", "err", err, "version_id", jc.version.ID)
+		return
+	}
+	// Originals are content-addressed, so an identical archive uploaded to
+	// another asset shares one object; only delete it when no other live
+	// version still references it. The per-version flag is set regardless.
+	if liveReferrers == 0 {
+		if err := deps.Storage.DeleteOriginal(ctx, jc.version.OriginalPackageObjectKey); err != nil {
+			slog.Warn("imports: purge original blob", "err", err, "object_key", jc.version.OriginalPackageObjectKey)
+			return
+		}
+	}
+	if err := deps.DB.WithContext(ctx).Model(&models.AssetVersion{}).
+		Where("id = ?", jc.version.ID).
+		Update("original_package_purged", true).Error; err != nil {
+		slog.Warn("imports: mark original purged", "err", err, "version_id", jc.version.ID)
+	}
 }
 
 // enqueuePreviews hands a committed version off to the preview processing queue.

@@ -224,8 +224,10 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		sourceKey   string
 		packageKind string
 	)
-	if verr == nil && version.PackageKind == packageKindUnityPackage && version.OriginalPackageObjectKey != "" {
-		sourceKey = version.OriginalPackageObjectKey
+	if verr == nil && version.PackageKind == packageKindUnityPackage {
+		if version.OriginalPackageObjectKey != "" && !version.OriginalPackagePurged {
+			sourceKey = version.OriginalPackageObjectKey
+		}
 		packageKind = packageKindUnityPackage
 	} else if verr == nil {
 		// Loose case: try the version's retained key first, then fall back

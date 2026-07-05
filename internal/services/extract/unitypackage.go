@@ -45,6 +45,11 @@ type UnityResult struct {
 type UnityExtractor struct {
 	Storage storage.Service
 
+	// EntryMeta stamps extracted content blobs with archive-level context only:
+	// the per-entry pathname arrives in a separate tar entry that may follow the
+	// content, so it isn't known when the blob is written.
+	EntryMeta storage.ObjectMeta
+
 	// MaxEntrySize caps the uncompressed size of any single tar entry.
 	// A zero value uses the default.
 	MaxEntrySize int64
@@ -176,7 +181,7 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 			if totalBytes > maxTotal {
 				return nil, fmt.Errorf("extract: total size exceeds cap (>%d bytes)", maxTotal)
 			}
-			key, size, perr := e.Storage.PutBlob(ctx, io.LimitReader(tr, maxEntry+1))
+			key, size, perr := e.Storage.PutBlob(ctx, io.LimitReader(tr, maxEntry+1), e.EntryMeta)
 			if perr != nil {
 				return nil, fmt.Errorf("put blob %s: %w", hdr.Name, perr)
 			}

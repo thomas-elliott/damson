@@ -31,6 +31,7 @@ type AssetVersion struct {
 	Notes                    string
 	ImportDate               time.Time `gorm:"not null;default:current_timestamp;index:idx_version_asset_date,sort:desc"`
 	OriginalPackageObjectKey string
+	OriginalPackagePurged    bool   `gorm:"not null;default:false"`
 	PackageKind              string // 'unitypackage' | 'zip' | 'loose' | ''
 	CreatedByUserID          *uint
 }
