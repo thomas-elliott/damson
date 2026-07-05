@@ -45,6 +45,8 @@ const (
 
 	packageKindLoose        = "loose"
 	packageKindUnityPackage = "unitypackage"
+
+	multipartOverheadBytes = 1 << 20
 )
 
 // assetListFilters carries the decoded query params for getAssets. Empty
@@ -298,8 +300,22 @@ func (h *Handler) postImport(c *gin.Context) {
 		return
 	}
 
+	settings, err := loadOrCreateServerSettings(h.db.WithContext(c.Request.Context()))
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+	if settings.MaxUploadBytes > 0 {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, settings.MaxUploadBytes+multipartOverheadBytes)
+	}
+
 	fh, err := c.FormFile("file")
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": "upload exceeds the maximum allowed size"})
+			return
+		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing 'file' form field"})
 		return
 	}
