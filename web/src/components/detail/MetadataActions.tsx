@@ -26,6 +26,9 @@ function candidateSubtitle(c: MetadataCandidate): string {
   return [c.store, c.publisher, price].filter(Boolean).join(" · ");
 }
 
+// Candidate covers are external storefront CDN URLs, so a plain <img> renders
+// them — unlike our own file endpoints, which force octet-stream + nosniff and
+// need the fetchBlob dance.
 function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void }) {
   return (
     <button

@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -39,7 +40,7 @@ func (GenericFetcher) Fetch(ctx context.Context, client *Client, rawURL string) 
 // yields a zero-ish Metadata the caller can treat as "nothing found".
 func ParseHTML(data []byte, pageURL string) *Metadata {
 	m := &Metadata{}
-	doc, err := html.Parse(strings.NewReader(string(data)))
+	doc, err := html.Parse(bytes.NewReader(data))
 	if err != nil {
 		return m
 	}

@@ -204,6 +204,8 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 
 	// Auto-enrichment: best-effort storefront metadata fill. Gated on the
 	// per-library toggle and a conservative title match; never fails the import.
+	// The stage transition fires even when enrichment is disabled so the SSE
+	// stage sequence stays stable; enrichAsset itself is the gated no-op.
 	if err := transition(StageEnriching); err != nil {
 		return err
 	}
