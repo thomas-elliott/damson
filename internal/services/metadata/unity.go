@@ -172,6 +172,8 @@ func coveoMetadata(r coveoResult, listingURL string) *Metadata {
 		CoverURL:    coveoCover(raw),
 		StoreID:     firstNonEmpty(firstArrayString(raw["ec_product_id"]), unityProductID(listingURL)),
 		ListingURL:  firstNonEmpty(r.ClickURI, listingURL),
+		// Coveo exposes no per-asset licence field; Asset Store assets carry
+		// the standard EULA.
 		LicenceHint: "unity-eula",
 		Raw:         rawJSON,
 	}
@@ -243,7 +245,8 @@ func numOrString(v any) string {
 	return ""
 }
 
-// stripTags removes HTML tags from a string (Unity descriptions are HTML).
+// stripTags removes HTML tags and decodes entities (Unity descriptions are
+// HTML with numeric entities).
 func stripTags(s string) string {
 	var sb strings.Builder
 	depth := 0

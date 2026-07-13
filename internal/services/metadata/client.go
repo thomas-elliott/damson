@@ -145,6 +145,7 @@ func (c *Client) Do(ctx context.Context, method, rawURL string, body io.Reader, 
 	}
 	defer resp.Body.Close()
 
+	// One byte past the cap distinguishes an exactly-at-cap body from an over-cap one.
 	limited := io.LimitReader(resp.Body, c.maxBody+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
@@ -171,7 +172,8 @@ func isFetchableScheme(scheme string) bool {
 
 // guardedDialContext returns a DialContext that resolves the host, refuses to
 // dial any non-public IP, and connects directly to a validated IP so a second
-// resolution can't swap in an internal address (DNS-rebinding TOCTOU).
+// resolution can't swap in an internal address (DNS-rebinding TOCTOU). TLS
+// still verifies against the URL hostname — only the dial address is rewritten.
 func guardedDialContext(dialer *net.Dialer) func(context.Context, string, string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(addr)

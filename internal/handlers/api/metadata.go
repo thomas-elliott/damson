@@ -338,19 +338,13 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		applied = append(applied, "source_url")
 	}
 
-	if meta.Description != "" {
-		switch {
-		case asset.Description == "":
+	if meta.Description != "" && asset.Description != meta.Description {
+		if asset.Description == "" || confirm["description"] {
 			before["description"] = asset.Description
 			updates["description"] = meta.Description
 			asset.Description = meta.Description
 			applied = append(applied, "description")
-		case asset.Description != meta.Description && confirm["description"]:
-			before["description"] = asset.Description
-			updates["description"] = meta.Description
-			asset.Description = meta.Description
-			applied = append(applied, "description")
-		case asset.Description != meta.Description:
+		} else {
 			conflicts = append(conflicts, metadataConflict{Field: "description", Current: asset.Description, Proposed: meta.Description})
 		}
 	}
@@ -424,8 +418,8 @@ func (h *Handler) applyLicenceFromMeta(c *gin.Context, asset *models.Asset, meta
 }
 
 // applyThumbnailFromMeta downloads the cover image and stores it as the asset
-// thumbnail via the raster thumbnail pipeline (which decodes + re-encodes,
-// satisfying the content-type-validation requirement). Fills when no thumbnail
+// thumbnail via the raster thumbnail pipeline, whose decode + re-encode
+// rejects non-image bodies rather than storing them. Fills when no thumbnail
 // exists; conflicts otherwise unless confirmed.
 func (h *Handler) applyThumbnailFromMeta(c *gin.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, *metadataConflict) {
 	if meta.CoverURL == "" {

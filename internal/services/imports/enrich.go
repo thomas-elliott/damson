@@ -201,6 +201,9 @@ func titlesMatch(assetName, candidateTitle string) bool {
 	return a != "" && a == b
 }
 
+// exactMatchCandidate returns the first candidate whose title equals the asset
+// name under normalisation. The merged list has no meaningful cross-store
+// order, so every candidate is checked, not just the head.
 func exactMatchCandidate(assetName string, cands []metadata.Candidate) *metadata.Candidate {
 	for i := range cands {
 		if titlesMatch(assetName, cands[i].Title) {
