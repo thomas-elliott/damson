@@ -100,6 +100,7 @@ interface SettingsView {
   thumbnails_audio_enabled: boolean;
   thumbnails_font_enabled: boolean;
   thumbnails_unity_preview: boolean;
+  auto_enrich_enabled: boolean;
   audit_retention_days: number | null;
 }
 
@@ -146,6 +147,13 @@ function ReadOnlySettings({ settings }: { settings: SettingsView }) {
             { key: "Audio waveform", value: boolBadge(settings.thumbnails_audio_enabled) },
             { key: "Font sample", value: boolBadge(settings.thumbnails_font_enabled) },
             { key: "Unity preview", value: boolBadge(settings.thumbnails_unity_preview) },
+          ]}
+        />
+      </Section>
+      <Section title="Metadata" defaultOpen>
+        <KeyValueList
+          entries={[
+            { key: "Auto-enrich on import", value: boolBadge(settings.auto_enrich_enabled) },
           ]}
         />
       </Section>
@@ -249,6 +257,15 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
           help="Use embedded preview.png from .unitypackage when present."
           checked={settings.thumbnails_unity_preview}
           onChange={(v) => apply({ thumbnails_unity_preview: v })}
+        />
+      </Section>
+
+      <Section title="Metadata" defaultOpen>
+        <ToggleRow
+          label="Auto-enrich on import"
+          help="After import, search storefronts by name and auto-fill blank fields (description, licence, cover) on a high-confidence match. Manual fetch stays available regardless."
+          checked={settings.auto_enrich_enabled}
+          onChange={(v) => apply({ auto_enrich_enabled: v })}
         />
       </Section>
 

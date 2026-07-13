@@ -28,6 +28,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
@@ -121,12 +122,15 @@ func main() {
 		slog.Info("preview resume sweep", "enqueued", resumed)
 	}
 
+	metaRegistry := metadata.Default(metadata.ClientOptions{})
+
 	broadcaster := imports.NewBroadcaster()
 	importPool := imports.New(imports.Deps{
 		DB:          gormDB,
 		Storage:     store,
 		Broadcaster: broadcaster,
 		Previews:    previewPool,
+		Metadata:    metaRegistry,
 	}, cfg.ImportWorkers)
 	slog.Info("import pool", "workers", cfg.ImportWorkers)
 
@@ -158,6 +162,7 @@ func main() {
 		Broadcaster:        broadcaster,
 		PreviewPool:        previewPool,
 		PreviewBroadcaster: previewBroadcaster,
+		Metadata:           metaRegistry,
 		OrphanMinAge:       cfg.OrphanMinAge,
 		// Echoed to the SPA on /api/auth/mode in OIDC mode (empty in local).
 		OIDCAuthority: cfg.OIDCIssuerURL,

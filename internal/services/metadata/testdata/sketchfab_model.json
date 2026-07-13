@@ -1,0 +1,18 @@
+{
+  "uid": "abc123def4567890abc123def4567890",
+  "name": "Low Poly Tree",
+  "description": "A stylised low-poly tree, game-ready.",
+  "user": { "displayName": "TreeMaker", "username": "treemaker" },
+  "license": {
+    "slug": "cc-by",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "url": "http://creativecommons.org/licenses/by/4.0/"
+  },
+  "thumbnails": {
+    "images": [
+      { "url": "https://media.sketchfab.com/small.jpg", "width": 200, "height": 200 },
+      { "url": "https://media.sketchfab.com/large.jpg", "width": 1024, "height": 1024 }
+    ]
+  }
+}

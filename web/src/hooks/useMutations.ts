@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson, fetchMaybeJson } from "@/api";
-import type { Me } from "@/hooks/useDataQueries";
+import type { Me, MetadataFetchResponse, MetadataSearchResponse } from "@/hooks/useDataQueries";
 import { queryKeys } from "@/lib/queryKeys";
 
 // usePatchMe writes the current user's own profile (email + optional display
@@ -278,6 +278,7 @@ export interface LibrarySettingsPatch {
   thumbnails_audio_enabled?: boolean;
   thumbnails_font_enabled?: boolean;
   thumbnails_unity_preview?: boolean;
+  auto_enrich_enabled?: boolean;
   audit_retention_days?: number | null;
 }
 
@@ -598,5 +599,48 @@ export function useStorageCleanupDelete() {
         method: "POST",
         body: JSON.stringify({ keys }),
       }),
+  });
+}
+
+// useSearchMetadata runs a storefront name search. Modelled as a mutation
+// because it's user-triggered from the match picker rather than reactive.
+export function useSearchMetadata() {
+  return useMutation({
+    mutationFn: async (query: string) =>
+      fetchJson<MetadataSearchResponse>(`/api/metadata/search?q=${encodeURIComponent(query)}`),
+  });
+}
+
+// useFetchMetadata fetches storefront metadata for an asset, filling blank
+// fields and returning would-overwrite conflicts. A url (from the picker or a
+// typed source URL) is optional; when omitted the asset's own source_url is used.
+export function useFetchMetadata() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: number; url?: string }) =>
+      fetchJson<MetadataFetchResponse>(`/api/assets/${input.id}/metadata/fetch`, {
+        method: "POST",
+        body: JSON.stringify(input.url ? { url: input.url } : {}),
+      }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
+  });
+}
+
+// useApplyMetadata commits user-confirmed overwrites for the named fields.
+export function useApplyMetadata() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: number; fields: string[] }) =>
+      fetchJson<MetadataFetchResponse>(`/api/assets/${input.id}/metadata/apply`, {
+        method: "POST",
+        body: JSON.stringify({ fields: input.fields }),
+      }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
   });
 }

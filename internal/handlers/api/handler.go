@@ -29,6 +29,7 @@ type Handler struct {
 	broadcaster        *imports.Broadcaster
 	previewPool        *preview.Pool
 	previewBroadcaster *preview.Broadcaster
+	metadata           metadataService // nil in tests that don't exercise enrichment
 	orphanMinAge       time.Duration
 	// oidcAuthority / oidcClientID are the non-secret OIDC client config
 	// echoed to the SPA via /api/auth/mode in OIDC mode, so the browser
@@ -59,6 +60,9 @@ type Deps struct {
 	// that don't exercise previews can leave both nil.
 	PreviewPool        *preview.Pool
 	PreviewBroadcaster *preview.Broadcaster
+	// Metadata fetches + searches storefront listing metadata. Optional — a
+	// nil service disables the enrichment endpoints (they return 503).
+	Metadata metadataService
 	// OrphanMinAge is the minimum object age the storage-cleanup sweep respects.
 	// Zero means "use the built-in default" so tests need not set it.
 	OrphanMinAge time.Duration
@@ -88,6 +92,7 @@ func New(d Deps) *Handler {
 		broadcaster:        d.Broadcaster,
 		previewPool:        d.PreviewPool,
 		previewBroadcaster: d.PreviewBroadcaster,
+		metadata:           d.Metadata,
 		orphanMinAge:       minAge,
 
 		oidcAuthority: d.OIDCAuthority,
@@ -152,6 +157,9 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.DELETE("/assets/:id", h.deleteAsset)
 	scoped.POST("/assets/:id/review", h.postAssetReview)
 	scoped.POST("/assets/:id/rescan", h.postAssetRescan)
+	scoped.POST("/assets/:id/metadata/fetch", h.postAssetMetadataFetch)
+	scoped.POST("/assets/:id/metadata/apply", h.postAssetMetadataApply)
+	scoped.GET("/metadata/search", h.getMetadataSearch)
 
 	// Imports
 	scoped.POST("/imports", h.postImport)
