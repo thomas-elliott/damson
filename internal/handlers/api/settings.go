@@ -21,6 +21,7 @@ type librarySettingsView struct {
 	ThumbnailsAudioEnabled  bool   `json:"thumbnails_audio_enabled"`
 	ThumbnailsFontEnabled   bool   `json:"thumbnails_font_enabled"`
 	ThumbnailsUnityPreview  bool   `json:"thumbnails_unity_preview"`
+	AutoEnrichEnabled       bool   `json:"auto_enrich_enabled"`
 	AuditRetentionDays      *int   `json:"audit_retention_days"`
 }
 
@@ -35,6 +36,7 @@ func settingsViewFrom(s *models.LibrarySettings) librarySettingsView {
 		ThumbnailsAudioEnabled:  s.ThumbnailsAudioEnabled,
 		ThumbnailsFontEnabled:   s.ThumbnailsFontEnabled,
 		ThumbnailsUnityPreview:  s.ThumbnailsUnityPreview,
+		AutoEnrichEnabled:       s.AutoEnrichEnabled,
 		AuditRetentionDays:      s.AuditRetentionDays,
 	}
 }
@@ -61,6 +63,7 @@ type librarySettingsPatchRequest struct {
 	ThumbnailsAudioEnabled  *bool   `json:"thumbnails_audio_enabled,omitempty"`
 	ThumbnailsFontEnabled   *bool   `json:"thumbnails_font_enabled,omitempty"`
 	ThumbnailsUnityPreview  *bool   `json:"thumbnails_unity_preview,omitempty"`
+	AutoEnrichEnabled       *bool   `json:"auto_enrich_enabled,omitempty"`
 	AuditRetentionDays      *int    `json:"audit_retention_days,omitempty"`
 }
 
@@ -106,6 +109,9 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		}
 		if req.ThumbnailsUnityPreview != nil {
 			s.ThumbnailsUnityPreview = *req.ThumbnailsUnityPreview
+		}
+		if req.AutoEnrichEnabled != nil {
+			s.AutoEnrichEnabled = *req.AutoEnrichEnabled
 		}
 		if req.AuditRetentionDays != nil {
 			s.AuditRetentionDays = req.AuditRetentionDays
@@ -153,6 +159,7 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 		ThumbnailsFontEnabled:   true,
 		ThumbnailsUnityPreview:  true,
 		PreviewsEnabled:         true,
+		AutoEnrichEnabled:       true,
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err
