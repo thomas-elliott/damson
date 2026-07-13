@@ -34,14 +34,45 @@ type importRow struct {
 }
 
 type importListResponse struct {
-	Imports []importRow `json:"imports"`
-	Total   int64       `json:"total"`
+	Imports  []importRow `json:"imports"`
+	Finished []importRow `json:"finished"`
+	Total    int64       `json:"total"`
 }
 
-// getImports returns imports for the current library. Default filter is
-// "in flight or failed" — `done` rows are kept for debugging but the
-// queue UI doesn't surface them. Set `?stage=done` to get the historical
-// view; `?stage=all` returns everything.
+// importScanRow is the raw projection for both queue sections.
+type importScanRow struct {
+	ID          uint
+	AssetID     uint
+	AssetName   string
+	Stage       string
+	Error       string
+	UpdatedAt   time.Time
+	CreatedAt   time.Time
+	NeedsReview bool
+}
+
+const importRowSelect = "i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at, a.created_at, a.needs_review"
+
+func (r importScanRow) toRow() importRow {
+	return importRow{
+		ID:          r.ID,
+		AssetID:     r.AssetID,
+		AssetName:   r.AssetName,
+		Stage:       r.Stage,
+		Error:       r.Error,
+		UpdatedAt:   r.UpdatedAt,
+		CreatedAt:   r.CreatedAt,
+		NeedsReview: r.NeedsReview,
+	}
+}
+
+// getImports returns imports for the current library. The default (queue) view
+// is the *review backlog*: anything still in flight, failed, or whose asset
+// still needs review — regardless of import stage, so a completed import whose
+// asset hasn't been reviewed stays visible. It also returns a retained tail of
+// recently-finished imports (done + reviewed) for the queue's "finished"
+// section. `?stage=<name>` returns that single stage; `?stage=all` returns
+// everything (no finished tail in either case).
 func (h *Handler) getImports(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
@@ -58,7 +89,8 @@ func (h *Handler) getImports(c *gin.Context) {
 
 	switch stageFilter {
 	case "":
-		q = q.Where("i.stage <> ?", "done")
+		// Review backlog: not-done, or done-but-still-needs-review.
+		q = q.Where("i.stage <> ? OR a.needs_review", "done")
 	case "all":
 		// no stage filter
 	default:
@@ -71,19 +103,9 @@ func (h *Handler) getImports(c *gin.Context) {
 		return
 	}
 
-	type row struct {
-		ID          uint
-		AssetID     uint
-		AssetName   string
-		Stage       string
-		Error       string
-		UpdatedAt   time.Time
-		CreatedAt   time.Time
-		NeedsReview bool
-	}
-	var rows []row
+	var rows []importScanRow
 	err := q.Session(&gorm.Session{}).
-		Select("i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at, a.created_at, a.needs_review").
+		Select(importRowSelect).
 		Order("i.updated_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -95,18 +117,43 @@ func (h *Handler) getImports(c *gin.Context) {
 
 	out := make([]importRow, len(rows))
 	for i, r := range rows {
-		out[i] = importRow{
-			ID:          r.ID,
-			AssetID:     r.AssetID,
-			AssetName:   r.AssetName,
-			Stage:       r.Stage,
-			Error:       r.Error,
-			UpdatedAt:   r.UpdatedAt,
-			CreatedAt:   r.CreatedAt,
-			NeedsReview: r.NeedsReview,
-		}
+		out[i] = r.toRow()
 	}
-	c.JSON(http.StatusOK, importListResponse{Imports: out, Total: total})
+
+	resp := importListResponse{Imports: out, Total: total}
+	if stageFilter == "" {
+		finished, ferr := h.finishedImports(c, lib.ID)
+		if ferr != nil {
+			respond500(c, ferr)
+			return
+		}
+		resp.Finished = finished
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// finishedImports is the retained tail for the queue's "finished" section:
+// done imports whose asset has been reviewed, touched within the retention
+// window, newest first, capped.
+func (h *Handler) finishedImports(c *gin.Context, libraryID uint) ([]importRow, error) {
+	var rows []importScanRow
+	err := h.db.WithContext(c.Request.Context()).
+		Table("asset_imports AS i").
+		Joins("JOIN assets a ON a.id = i.asset_id").
+		Where("a.library_id = ? AND i.stage = ? AND NOT a.needs_review AND i.updated_at >= ?",
+			libraryID, "done", time.Now().Add(-queueFinishedWindow)).
+		Select(importRowSelect).
+		Order("i.updated_at DESC").
+		Limit(queueFinishedLimit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]importRow, len(rows))
+	for i, r := range rows {
+		out[i] = r.toRow()
+	}
+	return out, nil
 }
 
 // getImport returns one import row by id, library-gated via the linked asset.

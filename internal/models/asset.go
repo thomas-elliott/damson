@@ -56,7 +56,11 @@ type AssetFile struct {
 	// unsupported | queued | processing | done | failed. Drives the preview
 	// processing queue and requeue; see services/preview for the constants.
 	PreviewStatus string `gorm:"not null;default:unsupported"`
-	CreatedAt     time.Time
+	// PreviewUpdatedAt records when PreviewStatus last changed. The processing
+	// queue rolls this up (MAX per version) for a real finish time, so completed
+	// rollups can be retained and ordered rather than dropped on completion.
+	PreviewUpdatedAt *time.Time
+	CreatedAt        time.Time
 }
 
 func (AssetFile) TableName() string { return "asset_files" }

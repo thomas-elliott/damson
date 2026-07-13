@@ -22,7 +22,7 @@ import { usePreviewEvents } from "@/hooks/usePreviewEvents";
  * actions live on the asset/file detail panels, so rows here just open the asset.
  */
 export function PreviewQueuePage() {
-  const { data: previews, loading } = usePreviewQueue();
+  const { data: previews, finished, loading } = usePreviewQueue();
   const { data: me } = useMe();
   usePreviewEvents(me?.current_library?.id);
   const navigate = useNavigate();
@@ -39,7 +39,7 @@ export function PreviewQueuePage() {
             <div className="flex flex-1 items-center justify-center text-ui text-text-3">
               Loading queue…
             </div>
-          ) : previews.length === 0 ? (
+          ) : previews.length === 0 && finished.length === 0 ? (
             <EmptyState
               icon={<Images size={28} />}
               title="No previews processing"
@@ -47,13 +47,33 @@ export function PreviewQueuePage() {
             />
           ) : (
             <div className="flex flex-col gap-2 p-3">
-              {previews.map((row) => (
-                <PreviewQueueRow
-                  key={row.version_id}
-                  row={row}
-                  onOpen={() => navigate(`/library/${row.asset_id}`)}
-                />
-              ))}
+              {previews.length === 0 ? (
+                <div className="px-1 py-6 text-center text-ui text-text-3">
+                  Nothing processing right now.
+                </div>
+              ) : (
+                previews.map((row) => (
+                  <PreviewQueueRow
+                    key={row.version_id}
+                    row={row}
+                    onOpen={() => navigate(`/library/${row.asset_id}`)}
+                  />
+                ))
+              )}
+              {finished.length > 0 && (
+                <>
+                  <div className="mt-4 mb-1 px-1 text-caption uppercase tracking-wide text-text-4">
+                    Finished
+                  </div>
+                  {finished.map((row) => (
+                    <PreviewQueueRow
+                      key={row.version_id}
+                      row={row}
+                      onOpen={() => navigate(`/library/${row.asset_id}`)}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           )}
         </>

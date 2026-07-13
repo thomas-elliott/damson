@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { AlertTriangle, Inbox, Loader2, RotateCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Inbox, Loader2, RotateCw } from "lucide-react";
 
 import { Shell } from "@/components/Shell";
 import {
@@ -16,13 +16,14 @@ import { useImportEvents } from "@/hooks/useImportEvents";
 import { useRetryImport } from "@/hooks/useMutations";
 
 /**
- * Import queue v2. Backed by GET /api/imports rather than the asset list,
- * so we surface in-flight + failed imports (the asset filter only shows
- * `needs_review` rows). Failed rows expose a Retry button; the rest open
- * the asset detail panel for review.
+ * Import queue. Backed by GET /api/imports: the active section is the review
+ * backlog — anything in flight, failed, or completed but not yet reviewed —
+ * and a retained "finished" section shows recently-reviewed imports (7 days /
+ * 50 rows). Failed rows expose a Retry button; the rest open the asset detail
+ * panel for review.
  */
 export function QueuePage() {
-  const { data: imports, loading } = useImports("in_flight");
+  const { data: imports, finished, loading } = useImports("in_flight");
   const { data: me } = useMe();
   useImportEvents(me?.current_library?.id);
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function QueuePage() {
             <div className="flex flex-1 items-center justify-center text-ui text-text-3">
               Loading queue…
             </div>
-          ) : imports.length === 0 ? (
+          ) : imports.length === 0 && finished.length === 0 ? (
             <EmptyState
               icon={<Inbox size={28} />}
               title="Nothing waiting for review"
@@ -47,16 +48,58 @@ export function QueuePage() {
             />
           ) : (
             <div className="flex flex-col gap-2 p-3">
-              {imports.map((imp) => (
-                <ImportQueueRow
-                  key={imp.id}
-                  imp={imp}
-                  onOpen={() => navigate(`/library/${imp.asset_id}`)}
-                />
-              ))}
+              {imports.length === 0 ? (
+                <div className="px-1 py-6 text-center text-ui text-text-3">
+                  Nothing waiting for review.
+                </div>
+              ) : (
+                imports.map((imp) => (
+                  <ImportQueueRow
+                    key={imp.id}
+                    imp={imp}
+                    onOpen={() => navigate(`/library/${imp.asset_id}`)}
+                  />
+                ))
+              )}
+              {finished.length > 0 && (
+                <>
+                  <div className="mt-4 mb-1 px-1 text-caption uppercase tracking-wide text-text-4">
+                    Finished
+                  </div>
+                  {finished.map((imp) => (
+                    <FinishedImportRow
+                      key={imp.id}
+                      imp={imp}
+                      onOpen={() => navigate(`/library/${imp.asset_id}`)}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           )}
         </>
+      }
+    />
+  );
+}
+
+function FinishedImportRow({ imp, onOpen }: { imp: ImportRow; onOpen: () => void }) {
+  return (
+    <QueueItem
+      name={imp.asset_name || `Import #${imp.id}`}
+      thumb={<CheckCircle2 size={20} className="text-text-3" />}
+      sub={
+        <>
+          <Badge size="sm" mono tone="ok">
+            reviewed
+          </Badge>
+          <span className="text-text-4">updated {new Date(imp.updated_at).toLocaleString()}</span>
+        </>
+      }
+      actions={
+        <Button size="sm" variant="secondary" onClick={onOpen}>
+          Open
+        </Button>
       }
     />
   );

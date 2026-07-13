@@ -41,12 +41,30 @@ describe("foldPreviewEvent", () => {
     expect(next.previews[0].done).toBe(3);
   });
 
-  it("drops a terminal rollup (no queued or processing files) from the in-flight list", () => {
+  it("moves a terminal rollup (rendered something, nothing pending) to the finished tail", () => {
     const cached = { previews: [row({ version_id: 1 })], total: 1 };
     const ev = row({ version_id: 1, status: "done", done: 2, failed: 1, processing: 0, queued: 0 });
     const next = foldPreviewEvent(cached, ev)!;
     expect(next.total).toBe(0);
     expect(next.previews).toHaveLength(0);
+    expect(next.finished).toHaveLength(1);
+    expect(next.finished![0].version_id).toBe(1);
+  });
+
+  it("does not retain a purely-unsupported terminal rollup (nothing ever rendered)", () => {
+    const cached = { previews: [row({ version_id: 1 })], total: 1 };
+    const ev = row({
+      version_id: 1,
+      status: "done",
+      done: 0,
+      failed: 0,
+      processing: 0,
+      queued: 0,
+      unsupported: 3,
+    });
+    const next = foldPreviewEvent(cached, ev)!;
+    expect(next.previews).toHaveLength(0);
+    expect(next.finished ?? []).toHaveLength(0);
   });
 
   it("leaves an undefined cache untouched", () => {

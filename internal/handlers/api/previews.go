@@ -15,14 +15,27 @@ import (
 )
 
 // previewQueueResponse is the snapshot shape returned by GET /api/previews —
-// the per-version rollups still being processed, newest first.
+// the per-version rollups still being processed (Previews, newest first) plus a
+// retained tail of recently-completed rollups (Finished). Total counts only the
+// in-flight set so the nav badge reflects outstanding work, not history.
 type previewQueueResponse struct {
 	Previews []preview.Event `json:"previews"`
+	Finished []preview.Event `json:"finished"`
 	Total    int             `json:"total"`
 }
 
-// getPreviewQueue returns the in-flight preview rollups for the current
-// library: versions with any queued or processing file.
+// queueFinishedWindow / queueFinishedLimit bound the retained "finished" tail
+// shown at the bottom of the import and processing queues: completed rows drop
+// off after a week, or once fifty newer ones push them out — whichever comes
+// first.
+const (
+	queueFinishedWindow = 7 * 24 * time.Hour
+	queueFinishedLimit  = 50
+)
+
+// getPreviewQueue returns the current library's preview rollups: the in-flight
+// set (versions with any queued/processing file) and a retained tail of
+// recently-finished rollups for the queue's "finished" section.
 func (h *Handler) getPreviewQueue(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {
@@ -34,7 +47,13 @@ func (h *Handler) getPreviewQueue(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, previewQueueResponse{Previews: events, Total: len(events)})
+	finished, err := preview.Finished(c.Request.Context(), h.db, lib.ID,
+		time.Now().Add(-queueFinishedWindow), queueFinishedLimit)
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, previewQueueResponse{Previews: events, Finished: finished, Total: len(events)})
 }
 
 // postAssetPreviewRequeue regenerates previews for an asset's current version:
