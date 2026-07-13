@@ -174,8 +174,15 @@ One coherent, independently-committable stage per item.
 - **V1 store adapters:** Unity Asset Store (GraphQL + Coveo search), Sketchfab
   (official API), itch.io page scrape **and** itch.io name search. Fab is
   URL-only until Epic ships a public API.
-- **Unity data source:** unofficial GraphQL primary with OG/JSON-LD page-scrape
-  fallback, accepting the documented ToS/stability posture and mitigations.
+- **Unity data source:** ~~unofficial GraphQL primary with OG/JSON-LD
+  page-scrape fallback~~ **superseded during implementation by live testing
+  (2026-07-13).** Reality: package pages are fully client-rendered (no
+  server-side OG/JSON-LD to scrape) and the GraphQL batch endpoint returns 400
+  without a CSRF handshake the public site doesn't expose. The anonymous Coveo
+  search API — which powers the store's own search — is the one reliable
+  unauthenticated source, so **both** Unity name-search and fetch-by-URL go
+  through Coveo (fetch looks the product up by its id via `@ec_product_id==`).
+  This is a strict simplification (one source, no CSRF, no dead scrape path).
 - **Apply semantics:** fill blank fields automatically; explicit confirmation
   only for overwrites.
 - **Cover image:** the fetched cover becomes the asset thumbnail through the
@@ -202,13 +209,19 @@ One coherent, independently-committable stage per item.
 - `internal/services/metadata/scrape.go` (GenericFetcher.Fetch, status>=400) —
   errors on 4xx/5xx so an error page's markup isn't parsed into junk metadata;
   as the fallback fetcher, erroring is the right degrade.
-- `internal/services/metadata/unity.go` (findMapWithKeys, name+description) —
-  requires *both* keys so an error/publisher node isn't mistaken for the
-  product; a schema change that renames `name` makes GraphQL "fail" and
-  degrade to page-scrape by design, rather than return empty metadata.
-- `internal/services/metadata/unity.go` (fetchUnityPage) — defaults LicenceHint
-  to `unity-eula` when the page yields none: Asset Store assets carry the
-  standard EULA unless the publisher set a customLicense.
+- `internal/services/metadata/unity.go` (unityCoveo, context block) — the
+  Coveo pipeline filters every query to zero results unless the assetstore
+  `context` (website/language/engineUniqueId/userGroups) is sent; the search
+  token is returned as a *bare JSON string*, not an object. Both verified live.
+- `internal/services/metadata/unity.go` (unityProductID) — matches trailing
+  digits after `/` or `-` so it handles both `/packages/package/<id>` (the
+  form Coveo's clickUri uses) and `/packages/<cat>/slug-<id>`.
+- `internal/services/metadata/unity.go` (coveoMetadata, LicenceHint) — defaults
+  to `unity-eula`: Asset Store assets carry the standard EULA and Coveo exposes
+  no per-asset licence field.
+- `internal/services/metadata/unity.go` (stripTags + html.UnescapeString) —
+  Coveo descriptions are HTML with numeric entities (emoji); strip tags then
+  unescape so the stored description is plain text.
 - `internal/services/metadata/sketchfab.go` (sketchfabUID) — the uid is the
   last 32-hex token in the URL (Sketchfab appends it to the slug and also
   exposes the bare /models/<uid> form).

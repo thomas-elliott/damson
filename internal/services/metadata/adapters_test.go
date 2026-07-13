@@ -1,6 +1,9 @@
 package metadata
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestSketchfabUID(t *testing.T) {
 	cases := map[string]string{
@@ -46,6 +49,7 @@ func TestUnityProductID(t *testing.T) {
 	cases := map[string]string{
 		"https://assetstore.unity.com/packages/3d/props/fantasy-environment-pack-12345":  "12345",
 		"https://assetstore.unity.com/packages/3d/props/fantasy-environment-pack-12345/": "12345",
+		"https://assetstore.unity.com/packages/package/162153":                           "162153",
 		"https://assetstore.unity.com/packages/no-id":                                    "",
 	}
 	for in, want := range cases {
@@ -55,43 +59,62 @@ func TestUnityProductID(t *testing.T) {
 	}
 }
 
-func TestParseUnityGraphQL(t *testing.T) {
-	listing := "https://assetstore.unity.com/packages/3d/props/fantasy-environment-pack-12345"
-	m, err := parseUnityGraphQL(readFixture(t, "unity_graphql.json"), listing)
-	if err != nil {
-		t.Fatal(err)
+func decodeCoveo(t *testing.T, name string) coveoResponse {
+	t.Helper()
+	var resp coveoResponse
+	if err := json.Unmarshal(readFixture(t, name), &resp); err != nil {
+		t.Fatalf("decode coveo fixture: %v", err)
 	}
-	if m.Title != "Fantasy Environment Pack" {
+	if len(resp.Results) == 0 {
+		t.Fatal("fixture has no results")
+	}
+	return resp
+}
+
+func TestCoveoMetadata(t *testing.T) {
+	resp := decodeCoveo(t, "unity_coveo.json")
+	m := coveoMetadata(resp.Results[0], "https://assetstore.unity.com/packages/package/162153")
+
+	if m.Title != "Low-Poly Simple Nature Pack" {
 		t.Errorf("title: got %q", m.Title)
 	}
 	// HTML tags in the description must be stripped.
-	if m.Description != "A huge set of fantasy props." {
+	if m.Description != "A tidy low-poly nature set." {
 		t.Errorf("description: got %q", m.Description)
 	}
-	if m.Publisher != "AcmeArt" {
+	if m.Publisher != "JustCreate" {
 		t.Errorf("publisher: got %q", m.Publisher)
 	}
-	if m.Price != "49.99" || m.Currency != "USD" {
+	if m.Price != "0" || m.Currency != "USD" {
 		t.Errorf("price/currency: got %q %q", m.Price, m.Currency)
 	}
-	if m.CoverURL != "https://assetstorev1-prd-cdn.unity3d.com/big.jpg" {
+	// ec_product_id is a JSON array — the first element is the id.
+	if m.StoreID != "162153" {
+		t.Errorf("store id: got %q", m.StoreID)
+	}
+	// Cover comes from ec_thumbnails.
+	if m.CoverURL != "https://assetstorev1-prd-cdn.unity3d.com/key-image/abc.jpg" {
 		t.Errorf("cover: got %q", m.CoverURL)
 	}
-	if len(m.ImageURLs) != 2 {
-		t.Errorf("screenshots: got %d", len(m.ImageURLs))
-	}
-	// Non-custom Unity licence defaults to the Asset Store EULA.
 	if m.LicenceHint != "unity-eula" {
 		t.Errorf("licence hint: got %q want unity-eula", m.LicenceHint)
 	}
+	if len(m.Raw) == 0 {
+		t.Error("raw payload must be persisted")
+	}
 }
 
-func TestParseUnityGraphQL_NoProduct(t *testing.T) {
-	// A response without a product node must error so Fetch degrades to
-	// page-scraping rather than returning empty metadata.
-	_, err := parseUnityGraphQL([]byte(`[{"errors":[{"message":"nope"}]}]`), "https://assetstore.unity.com/packages/x-1")
-	if err == nil {
-		t.Fatal("expected error when no product node present")
+func TestCoveoCandidate(t *testing.T) {
+	resp := decodeCoveo(t, "unity_coveo.json")
+	c := coveoCandidate(resp.Results[0])
+	if c.Title != "Low-Poly Simple Nature Pack" || c.Store != StoreUnity {
+		t.Errorf("candidate: %+v", c)
+	}
+	if c.ListingURL != "https://assetstore.unity.com/packages/package/162153" {
+		t.Errorf("listing url: got %q", c.ListingURL)
+	}
+	if c.StoreID != "162153" {
+		t.Errorf("store id from array: got %q", c.StoreID)
 	}
 }
 

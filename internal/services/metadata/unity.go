@@ -5,118 +5,202 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+	"html"
 	"net/url"
 	"regexp"
 	"strings"
 )
 
-// UnityAdapter fetches Unity Asset Store listing metadata. It prefers the
-// unofficial GraphQL batch endpoint (richest data) and degrades to scraping
-// the server-rendered page's OG/JSON-LD tags on any failure.
+// UnityAdapter fetches Unity Asset Store metadata via the anonymous Coveo
+// search API — the same source that powers the store's own search. It is used
+// for both name search and fetch-by-URL (looking a product up by its id).
+//
+// The store's package pages are client-rendered (no server-side OG/JSON-LD to
+// scrape) and the GraphQL endpoint requires a CSRF handshake the public site
+// doesn't expose, so Coveo is the one reliable unauthenticated source.
 type UnityAdapter struct{}
 
 const (
-	unityGraphQLURL = "https://assetstore.unity.com/api/graphql/batch"
-	unityHost       = "assetstore.unity.com"
+	unityHost           = "assetstore.unity.com"
+	unityCoveoTokenURL  = "https://assetstore.unity.com/api/coveo/search-token?searchHub=Assetstore_Search"
+	unityCoveoSearchURL = "https://unitytechnologiesproductionmkahteav.org.coveo.com/rest/search/v2?organizationId=unitytechnologiesproductionmkahteav"
 )
 
-// unityProductIDRE captures the trailing numeric id Unity appends to package
-// slugs: /packages/3d/props/foo-bar-12345 -> 12345.
-var unityProductIDRE = regexp.MustCompile(`-(\d+)/?$`)
+// coveoFields are the raw fields we ask Coveo to return; a narrow set keeps
+// the payload small and the mapping stable.
+var coveoFields = []string{
+	"ec_name", "ec_price", "publisher_name", "ec_product_id",
+	"ec_images", "ec_thumbnails", "ec_shortdesc", "ec_description",
+}
 
-// unityProductQuery requests only the fields we consume; a narrow query
-// reduces the surface that can break when Unity changes its schema.
-const unityProductQuery = `query Product($id: ID!) {
-  product(id: $id) {
-    id
-    name
-    description
-    price { finalPrice originalPrice currency }
-    productPublisher { name }
-    mainImage { big }
-    images { imageUrl type }
-    customLicense
-    licenseText
-  }
-}`
+// unityProductIDRE captures the trailing numeric id Unity uses, in both the
+// /packages/package/<id> and /packages/<cat>/slug-<id> URL forms.
+var unityProductIDRE = regexp.MustCompile(`(\d+)/?$`)
 
 func (UnityAdapter) Store() string { return StoreUnity }
 
-// Fetch tries GraphQL first, then falls back to scraping the listing page.
+// Fetch resolves the product id from the listing URL and looks it up in Coveo.
 func (UnityAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
-	if m, err := fetchUnityGraphQL(ctx, client, rawURL); err == nil {
-		return m, nil
-	} else {
-		slog.Warn("unity: graphql fetch failed, scraping page", "url", rawURL, "err", err)
-	}
-	return fetchUnityPage(ctx, client, rawURL)
-}
-
-// fetchUnityGraphQL bootstraps a CSRF token from the listing page, then POSTs
-// the batch query with the token + cookies Unity's endpoint requires.
-func fetchUnityGraphQL(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
-	productID := unityProductID(rawURL)
-	if productID == "" {
+	id := unityProductID(rawURL)
+	if id == "" {
 		return nil, fmt.Errorf("unity: no product id in %q", rawURL)
 	}
-
-	boot, err := client.Get(ctx, rawURL, nil)
+	resp, err := unityCoveo(ctx, client, map[string]any{
+		"aq":                "@ec_product_id==" + id,
+		"enableQuerySyntax": true,
+		"numberOfResults":   1,
+	})
 	if err != nil {
 		return nil, err
 	}
-	csrf := boot.Cookie("_csrf")
-	if csrf == "" {
-		return nil, fmt.Errorf("unity: no _csrf cookie from bootstrap")
+	if len(resp.Results) == 0 {
+		return nil, fmt.Errorf("unity: no product %s in coveo", id)
 	}
-
-	batch := []map[string]any{{
-		"operationName": "Product",
-		"query":         unityProductQuery,
-		"variables":     map[string]any{"id": productID},
-	}}
-	payload, err := json.Marshal(batch)
-	if err != nil {
-		return nil, err
-	}
-	headers := map[string]string{
-		"Content-Type":     "application/json",
-		"X-Csrf-Token":     csrf,
-		"X-Requested-With": "XMLHttpRequest",
-		"Cookie":           boot.CookieHeader(),
-		"Origin":           "https://" + unityHost,
-		"Referer":          rawURL,
-	}
-	resp, err := client.Do(ctx, "POST", unityGraphQLURL, bytes.NewReader(payload), headers)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("unity: graphql status %d", resp.StatusCode)
-	}
-	return parseUnityGraphQL(resp.Body, rawURL)
+	return coveoMetadata(resp.Results[0], rawURL), nil
 }
 
-func fetchUnityPage(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
-	resp, err := client.Get(ctx, rawURL, nil)
+// Search queries the Unity Asset Store via Coveo.
+func (UnityAdapter) Search(ctx context.Context, client *Client, query string) ([]Candidate, error) {
+	resp, err := unityCoveo(ctx, client, map[string]any{
+		"q":                 query,
+		"enableQuerySyntax": false,
+		"numberOfResults":   maxCandidatesPerStore,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Candidate, 0, len(resp.Results))
+	for _, r := range resp.Results {
+		c := coveoCandidate(r)
+		if c.Title != "" && c.ListingURL != "" {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+type coveoResult struct {
+	ClickURI string         `json:"clickUri"`
+	Title    string         `json:"title"`
+	Raw      map[string]any `json:"raw"`
+}
+
+type coveoResponse struct {
+	Results []coveoResult `json:"results"`
+}
+
+// unityCoveo fetches an anonymous search token, then POSTs a Coveo query. The
+// base body carries the context + field set the store's pipeline requires (a
+// query without the assetstore context is filtered to zero results); callers
+// supply q or aq plus paging via extra.
+func unityCoveo(ctx context.Context, client *Client, extra map[string]any) (*coveoResponse, error) {
+	tokResp, err := client.Get(ctx, unityCoveoTokenURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if tokResp.StatusCode >= 400 {
+		return nil, fmt.Errorf("unity: coveo token status %d", tokResp.StatusCode)
+	}
+	// The token endpoint returns a bare JSON string, not an object.
+	var token string
+	if err := json.Unmarshal(tokResp.Body, &token); err != nil || token == "" {
+		return nil, fmt.Errorf("unity: unreadable coveo token")
+	}
+
+	body := map[string]any{
+		"searchHub":         "Assetstore_Search",
+		"enableQuerySyntax": false,
+		"sortCriteria":      "relevancy",
+		"fieldsToInclude":   coveoFields,
+		"context": map[string]any{
+			"website":        "assetstore",
+			"language":       "en-US",
+			"engineUniqueId": "Assetstore_Search",
+			"userGroups":     []string{"assetStoreUsers"},
+		},
+	}
+	for k, v := range extra {
+		body[k] = v
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(ctx, "POST", unityCoveoSearchURL, bytes.NewReader(payload), map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": "Bearer " + token,
+		"Origin":        "https://" + unityHost,
+		"Referer":       "https://" + unityHost + "/",
+	})
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("unity: page status %d", resp.StatusCode)
+		return nil, fmt.Errorf("unity: coveo search status %d", resp.StatusCode)
 	}
-	m := ParseHTML(resp.Body, resp.FinalURL)
-	m.Store = StoreUnity
-	if m.ListingURL == "" {
-		m.ListingURL = resp.FinalURL
+	var out coveoResponse
+	if err := json.Unmarshal(resp.Body, &out); err != nil {
+		return nil, fmt.Errorf("unity: decode coveo response: %w", err)
 	}
-	if m.LicenceHint == "" && m.LicenceText == "" {
-		m.LicenceHint = "unity-eula"
+	return &out, nil
+}
+
+func coveoCandidate(r coveoResult) Candidate {
+	raw := r.Raw
+	return Candidate{
+		Title:      stringOf(raw["ec_name"]),
+		Publisher:  stringOf(raw["publisher_name"]),
+		Price:      numOrString(raw["ec_price"]),
+		Currency:   "USD",
+		CoverURL:   coveoCover(raw),
+		ListingURL: r.ClickURI,
+		Store:      StoreUnity,
+		StoreID:    firstArrayString(raw["ec_product_id"]),
 	}
-	if id := unityProductID(rawURL); id != "" && m.StoreID == "" {
-		m.StoreID = id
+}
+
+func coveoMetadata(r coveoResult, listingURL string) *Metadata {
+	raw := r.Raw
+	rawJSON, _ := json.Marshal(r)
+	return &Metadata{
+		Store:       StoreUnity,
+		Title:       stringOf(raw["ec_name"]),
+		Description: stripTags(firstNonEmpty(stringOf(raw["ec_description"]), stringOf(raw["ec_shortdesc"]))),
+		Publisher:   stringOf(raw["publisher_name"]),
+		Price:       numOrString(raw["ec_price"]),
+		Currency:    "USD",
+		CoverURL:    coveoCover(raw),
+		StoreID:     firstNonEmpty(firstArrayString(raw["ec_product_id"]), unityProductID(listingURL)),
+		ListingURL:  firstNonEmpty(r.ClickURI, listingURL),
+		LicenceHint: "unity-eula",
+		Raw:         rawJSON,
 	}
-	return m, nil
+}
+
+// coveoCover prefers the single ec_thumbnails URL, falling back to the first
+// ec_images entry (which may be a JSON array or a JSON-encoded string).
+func coveoCover(raw map[string]any) string {
+	if t := stringOf(raw["ec_thumbnails"]); t != "" {
+		return t
+	}
+	switch v := raw["ec_images"].(type) {
+	case string:
+		s := strings.TrimSpace(v)
+		if strings.HasPrefix(s, "[") {
+			var arr []string
+			if json.Unmarshal([]byte(s), &arr) == nil && len(arr) > 0 {
+				return arr[0]
+			}
+		}
+		return s
+	case []any:
+		for _, item := range v {
+			if u := stringOf(item); u != "" {
+				return u
+			}
+		}
+	}
+	return ""
 }
 
 func unityProductID(rawURL string) string {
@@ -130,113 +214,18 @@ func unityProductID(rawURL string) string {
 	return ""
 }
 
-// parseUnityGraphQL defensively extracts the product node from a batch
-// response (an array of {data:{product}} objects) and maps its fields.
-func parseUnityGraphQL(body []byte, listingURL string) (*Metadata, error) {
-	var raw any
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, fmt.Errorf("unity: decode graphql: %w", err)
-	}
-	product := findMapWithKeys(raw, "name", "description")
-	if product == nil {
-		return nil, fmt.Errorf("unity: no product node in graphql response")
-	}
-	m := &Metadata{
-		Store:      StoreUnity,
-		ListingURL: listingURL,
-		Raw:        json.RawMessage(body),
-	}
-	m.Title = stringOf(product["name"])
-	m.Description = stripTags(stringOf(product["description"]))
-	m.StoreID = firstNonEmpty(stringOf(product["id"]), unityProductID(listingURL))
-	if pub, ok := product["productPublisher"].(map[string]any); ok {
-		m.Publisher = stringOf(pub["name"])
-	}
-	if price, ok := product["price"].(map[string]any); ok {
-		m.Price = numOrString(firstPresent(price, "finalPrice", "originalPrice"))
-		m.Currency = stringOf(price["currency"])
-	}
-	m.CoverURL = unityCover(product)
-	m.ImageURLs = unityImages(product)
-	custom, _ := product["customLicense"].(bool)
-	licenceText := stringOf(product["licenseText"])
-	if custom && licenceText != "" {
-		m.LicenceText = licenceText
-	} else {
-		m.LicenceHint = "unity-eula"
-	}
-	return m, nil
-}
-
-func unityCover(product map[string]any) string {
-	if main, ok := product["mainImage"].(map[string]any); ok {
-		if big := stringOf(main["big"]); big != "" {
-			return big
+func firstArrayString(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case []any:
+		if len(t) > 0 {
+			return stringOf(t[0])
 		}
-	}
-	imgs := unityImages(product)
-	if len(imgs) > 0 {
-		return imgs[0]
+	case float64:
+		return numOrString(t)
 	}
 	return ""
-}
-
-func unityImages(product map[string]any) []string {
-	arr, ok := product["images"].([]any)
-	if !ok {
-		return nil
-	}
-	var out []string
-	for _, it := range arr {
-		if img, ok := it.(map[string]any); ok {
-			if u := stringOf(img["imageUrl"]); u != "" {
-				out = append(out, u)
-			}
-		}
-	}
-	return out
-}
-
-// findMapWithKeys walks arbitrary decoded JSON and returns the first object
-// that contains all of the required keys — used to locate the product node
-// without hard-coding the batch envelope shape.
-func findMapWithKeys(v any, keys ...string) map[string]any {
-	switch t := v.(type) {
-	case map[string]any:
-		if hasAllKeys(t, keys) {
-			return t
-		}
-		for _, child := range t {
-			if found := findMapWithKeys(child, keys...); found != nil {
-				return found
-			}
-		}
-	case []any:
-		for _, item := range t {
-			if found := findMapWithKeys(item, keys...); found != nil {
-				return found
-			}
-		}
-	}
-	return nil
-}
-
-func hasAllKeys(m map[string]any, keys []string) bool {
-	for _, k := range keys {
-		if _, ok := m[k]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func firstPresent(m map[string]any, keys ...string) any {
-	for _, k := range keys {
-		if v, ok := m[k]; ok && v != nil {
-			return v
-		}
-	}
-	return nil
 }
 
 func numOrString(v any) string {
@@ -272,5 +261,5 @@ func stripTags(s string) string {
 			}
 		}
 	}
-	return strings.TrimSpace(sb.String())
+	return strings.TrimSpace(html.UnescapeString(sb.String()))
 }
