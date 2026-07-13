@@ -202,6 +202,15 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return fail("finalize: " + err.Error())
 	}
 
+	// Auto-enrichment: best-effort storefront metadata fill. Gated on the
+	// per-library toggle and a conservative title match; never fails the import.
+	// The stage transition fires even when enrichment is disabled so the SSE
+	// stage sequence stays stable; enrichAsset itself is the gated no-op.
+	if err := transition(StageEnriching); err != nil {
+		return err
+	}
+	enrichAsset(ctx, deps, jc)
+
 	// Previewing is decoupled: once asset_files are committed, hand the version
 	// off to the preview processing queue. The import finishes immediately and
 	// previews fill in afterward, tracked on their own queue.
@@ -414,6 +423,7 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 		ThumbnailsFontEnabled:   true,
 		ThumbnailsUnityPreview:  true,
 		PreviewsEnabled:         true,
+		AutoEnrichEnabled:       true,
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err
