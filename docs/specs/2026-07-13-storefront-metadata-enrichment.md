@@ -222,3 +222,11 @@ One coherent, independently-committable stage per item.
 - `internal/handlers/api/metadata.go` (applyLicenceFromMeta) — same-type
   existing licence is a no-op (not a conflict); fill-blanks never touches an
   existing licence, so a reviewed one is only ever replaced on explicit apply.
+- `web/src/components/detail/MetadataActions.tsx` (candidate cover `<img>`) —
+  a plain `<img src>` is used because candidate covers are external storefront
+  CDN URLs, directly renderable, unlike our own file endpoint which forces
+  octet-stream + nosniff and needs the fetchBlob dance.
+- `web/src/components/detail/MetadataActions.tsx` (match picker `q`) — the
+  search box seeds from the asset name at mount and the "Find listing" button
+  re-searches that name on each open; `q` isn't force-reset on reopen (avoids
+  a setState-in-effect), so a previously-typed query persists — acceptable.
