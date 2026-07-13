@@ -8,8 +8,18 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
+
+// MetadataEnricher is the storefront-metadata dependency the auto-enrich
+// stage uses. *metadata.Registry satisfies it. Optional on Deps — a nil
+// enricher skips enrichment entirely.
+type MetadataEnricher interface {
+	Search(ctx context.Context, query string) ([]metadata.Candidate, error)
+	Fetch(ctx context.Context, rawURL string) (*metadata.Metadata, error)
+	FetchImage(ctx context.Context, rawURL string) ([]byte, string, error)
+}
 
 // Job is the unit of work for the import pipeline. It carries only the
 // import row's id (and the library id for broadcaster routing); everything
@@ -38,6 +48,8 @@ type Deps struct {
 	// preview generation runs on its own queue instead of blocking the import.
 	// Optional — a nil enqueuer simply skips the handoff.
 	Previews PreviewEnqueuer
+	// Metadata drives the auto-enrichment stage. Optional — nil skips it.
+	Metadata MetadataEnricher
 }
 
 // Pool is a bounded worker pool that drains a job queue. Construct via

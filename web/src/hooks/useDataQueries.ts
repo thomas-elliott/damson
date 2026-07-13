@@ -453,6 +453,7 @@ export interface LibrarySettings {
   thumbnails_audio_enabled: boolean;
   thumbnails_font_enabled: boolean;
   thumbnails_unity_preview: boolean;
+  auto_enrich_enabled: boolean;
   audit_retention_days: number | null;
 }
 

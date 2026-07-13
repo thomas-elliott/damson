@@ -226,6 +226,18 @@ One coherent, independently-committable stage per item.
   a plain `<img src>` is used because candidate covers are external storefront
   CDN URLs, directly renderable, unlike our own file endpoint which forces
   octet-stream + nosniff and needs the fetchBlob dance.
+- `internal/services/imports/enrich.go` (titlesMatch) — the high-confidence
+  gate is *exact* normalised-title equality; anything short abstains and stores
+  candidates. Deliberately conservative per the signed-off auto-enrich posture.
+- `internal/services/imports/enrich.go` (enrichAsset, meta == nil guard) —
+  treats a `(nil, nil)` Fetch as an abstain so a misbehaving adapter can't nil
+  -deref the fill path.
+- `internal/services/imports/pipeline.go` (StageEnriching transition) — the
+  stage transition fires unconditionally (even with no enricher / toggle off)
+  so the SSE stage sequence is stable; enrichAsset itself is the gated no-op.
+- `internal/services/imports/enrich_test.go` (force toggle) — GORM omits a
+  zero-value bool on Create so the `default:true` column wins; the test forces
+  the value with a follow-up Update.
 - `web/src/components/detail/MetadataActions.tsx` (match picker `q`) — the
   search box seeds from the asset name at mount and the "Find listing" button
   re-searches that name on each open; `q` isn't force-reset on reopen (avoids

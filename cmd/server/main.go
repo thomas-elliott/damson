@@ -122,12 +122,15 @@ func main() {
 		slog.Info("preview resume sweep", "enqueued", resumed)
 	}
 
+	metaRegistry := metadata.Default(metadata.ClientOptions{})
+
 	broadcaster := imports.NewBroadcaster()
 	importPool := imports.New(imports.Deps{
 		DB:          gormDB,
 		Storage:     store,
 		Broadcaster: broadcaster,
 		Previews:    previewPool,
+		Metadata:    metaRegistry,
 	}, cfg.ImportWorkers)
 	slog.Info("import pool", "workers", cfg.ImportWorkers)
 
@@ -159,7 +162,7 @@ func main() {
 		Broadcaster:        broadcaster,
 		PreviewPool:        previewPool,
 		PreviewBroadcaster: previewBroadcaster,
-		Metadata:           metadata.Default(metadata.ClientOptions{}),
+		Metadata:           metaRegistry,
 		OrphanMinAge:       cfg.OrphanMinAge,
 		// Echoed to the SPA on /api/auth/mode in OIDC mode (empty in local).
 		OIDCAuthority: cfg.OIDCIssuerURL,
