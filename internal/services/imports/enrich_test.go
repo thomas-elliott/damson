@@ -108,6 +108,42 @@ func TestEnrichAsset_HighConfidenceFillsBlanks(t *testing.T) {
 	}
 }
 
+func TestEnrichAsset_ExactMatchNotFirstCandidate(t *testing.T) {
+	db := enrichTestDB(t)
+	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)
+	fake := &fakeEnricher{
+		cands: []metadata.Candidate{
+			{Title: "Fantasy Pack Vol. 2", ListingURL: "https://x/other", Store: "itch"},
+			{Title: "fantasy-pack", ListingURL: "https://x/match", Store: "sketchfab"},
+		},
+		meta: &metadata.Metadata{
+			Store:       "sketchfab",
+			Description: "Matched description.",
+			ListingURL:  "https://x/match",
+		},
+	}
+	jc := jobContext{asset: *asset, libraryID: 1}
+
+	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
+
+	// Gating only on the head of the merged list would abstain here.
+	if fake.fetchCall != 1 {
+		t.Fatalf("expected the exact match to be fetched despite not being first, fetchCall=%d", fake.fetchCall)
+	}
+	var got models.Asset
+	db.First(&got, asset.ID)
+	if got.Description != "Matched description." {
+		t.Errorf("description not filled from the matching candidate: %q", got.Description)
+	}
+	var rec metadata.SourceRecord
+	if err := json.Unmarshal(got.SourceMetadataJSON, &rec); err != nil {
+		t.Fatal(err)
+	}
+	if !rec.Matched || rec.ListingURL != "https://x/match" {
+		t.Errorf("expected matched record for the exact-title candidate, got %+v", rec)
+	}
+}
+
 func TestEnrichAsset_LowConfidenceAbstains(t *testing.T) {
 	db := enrichTestDB(t)
 	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)

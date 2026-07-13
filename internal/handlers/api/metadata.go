@@ -355,24 +355,40 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		}
 	}
 
+	auditBefore := map[string]any{}
+	auditAfter := map[string]any{}
 	if len(updates) > 0 {
 		if err := h.db.WithContext(ctx).Model(asset).Where("id = ?", asset.ID).Updates(updates).Error; err != nil {
 			slog.Warn("metadata: persist fields", "err", err, "asset_id", asset.ID)
 		} else {
-			h.auditMetadata(c, libID, asset.ID, userID, "asset.metadata.apply", before, updates)
+			for k, v := range before {
+				auditBefore[k] = v
+			}
+			for k, v := range updates {
+				auditAfter[k] = v
+			}
 		}
 	}
 
-	if applied2, conflict := h.applyLicenceFromMeta(c, asset, meta, confirm); conflict != nil {
+	if applied2, prevType, newType, conflict := h.applyLicenceFromMeta(c, asset, meta, confirm); conflict != nil {
 		conflicts = append(conflicts, *conflict)
 	} else if applied2 {
 		applied = append(applied, "licence")
+		auditBefore["licence"] = prevType
+		auditAfter["licence"] = newType
 	}
 
+	prevThumb := asset.ThumbnailObjectKey
 	if applied3, conflict := h.applyThumbnailFromMeta(c, asset, meta, confirm); conflict != nil {
 		conflicts = append(conflicts, *conflict)
 	} else if applied3 {
 		applied = append(applied, "thumbnail")
+		auditBefore["thumbnail_object_key"] = prevThumb
+		auditAfter["thumbnail_object_key"] = asset.ThumbnailObjectKey
+	}
+
+	if len(auditAfter) > 0 {
+		h.auditMetadata(c, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)
 	}
 
 	return applied, conflicts
@@ -381,27 +397,30 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 // applyLicenceFromMeta creates a licence from the fetched hint/text when the
 // asset has none, or reports a conflict when one exists and differs (unless
 // confirmed). A reviewed licence is only ever replaced on explicit confirm.
-func (h *Handler) applyLicenceFromMeta(c *gin.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, *metadataConflict) {
+// On apply it returns the previous and new detected types for the audit diff.
+func (h *Handler) applyLicenceFromMeta(c *gin.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, string, string, *metadataConflict) {
 	lic := buildLicenceFromMeta(meta)
 	if lic == nil {
-		return false, nil
+		return false, "", "", nil
 	}
+	prevType := ""
 	if asset.LicenceID != nil {
 		var existing models.Licence
 		if err := h.db.WithContext(c.Request.Context()).First(&existing, *asset.LicenceID).Error; err == nil {
+			prevType = existing.DetectedType
 			if existing.DetectedType == lic.DetectedType {
-				return false, nil
+				return false, "", "", nil
 			}
 			if !confirm["licence"] {
-				return false, &metadataConflict{Field: "licence", Current: existing.DetectedType, Proposed: lic.DetectedType}
+				return false, "", "", &metadataConflict{Field: "licence", Current: existing.DetectedType, Proposed: lic.DetectedType}
 			}
 		}
 	}
 	if err := h.persistLicence(c, asset, lic); err != nil {
 		slog.Warn("metadata: persist licence", "err", err, "asset_id", asset.ID)
-		return false, nil
+		return false, "", "", nil
 	}
-	return true, nil
+	return true, prevType, lic.DetectedType, nil
 }
 
 // applyThumbnailFromMeta downloads the cover image and stores it as the asset

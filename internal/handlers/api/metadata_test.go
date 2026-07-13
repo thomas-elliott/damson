@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/png"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/thomas-elliott/damson/internal/models"
@@ -118,6 +119,19 @@ func TestMetadataFetch_FillsBlanks(t *testing.T) {
 	detail := jsonResponse[assetDetailView](t, dw)
 	if detail.SourceMetadata == nil || detail.SourceMetadata.Store != metadata.StoreSketchfab {
 		t.Errorf("source_metadata missing from detail view: %+v", detail.SourceMetadata)
+	}
+
+	// One audit entry covers everything the apply changed, licence and
+	// thumbnail included.
+	var entry models.AuditLog
+	if err := db.Where("action_type = ?", "asset.metadata.apply").First(&entry).Error; err != nil {
+		t.Fatalf("audit entry not written: %v", err)
+	}
+	diff := string(entry.DiffJSON)
+	for _, want := range []string{"description", "licence", "thumbnail_object_key"} {
+		if !strings.Contains(diff, want) {
+			t.Errorf("audit diff missing %q: %s", want, diff)
+		}
 	}
 }
 
