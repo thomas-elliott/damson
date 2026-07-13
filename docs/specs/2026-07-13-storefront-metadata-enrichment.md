@@ -212,3 +212,13 @@ One coherent, independently-committable stage per item.
 - `internal/services/metadata/sketchfab.go` (sketchfabUID) — the uid is the
   last 32-hex token in the URL (Sketchfab appends it to the slug and also
   exposes the bare /models/<uid> form).
+- `internal/handlers/api/metadata.go` (applyThumbnailFromMeta) — routes the
+  fetched cover through the raster thumbnail pipeline, which decodes and
+  re-encodes; that *is* the content-type-validation SSRF requirement (a
+  non-image body classifies to nothing and is silently skipped).
+- `internal/handlers/api/metadata.go` (buildLicenceFromMeta, hint path) —
+  synthesises a short original_text because the Licence model requires it
+  non-blank, while the real signal is the detected_type + known attributes.
+- `internal/handlers/api/metadata.go` (applyLicenceFromMeta) — same-type
+  existing licence is a no-op (not a conflict); fill-blanks never touches an
+  existing licence, so a reviewed one is only ever replaced on explicit apply.
