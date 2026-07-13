@@ -101,4 +101,22 @@ describe("MetadataActions", () => {
     expect(screen.queryByText("Confirm overwrites")).not.toBeInTheDocument();
     expect(applyMutate).not.toHaveBeenCalled();
   });
+
+  it("surfaces stored candidates and re-fetches the picked one", () => {
+    fetchResponse = { store: "unity", listing_url: "", fetched: null, applied: [], conflicts: [] };
+    const withMeta = {
+      ...asset,
+      source_metadata: {
+        matched: false,
+        store: "",
+        candidates: [{ title: "The Right One", listing_url: "https://x/right", store: "unity" }],
+      },
+    } as AssetDetailView;
+
+    render(<MetadataActions asset={withMeta} />);
+    // Abstain provenance must render, and the stored candidate must be pickable.
+    expect(screen.getByText(/No confident match/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /The Right One/i }));
+    expect(fetchMutate).toHaveBeenCalledWith({ id: 7, url: "https://x/right" });
+  });
 });
