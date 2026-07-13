@@ -46,6 +46,9 @@ func Default(opts ClientOptions) *Registry {
 	r.RegisterHost(unityHost, UnityAdapter{})
 	r.RegisterHost("sketchfab.com", SketchfabAdapter{})
 	r.RegisterHost("itch.io", ItchAdapter{})
+	r.RegisterSearcher(UnityAdapter{})
+	r.RegisterSearcher(SketchfabAdapter{})
+	r.RegisterSearcher(ItchAdapter{})
 	return r
 }
 

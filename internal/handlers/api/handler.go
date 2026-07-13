@@ -159,6 +159,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/assets/:id/rescan", h.postAssetRescan)
 	scoped.POST("/assets/:id/metadata/fetch", h.postAssetMetadataFetch)
 	scoped.POST("/assets/:id/metadata/apply", h.postAssetMetadataApply)
+	scoped.GET("/metadata/search", h.getMetadataSearch)
 
 	// Imports
 	scoped.POST("/imports", h.postImport)

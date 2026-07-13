@@ -1,0 +1,21 @@
+{
+  "totalCount": 1,
+  "results": [
+    {
+      "clickUri": "https://assetstore.unity.com/packages/3d/props/fantasy-pack-12345",
+      "title": "Fantasy Pack",
+      "raw": {
+        "ec_name": "Fantasy Pack Deluxe",
+        "publisher_name": "AcmeArt",
+        "ec_price": 49.99,
+        "ec_product_id": 12345,
+        "ec_images": "[\"https://cdn.unity.com/fp1.jpg\",\"https://cdn.unity.com/fp2.jpg\"]"
+      }
+    },
+    {
+      "clickUri": "",
+      "title": "No URL Skipped",
+      "raw": { "ec_name": "" }
+    }
+  ]
+}
