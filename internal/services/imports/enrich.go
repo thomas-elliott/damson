@@ -50,23 +50,21 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 		return
 	}
 
-	top := cands[0]
-	matched := titlesMatch(asset.Name, top.Title)
+	match := exactMatchCandidate(asset.Name, cands)
 	rec := metadata.SourceRecord{
 		FetchedAt:  time.Now().UTC(),
 		Candidates: cands,
 	}
 
-	if matched {
-		if meta, ferr := deps.Metadata.Fetch(ctx, top.ListingURL); ferr != nil || meta == nil {
+	if match != nil {
+		if meta, ferr := deps.Metadata.Fetch(ctx, match.ListingURL); ferr != nil || meta == nil {
 			if ferr != nil {
-				slog.Warn("enrich: fetch top hit", "err", ferr, "url", top.ListingURL)
+				slog.Warn("enrich: fetch matched hit", "err", ferr, "url", match.ListingURL)
 			}
-			matched = false
 		} else {
 			enrichFillBlanks(ctx, deps, &asset, meta)
 			rec.Store = meta.Store
-			rec.ListingURL = firstNonEmptyStr(meta.ListingURL, top.ListingURL)
+			rec.ListingURL = firstNonEmptyStr(meta.ListingURL, match.ListingURL)
 			rec.Confidence = 1.0
 			rec.Matched = true
 			rec.Metadata = meta
@@ -201,6 +199,15 @@ func titlesMatch(assetName, candidateTitle string) bool {
 	a := strings.Join(strings.Fields(normaliseTitle(assetName)), " ")
 	b := strings.Join(strings.Fields(normaliseTitle(candidateTitle)), " ")
 	return a != "" && a == b
+}
+
+func exactMatchCandidate(assetName string, cands []metadata.Candidate) *metadata.Candidate {
+	for i := range cands {
+		if titlesMatch(assetName, cands[i].Title) {
+			return &cands[i]
+		}
+	}
+	return nil
 }
 
 func storeOrSource(store string) string {
