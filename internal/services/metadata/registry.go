@@ -39,6 +39,16 @@ func NewRegistry(client *Client) *Registry {
 	}
 }
 
+// Default builds a registry with the built-in store adapters registered by
+// host. Callers pass nil options for defaults.
+func Default(opts ClientOptions) *Registry {
+	r := NewRegistry(NewClient(opts))
+	r.RegisterHost(unityHost, UnityAdapter{})
+	r.RegisterHost("sketchfab.com", SketchfabAdapter{})
+	r.RegisterHost("itch.io", ItchAdapter{})
+	return r
+}
+
 // Client returns the shared SSRF-guarded client so callers (and tests) can
 // reuse it.
 func (r *Registry) Client() *Client { return r.client }

@@ -202,3 +202,13 @@ One coherent, independently-committable stage per item.
 - `internal/services/metadata/scrape.go` (GenericFetcher.Fetch, status>=400) —
   errors on 4xx/5xx so an error page's markup isn't parsed into junk metadata;
   as the fallback fetcher, erroring is the right degrade.
+- `internal/services/metadata/unity.go` (findMapWithKeys, name+description) —
+  requires *both* keys so an error/publisher node isn't mistaken for the
+  product; a schema change that renames `name` makes GraphQL "fail" and
+  degrade to page-scrape by design, rather than return empty metadata.
+- `internal/services/metadata/unity.go` (fetchUnityPage) — defaults LicenceHint
+  to `unity-eula` when the page yields none: Asset Store assets carry the
+  standard EULA unless the publisher set a customLicense.
+- `internal/services/metadata/sketchfab.go` (sketchfabUID) — the uid is the
+  last 32-hex token in the URL (Sketchfab appends it to the slug and also
+  exposes the bare /models/<uid> form).
