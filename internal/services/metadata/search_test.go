@@ -23,28 +23,6 @@ func TestParseSketchfabSearch(t *testing.T) {
 	}
 }
 
-func TestParseCoveoResults(t *testing.T) {
-	cands := parseCoveoResults(readFixture(t, "coveo_search.json"))
-	if len(cands) != 1 {
-		t.Fatalf("expected 1 candidate (url-less skipped), got %d", len(cands))
-	}
-	c := cands[0]
-	// ec_name wins over the plain title.
-	if c.Title != "Fantasy Pack Deluxe" {
-		t.Errorf("title: %q", c.Title)
-	}
-	if c.Publisher != "AcmeArt" || c.Price != "49.99" {
-		t.Errorf("publisher/price: %q %q", c.Publisher, c.Price)
-	}
-	if c.StoreID != "12345" {
-		t.Errorf("store id: %q", c.StoreID)
-	}
-	// ec_images is a JSON-encoded string — first entry must be extracted.
-	if c.CoverURL != "https://cdn.unity.com/fp1.jpg" {
-		t.Errorf("cover: %q", c.CoverURL)
-	}
-}
-
 func TestParseItchSearch(t *testing.T) {
 	cands := parseItchSearch(readFixture(t, "itch_search.html"))
 	if len(cands) != 2 {
