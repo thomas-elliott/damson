@@ -108,36 +108,7 @@ type Response struct {
 	StatusCode  int
 	ContentType string
 	FinalURL    string
-	Header      http.Header
 	Body        []byte
-}
-
-// Cookie returns the value of a Set-Cookie entry by name from the response, or
-// "" if absent. Used by adapters that bootstrap a CSRF token (e.g. Unity).
-func (r *Response) Cookie(name string) string {
-	for _, ck := range r.cookies() {
-		if ck.Name == name {
-			return ck.Value
-		}
-	}
-	return ""
-}
-
-// CookieHeader returns a Cookie request-header value replaying every cookie
-// the response set, for follow-up requests in the same logical session.
-func (r *Response) CookieHeader() string {
-	var parts []string
-	for _, ck := range r.cookies() {
-		parts = append(parts, ck.Name+"="+ck.Value)
-	}
-	return strings.Join(parts, "; ")
-}
-
-func (r *Response) cookies() []*http.Cookie {
-	if r.Header == nil {
-		return nil
-	}
-	return (&http.Response{Header: r.Header}).Cookies()
 }
 
 // Get performs a rate-limited, SSRF-guarded GET. headers is optional. The
@@ -148,7 +119,7 @@ func (c *Client) Get(ctx context.Context, rawURL string, headers map[string]stri
 }
 
 // Do performs a rate-limited, SSRF-guarded request with an arbitrary method
-// and body. Used by adapters that POST (e.g. Unity GraphQL).
+// and body. Used by adapters that POST (e.g. Unity's Coveo search).
 func (c *Client) Do(ctx context.Context, method, rawURL string, body io.Reader, headers map[string]string) (*Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, rawURL, body)
 	if err != nil {
@@ -186,7 +157,6 @@ func (c *Client) Do(ctx context.Context, method, rawURL string, body io.Reader, 
 		StatusCode:  resp.StatusCode,
 		ContentType: resp.Header.Get("Content-Type"),
 		FinalURL:    resp.Request.URL.String(),
-		Header:      resp.Header,
 		Body:        data,
 	}, nil
 }

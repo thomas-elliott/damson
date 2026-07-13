@@ -183,6 +183,11 @@ One coherent, independently-committable stage per item.
   unauthenticated source, so **both** Unity name-search and fetch-by-URL go
   through Coveo (fetch looks the product up by its id via `@ec_product_id==`).
   This is a strict simplification (one source, no CSRF, no dead scrape path).
+  **Accepted trade-off (review, 2026-07-13):** Coveo exposes no per-asset
+  licence data, so the GraphQL-only licence fidelity (SEAT/extension
+  entitlement, custom licence text) is lost — every Unity asset gets the
+  `unity-eula` hint. Acceptable: it is correct for the overwhelming majority,
+  and the licence remains user-editable.
 - **Apply semantics:** fill blank fields automatically; explicit confirmation
   only for overwrites.
 - **Cover image:** the fetched cover becomes the asset thumbnail through the
@@ -242,6 +247,14 @@ One coherent, independently-committable stage per item.
 - `internal/services/imports/enrich.go` (titlesMatch) — the high-confidence
   gate is *exact* normalised-title equality; anything short abstains and stores
   candidates. Deliberately conservative per the signed-off auto-enrich posture.
+- `internal/services/imports/enrich.go` (exactMatchCandidate) — the merged
+  candidate list has no meaningful order across stores (goroutine completion
+  order), so the gate scans every candidate for an exact title match rather
+  than judging only the head; first exact match wins.
+- `internal/handlers/api/metadata.go` (applyMetadata, auditBefore/auditAfter) —
+  one summary audit entry per apply covering fields + licence + thumbnail,
+  mirroring postAssetRescan's single-entry pattern; field changes only enter
+  the diff when their DB update succeeded.
 - `internal/services/imports/enrich.go` (enrichAsset, meta == nil guard) —
   treats a `(nil, nil)` Fetch as an abstain so a misbehaving adapter can't nil
   -deref the fill path.
