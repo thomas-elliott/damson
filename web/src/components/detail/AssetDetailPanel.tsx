@@ -26,6 +26,7 @@ import {
   usePatchAsset,
   useRemoveAssetTag,
   useRequeueAssetPreviews,
+  useRescanAsset,
   useReviewAsset,
   useReviewLicence,
 } from "@/hooks/useMutations";
@@ -156,6 +157,25 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   const removeTag = useRemoveAssetTag();
   const reviewLicence = useReviewLicence();
   const requeuePreviews = useRequeueAssetPreviews();
+  const rescan = useRescanAsset();
+  const [rescanNote, setRescanNote] = useState<string | null>(null);
+
+  const onRescan = () => {
+    setRescanNote(null);
+    rescan.mutate(asset.id, {
+      onSuccess: (res) => {
+        const parts: string[] = [];
+        if (res.thumbnail_regenerated) parts.push("thumbnail refreshed");
+        if (res.previews_queued > 0) parts.push(`${res.previews_queued} previews queued`);
+        if (res.licence_updated) parts.push(`licence ${res.detected_type || "detected"}`);
+        setRescanNote(
+          parts.length > 0
+            ? `Rescanned — ${parts.join(" · ")}`
+            : "Rescan complete — nothing to update",
+        );
+      },
+    });
+  };
 
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(asset.name);
@@ -322,10 +342,21 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           variant="secondary"
           leadingIcon={<RefreshCw size={12} />}
           className="mb-2 w-full justify-center"
+          disabled={rescan.isPending}
+          onClick={onRescan}
+        >
+          {rescan.isPending ? "Rescanning…" : "Rescan package"}
+        </Button>
+        {rescanNote && <div className="mb-2 px-1 text-small text-text-3">{rescanNote}</div>}
+        <Button
+          size="sm"
+          variant="ghost"
+          leadingIcon={<RefreshCw size={12} />}
+          className="mb-2 w-full justify-center"
           disabled={requeuePreviews.isPending}
           onClick={() => requeuePreviews.mutate(asset.id)}
         >
-          Regenerate previews
+          Regenerate previews only
         </Button>
         <ul className="flex flex-col gap-0.5">
           {asset.files.slice(0, 50).map((f) => (

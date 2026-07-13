@@ -329,6 +329,29 @@ export function useRequeueAssetPreviews() {
   });
 }
 
+// useRescanAsset re-runs the housekeeping passes over an asset's current
+// version: licence re-detect, thumbnail regenerate, preview requeue. Refreshes
+// the asset detail (thumbnail, file statuses, licence) and the preview queue.
+export function useRescanAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (assetId: number) =>
+      fetchJson<{
+        asset_id: number;
+        version_id: number;
+        licence_updated: boolean;
+        detected_type?: string;
+        thumbnail_regenerated: boolean;
+        previews_queued: number;
+      }>(`/api/assets/${assetId}/rescan`, { method: "POST" }),
+    onSuccess: (_d, assetId) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(assetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.previews });
+    },
+  });
+}
+
 // useRequeueFilePreview regenerates the preview for a single file of an asset's
 // current version.
 export function useRequeueFilePreview() {

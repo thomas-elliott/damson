@@ -8,18 +8,32 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
-func TestGetImports_FiltersDoneOut(t *testing.T) {
+func TestGetImports_ReviewBacklogAndFinished(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "thomas@datch.io")
 	lib := seedLibraryAndSwitch(t, h, u)
 
-	asset := models.Asset{LibraryID: lib.ID, Name: "x", NeedsReview: true}
-	if err := db.Create(&asset).Error; err != nil {
+	// review needs an eye: a done import whose asset still needs review, plus a
+	// failed import. Both belong in the active queue.
+	review := models.Asset{LibraryID: lib.ID, Name: "needs-review", NeedsReview: true}
+	if err := db.Create(&review).Error; err != nil {
+		t.Fatal(err)
+	}
+	// cleared was reviewed and its import finished — it belongs in the finished
+	// tail, not the active queue.
+	cleared := models.Asset{LibraryID: lib.ID, Name: "cleared", NeedsReview: false}
+	if err := db.Create(&cleared).Error; err != nil {
+		t.Fatal(err)
+	}
+	// NeedsReview has a DB default of true, so a zero-value false is ignored on
+	// insert — force it off explicitly.
+	if err := db.Model(&cleared).Update("needs_review", false).Error; err != nil {
 		t.Fatal(err)
 	}
 	rows := []models.AssetImport{
-		{AssetID: asset.ID, Stage: "done", UpdatedAt: time.Now().UTC()},
-		{AssetID: asset.ID, Stage: "failed", Error: "boom", UpdatedAt: time.Now().UTC()},
+		{AssetID: review.ID, Stage: "done", UpdatedAt: time.Now().UTC()},
+		{AssetID: review.ID, Stage: "failed", Error: "boom", UpdatedAt: time.Now().UTC()},
+		{AssetID: cleared.ID, Stage: "done", UpdatedAt: time.Now().UTC()},
 	}
 	for _, r := range rows {
 		if err := db.Create(&r).Error; err != nil {
@@ -31,16 +45,29 @@ func TestGetImports_FiltersDoneOut(t *testing.T) {
 	w := performGET(r, "/api/imports")
 	requireStatus(t, w, http.StatusOK)
 	body := jsonResponse[importListResponse](t, w)
-	if body.Total != 1 || body.Imports[0].Stage != "failed" {
-		t.Fatalf("expected the failed row only, got %+v", body)
+	// Active queue: the review asset's done + failed rows (needs_review keeps the
+	// done row visible); the cleared asset's done row is finished, not active.
+	if body.Total != 2 {
+		t.Fatalf("expected 2 active imports (review backlog), got %d: %+v", body.Total, body.Imports)
+	}
+	for _, imp := range body.Imports {
+		if imp.AssetID == cleared.ID {
+			t.Fatalf("cleared asset should not be in the active queue: %+v", imp)
+		}
+	}
+	if len(body.Finished) != 1 || body.Finished[0].AssetID != cleared.ID {
+		t.Fatalf("expected the cleared done import in finished, got %+v", body.Finished)
 	}
 
-	// stage=all returns everything.
+	// stage=all returns everything, with no finished tail.
 	w = performGET(r, "/api/imports?stage=all")
 	requireStatus(t, w, http.StatusOK)
 	body = jsonResponse[importListResponse](t, w)
-	if body.Total != 2 {
-		t.Fatalf("expected 2 imports with stage=all, got %d", body.Total)
+	if body.Total != 3 {
+		t.Fatalf("expected 3 imports with stage=all, got %d", body.Total)
+	}
+	if body.Finished != nil {
+		t.Fatalf("stage=all should not carry a finished tail, got %+v", body.Finished)
 	}
 }
 

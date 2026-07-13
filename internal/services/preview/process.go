@@ -2,6 +2,8 @@ package preview
 
 import (
 	"context"
+	"database/sql/driver"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -49,7 +51,10 @@ func MarkVersionQueued(ctx context.Context, db *gorm.DB, versionID, fileID uint)
 		}
 		if err := db.WithContext(ctx).Model(&models.AssetFile{}).
 			Where("id = ?", f.ID).
-			Update("preview_status", status).Error; err != nil {
+			Updates(map[string]any{
+				"preview_status":     status,
+				"preview_updated_at": time.Now().UTC(),
+			}).Error; err != nil {
 			return queued, err
 		}
 	}
@@ -130,7 +135,10 @@ func render(ctx context.Context, gen *Generator, store storage.Service, f models
 func (d Deps) setStatus(ctx context.Context, fileID uint, status string) {
 	if err := d.DB.WithContext(ctx).Model(&models.AssetFile{}).
 		Where("id = ?", fileID).
-		Update("preview_status", status).Error; err != nil {
+		Updates(map[string]any{
+			"preview_status":     status,
+			"preview_updated_at": time.Now().UTC(),
+		}).Error; err != nil {
 		slog.Warn("preview: persist status", "err", err, "file_id", fileID, "status", status)
 	}
 }
@@ -144,6 +152,7 @@ func (d Deps) setDone(ctx context.Context, fileID uint, key, contentType string)
 			"preview_status":       StatusDone,
 			"preview_object_key":   key,
 			"preview_content_type": contentType,
+			"preview_updated_at":   time.Now().UTC(),
 		}).Error; err != nil {
 		slog.Warn("preview: persist done", "err", err, "file_id", fileID)
 	}
@@ -176,9 +185,69 @@ type rollupRow struct {
 	Queued      int
 	Unsupported int
 	CreatedAt   time.Time
+	UpdatedAt   aggTime
+}
+
+// aggTime scans a MAX(timestamp) aggregate portably. Postgres hands the driver
+// a time.Time; SQLite (mattn) loses column affinity through the aggregate and
+// returns the value as a string, so we parse it here rather than let GORM error
+// on the type mismatch. Zero value when the aggregate is NULL.
+type aggTime struct{ time.Time }
+
+var aggTimeLayouts = []string{
+	"2006-01-02 15:04:05.999999999-07:00",
+	"2006-01-02T15:04:05.999999999-07:00",
+	"2006-01-02 15:04:05.999999999",
+	"2006-01-02 15:04:05",
+	time.RFC3339Nano,
+	time.RFC3339,
+}
+
+func (a *aggTime) Scan(v any) error {
+	switch t := v.(type) {
+	case nil:
+		a.Time = time.Time{}
+	case time.Time:
+		a.Time = t
+	case []byte:
+		return a.parse(string(t))
+	case string:
+		return a.parse(t)
+	default:
+		return fmt.Errorf("aggTime: unsupported scan type %T", v)
+	}
+	return nil
+}
+
+func (a *aggTime) parse(s string) error {
+	if s == "" {
+		a.Time = time.Time{}
+		return nil
+	}
+	for _, layout := range aggTimeLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			a.Time = t
+			return nil
+		}
+	}
+	return fmt.Errorf("aggTime: cannot parse %q", s)
+}
+
+// Value satisfies driver.Valuer so GORM treats aggTime as a scalar column
+// rather than a relation. Never written (the field is read-only projection),
+// but the schema parser requires both halves of the interface pair.
+func (a aggTime) Value() (driver.Value, error) {
+	if a.Time.IsZero() {
+		return nil, nil
+	}
+	return a.Time, nil
 }
 
 func (r rollupRow) toEvent() Event {
+	updated := time.Now().UTC()
+	if !r.UpdatedAt.Time.IsZero() {
+		updated = r.UpdatedAt.Time
+	}
 	return Event{
 		VersionID:   r.VersionID,
 		AssetID:     r.AssetID,
@@ -191,7 +260,7 @@ func (r rollupRow) toEvent() Event {
 		Queued:      r.Queued,
 		Unsupported: r.Unsupported,
 		CreatedAt:   r.CreatedAt,
-		UpdatedAt:   time.Now().UTC(),
+		UpdatedAt:   updated,
 	}
 }
 
@@ -199,6 +268,7 @@ func (r rollupRow) toEvent() Event {
 // the single-version rollup and the library-wide snapshot.
 const previewCountsSelect = `v.id AS version_id, a.id AS asset_id, a.name AS asset_name, a.created_at,
 	COUNT(*) AS total,
+	MAX(f.preview_updated_at) AS updated_at,
 	SUM(CASE WHEN f.preview_status = 'done' THEN 1 ELSE 0 END) AS done,
 	SUM(CASE WHEN f.preview_status = 'failed' THEN 1 ELSE 0 END) AS failed,
 	SUM(CASE WHEN f.preview_status = 'processing' THEN 1 ELSE 0 END) AS processing,
@@ -240,6 +310,37 @@ func InFlight(ctx context.Context, db *gorm.DB, libraryID uint) ([]Event, error)
 		Having("SUM(CASE WHEN f.preview_status IN ('queued','processing') THEN 1 ELSE 0 END) > 0").
 		Select(previewCountsSelect).
 		Order("a.created_at DESC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Event, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.toEvent())
+	}
+	return out, nil
+}
+
+// Finished returns the rollups for a library's versions whose preview work is
+// complete — no queued or processing files, but at least one file that reached
+// a terminal render (done or failed). Retained for the processing queue's
+// "finished" section: only rows touched since `since`, newest-finished first,
+// capped at `limit`. Pure-unsupported versions (nothing ever rendered) are
+// excluded so the section shows real completed work, not inert manifests.
+func Finished(ctx context.Context, db *gorm.DB, libraryID uint, since time.Time, limit int) ([]Event, error) {
+	var rows []rollupRow
+	err := db.WithContext(ctx).
+		Table("asset_files AS f").
+		Joins("JOIN asset_versions v ON v.id = f.asset_version_id").
+		Joins("JOIN assets a ON a.id = v.asset_id").
+		Where("a.library_id = ?", libraryID).
+		Group("v.id, a.id, a.name, a.created_at").
+		Having("SUM(CASE WHEN f.preview_status IN ('queued','processing') THEN 1 ELSE 0 END) = 0 "+
+			"AND SUM(CASE WHEN f.preview_status IN ('done','failed') THEN 1 ELSE 0 END) > 0 "+
+			"AND MAX(f.preview_updated_at) >= ?", since).
+		Select(previewCountsSelect).
+		Order("MAX(f.preview_updated_at) DESC").
+		Limit(limit).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
