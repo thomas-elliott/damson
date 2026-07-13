@@ -16,12 +16,14 @@ import (
 // fakeMetadata is an injectable metadataService so endpoint tests don't do
 // real outbound HTTP (which the SSRF guard blocks in any case).
 type fakeMetadata struct {
-	meta     *metadata.Metadata
-	fetchErr error
-	img      []byte
-	imgCT    string
-	imgErr   error
-	lastURL  string
+	meta       *metadata.Metadata
+	fetchErr   error
+	img        []byte
+	imgCT      string
+	imgErr     error
+	lastURL    string
+	candidates []metadata.Candidate
+	searchErr  error
 }
 
 func (f *fakeMetadata) Fetch(_ context.Context, rawURL string) (*metadata.Metadata, error) {
@@ -31,6 +33,10 @@ func (f *fakeMetadata) Fetch(_ context.Context, rawURL string) (*metadata.Metada
 
 func (f *fakeMetadata) FetchImage(_ context.Context, _ string) ([]byte, string, error) {
 	return f.img, f.imgCT, f.imgErr
+}
+
+func (f *fakeMetadata) Search(_ context.Context, _ string) ([]metadata.Candidate, error) {
+	return f.candidates, f.searchErr
 }
 
 func tinyPNG(t *testing.T) []byte {
@@ -203,6 +209,34 @@ func TestMetadataFetch_ServiceUnavailable(t *testing.T) {
 	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch",
 		map[string]any{"url": "https://example.com/x"})
 	requireStatus(t, w, http.StatusServiceUnavailable)
+}
+
+func TestMetadataSearch_Endpoint(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{candidates: []metadata.Candidate{
+		{Title: "Fantasy Pack", ListingURL: "https://assetstore.unity.com/packages/x-1", Store: metadata.StoreUnity},
+		{Title: "Rock", ListingURL: "https://sketchfab.com/models/abc", Store: metadata.StoreSketchfab},
+	}}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/search?q=fantasy")
+	requireStatus(t, w, http.StatusOK)
+	resp := jsonResponse[metadataSearchResponse](t, w)
+	if resp.Query != "fantasy" || len(resp.Candidates) != 2 {
+		t.Fatalf("unexpected search response: %+v", resp)
+	}
+}
+
+func TestMetadataSearch_RequiresQuery(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/search?q=")
+	requireStatus(t, w, http.StatusBadRequest)
 }
 
 func assertContains(t *testing.T, got []string, want ...string) {

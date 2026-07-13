@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,7 @@ import (
 type metadataService interface {
 	Fetch(ctx context.Context, rawURL string) (*metadata.Metadata, error)
 	FetchImage(ctx context.Context, rawURL string) ([]byte, string, error)
+	Search(ctx context.Context, query string) ([]metadata.Candidate, error)
 }
 
 // metadataView is the client-facing shape of fetched metadata — the normalised
@@ -219,6 +221,35 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 		Fetched:    metadataViewFrom(meta),
 		Applied:    applied,
 		Conflicts:  conflicts,
+	})
+}
+
+type metadataSearchResponse struct {
+	Query      string          `json:"query"`
+	Candidates []candidateView `json:"candidates"`
+}
+
+// getMetadataSearch fans out a name search across the storefront adapters and
+// returns a merged candidate list for the match picker.
+func (h *Handler) getMetadataSearch(c *gin.Context) {
+	if h.metadata == nil {
+		respond503(c, "metadata service not configured")
+		return
+	}
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		respond400(c, asError("q is required"))
+		return
+	}
+	cands, err := h.metadata.Search(c.Request.Context(), q)
+	if err != nil {
+		slog.Warn("metadata search failed", "q", q, "err", err)
+		respond502(c, "metadata search failed")
+		return
+	}
+	c.JSON(http.StatusOK, metadataSearchResponse{
+		Query:      q,
+		Candidates: candidateViewsFrom(cands),
 	})
 }
 

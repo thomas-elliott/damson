@@ -1,0 +1,16 @@
+{
+  "results": [
+    {
+      "uid": "aaa111bbb222ccc333ddd444eee555ff",
+      "name": "Stylised Rock",
+      "viewerUrl": "https://sketchfab.com/3d-models/stylised-rock-aaa111bbb222ccc333ddd444eee555ff",
+      "user": { "displayName": "RockStar", "username": "rockstar" },
+      "thumbnails": { "images": [ { "url": "https://media.sketchfab.com/rock-s.jpg", "width": 200 }, { "url": "https://media.sketchfab.com/rock-l.jpg", "width": 1024 } ] }
+    },
+    {
+      "uid": "",
+      "name": "No UID Skipped",
+      "viewerUrl": ""
+    }
+  ]
+}
