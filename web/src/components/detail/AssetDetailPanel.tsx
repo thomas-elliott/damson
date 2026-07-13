@@ -32,6 +32,7 @@ import {
 } from "@/hooks/useMutations";
 
 import { LicenceEditor } from "./LicenceEditor";
+import { MetadataActions } from "./MetadataActions";
 
 const WIDTH_KEY = "damson.detail.w";
 const DEFAULT_WIDTH = 440;
@@ -274,6 +275,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
               placeholder="https://…"
             />
           </FieldRow>
+          <MetadataActions asset={asset} />
         </div>
       </Section>
 
