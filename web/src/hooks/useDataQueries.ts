@@ -219,6 +219,58 @@ export interface CollectionRef {
   collection_name: string;
 }
 
+export interface MetadataView {
+  title?: string;
+  description?: string;
+  publisher?: string;
+  price?: string;
+  currency?: string;
+  licence_hint?: string;
+  cover_url?: string;
+  image_urls?: string[];
+  store?: string;
+  listing_url?: string;
+}
+
+export interface MetadataCandidate {
+  title: string;
+  publisher?: string;
+  price?: string;
+  currency?: string;
+  cover_url?: string;
+  listing_url: string;
+  store: string;
+}
+
+export interface SourceMetadataView {
+  store?: string;
+  listing_url?: string;
+  fetched_at?: string;
+  matched: boolean;
+  match_confidence?: number;
+  metadata?: MetadataView;
+  candidates?: MetadataCandidate[];
+}
+
+export interface MetadataConflict {
+  field: string;
+  current: string;
+  proposed: string;
+}
+
+export interface MetadataFetchResponse {
+  store: string;
+  listing_url: string;
+  fetched: MetadataView | null;
+  applied: string[];
+  conflicts: MetadataConflict[];
+}
+
+export interface MetadataSearchResponse {
+  query: string;
+  candidates: MetadataCandidate[];
+}
+
 export interface AssetDetailView {
   id: number;
   name: string;
@@ -231,6 +283,7 @@ export interface AssetDetailView {
   created_at: string;
   updated_at: string;
   licence?: LicenceView;
+  source_metadata?: SourceMetadataView;
   tags: AssetTagView[];
   versions: AssetVersionView[];
   files: AssetFileView[];
@@ -400,6 +453,7 @@ export interface LibrarySettings {
   thumbnails_audio_enabled: boolean;
   thumbnails_font_enabled: boolean;
   thumbnails_unity_preview: boolean;
+  auto_enrich_enabled: boolean;
   audit_retention_days: number | null;
 }
 

@@ -98,6 +98,17 @@ func strPad(i int) string {
 	return s
 }
 
+// AttributesForType returns the known attribute set for an SPDX id or
+// "unity-eula", or an all-nil set for unrecognised types. Exported so callers
+// applying a licence from a storefront hint (which has a type but no text to
+// re-detect) get the same attribute knowledge as detection.
+func AttributesForType(id string) Attributes {
+	if id == "unity-eula" {
+		return UnityEULAAttributes()
+	}
+	return spdxAttributes(id)
+}
+
 // SPDX → attribute map. Conservative: unknown attributes stay nil so the UI
 // can render "unknown" rather than guessing. Boolean pointers avoid the
 // false-vs-unknown ambiguity.
