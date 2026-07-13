@@ -30,6 +30,7 @@ type assetDetailView struct {
 	CreatedAt            time.Time           `json:"created_at"`
 	UpdatedAt            time.Time           `json:"updated_at"`
 	Licence              *licenceView        `json:"licence,omitempty"`
+	SourceMetadata       *sourceMetadataView `json:"source_metadata,omitempty"`
 	Tags                 []tagView           `json:"tags"`
 	Versions             []assetVersionView  `json:"versions"`
 	Files                []assetFileView     `json:"files"` // current version's files
@@ -104,6 +105,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		ThumbnailContentType: asset.ThumbnailContentType,
 		CreatedAt:            asset.CreatedAt,
 		UpdatedAt:            asset.UpdatedAt,
+		SourceMetadata:       sourceMetadataViewFrom(asset.SourceMetadataJSON),
 		Tags:                 []tagView{},
 		Versions:             []assetVersionView{},
 		Files:                []assetFileView{},
