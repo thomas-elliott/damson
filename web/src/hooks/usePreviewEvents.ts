@@ -53,18 +53,25 @@ async function sseHeaders(): Promise<Record<string, string>> {
   };
 }
 
-type PreviewCache = { previews: PreviewRow[]; total: number } | undefined;
+type PreviewCache = { previews: PreviewRow[]; finished?: PreviewRow[]; total: number } | undefined;
+
+// FINISHED_CAP mirrors the backend's retained-tail limit so the live fold
+// doesn't grow the finished section past what a refetch would return.
+const FINISHED_CAP = 50;
 
 // foldPreviewEvent upserts a rollup into the preview-queue cache, keyed by
-// version_id. A rollup with no queued/processing files is terminal, so it's
-// removed from the in-flight list rather than kept. Pure (exported) so the
-// fold logic is unit-testable without a live query client.
+// version_id. A rollup with queued/processing files stays in flight; one that
+// has finished (nothing pending, something rendered) moves to the retained
+// finished tail. Pure (exported) so the fold logic is unit-testable without a
+// live query client.
 export function foldPreviewEvent(cached: PreviewCache, ev: PreviewRow): PreviewCache {
   if (!cached) return cached;
-  const next = cached.previews.filter((row) => row.version_id !== ev.version_id);
+  const previews = cached.previews.filter((row) => row.version_id !== ev.version_id);
+  const finished = (cached.finished ?? []).filter((row) => row.version_id !== ev.version_id);
   const inFlight = ev.queued > 0 || ev.processing > 0;
-  if (inFlight) next.unshift(ev);
-  return { previews: next, total: next.length };
+  if (inFlight) previews.unshift(ev);
+  else if (ev.done + ev.failed > 0) finished.unshift(ev);
+  return { previews, finished: finished.slice(0, FINISHED_CAP), total: previews.length };
 }
 
 function applyPreviewEvent(queryClient: ReturnType<typeof useQueryClient>, ev: PreviewRow) {

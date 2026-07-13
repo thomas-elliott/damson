@@ -565,6 +565,7 @@ export interface ImportRow {
 
 interface ImportListResponse {
   imports: ImportRow[];
+  finished?: ImportRow[];
   total: number;
 }
 
@@ -582,6 +583,7 @@ export function useImports(
   });
   return {
     data: q.data?.imports ?? [],
+    finished: q.data?.finished ?? [],
     total: q.data?.total ?? 0,
     loading: q.isPending,
     error: q.error,
@@ -611,6 +613,7 @@ export interface PreviewRow {
 
 interface PreviewListResponse {
   previews: PreviewRow[];
+  finished?: PreviewRow[];
   total: number;
 }
 
@@ -624,6 +627,7 @@ export function usePreviewQueue(enabled: boolean = true) {
   });
   return {
     data: q.data?.previews ?? [],
+    finished: q.data?.finished ?? [],
     total: q.data?.total ?? 0,
     loading: q.isPending,
     error: q.error,

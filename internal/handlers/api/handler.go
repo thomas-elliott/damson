@@ -151,6 +151,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.PATCH("/assets/:id", h.patchAsset)
 	scoped.DELETE("/assets/:id", h.deleteAsset)
 	scoped.POST("/assets/:id/review", h.postAssetReview)
+	scoped.POST("/assets/:id/rescan", h.postAssetRescan)
 
 	// Imports
 	scoped.POST("/imports", h.postImport)
