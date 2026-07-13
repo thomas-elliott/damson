@@ -52,8 +52,7 @@ func Default(opts ClientOptions) *Registry {
 	return r
 }
 
-// Client returns the shared SSRF-guarded client so callers (and tests) can
-// reuse it.
+// Client returns the shared SSRF-guarded client.
 func (r *Registry) Client() *Client { return r.client }
 
 // RegisterHost associates a host suffix with a fetcher adapter.

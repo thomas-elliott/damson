@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -43,7 +44,7 @@ func (ItchAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*M
 // itchLicence scans the info table for the "Asset license" (or "License") row
 // and returns its label text and any anchor href.
 func itchLicence(body []byte) (label, href string) {
-	doc, err := html.Parse(strings.NewReader(string(body)))
+	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return "", ""
 	}

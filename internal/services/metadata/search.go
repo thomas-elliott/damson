@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -120,7 +121,7 @@ func (ItchAdapter) Search(ctx context.Context, client *Client, query string) ([]
 }
 
 func parseItchSearch(body []byte) []Candidate {
-	doc, err := html.Parse(strings.NewReader(string(body)))
+	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil
 	}
