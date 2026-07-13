@@ -26,6 +26,31 @@ function candidateSubtitle(c: MetadataCandidate): string {
   return [c.store, c.publisher, price].filter(Boolean).join(" · ");
 }
 
+function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className="flex w-full items-center gap-2 rounded-md border border-line bg-surface p-2 text-left transition-colors duration-std ease hover:border-line-2 hover:bg-surface-2"
+    >
+      {c.cover_url ? (
+        <img
+          src={c.cover_url}
+          alt=""
+          className="h-10 w-10 shrink-0 rounded object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="h-10 w-10 shrink-0 rounded bg-bg" />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-ui text-text">{c.title}</div>
+        <div className="truncate text-mono text-text-3">{candidateSubtitle(c)}</div>
+      </div>
+    </button>
+  );
+}
+
 // MetadataActions renders the "Fetch" (from source URL) and "Find listing"
 // (name search) actions, the match-picker dialog, and the overwrite-confirm
 // dialog for conflicting fields.
@@ -106,6 +131,8 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
         {note && <span className="text-mono text-text-3">{note}</span>}
       </div>
 
+      <EnrichmentReview asset={asset} onPick={(url) => runFetch(url)} />
+
       <MatchPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
@@ -125,6 +152,60 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
         onApply={onApply}
         pending={applyMeta.isPending}
       />
+    </div>
+  );
+}
+
+// EnrichmentReview surfaces the persisted enrichment provenance (which store,
+// when, matched vs abstained) and any stored candidates for one-click
+// correction when auto-enrich picked wrong or abstained.
+function EnrichmentReview({
+  asset,
+  onPick,
+}: {
+  asset: AssetDetailView;
+  onPick: (url: string) => void;
+}) {
+  const sm = asset.source_metadata;
+  if (!sm) return null;
+
+  const when = sm.fetched_at ? new Date(sm.fetched_at) : null;
+  const whenLabel = when && !Number.isNaN(when.getTime()) ? when.toLocaleDateString() : null;
+  const candidates = sm.candidates ?? [];
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-line bg-surface p-2">
+      <div className="flex flex-wrap items-center gap-x-1.5 text-mono text-text-3">
+        <span>{sm.matched ? `Metadata from ${sm.store || "source"}` : "No confident match"}</span>
+        {whenLabel && <span>· {whenLabel}</span>}
+        {sm.matched && sm.listing_url && (
+          <>
+            <span>·</span>
+            <a
+              href={sm.listing_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent hover:underline"
+            >
+              listing
+            </a>
+          </>
+        )}
+      </div>
+      {candidates.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <div className="text-mono text-text-3">
+            {sm.matched ? "Other candidates" : "Suggested listings — pick the match:"}
+          </div>
+          <ul className="flex flex-col gap-1">
+            {candidates.map((c, i) => (
+              <li key={`${c.listing_url}-${i}`}>
+                <CandidateRow c={c} onPick={() => onPick(c.listing_url)} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -176,26 +257,7 @@ function MatchPickerDialog({
           <ul className="flex flex-col gap-1">
             {candidates.map((c, i) => (
               <li key={`${c.listing_url}-${i}`}>
-                <button
-                  type="button"
-                  onClick={() => onPick(c.listing_url)}
-                  className="flex w-full items-center gap-2 rounded-md border border-line bg-surface p-2 text-left transition-colors duration-std ease hover:border-line-2 hover:bg-surface-2"
-                >
-                  {c.cover_url ? (
-                    <img
-                      src={c.cover_url}
-                      alt=""
-                      className="h-10 w-10 shrink-0 rounded object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 shrink-0 rounded bg-bg" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-ui text-text">{c.title}</div>
-                    <div className="truncate text-mono text-text-3">{candidateSubtitle(c)}</div>
-                  </div>
-                </button>
+                <CandidateRow c={c} onPick={() => onPick(c.listing_url)} />
               </li>
             ))}
           </ul>
