@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -58,6 +59,95 @@ func TestPatchAsset_UpdatesFieldsAndAudits(t *testing.T) {
 	}
 	if auditCount != 1 {
 		t.Fatalf("expected 1 audit row, got %d", auditCount)
+	}
+}
+
+func TestPatchAssetVersion_UpdatesStoreVersionAndAudits(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPatch, "/api/assets/1/versions/1",
+		map[string]any{"store_version": "v2.0"})
+	requireStatus(t, w, http.StatusOK)
+
+	var refreshed models.AssetVersion
+	if err := db.First(&refreshed, v.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.StoreVersion != "2.0" {
+		t.Fatalf("store version not normalised/updated: %q", refreshed.StoreVersion)
+	}
+	var auditCount int64
+	if err := db.Model(&models.AuditLog{}).
+		Where("action_type = ?", "asset.version.update").Count(&auditCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != 1 {
+		t.Fatalf("expected 1 audit row, got %d", auditCount)
+	}
+}
+
+func TestPatchAssetVersion_RejectsInvalid(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1", StoreVersion: "1.0"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPatch, "/api/assets/1/versions/1",
+		map[string]any{"store_version": "abc"})
+	requireStatus(t, w, http.StatusBadRequest)
+
+	var refreshed models.AssetVersion
+	if err := db.First(&refreshed, v.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.StoreVersion != "1.0" {
+		t.Fatalf("store version should be unchanged, got %q", refreshed.StoreVersion)
+	}
+}
+
+func TestGetAssetDetail_OrdersVersionsBySemver(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	for _, sv := range []string{"1.1", "1.10", "1.9"} {
+		v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v" + sv, StoreVersion: sv}
+		if err := db.Create(&v).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodGet, "/api/assets/1", nil)
+	requireStatus(t, w, http.StatusOK)
+
+	var resp struct {
+		Versions []struct {
+			StoreVersion string `json:"store_version"`
+		} `json:"versions"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"1.10", "1.9", "1.1"}
+	if len(resp.Versions) != len(want) {
+		t.Fatalf("expected %d versions, got %d", len(want), len(resp.Versions))
+	}
+	for i, exp := range want {
+		if resp.Versions[i].StoreVersion != exp {
+			t.Fatalf("version order = %v, want %v", resp.Versions, want)
+		}
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 // assetDetailView is the shape returned by GET /api/assets/:id and is the
@@ -41,6 +43,7 @@ type assetDetailView struct {
 type assetVersionView struct {
 	ID           uint      `json:"id"`
 	VersionLabel string    `json:"version_label"`
+	StoreVersion string    `json:"store_version"`
 	Notes        string    `json:"notes"`
 	ImportDate   time.Time `json:"import_date"`
 	PackageKind  string    `json:"package_kind"`
@@ -117,6 +120,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	type vRow struct {
 		ID           uint
 		VersionLabel string
+		StoreVersion string
 		Notes        string
 		ImportDate   time.Time
 		PackageKind  string
@@ -127,7 +131,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	var versions []vRow
 	err := h.db.WithContext(c.Request.Context()).
 		Table("asset_versions AS v").
-		Select(`v.id, v.version_label, v.notes, v.import_date, v.package_kind,
+		Select(`v.id, v.version_label, v.store_version, v.notes, v.import_date, v.package_kind,
 			CASE WHEN v.original_package_object_key IS NOT NULL AND v.original_package_object_key <> '' AND v.original_package_purged = false THEN true ELSE false END AS has_original,
 			COALESCE(COUNT(f.id), 0) AS file_count,
 			COALESCE(SUM(f.size_bytes), 0) AS size_bytes`).
@@ -140,10 +144,22 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
+	sort.SliceStable(versions, func(i, j int) bool {
+		a, aok := imports.ParseStoreVersion(versions[i].StoreVersion)
+		b, bok := imports.ParseStoreVersion(versions[j].StoreVersion)
+		if aok != bok {
+			return aok
+		}
+		if !aok {
+			return false
+		}
+		return imports.CompareStoreVersions(a, b) > 0
+	})
 	for _, v := range versions {
 		view.Versions = append(view.Versions, assetVersionView{
 			ID:           v.ID,
 			VersionLabel: v.VersionLabel,
+			StoreVersion: v.StoreVersion,
 			Notes:        v.Notes,
 			ImportDate:   v.ImportDate,
 			PackageKind:  v.PackageKind,
@@ -346,6 +362,93 @@ func (h *Handler) patchAsset(c *gin.Context) {
 		"name":        out.Name,
 		"description": out.Description,
 		"source_url":  out.SourceURL,
+	})
+}
+
+type versionPatchRequest struct {
+	StoreVersion *string `json:"store_version,omitempty"`
+	Notes        *string `json:"notes,omitempty"`
+}
+
+// patchAssetVersion updates the editable fields on a version — the store
+// version and notes — writing an audit row in the same transaction. An empty
+// store_version clears it.
+func (h *Handler) patchAssetVersion(c *gin.Context) {
+	lib := getLibrary(c)
+	u := auth.GetUser(c)
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	vid, ok := parseIDParam(c, "vid")
+	if !ok {
+		return
+	}
+	var req versionPatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond400(c, err)
+		return
+	}
+
+	var normStore string
+	if req.StoreVersion != nil {
+		trimmed := strings.TrimSpace(*req.StoreVersion)
+		if trimmed != "" {
+			if _, valid := imports.ParseStoreVersion(trimmed); !valid {
+				respond400(c, asError("store_version must be a dotted number like 1.1"))
+				return
+			}
+			normStore = strings.TrimLeft(trimmed, "vV")
+		}
+	}
+
+	var out models.AssetVersion
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var asset models.Asset
+		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&asset).Error; err != nil {
+			return err
+		}
+		var version models.AssetVersion
+		if err := tx.Where("id = ? AND asset_id = ?", vid, asset.ID).First(&version).Error; err != nil {
+			return err
+		}
+		before := map[string]any{}
+		updates := map[string]any{}
+		if req.StoreVersion != nil {
+			before["store_version"] = version.StoreVersion
+			version.StoreVersion = normStore
+			updates["store_version"] = normStore
+		}
+		if req.Notes != nil {
+			before["notes"] = version.Notes
+			version.Notes = *req.Notes
+			updates["notes"] = version.Notes
+		}
+		out = version
+		if len(updates) == 0 {
+			return nil
+		}
+		if err := tx.Model(&models.AssetVersion{}).Where("id = ?", version.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "asset.version.update",
+			TargetType: "asset",
+			TargetID:   &version.AssetID,
+			Diff:       audit.Updated(before, updates),
+		})
+	})
+	if err != nil {
+		respondGORM(c, err, "version not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":            out.ID,
+		"version_label": out.VersionLabel,
+		"store_version": out.StoreVersion,
+		"notes":         out.Notes,
 	})
 }
 
