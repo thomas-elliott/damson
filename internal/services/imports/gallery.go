@@ -12,12 +12,11 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
-// maxGalleryImages caps how many gallery images one fetch/enrich stores, so a
-// listing with a large screenshot set doesn't run away.
+// maxGalleryImages caps how many gallery images one fetch/enrich stores.
 const maxGalleryImages = 8
 
-// imageFetcher is the download surface gallery storage needs. Both the import
-// pipeline's MetadataEnricher and the api handler's metadata service satisfy it.
+// imageFetcher is the download surface gallery storage needs — the minimal
+// slice of the metadata service both callers already provide.
 type imageFetcher interface {
 	FetchImage(ctx context.Context, rawURL string) ([]byte, string, error)
 }
