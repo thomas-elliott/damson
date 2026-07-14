@@ -36,8 +36,15 @@ type assetDetailView struct {
 	Tags                 []tagView           `json:"tags"`
 	Versions             []assetVersionView  `json:"versions"`
 	Files                []assetFileView     `json:"files"` // current version's files
+	Images               []assetImageView    `json:"images"`
 	Projects             []projectPinView    `json:"projects"`
 	Collections          []collectionRefView `json:"collections"`
+}
+
+type assetImageView struct {
+	ID          uint   `json:"id"`
+	ObjectKey   string `json:"object_key"`
+	ContentType string `json:"content_type,omitempty"`
 }
 
 type assetVersionView struct {
@@ -112,6 +119,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		Tags:                 []tagView{},
 		Versions:             []assetVersionView{},
 		Files:                []assetFileView{},
+		Images:               []assetImageView{},
 		Projects:             []projectPinView{},
 		Collections:          []collectionRefView{},
 	}
@@ -194,6 +202,23 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 				PreviewStatus:    f.PreviewStatus,
 			})
 		}
+	}
+
+	// Gallery images (asset-level), ordered for a stable strip.
+	var images []models.AssetImage
+	if err := h.db.WithContext(c.Request.Context()).
+		Where("asset_id = ?", asset.ID).
+		Order("sort_order, id").
+		Find(&images).Error; err != nil {
+		respond500(c, err)
+		return
+	}
+	for _, img := range images {
+		view.Images = append(view.Images, assetImageView{
+			ID:          img.ID,
+			ObjectKey:   img.ObjectKey,
+			ContentType: img.ContentType,
+		})
 	}
 
 	// Tags.
@@ -495,6 +520,9 @@ func (h *Handler) deleteAsset(c *gin.Context) {
 			return err
 		}
 		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.Licence{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetImage{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetImport{}).Error; err != nil {

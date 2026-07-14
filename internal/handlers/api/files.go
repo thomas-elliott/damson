@@ -118,6 +118,37 @@ func (h *Handler) getFile(c *gin.Context) {
 // getThumb streams a thumbnail blob by object key. Thumbnails are
 // server-generated images so we can confidently set their Content-Type — but
 // we still forbid sniffing past it.
+// authoriseThumbKey resolves the content type for a thumb object key, matching
+// it against an asset cover thumbnail or a stored gallery image within the
+// library. It writes the error response and returns ok=false on miss/error.
+func (h *Handler) authoriseThumbKey(c *gin.Context, libID uint, key string) (string, bool) {
+	var asset models.Asset
+	err := h.db.WithContext(c.Request.Context()).
+		Where("library_id = ? AND thumbnail_object_key = ?", libID, key).
+		First(&asset).Error
+	switch {
+	case err == nil:
+		return asset.ThumbnailContentType, true
+	case !isNotFound(err):
+		respond500(c, err)
+		return "", false
+	}
+	var img models.AssetImage
+	ierr := h.db.WithContext(c.Request.Context()).
+		Joins("JOIN assets ON assets.id = asset_images.asset_id").
+		Where("assets.library_id = ? AND asset_images.object_key = ?", libID, key).
+		First(&img).Error
+	switch {
+	case ierr == nil:
+		return img.ContentType, true
+	case !isNotFound(ierr):
+		respond500(c, ierr)
+		return "", false
+	}
+	respond404(c, "not found")
+	return "", false
+}
+
 func (h *Handler) getThumb(c *gin.Context) {
 	lib := getLibrary(c)
 	key := c.Param("objectKey")
@@ -125,31 +156,18 @@ func (h *Handler) getThumb(c *gin.Context) {
 		respond400(c, asError("invalid object key"))
 		return
 	}
-	// Thumbnails are referenced by assets.thumbnail_object_key.
-	var asset models.Asset
-	if err := h.db.WithContext(c.Request.Context()).
-		Where("library_id = ? AND thumbnail_object_key = ?", lib.ID, key).
-		First(&asset).Error; err != nil {
-		if isNotFound(err) {
-			respond404(c, "not found")
-			return
-		}
-		respond500(c, err)
+	// Authorised keys are an asset's cover thumbnail or a stored gallery image,
+	// both scoped to the current library.
+	ct, ok := h.authoriseThumbKey(c, lib.ID, key)
+	if !ok {
 		return
 	}
-	size, exists, herr := h.storage.HeadBlob(c.Request.Context(), key)
-	// HeadBlob looks at the blob prefix; thumbs live under thumbs/. We don't
-	// have a HeadThumb so we accept that Content-Length is best-effort here.
-	_ = size
-	_ = exists
-	_ = herr
 	r, err := h.storage.GetThumb(c.Request.Context(), key)
 	if err != nil {
 		respond404(c, "not found")
 		return
 	}
 	defer r.Close()
-	ct := asset.ThumbnailContentType
 	if !allowedThumbContentTypes[ct] {
 		ct = "application/octet-stream"
 	}
