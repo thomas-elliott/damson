@@ -43,6 +43,28 @@ export function usePatchAsset() {
   });
 }
 
+export function usePatchVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      assetId: number;
+      versionId: number;
+      store_version?: string;
+      notes?: string;
+    }) => {
+      const { assetId, versionId, ...body } = input;
+      return fetchJson<{ id: number; store_version: string }>(
+        `/api/assets/${assetId}/versions/${versionId}`,
+        { method: "PATCH", body: JSON.stringify(body) },
+      );
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.assetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
+  });
+}
+
 export function useDeleteAsset() {
   const qc = useQueryClient();
   return useMutation({
