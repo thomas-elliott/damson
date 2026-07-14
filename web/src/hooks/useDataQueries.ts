@@ -157,6 +157,7 @@ export function useAssets(filters?: AssetFilters, enabled: boolean = true) {
 export interface AssetVersionView {
   id: number;
   version_label: string;
+  store_version: string;
   notes: string;
   import_date: string;
   package_kind: string;

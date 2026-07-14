@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, FolderOpen, Maximize2, Minimize2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Check,
+  FolderOpen,
+  Maximize2,
+  Minimize2,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   Button,
@@ -19,11 +28,17 @@ import {
   useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
-import { useAssetAudit, useAssetDetail, type AssetDetailView } from "@/hooks/useDataQueries";
+import {
+  useAssetAudit,
+  useAssetDetail,
+  type AssetDetailView,
+  type AssetVersionView,
+} from "@/hooks/useDataQueries";
 import {
   useAddAssetTag,
   useDeleteAsset,
   usePatchAsset,
+  usePatchVersion,
   useRemoveAssetTag,
   useRequeueAssetPreviews,
   useRescanAsset,
@@ -314,14 +329,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       <Section title="Versions" accessory={`${asset.versions.length}`} defaultOpen>
         <div className="flex flex-col gap-0.5">
           {asset.versions.map((v) => (
-            <VersionItem
-              key={v.id}
-              version={v.version_label}
-              date={new Date(v.import_date).toLocaleDateString()}
-              meta={`${v.file_count} files · ${formatBytes(v.size_bytes)}`}
-              current={v.is_current}
-              notes={v.notes || undefined}
-            />
+            <VersionRow key={v.id} assetId={asset.id} version={v} />
           ))}
         </div>
       </Section>
@@ -445,6 +453,65 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       </div>
       {confirmDialog}
     </div>
+  );
+}
+
+function VersionRow({ assetId, version }: { assetId: number; version: AssetVersionView }) {
+  const patch = usePatchVersion();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(version.store_version);
+
+  const onSave = () => {
+    patch.mutate(
+      { assetId, versionId: version.id, store_version: value.trim() },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
+
+  const editAction = editing ? (
+    <span className="flex items-center gap-1">
+      <Input
+        value={value}
+        onChange={(e) => setValue(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSave();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        placeholder="1.1"
+        aria-label="Store version"
+        autoFocus
+        className="h-6 w-20 text-small"
+      />
+      <IconButton aria-label="Save store version" onClick={onSave} disabled={patch.isPending}>
+        <Check size={12} />
+      </IconButton>
+      <IconButton aria-label="Cancel edit" onClick={() => setEditing(false)}>
+        <X size={12} />
+      </IconButton>
+    </span>
+  ) : (
+    <IconButton
+      aria-label="Edit store version"
+      title="Edit store version"
+      onClick={() => {
+        setValue(version.store_version);
+        setEditing(true);
+      }}
+    >
+      <Pencil size={12} />
+    </IconButton>
+  );
+
+  return (
+    <VersionItem
+      version={version.version_label}
+      storeVersion={version.store_version || undefined}
+      date={new Date(version.import_date).toLocaleDateString()}
+      meta={`${version.file_count} files · ${formatBytes(version.size_bytes)}`}
+      current={version.is_current}
+      notes={version.notes || undefined}
+      action={editAction}
+    />
   );
 }
 
