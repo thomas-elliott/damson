@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, FolderOpen, Maximize2, Minimize2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Check,
+  FolderOpen,
+  Maximize2,
+  Minimize2,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   Button,
@@ -19,11 +28,19 @@ import {
   useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
-import { useAssetAudit, useAssetDetail, type AssetDetailView } from "@/hooks/useDataQueries";
+import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
+import {
+  useAssetAudit,
+  useAssetDetail,
+  type AssetDetailView,
+  type AssetImageView,
+  type AssetVersionView,
+} from "@/hooks/useDataQueries";
 import {
   useAddAssetTag,
   useDeleteAsset,
   usePatchAsset,
+  usePatchVersion,
   useRemoveAssetTag,
   useRequeueAssetPreviews,
   useRescanAsset,
@@ -276,6 +293,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             />
           </FieldRow>
           <MetadataActions asset={asset} />
+          <GalleryStrip images={asset.images} />
         </div>
       </Section>
 
@@ -314,14 +332,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       <Section title="Versions" accessory={`${asset.versions.length}`} defaultOpen>
         <div className="flex flex-col gap-0.5">
           {asset.versions.map((v) => (
-            <VersionItem
-              key={v.id}
-              version={v.version_label}
-              date={new Date(v.import_date).toLocaleDateString()}
-              meta={`${v.file_count} files · ${formatBytes(v.size_bytes)}`}
-              current={v.is_current}
-              notes={v.notes || undefined}
-            />
+            <VersionRow key={v.id} assetId={asset.id} version={v} />
           ))}
         </div>
       </Section>
@@ -360,22 +371,14 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         >
           Regenerate previews only
         </Button>
-        <ul className="flex flex-col gap-0.5">
-          {asset.files.slice(0, 50).map((f) => (
-            <li
-              key={f.id}
-              className="flex items-center justify-between gap-3 rounded-sm px-1.5 py-1 text-small hover:bg-surface"
-            >
-              <span className="truncate font-mono text-text-2" title={f.relative_path}>
-                {f.relative_path}
-              </span>
-              <span className="text-mono text-text-3">{formatBytes(f.size_bytes)}</span>
-            </li>
-          ))}
-          {asset.files.length > 50 && (
-            <li className="px-1.5 py-1 text-caption">… {asset.files.length - 50} more files</li>
-          )}
-        </ul>
+        <div className="flex items-center justify-between rounded-sm border border-line bg-surface px-2.5 py-2 text-small text-text-2">
+          <span>
+            {asset.files.length} {asset.files.length === 1 ? "file" : "files"}
+          </span>
+          <span className="text-mono tabular-nums text-text-3">
+            {formatBytes(asset.files.reduce((sum, f) => sum + f.size_bytes, 0))}
+          </span>
+        </div>
       </Section>
 
       {/* Licence */}
@@ -445,6 +448,95 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       </div>
       {confirmDialog}
     </div>
+  );
+}
+
+function GalleryThumb({ image }: { image: AssetImageView }) {
+  const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="block h-16 w-24 shrink-0 overflow-hidden rounded-md border border-line bg-surface"
+      aria-label="Open preview image"
+    >
+      {url ? (
+        <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="h-full w-full animate-pulse bg-surface-2" />
+      )}
+    </a>
+  );
+}
+
+function GalleryStrip({ images }: { images: AssetImageView[] }) {
+  if (images.length === 0) return null;
+  return (
+    <div className="flex gap-1.5 overflow-x-auto pb-1">
+      {images.map((img) => (
+        <GalleryThumb key={img.id} image={img} />
+      ))}
+    </div>
+  );
+}
+
+function VersionRow({ assetId, version }: { assetId: number; version: AssetVersionView }) {
+  const patch = usePatchVersion();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(version.store_version);
+
+  const onSave = () => {
+    patch.mutate(
+      { assetId, versionId: version.id, store_version: value.trim() },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
+
+  const editAction = editing ? (
+    <span className="flex items-center gap-1">
+      <Input
+        value={value}
+        onChange={(e) => setValue(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSave();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        placeholder="1.1"
+        aria-label="Store version"
+        autoFocus
+        className="h-6 w-20 text-small"
+      />
+      <IconButton aria-label="Save store version" onClick={onSave} disabled={patch.isPending}>
+        <Check size={12} />
+      </IconButton>
+      <IconButton aria-label="Cancel edit" onClick={() => setEditing(false)}>
+        <X size={12} />
+      </IconButton>
+    </span>
+  ) : (
+    <IconButton
+      aria-label="Edit store version"
+      title="Edit store version"
+      onClick={() => {
+        setValue(version.store_version);
+        setEditing(true);
+      }}
+    >
+      <Pencil size={12} />
+    </IconButton>
+  );
+
+  return (
+    <VersionItem
+      version={version.version_label}
+      storeVersion={version.store_version || undefined}
+      date={new Date(version.import_date).toLocaleDateString()}
+      meta={`${version.file_count} files · ${formatBytes(version.size_bytes)}`}
+      current={version.is_current}
+      notes={version.notes || undefined}
+      action={editAction}
+    />
   );
 }
 

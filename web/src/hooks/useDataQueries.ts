@@ -157,6 +157,7 @@ export function useAssets(filters?: AssetFilters, enabled: boolean = true) {
 export interface AssetVersionView {
   id: number;
   version_label: string;
+  store_version: string;
   notes: string;
   import_date: string;
   package_kind: string;
@@ -287,8 +288,15 @@ export interface AssetDetailView {
   tags: AssetTagView[];
   versions: AssetVersionView[];
   files: AssetFileView[];
+  images: AssetImageView[];
   projects: ProjectPinRef[];
   collections: CollectionRef[];
+}
+
+export interface AssetImageView {
+  id: number;
+  object_key: string;
+  content_type?: string;
 }
 
 export function useAssetDetail(id: number | null) {
@@ -454,6 +462,7 @@ export interface LibrarySettings {
   thumbnails_font_enabled: boolean;
   thumbnails_unity_preview: boolean;
   auto_enrich_enabled: boolean;
+  preferred_store: string;
   audit_retention_days: number | null;
 }
 

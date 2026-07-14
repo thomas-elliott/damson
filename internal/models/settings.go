@@ -24,6 +24,7 @@ type LibrarySettings struct {
 	ThumbnailsUnityPreview  bool   `gorm:"not null;default:true"`
 	PreviewsEnabled         bool   `gorm:"not null;default:true"`
 	AutoEnrichEnabled       bool   `gorm:"not null;default:true"`
+	PreferredStore          string `gorm:"not null;default:unity"`
 	AuditRetentionDays      *int
 	UpdatedAt               time.Time
 	UpdatedByUserID         *uint

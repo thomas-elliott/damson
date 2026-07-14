@@ -3,14 +3,18 @@ import { type HTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/design-system/utils";
 
 export interface VersionItemProps extends HTMLAttributes<HTMLDivElement> {
-  /** Version identifier (e.g. "1.12.3"). */
+  /** Internal sequence label (e.g. "v3"). */
   version: string;
+  /** Store-facing version (e.g. "1.1"), shown alongside the internal label. */
+  storeVersion?: string;
   date: ReactNode;
   /** File count or other right-aligned metadata. */
   meta?: ReactNode;
   notes?: ReactNode;
   /** Highlights as the currently-pinned version. */
   current?: boolean;
+  /** Right-aligned slot in the header row (e.g. an edit control). */
+  action?: ReactNode;
   onSelect?: () => void;
 }
 
@@ -26,10 +30,12 @@ const currentClasses = "border-accent bg-accent-tint";
 export function VersionItem({
   className,
   version,
+  storeVersion,
   date,
   meta,
   notes,
   current,
+  action,
   onSelect,
   ...props
 }: VersionItemProps) {
@@ -37,8 +43,16 @@ export function VersionItem({
     <>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-list-row font-medium text-text">{version}</span>
+          {storeVersion ? (
+            <>
+              <span className="font-mono text-list-row font-medium text-text">{storeVersion}</span>
+              <span className="text-label text-text-3">{version}</span>
+            </>
+          ) : (
+            <span className="font-mono text-list-row font-medium text-text">{version}</span>
+          )}
           {current && <span className="text-label text-accent">Current</span>}
+          {action && <span className="ml-auto">{action}</span>}
         </div>
         {notes && <div className="mt-0.5 text-text-2">{notes}</div>}
       </div>

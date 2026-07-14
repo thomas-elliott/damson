@@ -62,7 +62,7 @@ test.describe("Project pin + upgrade flow", () => {
     // {asset_id} without a version_id, so the server pins current.
     await page.getByRole("button", { name: "Pin asset" }).first().click();
     await page.getByRole("combobox", { name: "Asset" }).click();
-    await page.getByRole("option", { name: "pin-target" }).click();
+    await page.getByRole("option", { name: "pin target" }).click();
     await Promise.all([
       page.waitForResponse(
         (r) =>

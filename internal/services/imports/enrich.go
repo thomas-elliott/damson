@@ -49,6 +49,7 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 	if len(cands) == 0 {
 		return
 	}
+	metadata.SortByPreferredStore(cands, settings.PreferredStore)
 
 	match := exactMatchCandidate(asset.Name, cands)
 	rec := metadata.SourceRecord{
@@ -79,6 +80,14 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 // cover thumbnail — mirroring the manual fetch's fill-blanks semantics but
 // without the conflict/confirm path.
 func enrichFillBlanks(ctx context.Context, deps Deps, asset *models.Asset, meta *metadata.Metadata) {
+	if meta.Title != "" && asset.Name != meta.Title {
+		if err := deps.DB.WithContext(ctx).Model(asset).Where("id = ?", asset.ID).
+			Update("name", meta.Title).Error; err != nil {
+			slog.Warn("enrich: set name", "err", err, "asset_id", asset.ID)
+		} else {
+			asset.Name = meta.Title
+		}
+	}
 	if asset.Description == "" && meta.Description != "" {
 		if err := deps.DB.WithContext(ctx).Model(asset).Where("id = ?", asset.ID).
 			Update("description", meta.Description).Error; err != nil {
@@ -93,6 +102,7 @@ func enrichFillBlanks(ctx context.Context, deps Deps, asset *models.Asset, meta 
 	if asset.ThumbnailObjectKey == "" && meta.CoverURL != "" {
 		enrichSetThumbnail(ctx, deps, asset, meta.CoverURL)
 	}
+	StoreGalleryImages(ctx, deps.DB, deps.Storage, deps.Metadata, asset.ID, meta.ImageURLs)
 }
 
 func buildEnrichLicence(meta *metadata.Metadata) *models.Licence {

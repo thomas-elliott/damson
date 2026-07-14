@@ -15,6 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
@@ -247,6 +248,11 @@ func (h *Handler) getMetadataSearch(c *gin.Context) {
 		respond502(c, "metadata search failed")
 		return
 	}
+	if lib := getLibrary(c); lib != nil {
+		if s, serr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID); serr == nil {
+			metadata.SortByPreferredStore(cands, s.PreferredStore)
+		}
+	}
 	c.JSON(http.StatusOK, metadataSearchResponse{
 		Query:      q,
 		Candidates: candidateViewsFrom(cands),
@@ -338,6 +344,19 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		applied = append(applied, "source_url")
 	}
 
+	// Unlike the fill-if-blank fields below, a name is never blank, so a
+	// differing store title is always a confirmable conflict, never a silent fill.
+	if meta.Title != "" && asset.Name != meta.Title {
+		if confirm["name"] {
+			before["name"] = asset.Name
+			updates["name"] = meta.Title
+			asset.Name = meta.Title
+			applied = append(applied, "name")
+		} else {
+			conflicts = append(conflicts, metadataConflict{Field: "name", Current: asset.Name, Proposed: meta.Title})
+		}
+	}
+
 	if meta.Description != "" && asset.Description != meta.Description {
 		if asset.Description == "" || confirm["description"] {
 			before["description"] = asset.Description
@@ -380,6 +399,8 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		auditBefore["thumbnail_object_key"] = prevThumb
 		auditAfter["thumbnail_object_key"] = asset.ThumbnailObjectKey
 	}
+
+	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, meta.ImageURLs)
 
 	if len(auditAfter) > 0 {
 		h.auditMetadata(c, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)

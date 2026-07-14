@@ -95,6 +95,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&models.AssetVersion{},
 		&models.AssetFile{},
 		&models.AssetImport{},
+		&models.AssetImage{},
 		&models.Tag{},
 		&models.AssetTag{},
 		&models.Licence{},
