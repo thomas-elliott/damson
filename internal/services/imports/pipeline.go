@@ -13,6 +13,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
+	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
@@ -424,6 +425,7 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 		ThumbnailsUnityPreview:  true,
 		PreviewsEnabled:         true,
 		AutoEnrichEnabled:       true,
+		PreferredStore:          metadata.StoreUnity,
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err

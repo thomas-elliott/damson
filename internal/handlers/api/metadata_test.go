@@ -80,8 +80,10 @@ func TestMetadataFetch_FillsBlanks(t *testing.T) {
 	requireStatus(t, w, http.StatusOK)
 
 	resp := jsonResponse[metadataFetchResponse](t, w)
-	if len(resp.Conflicts) != 0 {
-		t.Fatalf("expected no conflicts on blank asset, got %+v", resp.Conflicts)
+	// The store title differs from the filename-derived name, so a rename
+	// surfaces as a conflict (names are never blank, so never fill silently).
+	if len(resp.Conflicts) != 1 || resp.Conflicts[0].Field != "name" {
+		t.Fatalf("expected a single name conflict, got %+v", resp.Conflicts)
 	}
 	assertContains(t, resp.Applied, "description", "licence", "thumbnail", "source_url")
 
@@ -199,6 +201,97 @@ func TestMetadataApply_OverwritesConfirmed(t *testing.T) {
 	if refreshed.Description != "fetched description" {
 		t.Errorf("confirmed overwrite not applied: %q", refreshed.Description)
 	}
+}
+
+func TestMetadataApply_RenamesFromTitleOnConfirm(t *testing.T) {
+	h, db := newTestHandler(t)
+	fake := &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreUnity,
+		Title: "Fantasy Pack Deluxe",
+	}}
+	h.metadata = fake
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "fantasy pack")
+	asset.SourceURL = "https://assetstore.unity.com/packages/x-1"
+	if err := db.Save(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	fw := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, fw, http.StatusOK)
+	fresp := jsonResponse[metadataFetchResponse](t, fw)
+	if len(fresp.Conflicts) != 1 || fresp.Conflicts[0].Field != "name" {
+		t.Fatalf("expected a name conflict, got %+v", fresp.Conflicts)
+	}
+
+	// Not yet confirmed — name unchanged.
+	var mid models.Asset
+	db.First(&mid, asset.ID)
+	if mid.Name != "fantasy pack" {
+		t.Fatalf("name changed before confirm: %q", mid.Name)
+	}
+
+	aw := performRequest(r, http.MethodPost, "/api/assets/1/metadata/apply",
+		map[string]any{"fields": []string{"name"}})
+	requireStatus(t, aw, http.StatusOK)
+
+	var refreshed models.Asset
+	db.First(&refreshed, asset.ID)
+	if refreshed.Name != "Fantasy Pack Deluxe" {
+		t.Errorf("confirmed rename not applied: %q", refreshed.Name)
+	}
+}
+
+func TestMetadataFetch_StoresGalleryImages(t *testing.T) {
+	h, db := newTestHandler(t)
+	fake := &fakeMetadata{
+		meta: &metadata.Metadata{
+			Store:     metadata.StoreUnity,
+			Title:     "asset", // equal to the asset name → no rename conflict
+			ImageURLs: []string{"https://cdn.example.com/1.jpg", "https://cdn.example.com/2.jpg"},
+		},
+		img:   tinyPNG(t),
+		imgCT: "image/png",
+	}
+	h.metadata = fake
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	asset.SourceURL = "https://assetstore.unity.com/packages/x-1"
+	if err := db.Save(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, w, http.StatusOK)
+
+	var count int64
+	db.Model(&models.AssetImage{}).Where("asset_id = ?", asset.ID).Count(&count)
+	// A no-op would store nothing; this fails against it.
+	if count != 2 {
+		t.Fatalf("expected 2 gallery images, got %d", count)
+	}
+
+	// Re-fetch must skip already-stored source URLs.
+	w2 := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, w2, http.StatusOK)
+	db.Model(&models.AssetImage{}).Where("asset_id = ?", asset.ID).Count(&count)
+	if count != 2 {
+		t.Fatalf("re-fetch duplicated gallery images: got %d", count)
+	}
+
+	// The detail view surfaces them and the thumb endpoint authorises the key.
+	dw := performGET(r, "/api/assets/1")
+	requireStatus(t, dw, http.StatusOK)
+	detail := jsonResponse[assetDetailView](t, dw)
+	if len(detail.Images) != 2 {
+		t.Fatalf("detail view images: got %d", len(detail.Images))
+	}
+	tw := performGET(r, "/api/thumbs/"+detail.Images[0].ObjectKey)
+	requireStatus(t, tw, http.StatusOK)
 }
 
 func TestMetadataFetch_NoURL(t *testing.T) {
