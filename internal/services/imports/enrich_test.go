@@ -144,6 +144,29 @@ func TestEnrichAsset_ExactMatchNotFirstCandidate(t *testing.T) {
 	}
 }
 
+func TestEnrichAsset_RenamesFromStoreTitle(t *testing.T) {
+	db := enrichTestDB(t)
+	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)
+	fake := &fakeEnricher{
+		cands: []metadata.Candidate{{Title: "Fantasy Pack", ListingURL: "https://x/1", Store: "unity"}},
+		meta: &metadata.Metadata{
+			Store:      "unity",
+			Title:      "Fantasy Pack Deluxe Edition",
+			ListingURL: "https://x/1",
+		},
+	}
+	jc := jobContext{asset: *asset, libraryID: 1}
+
+	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
+
+	var got models.Asset
+	db.First(&got, asset.ID)
+	// A no-rename enricher leaves the filename-derived name — this fails against it.
+	if got.Name != "Fantasy Pack Deluxe Edition" {
+		t.Errorf("asset not renamed to store title: %q", got.Name)
+	}
+}
+
 func TestEnrichAsset_LowConfidenceAbstains(t *testing.T) {
 	db := enrichTestDB(t)
 	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)

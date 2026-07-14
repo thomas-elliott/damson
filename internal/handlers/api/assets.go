@@ -350,9 +350,10 @@ func (h *Handler) postImport(c *gin.Context) {
 		libID     = lib.ID
 	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		assetName, storeVersion := imports.ParseImportFilename(filename)
 		asset := models.Asset{
 			LibraryID:       libID,
-			Name:            assetNameFromFilename(filename),
+			Name:            assetName,
 			NeedsReview:     true,
 			CreatedByUserID: &u.ID,
 		}
@@ -362,6 +363,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		version := models.AssetVersion{
 			AssetID:         asset.ID,
 			VersionLabel:    "v1",
+			StoreVersion:    storeVersion,
 			ImportDate:      time.Now().UTC(),
 			CreatedByUserID: &u.ID,
 			PackageKind:     packageKind,
@@ -663,18 +665,4 @@ func licenceStatusSPDXBuckets() (ok, errSet, unkExtras []string) {
 	errSet = []string{"CC-BY-NC-4.0", "CC-BY-NC-3.0", "CC-BY-NC-SA-4.0"}
 	unkExtras = []string{"unknown"}
 	return
-}
-
-// assetNameFromFilename strips the extension so the default asset name is a
-// user-friendly label. Users can rename after import.
-func assetNameFromFilename(filename string) string {
-	base := filepath.Base(filename)
-	ext := filepath.Ext(base)
-	if ext != "" {
-		base = strings.TrimSuffix(base, ext)
-	}
-	if base == "" {
-		base = filename
-	}
-	return base
 }
