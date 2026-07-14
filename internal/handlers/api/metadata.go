@@ -15,6 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
@@ -396,6 +397,8 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		auditBefore["thumbnail_object_key"] = prevThumb
 		auditAfter["thumbnail_object_key"] = asset.ThumbnailObjectKey
 	}
+
+	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, meta.ImageURLs)
 
 	if len(auditAfter) > 0 {
 		h.auditMetadata(c, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)
