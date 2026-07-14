@@ -371,22 +371,14 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         >
           Regenerate previews only
         </Button>
-        <ul className="flex flex-col gap-0.5">
-          {asset.files.slice(0, 50).map((f) => (
-            <li
-              key={f.id}
-              className="flex items-center justify-between gap-3 rounded-sm px-1.5 py-1 text-small hover:bg-surface"
-            >
-              <span className="truncate font-mono text-text-2" title={f.relative_path}>
-                {f.relative_path}
-              </span>
-              <span className="text-mono text-text-3">{formatBytes(f.size_bytes)}</span>
-            </li>
-          ))}
-          {asset.files.length > 50 && (
-            <li className="px-1.5 py-1 text-caption">… {asset.files.length - 50} more files</li>
-          )}
-        </ul>
+        <div className="flex items-center justify-between rounded-sm border border-line bg-surface px-2.5 py-2 text-small text-text-2">
+          <span>
+            {asset.files.length} {asset.files.length === 1 ? "file" : "files"}
+          </span>
+          <span className="text-mono tabular-nums text-text-3">
+            {formatBytes(asset.files.reduce((sum, f) => sum + f.size_bytes, 0))}
+          </span>
+        </div>
       </Section>
 
       {/* Licence */}
