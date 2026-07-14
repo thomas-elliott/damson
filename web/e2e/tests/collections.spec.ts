@@ -69,15 +69,15 @@ test.describe("Collection create + asset add/remove", () => {
     // Reload so useAssets refetches with the new membership. /collections/:id
     // doesn't re-poll on its own, and the test backend has no realtime push.
     await page.reload();
-    await expect(page.getByRole("button", { name: /\basset-a\b/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /\basset-b\b/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /\basset a\b/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /\basset b\b/i })).toBeVisible();
 
     // Remove A and confirm only B remains. This is the assertion that
     // exercises the cache key the issue calls out — a stale key would keep
     // showing A even after the membership row is gone server-side.
     await removeAssetFromCollection(request, session, collectionId, a.asset_id);
     await page.reload();
-    await expect(page.getByRole("button", { name: /\basset-a\b/i })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /\basset-b\b/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /\basset a\b/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /\basset b\b/i })).toBeVisible();
   });
 });

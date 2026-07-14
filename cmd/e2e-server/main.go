@@ -216,6 +216,7 @@ func allModels() []any {
 		&models.AssetVersion{},
 		&models.AssetFile{},
 		&models.AssetImport{},
+		&models.AssetImage{},
 		&models.Tag{},
 		&models.AssetTag{},
 		&models.Licence{},
