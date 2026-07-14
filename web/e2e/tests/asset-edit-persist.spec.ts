@@ -45,7 +45,7 @@ test.describe("Asset edits persist across reload", () => {
 
     // Open the detail panel via the asset card. URL becomes /library/:id;
     // panel mounts and useAssetDetail fetches.
-    await page.getByRole("button", { name: /\bpersist-asset\b/i }).click();
+    await page.getByRole("button", { name: /\bpersist asset\b/i }).click();
     await expect(page).toHaveURL(/\/library\/\d+$/);
 
     // Add a tag. The tag input commits on Enter (see AssetDetailPanel).
