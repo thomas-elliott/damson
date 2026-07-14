@@ -99,27 +99,3 @@ Two capability areas, sharing one import-time filename parser.
   gallery images for non-Unity stores beyond whatever `ImageURLs` a generic/JSON-LD
   listing already yields; no camelCase word-splitting of filenames
   (`AnimSet` stays `AnimSet`).
-
-## Deferred comments
-
-Candidate *why* notes parked during implementation (no explanatory comments were
-written inline beyond idiomatic Go doc comments matching the codebase). `cleanup`
-should evaluate each and keep only what the code can't convey:
-
-- `internal/services/imports/filename.go` `ParseImportFilename` — the `isAllDigits`
-  guard on the extension exists so a no-extension `Goblin…_v1.1` isn't stripped to
-  `.1` by `filepath.Ext`; only real extensions are removed.
-- `internal/services/imports/filename.go` `importVersionRE` — the token must be
-  `v`-prefixed or dotted so a bare trailing integer (`Building_7`) stays in the name.
-- `internal/services/imports/version.go` `CompareStoreVersions` — missing trailing
-  components are treated as zero so `1.0 == 1`.
-- `internal/handlers/api/assets_crud.go` `getAssetDetail` sort — semver ordering is
-  done in Go (not SQL) because a portable component-wise compare isn't expressible
-  in the query; `CurrentVersionID` is deliberately not reordered.
-- `internal/handlers/api/metadata.go` `applyMetadata` — name is a conflict (never a
-  fill) because an asset name is never blank; auto-enrich renames unconditionally
-  since the name is still the import default at that point.
-- `internal/handlers/api/files.go` `authoriseThumbKey` — the gallery lookup must keep
-  the `assets.library_id` scope so gallery blobs stay tenant-isolated.
-- `internal/services/imports/gallery.go` `StoreGalleryImages` — best-effort by design;
-  failures are logged and skipped so enrichment/fetch never fails on a bad image.

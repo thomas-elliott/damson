@@ -344,6 +344,8 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		applied = append(applied, "source_url")
 	}
 
+	// Unlike the fill-if-blank fields below, a name is never blank, so a
+	// differing store title is always a confirmable conflict, never a silent fill.
 	if meta.Title != "" && asset.Name != meta.Title {
 		if confirm["name"] {
 			before["name"] = asset.Name
