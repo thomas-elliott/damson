@@ -350,7 +350,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		libID     = lib.ID
 	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		assetName, _ := imports.ParseImportFilename(filename)
+		assetName, storeVersion := imports.ParseImportFilename(filename)
 		asset := models.Asset{
 			LibraryID:       libID,
 			Name:            assetName,
@@ -363,6 +363,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		version := models.AssetVersion{
 			AssetID:         asset.ID,
 			VersionLabel:    "v1",
+			StoreVersion:    storeVersion,
 			ImportDate:      time.Now().UTC(),
 			CreatedByUserID: &u.ID,
 			PackageKind:     packageKind,

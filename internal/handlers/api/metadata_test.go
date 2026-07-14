@@ -80,8 +80,10 @@ func TestMetadataFetch_FillsBlanks(t *testing.T) {
 	requireStatus(t, w, http.StatusOK)
 
 	resp := jsonResponse[metadataFetchResponse](t, w)
-	if len(resp.Conflicts) != 0 {
-		t.Fatalf("expected no conflicts on blank asset, got %+v", resp.Conflicts)
+	// The store title differs from the filename-derived name, so a rename
+	// surfaces as a conflict (names are never blank, so never fill silently).
+	if len(resp.Conflicts) != 1 || resp.Conflicts[0].Field != "name" {
+		t.Fatalf("expected a single name conflict, got %+v", resp.Conflicts)
 	}
 	assertContains(t, resp.Applied, "description", "licence", "thumbnail", "source_url")
 
@@ -198,6 +200,47 @@ func TestMetadataApply_OverwritesConfirmed(t *testing.T) {
 	db.First(&refreshed, asset.ID)
 	if refreshed.Description != "fetched description" {
 		t.Errorf("confirmed overwrite not applied: %q", refreshed.Description)
+	}
+}
+
+func TestMetadataApply_RenamesFromTitleOnConfirm(t *testing.T) {
+	h, db := newTestHandler(t)
+	fake := &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreUnity,
+		Title: "Fantasy Pack Deluxe",
+	}}
+	h.metadata = fake
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "fantasy pack")
+	asset.SourceURL = "https://assetstore.unity.com/packages/x-1"
+	if err := db.Save(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	fw := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, fw, http.StatusOK)
+	fresp := jsonResponse[metadataFetchResponse](t, fw)
+	if len(fresp.Conflicts) != 1 || fresp.Conflicts[0].Field != "name" {
+		t.Fatalf("expected a name conflict, got %+v", fresp.Conflicts)
+	}
+
+	// Not yet confirmed — name unchanged.
+	var mid models.Asset
+	db.First(&mid, asset.ID)
+	if mid.Name != "fantasy pack" {
+		t.Fatalf("name changed before confirm: %q", mid.Name)
+	}
+
+	aw := performRequest(r, http.MethodPost, "/api/assets/1/metadata/apply",
+		map[string]any{"fields": []string{"name"}})
+	requireStatus(t, aw, http.StatusOK)
+
+	var refreshed models.Asset
+	db.First(&refreshed, asset.ID)
+	if refreshed.Name != "Fantasy Pack Deluxe" {
+		t.Errorf("confirmed rename not applied: %q", refreshed.Name)
 	}
 }
 
