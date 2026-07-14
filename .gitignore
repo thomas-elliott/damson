@@ -6,6 +6,8 @@
 *.test
 *.out
 
+/test-results/
+
 # Runtime state — default data dir (blobs at ./data/blobs, jwt key at
 # ./data/jwt.key). Override with DAMSON_STORAGE_LOCAL_PATH /
 # DAMSON_JWT_KEY_FILE if you want these somewhere else.
