@@ -47,8 +47,8 @@ test.describe("Library switch isolates scope", () => {
     await installSession(page, session);
     await page.goto("/library");
 
-    const assetA = page.getByRole("button", { name: /\basset-a\b/i });
-    const assetB = page.getByRole("button", { name: /\basset-b\b/i });
+    const assetA = page.getByRole("button", { name: /\basset a\b/i });
+    const assetB = page.getByRole("button", { name: /\basset b\b/i });
     await expect(assetA).toBeVisible();
     await expect(assetB).toHaveCount(0);
 
