@@ -247,6 +247,11 @@ func (h *Handler) getMetadataSearch(c *gin.Context) {
 		respond502(c, "metadata search failed")
 		return
 	}
+	if lib := getLibrary(c); lib != nil {
+		if s, serr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID); serr == nil {
+			metadata.SortByPreferredStore(cands, s.PreferredStore)
+		}
+	}
 	c.JSON(http.StatusOK, metadataSearchResponse{
 		Query:      q,
 		Candidates: candidateViewsFrom(cands),
