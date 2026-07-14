@@ -78,8 +78,8 @@ func TestCoveoMetadata(t *testing.T) {
 	if m.Title != "Low-Poly Simple Nature Pack" {
 		t.Errorf("title: got %q", m.Title)
 	}
-	// HTML tags in the description must be stripped.
-	if m.Description != "A tidy low-poly nature set." {
+	// HTML descriptions are converted to Markdown, preserving inline emphasis.
+	if m.Description != "A **tidy** low-poly nature set." {
 		t.Errorf("description: got %q", m.Description)
 	}
 	if m.Publisher != "JustCreate" {

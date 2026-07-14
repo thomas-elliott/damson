@@ -343,6 +343,17 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		applied = append(applied, "source_url")
 	}
 
+	if meta.Title != "" && asset.Name != meta.Title {
+		if confirm["name"] {
+			before["name"] = asset.Name
+			updates["name"] = meta.Title
+			asset.Name = meta.Title
+			applied = append(applied, "name")
+		} else {
+			conflicts = append(conflicts, metadataConflict{Field: "name", Current: asset.Name, Proposed: meta.Title})
+		}
+	}
+
 	if meta.Description != "" && asset.Description != meta.Description {
 		if asset.Description == "" || confirm["description"] {
 			before["description"] = asset.Description
