@@ -9,6 +9,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
 type librarySettingsView struct {
@@ -22,6 +23,7 @@ type librarySettingsView struct {
 	ThumbnailsFontEnabled   bool   `json:"thumbnails_font_enabled"`
 	ThumbnailsUnityPreview  bool   `json:"thumbnails_unity_preview"`
 	AutoEnrichEnabled       bool   `json:"auto_enrich_enabled"`
+	PreferredStore          string `json:"preferred_store"`
 	AuditRetentionDays      *int   `json:"audit_retention_days"`
 }
 
@@ -37,6 +39,7 @@ func settingsViewFrom(s *models.LibrarySettings) librarySettingsView {
 		ThumbnailsFontEnabled:   s.ThumbnailsFontEnabled,
 		ThumbnailsUnityPreview:  s.ThumbnailsUnityPreview,
 		AutoEnrichEnabled:       s.AutoEnrichEnabled,
+		PreferredStore:          s.PreferredStore,
 		AuditRetentionDays:      s.AuditRetentionDays,
 	}
 }
@@ -64,6 +67,7 @@ type librarySettingsPatchRequest struct {
 	ThumbnailsFontEnabled   *bool   `json:"thumbnails_font_enabled,omitempty"`
 	ThumbnailsUnityPreview  *bool   `json:"thumbnails_unity_preview,omitempty"`
 	AutoEnrichEnabled       *bool   `json:"auto_enrich_enabled,omitempty"`
+	PreferredStore          *string `json:"preferred_store,omitempty"`
 	AuditRetentionDays      *int    `json:"audit_retention_days,omitempty"`
 }
 
@@ -77,6 +81,10 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 	var req librarySettingsPatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respond400(c, err)
+		return
+	}
+	if req.PreferredStore != nil && !metadata.ValidPreferredStore(*req.PreferredStore) {
+		respond400(c, asError("invalid preferred_store"))
 		return
 	}
 	var out models.LibrarySettings
@@ -112,6 +120,9 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		}
 		if req.AutoEnrichEnabled != nil {
 			s.AutoEnrichEnabled = *req.AutoEnrichEnabled
+		}
+		if req.PreferredStore != nil {
+			s.PreferredStore = *req.PreferredStore
 		}
 		if req.AuditRetentionDays != nil {
 			s.AuditRetentionDays = req.AuditRetentionDays
@@ -160,6 +171,7 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 		ThumbnailsUnityPreview:  true,
 		PreviewsEnabled:         true,
 		AutoEnrichEnabled:       true,
+		PreferredStore:          metadata.StoreUnity,
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err

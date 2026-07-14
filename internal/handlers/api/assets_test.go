@@ -77,8 +77,8 @@ func TestPostImport_StoresAssetAndVersion(t *testing.T) {
 	if a.CurrentVersionID == nil {
 		t.Fatalf("current_version_id not set: %+v", a.CurrentVersionID)
 	}
-	if a.Name != "grass-texture" {
-		t.Fatalf("name: got %q, want %q", a.Name, "grass-texture")
+	if a.Name != "grass texture" {
+		t.Fatalf("name: got %q, want %q", a.Name, "grass texture")
 	}
 
 	// File row carries the content hash as its object key.

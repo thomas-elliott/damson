@@ -49,6 +49,7 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 	if len(cands) == 0 {
 		return
 	}
+	metadata.SortByPreferredStore(cands, settings.PreferredStore)
 
 	match := exactMatchCandidate(asset.Name, cands)
 	rec := metadata.SourceRecord{

@@ -455,6 +455,7 @@ export interface LibrarySettings {
   thumbnails_font_enabled: boolean;
   thumbnails_unity_preview: boolean;
   auto_enrich_enabled: boolean;
+  preferred_store: string;
   audit_retention_days: number | null;
 }
 
