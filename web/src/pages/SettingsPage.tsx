@@ -101,8 +101,15 @@ interface SettingsView {
   thumbnails_font_enabled: boolean;
   thumbnails_unity_preview: boolean;
   auto_enrich_enabled: boolean;
+  preferred_store: string;
   audit_retention_days: number | null;
 }
+
+const PREFERRED_STORE_OPTIONS = [
+  { value: "unity", label: "Unity" },
+  { value: "sketchfab", label: "Sketchfab" },
+  { value: "itch", label: "itch.io" },
+];
 
 function ReadOnlySettings({ settings }: { settings: SettingsView }) {
   return (
@@ -154,6 +161,14 @@ function ReadOnlySettings({ settings }: { settings: SettingsView }) {
         <KeyValueList
           entries={[
             { key: "Auto-enrich on import", value: boolBadge(settings.auto_enrich_enabled) },
+            {
+              key: "Preferred store",
+              value: (
+                <Badge size="sm" mono>
+                  {settings.preferred_store}
+                </Badge>
+              ),
+            },
           ]}
         />
       </Section>
@@ -267,6 +282,16 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
           checked={settings.auto_enrich_enabled}
           onChange={(v) => apply({ auto_enrich_enabled: v })}
         />
+        <FormRow
+          label="Preferred store"
+          help="Listings from this store sort first in search results and win ties on auto-enrich."
+        >
+          <SegmentedControl
+            value={settings.preferred_store}
+            onValueChange={(v) => apply({ preferred_store: v })}
+            options={PREFERRED_STORE_OPTIONS}
+          />
+        </FormRow>
       </Section>
 
       <Section title="Audit" defaultOpen>
