@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 )
 
 // UnityAdapter fetches Unity Asset Store metadata via the anonymous Coveo
@@ -162,14 +164,16 @@ func coveoCandidate(r coveoResult) Candidate {
 func coveoMetadata(r coveoResult, listingURL string) *Metadata {
 	raw := r.Raw
 	rawJSON, _ := json.Marshal(r)
+	cover := coveoCover(raw)
 	return &Metadata{
 		Store:       StoreUnity,
 		Title:       stringOf(raw["ec_name"]),
-		Description: stripTags(firstNonEmpty(stringOf(raw["ec_description"]), stringOf(raw["ec_shortdesc"]))),
+		Description: htmlToMarkdown(firstNonEmpty(stringOf(raw["ec_description"]), stringOf(raw["ec_shortdesc"]))),
 		Publisher:   stringOf(raw["publisher_name"]),
 		Price:       numOrString(raw["ec_price"]),
 		Currency:    "USD",
-		CoverURL:    coveoCover(raw),
+		CoverURL:    cover,
+		ImageURLs:   coveoImages(raw, cover),
 		StoreID:     firstNonEmpty(firstArrayString(raw["ec_product_id"]), unityProductID(listingURL)),
 		ListingURL:  firstNonEmpty(r.ClickURI, listingURL),
 		// Coveo exposes no per-asset licence field; Asset Store assets carry
@@ -203,6 +207,58 @@ func coveoCover(raw map[string]any) string {
 		}
 	}
 	return ""
+}
+
+// coveoImages returns every gallery image URL from ec_images (a JSON array, a
+// JSON-encoded string array, or a bare string), deduplicated and with the
+// cover excluded so the gallery doesn't repeat it.
+func coveoImages(raw map[string]any, cover string) []string {
+	var urls []string
+	switch v := raw["ec_images"].(type) {
+	case string:
+		s := strings.TrimSpace(v)
+		if strings.HasPrefix(s, "[") {
+			var arr []string
+			if json.Unmarshal([]byte(s), &arr) == nil {
+				urls = arr
+			}
+		} else if s != "" {
+			urls = []string{s}
+		}
+	case []any:
+		for _, item := range v {
+			if u := stringOf(item); u != "" {
+				urls = append(urls, u)
+			}
+		}
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(urls))
+	for _, u := range urls {
+		u = strings.TrimSpace(u)
+		if u == "" || u == cover || seen[u] {
+			continue
+		}
+		seen[u] = true
+		out = append(out, u)
+	}
+	return out
+}
+
+// htmlToMarkdown converts an HTML fragment to Markdown, preserving structure
+// (paragraphs, lists). It falls back to the tag-stripped plain text when the
+// converter errors or yields nothing.
+func htmlToMarkdown(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return ""
+	}
+	md, err := htmltomarkdown.ConvertString(s)
+	if err == nil {
+		if md = strings.TrimSpace(md); md != "" {
+			return md
+		}
+	}
+	return stripTags(s)
 }
 
 func unityProductID(rawURL string) string {
