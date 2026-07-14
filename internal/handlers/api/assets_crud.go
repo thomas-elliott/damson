@@ -152,6 +152,9 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
+	// Semver ordering isn't portably expressible in SQL; re-sort the
+	// import-date-ordered rows here, versioned rows first (descending) and
+	// unversioned rows kept in import-date order after them.
 	sort.SliceStable(versions, func(i, j int) bool {
 		a, aok := imports.ParseStoreVersion(versions[i].StoreVersion)
 		b, bok := imports.ParseStoreVersion(versions[j].StoreVersion)

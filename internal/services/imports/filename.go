@@ -18,6 +18,8 @@ var (
 // integer stays part of the name.
 func ParseImportFilename(filename string) (name string, storeVersion string) {
 	base := filepath.Base(filename)
+	// A digit-only suffix (".1" from a "v1.1" with no real extension) is not an
+	// extension; leave it on so the version parser sees the full token.
 	if ext := filepath.Ext(base); ext != "" && !isAllDigits(ext[1:]) {
 		base = strings.TrimSuffix(base, ext)
 	}
