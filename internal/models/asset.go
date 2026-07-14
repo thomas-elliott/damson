@@ -75,3 +75,15 @@ type AssetImport struct {
 }
 
 func (AssetImport) TableName() string { return "asset_imports" }
+
+type AssetImage struct {
+	ID          uint   `gorm:"primarykey;auto_increment;not_null"`
+	AssetID     uint   `gorm:"not null;index;uniqueIndex:idx_asset_image_source,priority:1"`
+	SourceURL   string `gorm:"not null;uniqueIndex:idx_asset_image_source,priority:2"`
+	ObjectKey   string `gorm:"not null"`
+	ContentType string
+	SortOrder   int `gorm:"not null;default:0"`
+	CreatedAt   time.Time
+}
+
+func (AssetImage) TableName() string { return "asset_images" }

@@ -28,10 +28,12 @@ import {
   useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
+import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 import {
   useAssetAudit,
   useAssetDetail,
   type AssetDetailView,
+  type AssetImageView,
   type AssetVersionView,
 } from "@/hooks/useDataQueries";
 import {
@@ -291,6 +293,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             />
           </FieldRow>
           <MetadataActions asset={asset} />
+          <GalleryStrip images={asset.images} />
         </div>
       </Section>
 
@@ -452,6 +455,36 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         )}
       </div>
       {confirmDialog}
+    </div>
+  );
+}
+
+function GalleryThumb({ image }: { image: AssetImageView }) {
+  const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="block h-16 w-24 shrink-0 overflow-hidden rounded-md border border-line bg-surface"
+      aria-label="Open preview image"
+    >
+      {url ? (
+        <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="h-full w-full animate-pulse bg-surface-2" />
+      )}
+    </a>
+  );
+}
+
+function GalleryStrip({ images }: { images: AssetImageView[] }) {
+  if (images.length === 0) return null;
+  return (
+    <div className="flex gap-1.5 overflow-x-auto pb-1">
+      {images.map((img) => (
+        <GalleryThumb key={img.id} image={img} />
+      ))}
     </div>
   );
 }

@@ -288,8 +288,15 @@ export interface AssetDetailView {
   tags: AssetTagView[];
   versions: AssetVersionView[];
   files: AssetFileView[];
+  images: AssetImageView[];
   projects: ProjectPinRef[];
   collections: CollectionRef[];
+}
+
+export interface AssetImageView {
+  id: number;
+  object_key: string;
+  content_type?: string;
 }
 
 export function useAssetDetail(id: number | null) {

@@ -102,6 +102,7 @@ func enrichFillBlanks(ctx context.Context, deps Deps, asset *models.Asset, meta 
 	if asset.ThumbnailObjectKey == "" && meta.CoverURL != "" {
 		enrichSetThumbnail(ctx, deps, asset, meta.CoverURL)
 	}
+	StoreGalleryImages(ctx, deps.DB, deps.Storage, deps.Metadata, asset.ID, meta.ImageURLs)
 }
 
 func buildEnrichLicence(meta *metadata.Metadata) *models.Licence {
