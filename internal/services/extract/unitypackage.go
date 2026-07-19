@@ -280,8 +280,17 @@ func splitUnityEntry(name string) (string, string) {
 }
 
 // cleanUnityPath validates and normalises a pathname value from a Unity
-// package. Rejects absolute paths, drive letters, and `..` traversal.
+// package. Only the first line is significant — Unity's pathname sidecar
+// appends a trailing flag line (e.g. "00") that is not part of the path.
+// Rejects absolute paths, drive letters, and `..` traversal.
 func cleanUnityPath(raw string) (string, error) {
+	// Unity's pathname sidecar is multi-line: line 1 is the asset path; a
+	// second line carries a flag (almost always "00"). Keep only the first
+	// line — otherwise the flag glues onto the name ("foo.png\n00") and every
+	// extension-based lookup (previews, type detection) misses.
+	if i := strings.IndexAny(raw, "\r\n"); i >= 0 {
+		raw = raw[:i]
+	}
 	s := strings.TrimSpace(raw)
 	if s == "" {
 		return "", errors.New("empty pathname")
