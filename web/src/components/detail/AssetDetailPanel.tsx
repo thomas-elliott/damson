@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
+  Download,
   FolderOpen,
   Maximize2,
   Minimize2,
   Pencil,
   RefreshCw,
+  RotateCw,
   Trash2,
   X,
 } from "lucide-react";
@@ -28,7 +30,7 @@ import {
   useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
-import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
+import { downloadFile, useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 import {
   useAssetAudit,
   useAssetDetail,
@@ -41,6 +43,7 @@ import {
   useDeleteAsset,
   usePatchAsset,
   usePatchVersion,
+  useReExtractVersion,
   useRemoveAssetTag,
   useRequeueAssetPreviews,
   useRescanAsset,
@@ -175,8 +178,34 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   const removeTag = useRemoveAssetTag();
   const reviewLicence = useReviewLicence();
   const requeuePreviews = useRequeueAssetPreviews();
+  const reextract = useReExtractVersion();
   const rescan = useRescanAsset();
   const [rescanNote, setRescanNote] = useState<string | null>(null);
+
+  const byNewestImport = (a: AssetVersionView, b: AssetVersionView) =>
+    b.import_date.localeCompare(a.import_date);
+  const downloadSource = [...asset.versions]
+    .filter((v) => v.has_original && v.original_package_object_key)
+    .sort(byNewestImport)[0];
+  const downloadKey = downloadSource?.original_package_object_key;
+  const onDownloadOriginal =
+    downloadSource && downloadKey
+      ? () => {
+          const ext = downloadSource.package_kind === "zip" ? "zip" : "unitypackage";
+          void downloadFile(downloadKey, `${asset.name}.${ext}`).catch(() => {});
+        }
+      : undefined;
+  const reExtractSource = [...asset.versions]
+    .filter((v) => v.package_kind === "unitypackage" && v.has_original)
+    .sort(byNewestImport)[0];
+  const onReExtract = reExtractSource
+    ? () =>
+        reextract.mutate(
+          { assetId: asset.id, versionId: reExtractSource.id },
+          { onSuccess: () => requeuePreviews.mutate(asset.id) },
+        )
+    : undefined;
+  const reExtractPending = reextract.isPending || requeuePreviews.isPending;
 
   const onRescan = () => {
     setRescanNote(null);
@@ -348,6 +377,29 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             onClick={onBrowse}
           >
             Browse all {asset.files.length} files
+          </Button>
+        )}
+        {onDownloadOriginal && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leadingIcon={<Download size={12} />}
+            className="mb-2 w-full justify-center"
+            onClick={onDownloadOriginal}
+          >
+            Download original
+          </Button>
+        )}
+        {onReExtract && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leadingIcon={<RotateCw size={12} />}
+            className="mb-2 w-full justify-center"
+            disabled={reExtractPending}
+            onClick={onReExtract}
+          >
+            {reExtractPending ? "Re-extracting…" : "Re-extract files"}
           </Button>
         )}
         <Button

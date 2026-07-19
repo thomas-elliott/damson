@@ -16,6 +16,7 @@ type Asset struct {
 	CurrentVersionID     *uint
 	ThumbnailObjectKey   string
 	ThumbnailContentType string
+	ThumbnailFromStore   bool `gorm:"not null;default:false"`
 	NeedsReview          bool `gorm:"not null;default:true"`
 	CreatedByUserID      *uint
 	CreatedAt            time.Time

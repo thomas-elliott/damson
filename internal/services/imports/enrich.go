@@ -170,6 +170,7 @@ func enrichSetThumbnail(ctx context.Context, deps Deps, asset *models.Asset, cov
 		Updates(map[string]any{
 			"thumbnail_object_key":   res.ObjectKey,
 			"thumbnail_content_type": res.ContentType,
+			"thumbnail_from_store":   true,
 		}).Error; err != nil {
 		slog.Warn("enrich: set thumbnail", "err", err, "asset_id", asset.ID)
 	}

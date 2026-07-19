@@ -466,7 +466,7 @@ func (h *Handler) applyThumbnailFromMeta(c *gin.Context, asset *models.Asset, me
 		}
 		return false, nil
 	}
-	if !h.setThumbnail(c, asset, res.ObjectKey, res.ContentType) {
+	if !h.setThumbnail(c, asset, res.ObjectKey, res.ContentType, true) {
 		return false, nil
 	}
 	return true, nil

@@ -174,7 +174,13 @@ func (h *Handler) rescanLicence(c *gin.Context, libraryID uint, asset *models.As
 // toggles); failing that — the common Unity case, where the renderable textures
 // are types the thumbnail worker doesn't decode — it reuses a file's already
 // rendered preview derivative. Returns whether it set a thumbnail.
+//
+// A store-sourced cover is never regenerated over: the storefront cover always
+// wins, so a rescan/preview requeue leaves it untouched.
 func (h *Handler) rescanThumbnail(c *gin.Context, libraryID uint, asset *models.Asset, files []models.AssetFile) bool {
+	if asset.ThumbnailFromStore {
+		return false
+	}
 	settings, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), libraryID)
 	if err != nil {
 		slog.Warn("rescan: load settings", "err", err, "library_id", libraryID)
@@ -199,32 +205,35 @@ func (h *Handler) rescanThumbnail(c *gin.Context, libraryID uint, asset *models.
 			if gerr != nil {
 				slog.Warn("rescan: generate thumbnail", "err", gerr, "path", candidate.RelativePath)
 			} else if res.ObjectKey != "" {
-				return h.setThumbnail(c, asset, res.ObjectKey, res.ContentType)
+				return h.setThumbnail(c, asset, res.ObjectKey, res.ContentType, false)
 			}
 		}
 	}
 
 	// Fallback: reuse a rendered preview derivative as the card thumbnail.
 	if pv := pickPreviewDerivative(files); pv != nil {
-		return h.setThumbnail(c, asset, pv.PreviewObjectKey, pv.PreviewContentType)
+		return h.setThumbnail(c, asset, pv.PreviewObjectKey, pv.PreviewContentType, false)
 	}
 	return false
 }
 
-// setThumbnail persists the asset's thumbnail pointer and mirrors it onto the
-// in-memory asset so a follow-on audit diff sees the new value.
-func (h *Handler) setThumbnail(c *gin.Context, asset *models.Asset, key, contentType string) bool {
+// setThumbnail persists the asset's thumbnail pointer (and whether it came from
+// a storefront cover) and mirrors it onto the in-memory asset so a follow-on
+// audit diff sees the new value.
+func (h *Handler) setThumbnail(c *gin.Context, asset *models.Asset, key, contentType string, fromStore bool) bool {
 	if err := h.db.WithContext(c.Request.Context()).Model(asset).
 		Where("id = ?", asset.ID).
 		Updates(map[string]any{
 			"thumbnail_object_key":   key,
 			"thumbnail_content_type": contentType,
+			"thumbnail_from_store":   fromStore,
 		}).Error; err != nil {
 		slog.Warn("rescan: persist thumbnail", "err", err, "asset_id", asset.ID)
 		return false
 	}
 	asset.ThumbnailObjectKey = key
 	asset.ThumbnailContentType = contentType
+	asset.ThumbnailFromStore = fromStore
 	return true
 }
 
