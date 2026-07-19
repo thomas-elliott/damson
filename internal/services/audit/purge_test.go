@@ -85,7 +85,11 @@ func TestPurgeOnce_DeletesOnlyOldLibraryRows(t *testing.T) {
 
 // TestPurgeOnce_BoundaryAtCutoff exercises the strict-less-than boundary.
 // A row exactly at the cutoff stays (created_at < cutoff is false); one
-// nanosecond older is deleted.
+// microsecond older is deleted. The delta is a microsecond, not a nanosecond,
+// because Postgres timestamptz has microsecond resolution — a sub-microsecond
+// delta is truncated away on write and the two rows become indistinguishable.
+// `now` is truncated to microseconds so the boundary is exact regardless of the
+// host clock's resolution (macOS gives microseconds, Linux nanoseconds).
 func TestPurgeOnce_BoundaryAtCutoff(t *testing.T) {
 	db := newPurgeDB(t)
 	ensureLibraries(t, db, 1)
@@ -95,11 +99,11 @@ func TestPurgeOnce_BoundaryAtCutoff(t *testing.T) {
 		t.Fatalf("settings: %v", err)
 	}
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	cutoff := now.Add(-24 * time.Hour)
 	lib := uint(1)
 	atCutoff := models.AuditLog{LibraryID: &lib, ActionType: "x", TargetType: "y", CreatedAt: cutoff}
-	justBefore := models.AuditLog{LibraryID: &lib, ActionType: "x", TargetType: "y", CreatedAt: cutoff.Add(-time.Nanosecond)}
+	justBefore := models.AuditLog{LibraryID: &lib, ActionType: "x", TargetType: "y", CreatedAt: cutoff.Add(-time.Microsecond)}
 	for _, r := range []*models.AuditLog{&atCutoff, &justBefore} {
 		if err := db.Create(r).Error; err != nil {
 			t.Fatalf("create: %v", err)
