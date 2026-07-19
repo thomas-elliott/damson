@@ -29,3 +29,6 @@ node_modules/
 # OS
 .idea
 .DS_Store
+
+# Specs
+.lavish
