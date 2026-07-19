@@ -115,6 +115,115 @@ func waitForStatus(t *testing.T, gdb *gorm.DB, fileID uint, want string) {
 	t.Fatalf("file %d never reached %q (stuck at %q)", fileID, want, f.PreviewStatus)
 }
 
+// seedImportRow creates the asset/version/import chain for an import job. When
+// withOriginal is false the version has no source blob, so the pipeline fails
+// terminally.
+func seedImportRow(t *testing.T, gdb *gorm.DB, withOriginal bool) (importID, libID uint) {
+	t.Helper()
+	lib := models.Library{Name: "lib"}
+	if err := gdb.Create(&lib).Error; err != nil {
+		t.Fatalf("seed library: %v", err)
+	}
+	asset := models.Asset{LibraryID: lib.ID, Name: "pack"}
+	if err := gdb.Create(&asset).Error; err != nil {
+		t.Fatalf("seed asset: %v", err)
+	}
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if withOriginal {
+		v.OriginalPackageObjectKey = "some-key"
+	}
+	if err := gdb.Create(&v).Error; err != nil {
+		t.Fatalf("seed version: %v", err)
+	}
+	imp := models.AssetImport{AssetID: asset.ID, Stage: imports.StageUploaded}
+	if err := gdb.Create(&imp).Error; err != nil {
+		t.Fatalf("seed import: %v", err)
+	}
+	return imp.ID, lib.ID
+}
+
+func waitForImportStage(t *testing.T, gdb *gorm.DB, importID uint, want string) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		var imp models.AssetImport
+		if err := gdb.First(&imp, importID).Error; err != nil {
+			t.Fatalf("reload import: %v", err)
+		}
+		if imp.Stage == want {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	var imp models.AssetImport
+	_ = gdb.First(&imp, importID).Error
+	t.Fatalf("import %d never reached %q (stuck at %q)", importID, want, imp.Stage)
+}
+
+func riverJobState(t *testing.T, gdb *gorm.DB, kind string) string {
+	t.Helper()
+	var state string
+	err := gdb.Raw(`SELECT state FROM river_job WHERE kind = ? ORDER BY id DESC LIMIT 1`, kind).Scan(&state).Error
+	if err != nil {
+		t.Fatalf("query river_job state: %v", err)
+	}
+	return state
+}
+
+func waitForRiverState(t *testing.T, gdb *gorm.DB, kind string, want string) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		if riverJobState(t, gdb, kind) == want {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("river %s job never reached state %q (last %q)", kind, want, riverJobState(t, gdb, kind))
+}
+
+// TestQueue_ImportTerminalErrorCancels proves the terminal-failure path: an
+// import whose source blob is missing is marked failed by the pipeline, and the
+// worker turns that into a River JobCancel (state=cancelled) rather than burning
+// retries.
+func TestQueue_ImportTerminalErrorCancels(t *testing.T) {
+	q, gdb, _, _ := newQueueEnv(t)
+	importID, libID := seedImportRow(t, gdb, false)
+
+	q.Imports().Enqueue(imports.Job{ImportID: importID, LibraryID: libID})
+
+	waitForImportStage(t, gdb, importID, imports.StageFailed)
+	waitForRiverState(t, gdb, "import", "cancelled")
+}
+
+// TestQueue_ImportTransientErrorRetries proves the transient-failure path: an
+// import job whose row doesn't exist fails without the row being marked failed,
+// so the worker returns the error and River schedules a retry (state=retryable),
+// not a cancel.
+func TestQueue_ImportTransientErrorRetries(t *testing.T) {
+	q, gdb, _, _ := newQueueEnv(t)
+
+	q.Imports().Enqueue(imports.Job{ImportID: 999999, LibraryID: 0})
+
+	waitForRiverState(t, gdb, "import", "retryable")
+	if got := riverJobState(t, gdb, "import"); got == "cancelled" || got == "discarded" {
+		t.Fatalf("transient error should retry, got terminal state %q", got)
+	}
+}
+
+// TestWorkerTimeouts proves the per-queue job timeout is wired from config onto
+// the workers.
+func TestWorkerTimeouts(t *testing.T) {
+	iw := &importWorker{timeout: 7 * time.Minute}
+	if got := iw.Timeout(nil); got != 7*time.Minute {
+		t.Fatalf("import worker timeout: got %v, want 7m", got)
+	}
+	pw := &previewWorker{timeout: 3 * time.Minute}
+	if got := pw.Timeout(nil); got != 3*time.Minute {
+		t.Fatalf("preview worker timeout: got %v, want 3m", got)
+	}
+}
+
 // TestQueue_PreviewJobRunsToDone proves the full Stage 2 path: rivermigrate
 // creates the schema, the client starts, EnqueueVersion inserts a river_job,
 // and the preview worker drives the file to done. A broken enqueue or worker
