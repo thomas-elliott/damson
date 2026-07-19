@@ -37,8 +37,8 @@ const (
 // Generous because imports can be multi-GB.
 const DefaultJobTimeout = 30 * time.Minute
 
-// ImportArgs is the River payload for an import job. Like the old channel Job it
-// carries only ids; the pipeline loads everything else from the DB.
+// ImportArgs is the River payload for an import job. It carries only ids; the
+// pipeline loads everything else from the DB.
 type ImportArgs struct {
 	ImportID  uint `json:"import_id"`
 	LibraryID uint `json:"library_id"`
@@ -58,8 +58,8 @@ type PreviewArgs struct {
 // Kind identifies the job type in the river_job table.
 func (PreviewArgs) Kind() string { return "preview" }
 
-// importWorker runs the import pipeline for one job. deps mirror the old pool's
-// deps; timeout is the per-job ceiling for this queue.
+// importWorker runs the import pipeline for one job. timeout is the per-job
+// ceiling for this queue.
 type importWorker struct {
 	river.WorkerDefaults[ImportArgs]
 	deps    imports.Deps

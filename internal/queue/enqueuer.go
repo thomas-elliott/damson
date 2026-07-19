@@ -30,9 +30,8 @@ var activeStates = []rivertype.JobState{
 }
 
 // ImportEnqueuer inserts import jobs into River. It satisfies the enqueuer
-// interface the API handlers depend on. Enqueue is fire-and-forget (matching the
-// old channel pool): a failure is logged, and the startup reconcile re-enqueues
-// any domain row left without a job.
+// interface the API handlers depend on. Enqueue is fire-and-forget: a failure is
+// logged, and the startup reconcile re-enqueues any domain row left without a job.
 type ImportEnqueuer struct{ q *Queue }
 
 // Enqueue inserts an import job on the import queue, deduped by args across
