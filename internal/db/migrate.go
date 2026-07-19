@@ -13,7 +13,10 @@ import (
 	damson "github.com/thomas-elliott/damson"
 )
 
-const advisoryLockKey int64 = 4242424242
+// AdvisoryLockKey is the Postgres advisory-lock key that serialises schema
+// migrations across concurrent startups. Exported so other migrators (River's)
+// can take the same lock and serialise against this one.
+const AdvisoryLockKey int64 = 4242424242
 
 // Migrate applies any pending SQL migrations from database/migrations/ in
 // lexicographic order. Applied filenames are tracked in schema_migrations;
@@ -25,11 +28,11 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 	// key error on `pg_type_typname_nsp_index`. The lock takes a plain
 	// bigint key and doesn't need any table to exist, so it's safe to take
 	// here.
-	if err := db.WithContext(ctx).Exec(`SELECT pg_advisory_lock(?)`, advisoryLockKey).Error; err != nil {
+	if err := db.WithContext(ctx).Exec(`SELECT pg_advisory_lock(?)`, AdvisoryLockKey).Error; err != nil {
 		return fmt.Errorf("advisory lock: %w", err)
 	}
 	defer func() {
-		_ = db.Exec(`SELECT pg_advisory_unlock(?)`, advisoryLockKey).Error
+		_ = db.Exec(`SELECT pg_advisory_unlock(?)`, AdvisoryLockKey).Error
 	}()
 
 	if err := db.WithContext(ctx).Exec(`
