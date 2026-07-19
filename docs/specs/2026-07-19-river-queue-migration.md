@@ -195,18 +195,3 @@ rewrite.
   connection count must be tuned (both bounded, sized against the server's `max_connections`).
 - **All tests need Postgres** — dropping SQLite means `go test ./...` no longer runs
   standalone; CI and local dev must provide a Postgres instance.
-
-## Deferred comments
-
-- `internal/testdb/postgres.go` (OpenSchema) — why MaxOpenConns(4)/MaxIdleConns(2)+Close on cleanup: one GORM pool is opened per test; unbounded, the many concurrent per-test schemas exhaust Postgres `max_connections` (default 100).
-- `internal/services/preview/process.go` (rollupRow.UpdatedAt) — why `sql.NullTime`: `MAX(preview_updated_at)` is NULL when a version has files none of which have been touched yet; NullTime handles that without a scan error (this replaced the SQLite-only `aggTime` string-parsing hack).
-- `internal/testdb/postgres.go` (NewPostgres/RequireDSN) — why hard-fail instead of `t.Skip`: a silent skip lets a run with no database look like a pass; Postgres is now mandatory.
-- `internal/queue/queue.go` (migrateLocked) — why reuse `db.AdvisoryLockKey`: rivermigrate does not self-lock, so two server boots could race on River's CREATE TABLE; taking the same advisory lock db.Migrate uses serialises them.
-- `internal/queue/queue.go` (New, importDeps.Previews override) — why: the import→preview handoff must enqueue River jobs, and the enqueuer references the Queue whose client is populated after workers are built; safe because Work runs only after Start.
-- `internal/queue/enqueuer.go` — why context.Background(): enqueue is fire-and-forget (matching the old channel pool); a request's cancellation must not abort the insert, and the startup reconcile covers any gap.
-- `cmd/server/main.go` (jobQueue.Start(context.Background())) — why a long-lived context, not startupCtx: cancelling the context passed to River's Start triggers a soft stop, so the client must not be tied to the 30s startup context; shutdown is driven by Stop.
-- `cmd/e2e-server/main.go` (dataTables includes river_job) — why: the test reset must also clear pending River jobs so they don't reference truncated domain rows.
-- `internal/queue/enqueuer.go` (activeStates / UniqueOpts) — why non-terminal states only: a fresh enqueue is skipped while an equivalent job is still active but proceeds once the prior job is done/failed/cancelled, making the reconcile safe every boot without blocking legitimate re-runs.
-- `internal/queue/queue.go` (importWorker.Work) — why classify by imports.IsFailed: the pipeline already marks the row failed for terminal input errors, so a failed row ⇒ JobCancel (no retry); a non-failed row ⇒ transient ⇒ return err to retry, marking failed only on the last attempt so it never sits non-terminal.
-- `internal/queue/enqueuer.go` (maxAttempts=5) — why bound: transient failures retry with backoff up to 5 attempts; terminal failures cancel well before that.
-- `internal/services/imports/pipeline.go` (library mismatch via fail) — why route through fail(): a mismatch is terminal input, so marking the row failed lets the queue cancel instead of retry.
