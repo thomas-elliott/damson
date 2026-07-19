@@ -291,6 +291,44 @@ func TestPostAssetRescan_RegeneratesThumbnailAndPreviews(t *testing.T) {
 	}
 }
 
+// TestPostAssetRescan_KeepsStoreCover asserts a storefront-sourced cover is
+// never regenerated over by a rescan: the store cover always wins.
+func TestPostAssetRescan_KeepsStoreCover(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "thomas@datch.io")
+	seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	assetID, _ := importBMP(t, h, u, r)
+
+	if err := db.Model(&models.Asset{}).Where("id = ?", assetID).
+		Updates(map[string]any{
+			"thumbnail_object_key":   "store-cover",
+			"thumbnail_content_type": "image/png",
+			"thumbnail_from_store":   true,
+		}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(assetID)+"/rescan", nil)
+	requireStatus(t, w, http.StatusOK)
+	resp := jsonResponse[rescanResponse](t, w)
+	if resp.ThumbnailFresh {
+		t.Error("expected the store cover to be preserved, not regenerated")
+	}
+
+	var asset models.Asset
+	if err := db.First(&asset, assetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if asset.ThumbnailObjectKey != "store-cover" {
+		t.Fatalf("store cover overwritten: got %q, want store-cover", asset.ThumbnailObjectKey)
+	}
+	if !asset.ThumbnailFromStore {
+		t.Error("expected thumbnail_from_store to remain true after rescan")
+	}
+}
+
 func TestPostAssetRescan_404CrossLibrary(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "thomas@datch.io")
