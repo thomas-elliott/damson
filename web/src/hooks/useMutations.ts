@@ -393,6 +393,27 @@ export function useRequeueFilePreview() {
   });
 }
 
+// useReExtractVersion re-reads a version's retained original .unitypackage and
+// creates a fresh version, switching the asset's current version to it. The
+// asset detail (files, versions, thumbnail) and preview queue are refreshed.
+// Note: re-extract writes files but does not queue previews — callers that want
+// previews regenerated should follow up with useRequeueAssetPreviews.
+export function useReExtractVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { assetId: number; versionId: number }) =>
+      fetchJson<{ asset_id: number; asset_version_id: number; file_count: number }>(
+        `/api/assets/${input.assetId}/versions/${input.versionId}/reextract`,
+        { method: "POST" },
+      ),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.assetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.previews });
+    },
+  });
+}
+
 export function useInviteMember() {
   const qc = useQueryClient();
   return useMutation({
