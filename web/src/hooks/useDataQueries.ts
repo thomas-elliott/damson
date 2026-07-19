@@ -164,6 +164,8 @@ export interface AssetVersionView {
   file_count: number;
   size_bytes: number;
   has_original: boolean;
+  /** Storage key of the retained original archive; present only when has_original. */
+  original_package_object_key?: string;
   is_current: boolean;
 }
 
