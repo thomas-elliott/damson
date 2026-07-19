@@ -11,6 +11,11 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/preview"
 )
 
+// maxAttempts bounds retries per job. Transient failures retry with exponential
+// backoff up to this many attempts; terminal failures are cancelled well before
+// it via river.JobCancel.
+const maxAttempts = 5
+
 // activeStates are the non-terminal River job states. Uniqueness is enforced
 // only across these, so a fresh enqueue is skipped while an equivalent job is
 // still pending/active, but a new one proceeds once the previous job has
@@ -36,8 +41,9 @@ func (e ImportEnqueuer) Enqueue(job imports.Job) {
 	_, err := e.q.client.Insert(context.Background(),
 		ImportArgs{ImportID: job.ImportID, LibraryID: job.LibraryID},
 		&river.InsertOpts{
-			Queue:      QueueImport,
-			UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: activeStates},
+			Queue:       QueueImport,
+			MaxAttempts: maxAttempts,
+			UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: activeStates},
 		},
 	)
 	if err != nil {
@@ -56,8 +62,9 @@ func (e PreviewEnqueuer) Enqueue(job preview.Job) {
 	_, err := e.q.client.Insert(context.Background(),
 		PreviewArgs{LibraryID: job.LibraryID, VersionID: job.VersionID, FileID: job.FileID},
 		&river.InsertOpts{
-			Queue:      QueuePreview,
-			UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: activeStates},
+			Queue:       QueuePreview,
+			MaxAttempts: maxAttempts,
+			UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: activeStates},
 		},
 	)
 	if err != nil {

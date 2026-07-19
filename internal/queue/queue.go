@@ -67,7 +67,24 @@ type importWorker struct {
 }
 
 func (w *importWorker) Work(ctx context.Context, job *river.Job[ImportArgs]) error {
-	return imports.Run(ctx, w.deps, imports.Job{ImportID: job.Args.ImportID, LibraryID: job.Args.LibraryID})
+	err := imports.Run(ctx, w.deps, imports.Job{ImportID: job.Args.ImportID, LibraryID: job.Args.LibraryID})
+	if err == nil {
+		return nil
+	}
+	// The pipeline marks the row failed for terminal input errors (missing
+	// source blob, library mismatch). Those won't succeed on retry — cancel so
+	// River stops instead of burning attempts.
+	if imports.IsFailed(ctx, w.deps.DB, job.Args.ImportID) {
+		return river.JobCancel(err)
+	}
+	// Transient error: let River retry with backoff. On the final attempt, mark
+	// the row failed so it doesn't sit non-terminal forever.
+	if job.Attempt >= job.MaxAttempts {
+		if merr := imports.MarkImportFailed(w.deps.DB.WithContext(ctx), job.Args.ImportID, err.Error()); merr != nil {
+			slog.Warn("queue: mark import failed on last attempt", "import_id", job.Args.ImportID, "err", merr)
+		}
+	}
+	return err
 }
 
 func (w *importWorker) Timeout(*river.Job[ImportArgs]) time.Duration { return w.timeout }
