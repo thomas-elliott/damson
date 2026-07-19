@@ -22,7 +22,12 @@ import {
   type FileType,
 } from "@/design-system";
 import { useAssetDetail } from "@/hooks/useDataQueries";
-import { useCreateSubsetVersion, useRequeueFilePreview } from "@/hooks/useMutations";
+import {
+  useCreateSubsetVersion,
+  useReExtractVersion,
+  useRequeueAssetPreviews,
+  useRequeueFilePreview,
+} from "@/hooks/useMutations";
 import { useKeyboardShortcuts, type KeyBinding } from "@/hooks/useKeyboardShortcuts";
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
@@ -106,6 +111,8 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
 
   const create = useCreateSubsetVersion();
   const requeueFile = useRequeueFilePreview();
+  const reextract = useReExtractVersion();
+  const requeuePreviews = useRequeueAssetPreviews();
   const { saved, flash } = useSavedFlash(2200);
 
   // ---- Handlers ---------------------------------------------------------
@@ -230,6 +237,38 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
     );
   }
 
+  // Download/re-extract target the latest version (by import date) that still
+  // retains its original archive — the current version may be a subset or an
+  // earlier re-extract that no longer has one. Download works for any retained
+  // package (unitypackage or zip); re-extract is Unity-only.
+  const byNewestImport = (a: { import_date: string }, b: { import_date: string }) =>
+    b.import_date.localeCompare(a.import_date);
+  const downloadSource = [...asset.versions]
+    .filter((v) => v.has_original && v.original_package_object_key)
+    .sort(byNewestImport)[0];
+  const downloadKey = downloadSource?.original_package_object_key;
+  const downloadOriginal =
+    downloadSource && downloadKey
+      ? () => {
+          const ext = downloadSource.package_kind === "zip" ? "zip" : "unitypackage";
+          void downloadFile(downloadKey, `${asset.name}.${ext}`).catch(() => {});
+        }
+      : undefined;
+
+  // Re-extract rebuilds the file manifest from the retained original — only
+  // possible for Unity packages with a retained archive. It doesn't queue
+  // previews itself, so chain a requeue once the new version lands.
+  const reExtractSource = [...asset.versions]
+    .filter((v) => v.package_kind === "unitypackage" && v.has_original)
+    .sort(byNewestImport)[0];
+  const reExtract = reExtractSource
+    ? () =>
+        reextract.mutate(
+          { assetId, versionId: reExtractSource.id },
+          { onSuccess: () => requeuePreviews.mutate(assetId) },
+        )
+    : undefined;
+
   return (
     <div className="flex h-full min-h-0">
       <div className="w-[260px] shrink-0 border-r border-line bg-panel">
@@ -265,6 +304,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           onViewChange={setView}
           activeTypes={[...types]}
           onToggleType={toggleType}
+          onDownloadOriginal={downloadOriginal}
+          onReExtract={reExtract}
+          reExtractPending={reextract.isPending || requeuePreviews.isPending}
         />
 
         <div className="min-h-0 flex-1 overflow-auto p-3.5">

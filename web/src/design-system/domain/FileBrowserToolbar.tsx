@@ -1,7 +1,8 @@
 import { Fragment } from "react";
-import { Library, LayoutGrid, List } from "lucide-react";
+import { Download, Library, LayoutGrid, List, RotateCw } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
+import { Button } from "@/design-system/primitives/Button";
 import { Chip } from "@/design-system/primitives/Chip";
 import { SegmentedControl } from "@/design-system/primitives/SegmentedControl";
 import { Breadcrumb, BreadcrumbSeparator } from "@/design-system/compositions/Breadcrumb";
@@ -30,6 +31,13 @@ export interface FileBrowserToolbarProps {
 
   activeTypes?: FileType[];
   onToggleType?: (ftype: FileType) => void;
+
+  /** Download the current version's original archive; omitted when unavailable. */
+  onDownloadOriginal?: () => void;
+
+  /** Re-extract the current version from its retained original; omitted when unavailable. */
+  onReExtract?: () => void;
+  reExtractPending?: boolean;
 }
 
 const crumbButton =
@@ -49,6 +57,9 @@ export function FileBrowserToolbar({
   onViewChange,
   activeTypes = [],
   onToggleType,
+  onDownloadOriginal,
+  onReExtract,
+  reExtractPending,
 }: FileBrowserToolbarProps) {
   const trimmedQuery = query?.trim();
   return (
@@ -110,6 +121,27 @@ export function FileBrowserToolbar({
         <button type="button" onClick={onClearResults} className={cn("text-small", crumbButton)}>
           Clear
         </button>
+      )}
+      {onReExtract && (
+        <Button
+          size="sm"
+          variant="secondary"
+          leadingIcon={<RotateCw size={13} />}
+          disabled={reExtractPending}
+          onClick={onReExtract}
+        >
+          {reExtractPending ? "Re-extracting…" : "Re-extract"}
+        </Button>
+      )}
+      {onDownloadOriginal && (
+        <Button
+          size="sm"
+          variant="secondary"
+          leadingIcon={<Download size={13} />}
+          onClick={onDownloadOriginal}
+        >
+          Original
+        </Button>
       )}
       <SegmentedControl
         aria-label="View mode"

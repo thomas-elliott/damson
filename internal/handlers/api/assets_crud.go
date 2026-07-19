@@ -48,16 +48,17 @@ type assetImageView struct {
 }
 
 type assetVersionView struct {
-	ID           uint      `json:"id"`
-	VersionLabel string    `json:"version_label"`
-	StoreVersion string    `json:"store_version"`
-	Notes        string    `json:"notes"`
-	ImportDate   time.Time `json:"import_date"`
-	PackageKind  string    `json:"package_kind"`
-	FileCount    int       `json:"file_count"`
-	SizeBytes    int64     `json:"size_bytes"`
-	HasOriginal  bool      `json:"has_original"`
-	IsCurrent    bool      `json:"is_current"`
+	ID                       uint      `json:"id"`
+	VersionLabel             string    `json:"version_label"`
+	StoreVersion             string    `json:"store_version"`
+	Notes                    string    `json:"notes"`
+	ImportDate               time.Time `json:"import_date"`
+	PackageKind              string    `json:"package_kind"`
+	FileCount                int       `json:"file_count"`
+	SizeBytes                int64     `json:"size_bytes"`
+	HasOriginal              bool      `json:"has_original"`
+	OriginalPackageObjectKey string    `json:"original_package_object_key,omitempty"`
+	IsCurrent                bool      `json:"is_current"`
 }
 
 type assetFileView struct {
@@ -126,21 +127,23 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 
 	// Versions with per-version file_count + size.
 	type vRow struct {
-		ID           uint
-		VersionLabel string
-		StoreVersion string
-		Notes        string
-		ImportDate   time.Time
-		PackageKind  string
-		HasOriginal  bool
-		FileCount    int
-		SizeBytes    int64
+		ID                       uint
+		VersionLabel             string
+		StoreVersion             string
+		Notes                    string
+		ImportDate               time.Time
+		PackageKind              string
+		HasOriginal              bool
+		OriginalPackageObjectKey string
+		FileCount                int
+		SizeBytes                int64
 	}
 	var versions []vRow
 	err := h.db.WithContext(c.Request.Context()).
 		Table("asset_versions AS v").
 		Select(`v.id, v.version_label, v.store_version, v.notes, v.import_date, v.package_kind,
 			CASE WHEN v.original_package_object_key IS NOT NULL AND v.original_package_object_key <> '' AND v.original_package_purged = false THEN true ELSE false END AS has_original,
+			v.original_package_object_key,
 			COALESCE(COUNT(f.id), 0) AS file_count,
 			COALESCE(SUM(f.size_bytes), 0) AS size_bytes`).
 		Joins("LEFT JOIN asset_files f ON f.asset_version_id = v.id").
@@ -167,17 +170,22 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		return imports.CompareStoreVersions(a, b) > 0
 	})
 	for _, v := range versions {
+		originalKey := ""
+		if v.HasOriginal {
+			originalKey = v.OriginalPackageObjectKey
+		}
 		view.Versions = append(view.Versions, assetVersionView{
-			ID:           v.ID,
-			VersionLabel: v.VersionLabel,
-			StoreVersion: v.StoreVersion,
-			Notes:        v.Notes,
-			ImportDate:   v.ImportDate,
-			PackageKind:  v.PackageKind,
-			FileCount:    v.FileCount,
-			SizeBytes:    v.SizeBytes,
-			HasOriginal:  v.HasOriginal,
-			IsCurrent:    asset.CurrentVersionID != nil && *asset.CurrentVersionID == v.ID,
+			ID:                       v.ID,
+			VersionLabel:             v.VersionLabel,
+			StoreVersion:             v.StoreVersion,
+			Notes:                    v.Notes,
+			ImportDate:               v.ImportDate,
+			PackageKind:              v.PackageKind,
+			FileCount:                v.FileCount,
+			SizeBytes:                v.SizeBytes,
+			HasOriginal:              v.HasOriginal,
+			OriginalPackageObjectKey: originalKey,
+			IsCurrent:                asset.CurrentVersionID != nil && *asset.CurrentVersionID == v.ID,
 		})
 	}
 

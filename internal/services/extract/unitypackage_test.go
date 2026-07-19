@@ -221,6 +221,30 @@ func TestUnityExtractor_HappyPath(t *testing.T) {
 	}
 }
 
+// TestUnityExtractor_StripsPathnameFlagLine covers the real Unity pathname
+// sidecar shape: the asset path on line 1 followed by a trailing flag line
+// (commonly "00"). Only the first line is the path; the flag must not leak
+// into the extracted file name or every extension-based lookup (previews,
+// type detection) breaks.
+func TestUnityExtractor_StripsPathnameFlagLine(t *testing.T) {
+	g := guidN(0x88)
+	pkg := buildPackage(t, []entry{
+		{guid: g, leaf: "pathname", data: []byte("Assets/Textures/grass.png\n00\n")},
+		{guid: g, leaf: "asset", data: []byte("grass-bytes")},
+	})
+	res, err := (&UnityExtractor{Storage: newFakeStorage()}).
+		Extract(context.Background(), bytes.NewReader(pkg))
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d: %+v", len(res.Files), res.Files)
+	}
+	if got := res.Files[0].RelativePath; got != "Assets/Textures/grass.png" {
+		t.Fatalf("pathname flag line leaked: got %q, want %q", got, "Assets/Textures/grass.png")
+	}
+}
+
 func TestUnityExtractor_SkipsIncompleteBundles(t *testing.T) {
 	g := guidN(0x33)
 	// Only pathname, no `asset` entry — should be silently skipped.
