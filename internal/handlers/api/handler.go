@@ -16,6 +16,20 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
+// ImportEnqueuer submits import jobs to the background queue. Decouples the
+// handlers from the concrete pool so production can inject a River-backed
+// enqueuer while tests inject a synchronous one.
+type ImportEnqueuer interface {
+	Enqueue(imports.Job)
+}
+
+// PreviewEnqueuer submits preview jobs to the background queue — either a whole
+// version or a single file. Same decoupling as ImportEnqueuer.
+type PreviewEnqueuer interface {
+	Enqueue(preview.Job)
+	EnqueueVersion(libraryID, versionID uint)
+}
+
 // Handler carries dependencies used by every API handler. Construct with
 // New(Deps{...}); register routes with AddRoutes. Exported so cmd/server (and
 // out-of-tree tests) can hold a typed handle without leaking the field set.
@@ -25,9 +39,9 @@ type Handler struct {
 	local              *auth.LocalAuthenticator // non-nil only in local mode
 	storage            storage.Service          // nil in tests that don't exercise uploads
 	loginRate          *auth.LoginThrottle
-	importPool         *imports.Pool
+	importPool         ImportEnqueuer
 	broadcaster        *imports.Broadcaster
-	previewPool        *preview.Pool
+	previewPool        PreviewEnqueuer
 	previewBroadcaster *preview.Broadcaster
 	metadata           metadataService // nil in tests that don't exercise enrichment
 	orphanMinAge       time.Duration
@@ -51,14 +65,14 @@ type Deps struct {
 	// ImportPool drains async import jobs. Tests that don't exercise the
 	// import flow can leave it nil; tests that do should pass a synchronous
 	// pool (imports.NewSync) so stage transitions stay deterministic.
-	ImportPool *imports.Pool
+	ImportPool ImportEnqueuer
 	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
 	// the pipeline tolerates a missing broadcaster.
 	Broadcaster *imports.Broadcaster
 	// PreviewPool drains preview jobs (requeue + post-import handoff).
 	// PreviewBroadcaster fans preview rollup events to SSE subscribers. Tests
 	// that don't exercise previews can leave both nil.
-	PreviewPool        *preview.Pool
+	PreviewPool        PreviewEnqueuer
 	PreviewBroadcaster *preview.Broadcaster
 	// Metadata fetches + searches storefront listing metadata. Optional — a
 	// nil service disables the enrichment endpoints (they return 503).
