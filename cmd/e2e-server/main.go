@@ -1,18 +1,13 @@
 // Damson e2e-server — a thin test-only HTTP binary that mounts the same
-// internal/handlers/api Handler used by cmd/server. Default backend is
-// SQLite via AutoMigrate (same shape as internal/handlers/api/api_test.go)
-// so the Playwright suite doesn't drag in a Postgres dependency for every
-// test run. Set DAMSON_TEST_POSTGRES_DSN to switch to a real Postgres,
-// applying the embedded SQL migrations through internal/db.Migrate — this
-// path is what the PER-81 search spec uses to exercise tsvector + GIN.
+// internal/handlers/api Handler used by cmd/server. It runs against Postgres,
+// applying the embedded SQL migrations through internal/db.Migrate so triggers,
+// tsvector, advisory locks, and schema_migrations bookkeeping all match
+// production. DAMSON_TEST_POSTGRES_DSN is required.
 //
 // Trade-offs vs cmd/server:
-//   - SQLite + AutoMigrate (default) skips Postgres-only features
-//     (tsvector search, advisory locks, schema_migrations bookkeeping).
-//     Specs that exercise those need DAMSON_TEST_POSTGRES_DSN.
-//   - Adds /api/test/reset (dialect-aware: drop/recreate on SQLite,
-//     truncate on Postgres) and /api/test/users (multi-user seeding).
-//     NEVER ship this binary; it is not safe outside tests.
+//   - Adds /api/test/reset (truncates the data tables) and /api/test/users
+//     (multi-user seeding). NEVER ship this binary; it is not safe outside
+//     tests.
 //   - Skips the SPA mount and the production security middleware — the
 //     SPA is served by Vite dev in the same Playwright run.
 package main
@@ -20,6 +15,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -31,7 +27,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
@@ -44,10 +39,9 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
-// PostgresDSNEnv is the env var that, when set, switches the e2e binary
-// from its default SQLite/AutoMigrate path to Postgres + the SQL
-// migration runner. Mirrors the constant in internal/testdb so the two
-// paths agree on the env-var name.
+// PostgresDSNEnv is the required env var pointing the e2e binary at its
+// Postgres instance. Mirrors the constant in internal/testdb so the two paths
+// agree on the env-var name.
 const PostgresDSNEnv = "DAMSON_TEST_POSTGRES_DSN"
 
 // Deterministic signing key — this binary is test-only, so a fixed key is
@@ -73,11 +67,10 @@ func main() {
 		slog.Error("mkdir data", "err", err)
 		os.Exit(1)
 	}
-	dbPath := filepath.Join(dataDir, "e2e.db")
 	storeRoot := filepath.Join(dataDir, "storage")
 	baseURL := envOr("E2E_BASE_URL", "http://localhost"+addr)
 
-	gormDB, err := openDB(dbPath)
+	gormDB, err := openDB()
 	if err != nil {
 		slog.Error("open db", "err", err)
 		os.Exit(1)
@@ -188,75 +181,29 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-// openDB picks SQLite or Postgres based on DAMSON_TEST_POSTGRES_DSN. The
-// SQLite path is the default — fast, no external dependency, used by every
-// tier-1/2/3 spec except the Postgres-gated ones (PER-81 search). The
-// Postgres path applies the embedded SQL migrations via internal/db.Migrate
-// so triggers, tsvector, and GIN indexes match production.
-func openDB(sqlitePath string) (*gorm.DB, error) {
-	if dsn := os.Getenv(PostgresDSNEnv); dsn != "" {
-		return gorm.Open(postgres.New(postgres.Config{DSN: dsn}), &gorm.Config{})
+// openDB connects to the Postgres instance named by DAMSON_TEST_POSTGRES_DSN,
+// which is required. The embedded SQL migrations are applied by setupSchema so
+// triggers, tsvector, and GIN indexes match production.
+func openDB() (*gorm.DB, error) {
+	dsn := os.Getenv(PostgresDSNEnv)
+	if dsn == "" {
+		return nil, fmt.Errorf("%s must be set", PostgresDSNEnv)
 	}
-	// SQLite WAL + busy_timeout: the import flow fans out concurrent
-	// read/write across goroutines and the default SQLite locking spuriously
-	// fails under that load.
-	dsn := sqlitePath + "?_journal=WAL&_busy_timeout=5000&_foreign_keys=on"
-	return gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	return gorm.Open(postgres.New(postgres.Config{DSN: dsn}), &gorm.Config{})
 }
 
-// allModels mirrors the AutoMigrate list in internal/handlers/api/api_test.go.
-// Keep it in sync when models are added.
-func allModels() []any {
-	return []any{
-		&models.User{},
-		&models.Library{},
-		&models.LibraryMembership{},
-		&models.AuditLog{},
-		&models.Asset{},
-		&models.AssetVersion{},
-		&models.AssetFile{},
-		&models.AssetImport{},
-		&models.AssetImage{},
-		&models.Tag{},
-		&models.AssetTag{},
-		&models.Licence{},
-		&models.Project{},
-		&models.ProjectAssetPin{},
-		&models.Collection{},
-		&models.CollectionAsset{},
-		&models.LibrarySettings{},
-		&models.ServerSettings{},
-	}
-}
-
-// setupSchema brings the database up to a queryable state. SQLite uses
-// AutoMigrate (cheap on an empty :memory:-backed file). Postgres runs the
-// SQL migration files so the search_vector trigger + GIN index match prod.
+// setupSchema brings the database up to a queryable state by running the SQL
+// migration files, so the search_vector trigger + GIN index match prod.
 func setupSchema(gdb *gorm.DB) error {
-	if gdb.Dialector.Name() == "postgres" {
-		return db.Migrate(context.Background(), gdb)
-	}
-	return gdb.AutoMigrate(allModels()...)
+	return db.Migrate(context.Background(), gdb)
 }
 
-// resetSchema clears all data between Playwright tests. SQLite drops every
-// table and re-AutoMigrates (cheap, schema is in-memory). Postgres
-// truncates the data tables but keeps the migration-installed schema —
-// re-running migrations on every reset would dominate the test budget,
-// and the schema doesn't change across tests.
+// resetSchema clears all data between Playwright tests. It truncates the data
+// tables but keeps the migration-installed schema — re-running migrations on
+// every reset would dominate the test budget, and the schema doesn't change
+// across tests.
 func resetSchema(gdb *gorm.DB) error {
-	if gdb.Dialector.Name() == "postgres" {
-		return resetPostgres(gdb)
-	}
-	mig := gdb.Migrator()
-	for _, m := range allModels() {
-		if mig.HasTable(m) {
-			if err := mig.DropTable(m); err != nil {
-				return err
-			}
-		}
-	}
-	return gdb.AutoMigrate(allModels()...)
+	return resetPostgres(gdb)
 }
 
 // dataTables is the set of application-data tables. schema_migrations is

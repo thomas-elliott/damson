@@ -8,27 +8,42 @@ import (
 	"testing"
 	"time"
 
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
 func newEnv(t *testing.T) (*storage.LocalFS, *gorm.DB, context.Context) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&models.Asset{}, &models.AssetVersion{}, &models.AssetFile{}, &models.AuditLog{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testdb.NewPostgres(t)
 	store, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
 	if err != nil {
 		t.Fatalf("new local storage: %v", err)
 	}
 	return store, db, context.Background()
+}
+
+// seedParents creates the library → asset → version chain the FK constraints
+// require, returning the ids so callers can attach asset_files / asset_versions
+// to a real parent. The orphan logic only cares that a row references a blob
+// key, not which parent it hangs off, so one shared chain suffices.
+func seedParents(t *testing.T, db *gorm.DB) (libID, assetID, versionID uint) {
+	t.Helper()
+	lib := models.Library{Name: "lib"}
+	if err := db.Create(&lib).Error; err != nil {
+		t.Fatalf("seed library: %v", err)
+	}
+	asset := models.Asset{LibraryID: lib.ID, Name: "seed"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatalf("seed asset: %v", err)
+	}
+	ver := models.AssetVersion{AssetID: asset.ID, VersionLabel: "seed"}
+	if err := db.Create(&ver).Error; err != nil {
+		t.Fatalf("seed version: %v", err)
+	}
+	return lib.ID, asset.ID, ver.ID
 }
 
 func putThumb(t *testing.T, store *storage.LocalFS, ctx context.Context, payload string) string {
@@ -51,10 +66,11 @@ func candidateSet(cands []Candidate) map[string]bool {
 
 func TestFindOrphans(t *testing.T) {
 	store, db, ctx := newEnv(t)
+	libID, assetID, versionID := seedParents(t, db)
 
 	// Referenced blob (has an asset_files row) — must be spared.
 	refBlob, _, _ := store.PutBlob(ctx, bytes.NewReader([]byte("referenced")), storage.ObjectMeta{})
-	db.Create(&models.AssetFile{AssetVersionID: 1, RelativePath: "a", SizeBytes: 1, ContentHash: refBlob, ObjectKey: refBlob})
+	db.Create(&models.AssetFile{AssetVersionID: versionID, RelativePath: "a", SizeBytes: 1, ContentHash: refBlob, ObjectKey: refBlob})
 
 	// Orphan blob (no row) with metadata — must be found, meta surfaced.
 	orphanMeta := storage.ObjectMeta{Filename: "lost.psd", LibraryID: 9, Kind: "loose"}
@@ -62,14 +78,14 @@ func TestFindOrphans(t *testing.T) {
 
 	// Referenced thumb (asset thumbnail) vs orphan thumb.
 	refThumb := putThumb(t, store, ctx, "ref-thumb")
-	db.Create(&models.Asset{LibraryID: 1, Name: "x", ThumbnailObjectKey: refThumb})
+	db.Create(&models.Asset{LibraryID: libID, Name: "x", ThumbnailObjectKey: refThumb})
 	orphanThumb := putThumb(t, store, ctx, "orphan-thumb")
 
 	// Live archive original (purged=false) spared; purged original found; loose original found.
 	liveOrig, _, _ := store.PutOriginal(ctx, bytes.NewReader([]byte("live-archive")), storage.ObjectMeta{})
-	db.Create(&models.AssetVersion{AssetID: 1, VersionLabel: "1", OriginalPackageObjectKey: liveOrig, PackageKind: "unitypackage", OriginalPackagePurged: false})
+	db.Create(&models.AssetVersion{AssetID: assetID, VersionLabel: "1", OriginalPackageObjectKey: liveOrig, PackageKind: "unitypackage", OriginalPackagePurged: false})
 	purgedOrig, _, _ := store.PutOriginal(ctx, bytes.NewReader([]byte("purged-archive")), storage.ObjectMeta{})
-	db.Create(&models.AssetVersion{AssetID: 1, VersionLabel: "2", OriginalPackageObjectKey: purgedOrig, PackageKind: "unitypackage", OriginalPackagePurged: true})
+	db.Create(&models.AssetVersion{AssetID: assetID, VersionLabel: "2", OriginalPackageObjectKey: purgedOrig, PackageKind: "unitypackage", OriginalPackagePurged: true})
 	orphanOrig, _, _ := store.PutOriginal(ctx, bytes.NewReader([]byte("orphan-archive")), storage.ObjectMeta{})
 
 	// minAge 0, now in the future → every object clears the age gate.
@@ -113,12 +129,13 @@ func TestFindOrphans(t *testing.T) {
 
 func TestDeleteOrphans(t *testing.T) {
 	store, db, ctx := newEnv(t)
+	_, _, versionID := seedParents(t, db)
 	future := time.Now().Add(time.Hour)
 
 	deletable, _, _ := store.PutBlob(ctx, bytes.NewReader([]byte("delete-me")), storage.ObjectMeta{})
 	raced, _, _ := store.PutBlob(ctx, bytes.NewReader([]byte("raced")), storage.ObjectMeta{})
 	// Simulate a dedup re-use committed between scan and delete.
-	db.Create(&models.AssetFile{AssetVersionID: 1, RelativePath: "b", SizeBytes: 1, ContentHash: raced, ObjectKey: raced})
+	db.Create(&models.AssetFile{AssetVersionID: versionID, RelativePath: "b", SizeBytes: 1, ContentHash: raced, ObjectKey: raced})
 	missing := hex.EncodeToString(sha256.New().Sum([]byte("never-stored"))[:32])
 
 	keys := []Key{
@@ -127,7 +144,11 @@ func TestDeleteOrphans(t *testing.T) {
 		{Prefix: "blobs", Key: missing},
 		{Prefix: "evil", Key: deletable},
 	}
-	actor := uint(5)
+	user := models.User{Email: "actor@example.com", DisplayName: "actor", Role: "user"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed actor: %v", err)
+	}
+	actor := user.ID
 	res, err := DeleteOrphans(ctx, store, db, keys, 0, future, &actor)
 	if err != nil {
 		t.Fatalf("delete orphans: %v", err)
