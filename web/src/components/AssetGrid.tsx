@@ -6,11 +6,12 @@ import { AssetCard, EmptyState, LicencePill, formatBytes } from "@/design-system
 import type { AssetRow } from "@/hooks/useDataQueries";
 import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 
-// Cell sizing matches the Tailwind class `minmax(180px, 1fr)` used previously
-// — the virtualiser needs concrete pixel sizes to estimate row height. The
-// grid auto-fills as many cells as fit, so we recompute on resize.
+// The grid auto-fills as many cells as fit (min 180px wide), recomputed on
+// resize. Row height is measured per row (measureElement) since the square
+// thumbnail makes it track the responsive cell width; the constants below only
+// seed the pre-measurement estimate.
 const MIN_CELL_WIDTH = 180;
-const CELL_HEIGHT = 220; // card body + footer; tuned to AssetCard's CSS.
+const FOOTER_HEIGHT = 44; // name + meta line under the square thumbnail.
 const GAP = 12;
 
 /**
@@ -29,7 +30,7 @@ export function AssetGrid({
   selectedId?: number | null;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const columns = useColumnCount(scrollRef);
+  const { columns, cellWidth } = useGridMetrics(scrollRef);
 
   const rows = useMemo(() => {
     const out: AssetRow[][] = [];
@@ -39,10 +40,14 @@ export function AssetGrid({
     return out;
   }, [assets, columns]);
 
+  const estimateRef = useRef(MIN_CELL_WIDTH + FOOTER_HEIGHT + GAP);
+  estimateRef.current = (cellWidth || MIN_CELL_WIDTH) + FOOTER_HEIGHT + GAP;
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => CELL_HEIGHT + GAP,
+    estimateSize: () => estimateRef.current,
+    measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 4,
   });
 
@@ -71,7 +76,8 @@ export function AssetGrid({
             return (
               <div
                 key={vRow.key}
-                data-row-index={vRow.index}
+                data-index={vRow.index}
+                ref={virtualizer.measureElement}
                 className="grid"
                 style={{
                   position: "absolute",
@@ -80,7 +86,8 @@ export function AssetGrid({
                   width: "100%",
                   transform: `translateY(${vRow.start}px)`,
                   gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                  gap: GAP,
+                  columnGap: GAP,
+                  paddingBottom: GAP,
                 }}
               >
                 {row.map((a) => (
@@ -139,24 +146,31 @@ function GridCard({
   );
 }
 
-// useColumnCount tracks the number of cards per row based on the scroll
-// container's measured width. Recomputes on resize so density toggles and
-// window resizes both work.
-function useColumnCount(ref: React.RefObject<HTMLDivElement | null>): number {
-  const [cols, setCols] = useState(4);
+// useGridMetrics tracks the number of cards per row and the resulting cell
+// width based on the scroll container's measured width. Recomputes on resize so
+// density toggles and window resizes both work. The cell width lets the caller
+// estimate row height (thumbnails are square) before the row is measured.
+function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>): {
+  columns: number;
+  cellWidth: number;
+} {
+  const [metrics, setMetrics] = useState({ columns: 4, cellWidth: MIN_CELL_WIDTH });
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const compute = () => {
       if (!el.isConnected) return;
-      const w = el.clientWidth;
-      const next = Math.max(1, Math.floor((w + GAP) / (MIN_CELL_WIDTH + GAP)));
-      setCols(next);
+      const w = el.clientWidth - 28; // subtract the p-3.5 (14px each side).
+      const columns = Math.max(1, Math.floor((w + GAP) / (MIN_CELL_WIDTH + GAP)));
+      const cellWidth = (w - (columns - 1) * GAP) / columns;
+      setMetrics((prev) =>
+        prev.columns === columns && prev.cellWidth === cellWidth ? prev : { columns, cellWidth },
+      );
     };
     compute();
     const ro = new ResizeObserver(compute);
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref]);
-  return cols;
+  return metrics;
 }
