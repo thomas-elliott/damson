@@ -113,8 +113,8 @@ func main() {
 		DB:          gormDB,
 		Storage:     store,
 		Broadcaster: previewBroadcaster,
-	}, cfg.ImportWorkers)
-	slog.Info("preview pool", "workers", cfg.ImportWorkers)
+	}, cfg.PreviewQueueWorkers)
+	slog.Info("preview pool", "workers", cfg.PreviewQueueWorkers)
 
 	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewPool); err != nil {
 		slog.Warn("preview resume sweep failed", "err", err)
@@ -131,8 +131,8 @@ func main() {
 		Broadcaster: broadcaster,
 		Previews:    previewPool,
 		Metadata:    metaRegistry,
-	}, cfg.ImportWorkers)
-	slog.Info("import pool", "workers", cfg.ImportWorkers)
+	}, cfg.ImportQueueWorkers)
+	slog.Info("import pool", "workers", cfg.ImportQueueWorkers)
 
 	if resumed, err := imports.ResumeInFlight(startupCtx, gormDB, importPool); err != nil {
 		slog.Warn("import resume sweep failed", "err", err)
