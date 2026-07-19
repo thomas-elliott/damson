@@ -33,10 +33,10 @@ task clean            # remove build artifacts
 
 Subdomain tasks split by language: `lint:go` / `lint:web`, `format:go` / `format:web`, `format:check:go` / `format:check:web`, `test:unit:go` / `test:unit:web`. Use the umbrella when in doubt.
 
-Run one Go test (Go tests need Postgres — set `DAMSON_TEST_POSTGRES_DSN`, or run under `task test:unit:go` which boots the compose fixture):
+Run one Go test (Go tests need Postgres — set `DAMSON_TEST_POSTGRES_DSN`, or run under `task test:unit:go`, which defaults to the shared local Postgres on 5432 via the `damson_test` database):
 
 ```
-DAMSON_TEST_POSTGRES_DSN=postgres://damson:damson@localhost:55432/damson?sslmode=disable \
+DAMSON_TEST_POSTGRES_DSN=postgres://postgres:postgres@localhost:5432/damson_test?sslmode=disable \
   go test ./internal/handlers/api -run '^TestName$'
 go test ./internal/handlers/api -run '^TestName$/SubtestName$'
 ```
