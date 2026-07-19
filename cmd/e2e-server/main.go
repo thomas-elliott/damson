@@ -34,6 +34,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/db"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/queue"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
@@ -93,19 +94,21 @@ func main() {
 	}
 
 	previewBroadcaster := preview.NewBroadcaster()
-	previewPool := preview.New(preview.Deps{
-		DB:          gormDB,
-		Storage:     store,
-		Broadcaster: previewBroadcaster,
-	}, 0)
-
 	broadcaster := imports.NewBroadcaster()
-	importPool := imports.New(imports.Deps{
-		DB:          gormDB,
-		Storage:     store,
-		Broadcaster: broadcaster,
-		Previews:    previewPool,
-	}, 0)
+
+	jobQueue, err := queue.New(context.Background(), queue.Config{
+		DSN:         os.Getenv(PostgresDSNEnv),
+		ImportDeps:  imports.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster},
+		PreviewDeps: preview.Deps{DB: gormDB, Storage: store, Broadcaster: previewBroadcaster},
+	})
+	if err != nil {
+		slog.Error("queue init", "err", err)
+		os.Exit(1)
+	}
+	if err := jobQueue.Start(context.Background()); err != nil {
+		slog.Error("queue start", "err", err)
+		os.Exit(1)
+	}
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -116,9 +119,9 @@ func main() {
 		AuthMode:           config.AuthModeLocal,
 		Local:              la,
 		Storage:            store,
-		ImportPool:         importPool,
+		ImportPool:         jobQueue.Imports(),
 		Broadcaster:        broadcaster,
-		PreviewPool:        previewPool,
+		PreviewPool:        jobQueue.Previews(),
 		PreviewBroadcaster: previewBroadcaster,
 		// Tests fire login/bootstrap rapidly; the production 5-burst rate
 		// limit will spuriously 429 inside a Playwright run. Disable it.
@@ -171,6 +174,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	_ = jobQueue.Stop(shutdownCtx)
 	_ = srv.Shutdown(shutdownCtx)
 }
 
@@ -207,8 +211,11 @@ func resetSchema(gdb *gorm.DB) error {
 }
 
 // dataTables is the set of application-data tables. schema_migrations is
-// deliberately omitted — the migrations stay applied across resets.
+// deliberately omitted — the migrations stay applied across resets. river_job
+// is included so a reset also clears any pending/queued background jobs, leaving
+// no orphans pointing at truncated domain rows.
 var dataTables = []string{
+	"river_job",
 	"audit_log",
 	"asset_tags",
 	"tags",

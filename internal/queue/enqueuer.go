@@ -5,10 +5,24 @@ import (
 	"log/slog"
 
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 )
+
+// activeStates are the non-terminal River job states. Uniqueness is enforced
+// only across these, so a fresh enqueue is skipped while an equivalent job is
+// still pending/active, but a new one proceeds once the previous job has
+// completed, failed, or been cancelled. This makes the startup reconcile safe to
+// run every boot and safe alongside the handler enqueue paths.
+var activeStates = []rivertype.JobState{
+	rivertype.JobStateAvailable,
+	rivertype.JobStatePending,
+	rivertype.JobStateRunning,
+	rivertype.JobStateRetryable,
+	rivertype.JobStateScheduled,
+}
 
 // ImportEnqueuer inserts import jobs into River. It satisfies the enqueuer
 // interface the API handlers depend on. Enqueue is fire-and-forget (matching the
@@ -16,11 +30,15 @@ import (
 // any domain row left without a job.
 type ImportEnqueuer struct{ q *Queue }
 
-// Enqueue inserts an import job on the import queue.
+// Enqueue inserts an import job on the import queue, deduped by args across
+// active states.
 func (e ImportEnqueuer) Enqueue(job imports.Job) {
 	_, err := e.q.client.Insert(context.Background(),
 		ImportArgs{ImportID: job.ImportID, LibraryID: job.LibraryID},
-		&river.InsertOpts{Queue: QueueImport},
+		&river.InsertOpts{
+			Queue:      QueueImport,
+			UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: activeStates},
+		},
 	)
 	if err != nil {
 		slog.Error("queue: enqueue import", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
@@ -33,11 +51,14 @@ func (e ImportEnqueuer) Enqueue(job imports.Job) {
 type PreviewEnqueuer struct{ q *Queue }
 
 // Enqueue inserts a preview job for a specific file (or the whole version when
-// FileID == 0) on the preview queue.
+// FileID == 0) on the preview queue, deduped by args across active states.
 func (e PreviewEnqueuer) Enqueue(job preview.Job) {
 	_, err := e.q.client.Insert(context.Background(),
 		PreviewArgs{LibraryID: job.LibraryID, VersionID: job.VersionID, FileID: job.FileID},
-		&river.InsertOpts{Queue: QueuePreview},
+		&river.InsertOpts{
+			Queue:      QueuePreview,
+			UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: activeStates},
+		},
 	)
 	if err != nil {
 		slog.Error("queue: enqueue preview", "version_id", job.VersionID, "file_id", job.FileID, "err", err)
