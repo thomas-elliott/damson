@@ -2,8 +2,7 @@ package preview
 
 import (
 	"context"
-	"database/sql/driver"
-	"fmt"
+	"database/sql"
 	"log/slog"
 	"time"
 
@@ -185,67 +184,14 @@ type rollupRow struct {
 	Queued      int
 	Unsupported int
 	CreatedAt   time.Time
-	UpdatedAt   aggTime
-}
-
-// aggTime scans a MAX(timestamp) aggregate portably. Postgres hands the driver
-// a time.Time; SQLite (mattn) loses column affinity through the aggregate and
-// returns the value as a string, so we parse it here rather than let GORM error
-// on the type mismatch. Zero value when the aggregate is NULL.
-type aggTime struct{ time.Time }
-
-var aggTimeLayouts = []string{
-	"2006-01-02 15:04:05.999999999-07:00",
-	"2006-01-02T15:04:05.999999999-07:00",
-	"2006-01-02 15:04:05.999999999",
-	"2006-01-02 15:04:05",
-	time.RFC3339Nano,
-	time.RFC3339,
-}
-
-func (a *aggTime) Scan(v any) error {
-	switch t := v.(type) {
-	case nil:
-		a.Time = time.Time{}
-	case time.Time:
-		a.Time = t
-	case []byte:
-		return a.parse(string(t))
-	case string:
-		return a.parse(t)
-	default:
-		return fmt.Errorf("aggTime: unsupported scan type %T", v)
-	}
-	return nil
-}
-
-func (a *aggTime) parse(s string) error {
-	if s == "" {
-		a.Time = time.Time{}
-		return nil
-	}
-	for _, layout := range aggTimeLayouts {
-		if t, err := time.Parse(layout, s); err == nil {
-			a.Time = t
-			return nil
-		}
-	}
-	return fmt.Errorf("aggTime: cannot parse %q", s)
-}
-
-// Value satisfies driver.Valuer so GORM treats aggTime as a scalar column
-// rather than a relation. Never written (the field is read-only projection),
-// but the schema parser requires both halves of the interface pair.
-func (a aggTime) Value() (driver.Value, error) {
-	if a.Time.IsZero() {
-		return nil, nil
-	}
-	return a.Time, nil
+	// UpdatedAt is MAX(preview_updated_at) over the version's files. NullTime
+	// because the aggregate is NULL when no file has been touched yet.
+	UpdatedAt sql.NullTime
 }
 
 func (r rollupRow) toEvent() Event {
 	updated := time.Now().UTC()
-	if !r.UpdatedAt.Time.IsZero() {
+	if r.UpdatedAt.Valid && !r.UpdatedAt.Time.IsZero() {
 		updated = r.UpdatedAt.Time
 	}
 	return Event{

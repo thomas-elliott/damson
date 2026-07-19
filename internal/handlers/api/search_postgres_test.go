@@ -1,27 +1,11 @@
-//go:build postgres_integration
-
 package api
 
 import (
 	"net/http"
 	"testing"
 
-	"gorm.io/gorm"
-
-	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/testdb"
 )
-
-// newPostgresTestHandler mirrors newTestHandler but backs the Handler with a
-// real Postgres connection that has all SQL migrations applied. Use only
-// from files guarded by `//go:build postgres_integration`.
-func newPostgresTestHandler(t *testing.T) (*Handler, *gorm.DB) {
-	t.Helper()
-	db := testdb.NewPostgres(t)
-	store := newTestStorage(t)
-	return New(Deps{DB: db, AuthMode: config.AuthModeOIDC, Storage: store}), db
-}
 
 // TestSearch_TsvectorMatchesNameAndDescription exercises the Postgres branch
 // of applyAssetFilters where `a.search_vector @@ to_tsquery('simple', ...)`
@@ -29,7 +13,7 @@ func newPostgresTestHandler(t *testing.T) (*Handler, *gorm.DB) {
 // search_vector column and its triggers only exist after the SQL migrations
 // run.
 func TestSearch_TsvectorMatchesNameAndDescription(t *testing.T) {
-	h, db := newPostgresTestHandler(t)
+	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
 	lib := seedLibraryForUser(t, db, u, "Personal")
 
@@ -59,7 +43,7 @@ func TestSearch_TsvectorMatchesNameAndDescription(t *testing.T) {
 // like "audio/loops" as a single token, so we query for a single-segment tag
 // to assert the segment is being maintained at all.
 func TestSearch_TsvectorMatchesTagPaths(t *testing.T) {
-	h, db := newPostgresTestHandler(t)
+	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
 	lib := seedLibraryForUser(t, db, u, "Personal")
 
