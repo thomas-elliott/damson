@@ -559,7 +559,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		}
 
 		asset.CurrentVersionID = &version.ID
-		if result.ThumbObjectKey != "" {
+		if !asset.ThumbnailFromStore && result.ThumbObjectKey != "" {
 			asset.ThumbnailObjectKey = result.ThumbObjectKey
 			asset.ThumbnailContentType = result.ThumbContentType
 		}
