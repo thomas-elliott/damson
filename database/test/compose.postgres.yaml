@@ -1,6 +1,7 @@
-# Postgres fixture used by `task test:integration`. Bound on a non-default
-# port (55432) so it doesn't collide with a system Postgres on 5432. CI uses
-# GitHub Actions' native `services: postgres` instead of this file.
+# Postgres fixture for the Go and e2e test targets (`task test:unit:go`,
+# `task test:e2e`). Bound on a non-default port (55432) so it doesn't collide
+# with a system Postgres on 5432. CI uses Woodpecker's native `services:
+# postgres` (see .woodpecker.yml) instead of this file.
 services:
   postgres:
     image: postgres:16-alpine
