@@ -128,6 +128,34 @@ func TestQueue_PreviewJobRunsToDone(t *testing.T) {
 	waitForStatus(t, gdb, fileID, preview.StatusDone)
 }
 
+// TestQueue_ReconcileEnqueuesOrphanedVersion proves the cutover/reconcile path:
+// a version with a queued file but no River job (as after a crash or the deploy
+// that introduces River) is re-enqueued by ResumeInFlight and driven to done.
+// A second reconcile finds nothing queued and enqueues zero — idempotent.
+func TestQueue_ReconcileEnqueuesOrphanedVersion(t *testing.T) {
+	q, gdb, store, _ := newQueueEnv(t)
+	_, _, fileID := seedQueuedFile(t, gdb, store, renderableBMP(t), "tex.bmp")
+
+	n, err := preview.ResumeInFlight(context.Background(), gdb, q.Previews())
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("reconcile enqueued: got %d, want 1", n)
+	}
+
+	waitForStatus(t, gdb, fileID, preview.StatusDone)
+
+	// Nothing is queued anymore, so a re-run reconciles zero.
+	n, err = preview.ResumeInFlight(context.Background(), gdb, q.Previews())
+	if err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("second reconcile enqueued: got %d, want 0", n)
+	}
+}
+
 // TestQueue_PreviewJobMarksFailedOnBadRender exercises the error branch: a file
 // that classifies as supported but can't be decoded ends failed (best-effort),
 // while the job itself completes without retry storms.
