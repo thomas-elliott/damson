@@ -11,15 +11,16 @@ import (
 )
 
 // ResumeInFlight scans asset_imports for rows in a non-terminal stage and
-// re-enqueues them. Used at server startup to recover work interrupted by
-// a crash or a deploy. Rows whose source blob can't be located (e.g. the
-// version row never received an OriginalPackageObjectKey) are marked
-// failed so they don't sit in the queue forever.
+// re-enqueues them through enq. Used at server startup to reconcile work
+// interrupted by a crash or a deploy, and to enqueue rows that predate River.
+// Rows whose source blob can't be located (e.g. the version row never received
+// an OriginalPackageObjectKey) are marked failed so they don't sit forever.
 //
-// The pipeline itself is idempotent — re-running against an existing row
-// re-extracts/re-thumbnails into the same content-addressed blobs and
-// rewrites asset_files for the version.
-func ResumeInFlight(ctx context.Context, db *gorm.DB, pool *Pool) (int, error) {
+// With the River enqueuer, re-enqueue is deduped by args so running this every
+// boot (and alongside the handler enqueue paths) is safe. The pipeline itself is
+// idempotent — re-running against an existing row re-extracts/re-thumbnails into
+// the same content-addressed blobs and rewrites asset_files for the version.
+func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job) }) (int, error) {
 	type joined struct {
 		ImportID                 uint
 		LibraryID                uint
@@ -46,7 +47,7 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, pool *Pool) (int, error) {
 			}
 			continue
 		}
-		pool.Enqueue(Job{ImportID: r.ImportID, LibraryID: r.LibraryID})
+		enq.Enqueue(Job{ImportID: r.ImportID, LibraryID: r.LibraryID})
 		enqueued++
 	}
 	return enqueued, nil

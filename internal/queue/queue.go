@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -145,6 +146,15 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 		previewTimeout = DefaultJobTimeout
 	}
 
+	importWorkers := cfg.ImportWorkers
+	if importWorkers <= 0 {
+		importWorkers = runtime.GOMAXPROCS(0)
+	}
+	previewWorkers := cfg.PreviewWorkers
+	if previewWorkers <= 0 {
+		previewWorkers = runtime.GOMAXPROCS(0)
+	}
+
 	importDeps := cfg.ImportDeps
 	importDeps.Previews = PreviewEnqueuer{q: q}
 
@@ -157,8 +167,8 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 		JobTimeout: DefaultJobTimeout,
 		Schema:     cfg.Schema,
 		Queues: map[string]river.QueueConfig{
-			QueueImport:  {MaxWorkers: cfg.ImportWorkers},
-			QueuePreview: {MaxWorkers: cfg.PreviewWorkers},
+			QueueImport:  {MaxWorkers: importWorkers},
+			QueuePreview: {MaxWorkers: previewWorkers},
 		},
 		Workers: workers,
 	})
