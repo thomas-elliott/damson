@@ -26,6 +26,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/db"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/queue"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
@@ -106,38 +107,49 @@ func main() {
 	}
 	slog.Info("storage mode", "mode", cfg.StorageMode)
 
-	// Preview pool first, so the import pool can hand finished versions off to
-	// it. Preview generation runs on its own queue, decoupled from import.
 	previewBroadcaster := preview.NewBroadcaster()
-	previewPool := preview.New(preview.Deps{
-		DB:          gormDB,
-		Storage:     store,
-		Broadcaster: previewBroadcaster,
-	}, cfg.ImportWorkers)
-	slog.Info("preview pool", "workers", cfg.ImportWorkers)
-
-	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewPool); err != nil {
-		slog.Warn("preview resume sweep failed", "err", err)
-	} else if resumed > 0 {
-		slog.Info("preview resume sweep", "enqueued", resumed)
-	}
-
+	broadcaster := imports.NewBroadcaster()
 	metaRegistry := metadata.Default(metadata.ClientOptions{})
 
-	broadcaster := imports.NewBroadcaster()
-	importPool := imports.New(imports.Deps{
-		DB:          gormDB,
-		Storage:     store,
-		Broadcaster: broadcaster,
-		Previews:    previewPool,
-		Metadata:    metaRegistry,
-	}, cfg.ImportWorkers)
-	slog.Info("import pool", "workers", cfg.ImportWorkers)
+	// River-backed job queue. queue.New wires the import→preview handoff through
+	// River internally, so imports enqueue preview work on the preview queue.
+	jobQueue, err := queue.New(startupCtx, queue.Config{
+		DSN:               cfg.PostgresDSN,
+		ImportWorkers:     cfg.ImportQueueWorkers,
+		PreviewWorkers:    cfg.PreviewQueueWorkers,
+		ImportJobTimeout:  cfg.ImportJobTimeout,
+		PreviewJobTimeout: cfg.PreviewJobTimeout,
+		ImportDeps:        imports.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster, Metadata: metaRegistry},
+		PreviewDeps:       preview.Deps{DB: gormDB, Storage: store, Broadcaster: previewBroadcaster},
+		Logger:            slog.Default(),
+	})
+	if err != nil {
+		slog.Error("queue init", "err", err)
+		os.Exit(1)
+	}
+	// Start with a long-lived context: cancelling Start's context soft-stops the
+	// client, so shutdown is driven by Stop below, not by startupCtx expiring.
+	if err := jobQueue.Start(context.Background()); err != nil {
+		slog.Error("queue start", "err", err)
+		os.Exit(1)
+	}
+	importEnqueuer := jobQueue.Imports()
+	previewEnqueuer := jobQueue.Previews()
+	slog.Info("job queue started", "import_workers", cfg.ImportQueueWorkers, "preview_workers", cfg.PreviewQueueWorkers)
 
-	if resumed, err := imports.ResumeInFlight(startupCtx, gormDB, importPool); err != nil {
-		slog.Warn("import resume sweep failed", "err", err)
+	// Reconcile: re-enqueue any non-terminal domain row without a live job.
+	// Idempotent (River dedupes by args), so it's safe every boot and covers the
+	// one-time cutover of rows that were in flight before River existed. Previews
+	// first — ResumeInFlight resets processing→queued for files a worker died on.
+	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewEnqueuer); err != nil {
+		slog.Warn("preview reconcile failed", "err", err)
 	} else if resumed > 0 {
-		slog.Info("import resume sweep", "enqueued", resumed)
+		slog.Info("preview reconcile", "enqueued", resumed)
+	}
+	if resumed, err := imports.ResumeInFlight(startupCtx, gormDB, importEnqueuer); err != nil {
+		slog.Warn("import reconcile failed", "err", err)
+	} else if resumed > 0 {
+		slog.Info("import reconcile", "enqueued", resumed)
 	}
 
 	purgeCtx, cancelPurge := context.WithCancel(context.Background())
@@ -158,9 +170,9 @@ func main() {
 		AuthMode:           cfg.AuthMode,
 		Local:              localAuth,
 		Storage:            store,
-		ImportPool:         importPool,
+		ImportPool:         importEnqueuer,
 		Broadcaster:        broadcaster,
-		PreviewPool:        previewPool,
+		PreviewPool:        previewEnqueuer,
 		PreviewBroadcaster: previewBroadcaster,
 		Metadata:           metaRegistry,
 		OrphanMinAge:       cfg.OrphanMinAge,
@@ -213,11 +225,12 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cancelPurge()
-	// Drain in-flight imports before stopping the HTTP server. Anything
-	// still running when ctx expires gets logged; the next boot's resume
-	// sweep picks up whatever remained non-terminal.
-	importPool.Shutdown(shutdownCtx)
-	previewPool.Shutdown(shutdownCtx)
+	// Drain in-flight jobs before stopping the HTTP server. Anything still
+	// running when ctx expires is abandoned; the next boot's reconcile picks up
+	// whatever remained non-terminal.
+	if err := jobQueue.Stop(shutdownCtx); err != nil {
+		slog.Warn("queue stop", "err", err)
+	}
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("shutdown", "err", err)
 	}

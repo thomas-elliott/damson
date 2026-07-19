@@ -161,12 +161,14 @@ func TestGetAssets_SizeSumsSameSizedFiles(t *testing.T) {
 
 func TestAssetFile_PreviewStatusDefaultsUnsupported(t *testing.T) {
 	_, db := newTestHandler(t)
+	lib := seedLibrary(t, db, "Personal")
+	_, v := seedAssetWithVersion(t, db, lib.ID, "pack", "v1")
 
 	// A file row created without an explicit PreviewStatus must land on the
 	// schema default ('unsupported'), not the Go empty string — the pipeline
 	// and requeue rely on that to tell "no preview yet" from "queued".
 	f := models.AssetFile{
-		AssetVersionID: 1,
+		AssetVersionID: v.ID,
 		RelativePath:   "tex.psd",
 		SizeBytes:      10,
 		ContentHash:    "h",

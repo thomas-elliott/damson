@@ -32,6 +32,7 @@ func seedRenderableFile(t *testing.T, db *gorm.DB, store storage.Service, librar
 	if err != nil {
 		t.Fatalf("put blob: %v", err)
 	}
+	ensureLibrary(t, db, libraryID)
 	asset := models.Asset{LibraryID: libraryID, Name: "a"}
 	if err := db.Create(&asset).Error; err != nil {
 		t.Fatal(err)

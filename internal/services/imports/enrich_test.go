@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
 type fakeEnricher struct {
@@ -37,18 +37,14 @@ func (f *fakeEnricher) FetchImage(_ context.Context, _ string) ([]byte, string, 
 
 func enrichTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&models.Asset{}, &models.Licence{}, &models.LibrarySettings{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testdb.NewPostgres(t)
 }
 
 func seedEnrichAsset(t *testing.T, db *gorm.DB, name string, enrich bool) *models.Asset {
 	t.Helper()
+	if err := db.Create(&models.Library{ID: 1, Name: "lib"}).Error; err != nil {
+		t.Fatalf("seed library: %v", err)
+	}
 	if err := db.Create(&models.LibrarySettings{LibraryID: 1, AutoEnrichEnabled: enrich}).Error; err != nil {
 		t.Fatalf("seed settings: %v", err)
 	}

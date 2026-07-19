@@ -5,25 +5,27 @@ import (
 	"testing"
 	"time"
 
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
 func newPurgeDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
+	return testdb.NewPostgres(t)
+}
+
+// ensureLibraries seeds library rows with explicit ids so the FKs from
+// library_settings and audit_log are satisfied. Safe with fixed ids because
+// these tests never auto-insert libraries.
+func ensureLibraries(t *testing.T, db *gorm.DB, ids ...uint) {
+	t.Helper()
+	for _, id := range ids {
+		if err := db.Create(&models.Library{ID: id, Name: "lib"}).Error; err != nil {
+			t.Fatalf("seed library %d: %v", id, err)
+		}
 	}
-	if err := db.AutoMigrate(
-		&models.LibrarySettings{},
-		&models.AuditLog{},
-	); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
 }
 
 // TestPurgeOnce_DeletesOnlyOldLibraryRows is the happy-path: rows older than
@@ -31,6 +33,7 @@ func newPurgeDB(t *testing.T) *gorm.DB {
 // and server-level rows (library_id IS NULL) are never affected.
 func TestPurgeOnce_DeletesOnlyOldLibraryRows(t *testing.T) {
 	db := newPurgeDB(t)
+	ensureLibraries(t, db, 1, 2)
 
 	days7 := 7
 	if err := db.Create(&models.LibrarySettings{LibraryID: 1, AuditRetentionDays: &days7}).Error; err != nil {
@@ -82,20 +85,25 @@ func TestPurgeOnce_DeletesOnlyOldLibraryRows(t *testing.T) {
 
 // TestPurgeOnce_BoundaryAtCutoff exercises the strict-less-than boundary.
 // A row exactly at the cutoff stays (created_at < cutoff is false); one
-// nanosecond older is deleted.
+// microsecond older is deleted. The delta is a microsecond, not a nanosecond,
+// because Postgres timestamptz has microsecond resolution — a sub-microsecond
+// delta is truncated away on write and the two rows become indistinguishable.
+// `now` is truncated to microseconds so the boundary is exact regardless of the
+// host clock's resolution (macOS gives microseconds, Linux nanoseconds).
 func TestPurgeOnce_BoundaryAtCutoff(t *testing.T) {
 	db := newPurgeDB(t)
+	ensureLibraries(t, db, 1)
 
 	days := 1
 	if err := db.Create(&models.LibrarySettings{LibraryID: 1, AuditRetentionDays: &days}).Error; err != nil {
 		t.Fatalf("settings: %v", err)
 	}
 
-	now := time.Now().UTC()
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	cutoff := now.Add(-24 * time.Hour)
 	lib := uint(1)
 	atCutoff := models.AuditLog{LibraryID: &lib, ActionType: "x", TargetType: "y", CreatedAt: cutoff}
-	justBefore := models.AuditLog{LibraryID: &lib, ActionType: "x", TargetType: "y", CreatedAt: cutoff.Add(-time.Nanosecond)}
+	justBefore := models.AuditLog{LibraryID: &lib, ActionType: "x", TargetType: "y", CreatedAt: cutoff.Add(-time.Microsecond)}
 	for _, r := range []*models.AuditLog{&atCutoff, &justBefore} {
 		if err := db.Create(r).Error; err != nil {
 			t.Fatalf("create: %v", err)
@@ -126,6 +134,7 @@ func TestPurgeOnce_BoundaryAtCutoff(t *testing.T) {
 // accidentally truncating the entire log.
 func TestPurgeOnce_ZeroDaysIgnored(t *testing.T) {
 	db := newPurgeDB(t)
+	ensureLibraries(t, db, 1)
 
 	zero := 0
 	if err := db.Create(&models.LibrarySettings{LibraryID: 1, AuditRetentionDays: &zero}).Error; err != nil {

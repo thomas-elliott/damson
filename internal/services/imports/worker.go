@@ -3,8 +3,6 @@ package imports
 import (
 	"context"
 	"log/slog"
-	"runtime"
-	"sync"
 
 	"gorm.io/gorm"
 
@@ -52,81 +50,23 @@ type Deps struct {
 	Metadata MetadataEnricher
 }
 
-// Pool is a bounded worker pool that drains a job queue. Construct via
-// New(deps, size) for production or NewSync(deps) for tests that need the
-// pipeline to run inline.
+// Pool is a synchronous enqueuer that runs the import pipeline inline on the
+// calling goroutine. Production uses the River-backed queue; this remains for
+// tests (via NewSync) that need deterministic stage transitions without a
+// running River client. It satisfies the api ImportEnqueuer seam.
 type Pool struct {
-	deps     Deps
-	jobs     chan Job
-	wg       sync.WaitGroup
-	sync     bool
-	shutdown sync.Once
-}
-
-// New starts a worker pool with `size` goroutines. If size <= 0 the pool
-// uses runtime.GOMAXPROCS(0).
-func New(deps Deps, size int) *Pool {
-	if size <= 0 {
-		size = runtime.GOMAXPROCS(0)
-	}
-	p := &Pool{
-		deps: deps,
-		jobs: make(chan Job, size*4),
-	}
-	for i := 0; i < size; i++ {
-		p.wg.Add(1)
-		go p.worker()
-	}
-	return p
+	deps Deps
 }
 
 // NewSync returns a pool whose Enqueue runs the pipeline on the calling
-// goroutine. Used by tests to keep stage transitions deterministic without
-// the real channel/goroutine machinery.
+// goroutine. Used by tests to keep stage transitions deterministic.
 func NewSync(deps Deps) *Pool {
-	return &Pool{deps: deps, sync: true}
+	return &Pool{deps: deps}
 }
 
-func (p *Pool) worker() {
-	defer p.wg.Done()
-	for job := range p.jobs {
-		ctx := context.Background()
-		if err := Run(ctx, p.deps, job); err != nil {
-			slog.Error("import pipeline failed", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
-		}
-	}
-}
-
-// Enqueue submits a job. In sync mode the job runs inline. In async mode
-// the call blocks only if the queue buffer is full.
+// Enqueue runs the pipeline inline.
 func (p *Pool) Enqueue(job Job) {
-	if p.sync {
-		if err := Run(context.Background(), p.deps, job); err != nil {
-			slog.Error("sync import pipeline failed", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
-		}
-		return
+	if err := Run(context.Background(), p.deps, job); err != nil {
+		slog.Error("sync import pipeline failed", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
 	}
-	p.jobs <- job
-}
-
-// Shutdown closes the queue and waits for in-flight workers to finish, or
-// for ctx to expire. Idempotent — multiple calls are no-ops after the
-// first.
-func (p *Pool) Shutdown(ctx context.Context) {
-	if p.sync {
-		return
-	}
-	p.shutdown.Do(func() {
-		close(p.jobs)
-		done := make(chan struct{})
-		go func() {
-			p.wg.Wait()
-			close(done)
-		}()
-		select {
-		case <-done:
-		case <-ctx.Done():
-			slog.Warn("import pool shutdown timed out — workers may still be running", "err", ctx.Err())
-		}
-	})
 }

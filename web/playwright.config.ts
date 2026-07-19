@@ -68,11 +68,10 @@ export default defineConfig({
         E2E_LISTEN_ADDR: `:${BACKEND_PORT}`,
         E2E_DATA_DIR,
         E2E_BASE_URL: BACKEND_URL,
-        // When set, the e2e binary opens Postgres + runs the SQL
-        // migrations instead of SQLite + AutoMigrate. Forwarded so the
-        // PER-81 search spec can exercise tsvector via `task
-        // web:e2e:postgres`. Empty string is treated as unset by
-        // cmd/e2e-server (falls back to SQLite).
+        // The e2e binary is Postgres-only and requires this DSN; it opens
+        // Postgres and runs the SQL migrations. Forwarded from the process
+        // env (set by `task test:e2e`, which defaults it to the shared local
+        // Postgres on 5432).
         DAMSON_TEST_POSTGRES_DSN: process.env.DAMSON_TEST_POSTGRES_DSN ?? "",
       },
       cwd: repoRoot,

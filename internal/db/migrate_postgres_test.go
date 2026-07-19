@@ -1,10 +1,7 @@
-//go:build postgres_integration
-
 package db_test
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -49,10 +46,7 @@ func TestMigrate_AppliesAllSqlFiles(t *testing.T) {
 // must serialise them so each migration row is inserted exactly once — no
 // duplicate-PK errors on schema_migrations, no partial application.
 func TestMigrate_AdvisoryLockContention(t *testing.T) {
-	dsn := os.Getenv(testdb.PostgresDSNEnv)
-	if dsn == "" {
-		t.Skipf("%s not set", testdb.PostgresDSNEnv)
-	}
+	dsn := testdb.RequireDSN(t)
 	schema := testdb.NewSchemaName(t)
 
 	// First connection (migrate=true) creates the schema and registers the
