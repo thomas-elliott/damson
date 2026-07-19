@@ -5,9 +5,64 @@ import (
 	"testing"
 	"time"
 
+	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 )
+
+// spyPreviewEnqueuer is a PreviewEnqueuer that records calls instead of running
+// a pool. It is deliberately not a *preview.Pool, so a passing test proves the
+// handler routes through the ImportEnqueuer/PreviewEnqueuer seam rather than a
+// concrete pool type.
+type spyPreviewEnqueuer struct {
+	versionCalls [][2]uint
+	jobCalls     []preview.Job
+}
+
+func (s *spyPreviewEnqueuer) Enqueue(j preview.Job) { s.jobCalls = append(s.jobCalls, j) }
+func (s *spyPreviewEnqueuer) EnqueueVersion(libraryID, versionID uint) {
+	s.versionCalls = append(s.versionCalls, [2]uint{libraryID, versionID})
+}
+
+// TestPreviewRequeue_RoutesThroughEnqueuerSeam injects a non-pool enqueuer and
+// asserts the requeue handler calls EnqueueVersion through the interface.
+func TestPreviewRequeue_RoutesThroughEnqueuerSeam(t *testing.T) {
+	db := newTestDB(t)
+	store := newTestStorage(t)
+	spy := &spyPreviewEnqueuer{}
+	h := New(Deps{DB: db, AuthMode: config.AuthModeOIDC, Storage: store, PreviewPool: spy})
+
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	asset := models.Asset{LibraryID: lib.ID, Name: "pack"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	asset.CurrentVersionID = &v.ID
+	if err := db.Save(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	f := models.AssetFile{AssetVersionID: v.ID, RelativePath: "tex.bmp", ObjectKey: "k", ContentHash: "k"}
+	if err := db.Create(&f).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(asset.ID)+"/previews/requeue", nil)
+	requireStatus(t, w, http.StatusAccepted)
+
+	if len(spy.versionCalls) != 1 {
+		t.Fatalf("expected exactly one EnqueueVersion call through the seam, got %d", len(spy.versionCalls))
+	}
+	if spy.versionCalls[0] != [2]uint{lib.ID, v.ID} {
+		t.Fatalf("EnqueueVersion args: got %v, want [%d %d]", spy.versionCalls[0], lib.ID, v.ID)
+	}
+}
 
 // importBMP uploads a real BMP and returns the created asset id and its single
 // asset_files row, after the synchronous import + preview handoff has run.

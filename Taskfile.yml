@@ -2,6 +2,14 @@ version: "3"
 
 vars:
   WEB_DIR: web
+  # Every Go test and the e2e-server run against Postgres (there is no SQLite
+  # backend). Targets default to the shared local Postgres on 5432 (postgres:postgres),
+  # isolating themselves in a dedicated `damson_test` database — no per-project test
+  # container. Set DAMSON_TEST_POSTGRES_DSN to point elsewhere. CI uses Woodpecker's
+  # own `services: postgres` (see .woodpecker.yml), not this default.
+  TEST_PG_DSN: postgres://postgres:postgres@localhost:5432/damson_test?sslmode=disable
+  TEST_PG_ADMIN_DSN: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+  TEST_PG_DB: damson_test
 
 tasks:
   default:
@@ -173,10 +181,9 @@ tasks:
 
   # ── Tests ──────────────────────────────────────────────────────────────────
   test:
-    desc: Full test suite (unit + integration + e2e)
+    desc: Full test suite (unit + e2e)
     cmds:
       - task: test:unit
-      - task: test:integration
       - task: test:e2e
 
   test:unit:
@@ -186,9 +193,17 @@ tasks:
       - task: test:unit:web
 
   test:unit:go:
-    desc: Go unit tests
+    desc: Go tests (Postgres-backed; uses the shared local Postgres on 5432 via the damson_test DB unless DAMSON_TEST_POSTGRES_DSN is set)
     cmds:
-      - go test ./...
+      - |
+        bash -c '
+          set -euo pipefail
+          if [ -z "${DAMSON_TEST_POSTGRES_DSN:-}" ]; then
+            export DAMSON_TEST_POSTGRES_DSN="{{.TEST_PG_DSN}}"
+            psql "{{.TEST_PG_ADMIN_DSN}}" -c "CREATE DATABASE {{.TEST_PG_DB}}" >/dev/null 2>&1 || true
+          fi
+          go test -count=1 -race ./...
+        '
 
   test:unit:web:
     desc: Vitest unit tests (jsdom)
@@ -197,37 +212,17 @@ tasks:
     cmds:
       - pnpm run test -- --run
 
-  test:integration:
-    desc: Postgres-backed Go integration tests (boots compose Postgres on 55432)
-    cmds:
-      - |
-        bash -c '
-          set -euo pipefail
-          compose="docker compose -f database/test/compose.postgres.yaml"
-          trap "$compose down -v >/dev/null 2>&1 || true" EXIT
-          $compose up -d --wait
-          export DAMSON_TEST_POSTGRES_DSN="postgres://damson:damson@localhost:55432/damson?sslmode=disable"
-          go test -tags=postgres_integration -count=1 -race ./...
-        '
-
   test:e2e:
-    desc: Playwright end-to-end tests (boots e2e-server + vite dev internally)
-    deps: [install:web:deps, test:e2e:build]
-    dir: "{{.WEB_DIR}}"
-    cmds:
-      - pnpm run e2e
-
-  test:e2e:postgres:
-    desc: Playwright E2E against a Postgres-backed e2e binary (PER-81 search spec)
+    desc: Playwright end-to-end tests (uses the shared local Postgres on 5432 via the damson_test DB unless DAMSON_TEST_POSTGRES_DSN is set, plus e2e-server + vite dev)
     deps: [install:web:deps, test:e2e:build]
     cmds:
       - |
         bash -c '
           set -euo pipefail
-          compose="docker compose -f database/test/compose.postgres.yaml"
-          trap "$compose down -v >/dev/null 2>&1 || true" EXIT
-          $compose up -d --wait
-          export DAMSON_TEST_POSTGRES_DSN="postgres://damson:damson@localhost:55432/damson?sslmode=disable"
+          if [ -z "${DAMSON_TEST_POSTGRES_DSN:-}" ]; then
+            export DAMSON_TEST_POSTGRES_DSN="{{.TEST_PG_DSN}}"
+            psql "{{.TEST_PG_ADMIN_DSN}}" -c "CREATE DATABASE {{.TEST_PG_DB}}" >/dev/null 2>&1 || true
+          fi
           cd {{.WEB_DIR}} && pnpm run e2e
         '
 
@@ -246,7 +241,7 @@ tasks:
       - pnpm run e2e:install
 
   test:e2e:build:
-    desc: Build the e2e test server (cmd/e2e-server) into web/e2e/.bin (SQLite by default; honours DAMSON_TEST_POSTGRES_DSN at runtime)
+    desc: Build the e2e test server (cmd/e2e-server) into web/e2e/.bin (Postgres-backed; needs DAMSON_TEST_POSTGRES_DSN at runtime)
     cmds:
       - mkdir -p {{.WEB_DIR}}/e2e/.bin
       - go build -o {{.WEB_DIR}}/e2e/.bin/damson-e2e ./cmd/e2e-server
@@ -284,7 +279,7 @@ tasks:
       - docker build -t damson:local .
 
   ci:
-    desc: Full preflight (check + unit tests + e2e) — matches CI minus integration
+    desc: Full preflight (check + unit tests + e2e), all Postgres-backed
     cmds:
       - task: check
       - task: test:unit

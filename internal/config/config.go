@@ -66,9 +66,16 @@ type Config struct {
 	LogLevel string
 	GinMode  string
 
-	// ImportWorkers caps the size of the background import goroutine pool.
-	// Zero or negative values mean "use runtime.GOMAXPROCS(0)".
-	ImportWorkers int
+	// ImportQueueWorkers / PreviewQueueWorkers cap the number of concurrent
+	// River workers on each queue. Zero or negative means runtime.GOMAXPROCS(0).
+	ImportQueueWorkers  int
+	PreviewQueueWorkers int
+
+	// ImportJobTimeout / PreviewJobTimeout bound how long a single job may run
+	// before its context is cancelled. Non-positive means the queue default
+	// (30 min). Imports can be multi-GB, hence the generous default.
+	ImportJobTimeout  time.Duration
+	PreviewJobTimeout time.Duration
 
 	// AuditPurgeInterval is how often the audit retention purge job sweeps
 	// audit_log against per-library `library_settings.audit_retention_days`.
@@ -103,16 +110,19 @@ func Load() Config {
 	}
 
 	cfg := Config{
-		ListenAddr:         getenv("DAMSON_LISTEN_ADDR", ":8080"),
-		BaseURL:            getenv("DAMSON_BASE_URL", "http://localhost:8080"),
-		PostgresDSN:        mustGetSecret("DAMSON_POSTGRES_DSN"),
-		AuthMode:           authMode,
-		StorageMode:        storageMode,
-		LogLevel:           getenv("DAMSON_LOG_LEVEL", "info"),
-		GinMode:            os.Getenv("GIN_MODE"),
-		ImportWorkers:      parseImportWorkers(os.Getenv("DAMSON_IMPORT_WORKERS")),
-		AuditPurgeInterval: parseAuditPurgeInterval(os.Getenv("DAMSON_AUDIT_PURGE_INTERVAL")),
-		OrphanMinAge:       parseOrphanMinAge(os.Getenv("DAMSON_ORPHAN_MIN_AGE")),
+		ListenAddr:          getenv("DAMSON_LISTEN_ADDR", ":8080"),
+		BaseURL:             getenv("DAMSON_BASE_URL", "http://localhost:8080"),
+		PostgresDSN:         mustGetSecret("DAMSON_POSTGRES_DSN"),
+		AuthMode:            authMode,
+		StorageMode:         storageMode,
+		LogLevel:            getenv("DAMSON_LOG_LEVEL", "info"),
+		GinMode:             os.Getenv("GIN_MODE"),
+		ImportQueueWorkers:  parseQueueWorkers(os.Getenv("DAMSON_IMPORT_QUEUE_WORKERS")),
+		PreviewQueueWorkers: parseQueueWorkers(os.Getenv("DAMSON_PREVIEW_QUEUE_WORKERS")),
+		ImportJobTimeout:    parseJobTimeout(os.Getenv("DAMSON_IMPORT_JOB_TIMEOUT")),
+		PreviewJobTimeout:   parseJobTimeout(os.Getenv("DAMSON_PREVIEW_JOB_TIMEOUT")),
+		AuditPurgeInterval:  parseAuditPurgeInterval(os.Getenv("DAMSON_AUDIT_PURGE_INTERVAL")),
+		OrphanMinAge:        parseOrphanMinAge(os.Getenv("DAMSON_ORPHAN_MIN_AGE")),
 	}
 
 	switch authMode {
@@ -195,10 +205,10 @@ func getenv(key, def string) string {
 	return def
 }
 
-// parseImportWorkers reads the DAMSON_IMPORT_WORKERS env var. An empty,
-// invalid, or non-positive value falls back to runtime.GOMAXPROCS(0) so a
-// fresh deploy gets a sane default.
-func parseImportWorkers(raw string) int {
+// parseQueueWorkers reads a per-queue worker-count env var. An empty, invalid,
+// or non-positive value falls back to runtime.GOMAXPROCS(0) so a fresh deploy
+// gets a sane default.
+func parseQueueWorkers(raw string) int {
 	if raw == "" {
 		return runtime.GOMAXPROCS(0)
 	}
@@ -207,6 +217,20 @@ func parseImportWorkers(raw string) int {
 		return runtime.GOMAXPROCS(0)
 	}
 	return n
+}
+
+// parseJobTimeout reads a per-queue job-timeout env var as a Go duration string
+// ("30m", "1h"). Empty / unparseable / non-positive returns 0, letting the
+// queue apply its own default.
+func parseJobTimeout(raw string) time.Duration {
+	if raw == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
 }
 
 const defaultAuditPurgeInterval = 24 * time.Hour

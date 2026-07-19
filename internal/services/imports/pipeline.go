@@ -56,9 +56,6 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	if err != nil {
 		return fmt.Errorf("load job: %w", err)
 	}
-	if job.LibraryID != 0 && jc.libraryID != job.LibraryID {
-		return fmt.Errorf("library mismatch: job=%d row=%d", job.LibraryID, jc.libraryID)
-	}
 
 	publish := func(stage, errMsg string) {
 		if deps.Broadcaster == nil {
@@ -90,6 +87,12 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		}
 		publish(StageFailed, reason)
 		return errors.New(reason)
+	}
+
+	// A library mismatch is a terminal input error: mark failed so the queue
+	// cancels rather than retries.
+	if job.LibraryID != 0 && jc.libraryID != job.LibraryID {
+		return fail(fmt.Sprintf("library mismatch: job=%d row=%d", job.LibraryID, jc.libraryID))
 	}
 
 	if jc.version.OriginalPackageObjectKey == "" {
@@ -346,6 +349,17 @@ func updateImportStage(db *gorm.DB, importID uint, stage, errMsg string) error {
 // create one with stage=failed directly.
 func MarkImportFailed(db *gorm.DB, importID uint, reason string) error {
 	return updateImportStage(db, importID, StageFailed, reason)
+}
+
+// IsFailed reports whether an import row is in the terminal failed stage. The
+// queue uses it to tell a pipeline-marked terminal failure (don't retry) from a
+// transient error (retry). A missing row or query error reports false.
+func IsFailed(ctx context.Context, db *gorm.DB, importID uint) bool {
+	var imp models.AssetImport
+	if err := db.WithContext(ctx).Select("stage").First(&imp, importID).Error; err != nil {
+		return false
+	}
+	return imp.Stage == StageFailed
 }
 
 // WriteAssetFiles persists asset_files rows for an asset version. If
