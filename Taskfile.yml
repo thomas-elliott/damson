@@ -3,10 +3,13 @@ version: "3"
 vars:
   WEB_DIR: web
   # Every Go test and the e2e-server run against Postgres (there is no SQLite
-  # backend). Targets that need it start this throwaway fixture on 55432 unless
-  # DAMSON_TEST_POSTGRES_DSN is already set in the environment.
-  TEST_PG_DSN: postgres://damson:damson@localhost:55432/damson?sslmode=disable
-  TEST_PG_COMPOSE: docker compose -f database/test/compose.postgres.yaml
+  # backend). Targets default to the shared local Postgres on 5432 (postgres:postgres),
+  # isolating themselves in a dedicated `damson_test` database — no per-project test
+  # container. Set DAMSON_TEST_POSTGRES_DSN to point elsewhere. CI uses Woodpecker's
+  # own `services: postgres` (see .woodpecker.yml), not this default.
+  TEST_PG_DSN: postgres://postgres:postgres@localhost:5432/damson_test?sslmode=disable
+  TEST_PG_ADMIN_DSN: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+  TEST_PG_DB: damson_test
 
 tasks:
   default:
@@ -190,15 +193,14 @@ tasks:
       - task: test:unit:web
 
   test:unit:go:
-    desc: Go tests (Postgres-backed; boots compose Postgres on 55432 unless DAMSON_TEST_POSTGRES_DSN is set)
+    desc: Go tests (Postgres-backed; uses the shared local Postgres on 5432 via the damson_test DB unless DAMSON_TEST_POSTGRES_DSN is set)
     cmds:
       - |
         bash -c '
           set -euo pipefail
           if [ -z "${DAMSON_TEST_POSTGRES_DSN:-}" ]; then
-            trap "{{.TEST_PG_COMPOSE}} down -v >/dev/null 2>&1 || true" EXIT
-            {{.TEST_PG_COMPOSE}} up -d --wait
             export DAMSON_TEST_POSTGRES_DSN="{{.TEST_PG_DSN}}"
+            psql "{{.TEST_PG_ADMIN_DSN}}" -c "CREATE DATABASE {{.TEST_PG_DB}}" >/dev/null 2>&1 || true
           fi
           go test -count=1 -race ./...
         '
@@ -211,16 +213,15 @@ tasks:
       - pnpm run test -- --run
 
   test:e2e:
-    desc: Playwright end-to-end tests (boots compose Postgres on 55432 unless DAMSON_TEST_POSTGRES_DSN is set, plus e2e-server + vite dev)
+    desc: Playwright end-to-end tests (uses the shared local Postgres on 5432 via the damson_test DB unless DAMSON_TEST_POSTGRES_DSN is set, plus e2e-server + vite dev)
     deps: [install:web:deps, test:e2e:build]
     cmds:
       - |
         bash -c '
           set -euo pipefail
           if [ -z "${DAMSON_TEST_POSTGRES_DSN:-}" ]; then
-            trap "{{.TEST_PG_COMPOSE}} down -v >/dev/null 2>&1 || true" EXIT
-            {{.TEST_PG_COMPOSE}} up -d --wait
             export DAMSON_TEST_POSTGRES_DSN="{{.TEST_PG_DSN}}"
+            psql "{{.TEST_PG_ADMIN_DSN}}" -c "CREATE DATABASE {{.TEST_PG_DB}}" >/dev/null 2>&1 || true
           fi
           cd {{.WEB_DIR}} && pnpm run e2e
         '
