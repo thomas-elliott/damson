@@ -80,7 +80,14 @@ export function meshFormat(node: FileNode | null | undefined): MeshFormat | unde
 }
 
 export type PreviewKind =
-  "text" | "audio" | "font" | "archive" | "pdf" | "mesh" | "image" | "fallback";
+  | "text"
+  | "audio"
+  | "font"
+  | "archive"
+  | "pdf"
+  | "mesh"
+  | "image"
+  | "fallback";
 
 /**
  * Which viewer the detail panel should mount for a file. Each type maps to at

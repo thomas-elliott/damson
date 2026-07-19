@@ -38,7 +38,9 @@ func TestStorageCleanup_ScanAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("put referenced: %v", err)
 	}
-	db.Create(&models.AssetFile{AssetVersionID: 1, RelativePath: "a", SizeBytes: 4, ContentHash: referenced, ObjectKey: referenced})
+	lib := seedLibrary(t, db, "Personal")
+	_, v := seedAssetWithVersion(t, db, lib.ID, "pack", "v1")
+	db.Create(&models.AssetFile{AssetVersionID: v.ID, RelativePath: "a", SizeBytes: 4, ContentHash: referenced, ObjectKey: referenced})
 
 	r := setupRouter(h, admin)
 

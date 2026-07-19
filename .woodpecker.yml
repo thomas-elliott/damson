@@ -40,11 +40,16 @@ steps:
       - event: push
         branch: main
     image: golang:1.26
+    # The whole Go suite runs against Postgres (there is no SQLite backend); each
+    # test isolates itself in its own schema on this shared instance.
+    environment:
+      DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@postgres:5432/damson?sslmode=disable
     commands:
       - go mod download
       - go mod tidy && git diff --exit-code -- go.mod go.sum
       - test -z "$(gofmt -l .)" || { echo 'gofmt issues:'; gofmt -l .; exit 1; }
       - go vet ./...
+      - bash -c 'until (exec 3<>/dev/tcp/postgres/5432) 2>/dev/null; do echo "waiting for postgres"; sleep 1; done'
       - go test -race -count=1 ./...
 
   web:
@@ -59,19 +64,6 @@ steps:
       - pnpm install --frozen-lockfile
       - pnpm run build          # includes the tsc -b type check
       - pnpm run test -- --run
-
-  integration:
-    when:
-      - event: pull_request
-      - event: push
-        branch: main
-    image: golang:1.26
-    failure: ignore             # non-gating (GHA continue-on-error)
-    environment:
-      DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@postgres:5432/damson?sslmode=disable
-    commands:
-      - bash -c 'until (exec 3<>/dev/tcp/postgres/5432) 2>/dev/null; do echo "waiting for postgres"; sleep 1; done'
-      - go test -tags=postgres_integration -race -count=1 ./...
 
   e2e-build:
     when:
@@ -94,16 +86,17 @@ steps:
     # Image tag MUST match @playwright/test in web/package.json (pinned exactly to 1.60.0)
     # so the bundled browsers are found. Bumping Playwright in the app => bump this tag.
     image: mcr.microsoft.com/playwright:v1.60.0-noble
+    # The e2e-server is Postgres-only, so the suite runs in Postgres mode against
+    # the shared service. GATING.
     environment:
       CI: "true" # playwright.config keys off it (reuseExistingServer:!CI, CI reporter)
+      DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@postgres:5432/damson?sslmode=disable
     commands:
       - corepack enable         # activates pnpm pinned by package.json "packageManager"
       - cd web
       - pnpm install --frozen-lockfile
-      - pnpm run e2e                                           # sqlite mode — GATING
-      # postgres mode is non-gating (GHA continue-on-error): the `|| echo` swallows its failure
       - bash -c 'until (exec 3<>/dev/tcp/postgres/5432) 2>/dev/null; do sleep 1; done'
-      - DAMSON_TEST_POSTGRES_DSN=postgres://damson:damson@postgres:5432/damson?sslmode=disable pnpm run e2e || echo "postgres-mode e2e failed (non-gating)"
+      - pnpm run e2e
 
   build-push:
     # buildkit-rootless on the kerbol k8s backend (no docker daemon; replaces DooD). securityContext
