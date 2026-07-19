@@ -3,27 +3,15 @@ package auth
 import (
 	"testing"
 
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
 func newBootstrapTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
-		&models.User{},
-		&models.UserIdentity{},
-		&models.Library{},
-		&models.LibraryMembership{},
-	); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testdb.NewPostgres(t)
 }
 
 func createUser(t *testing.T, db *gorm.DB, email string) *models.User {

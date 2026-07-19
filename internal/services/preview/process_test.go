@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	"golang.org/x/image/bmp"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
 // capturePublisher records every rollup the processor emits so tests can assert
@@ -40,14 +40,24 @@ func (c *capturePublisher) last() Event {
 
 func newProcessDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
+	return testdb.NewPostgres(t)
+}
+
+// ensureLibrary seeds a library row with an explicit id so the FK from assets
+// is satisfied. Safe with a fixed id because these tests never auto-insert
+// libraries, so the bigserial sequence is never contended.
+func ensureLibrary(t *testing.T, db *gorm.DB, id uint) {
+	t.Helper()
+	var n int64
+	if err := db.Model(&models.Library{}).Where("id = ?", id).Count(&n).Error; err != nil {
+		t.Fatalf("count library %d: %v", id, err)
 	}
-	if err := db.AutoMigrate(&models.Asset{}, &models.AssetVersion{}, &models.AssetFile{}); err != nil {
-		t.Fatalf("migrate: %v", err)
+	if n > 0 {
+		return
 	}
-	return db
+	if err := db.Create(&models.Library{ID: id, Name: "lib"}).Error; err != nil {
+		t.Fatalf("seed library %d: %v", id, err)
+	}
 }
 
 func TestProcessVersion_DrivesPerFileStatus(t *testing.T) {
@@ -80,6 +90,7 @@ func TestProcessVersion_DrivesPerFileStatus(t *testing.T) {
 		t.Fatalf("put dll: %v", err)
 	}
 
+	ensureLibrary(t, db, 7)
 	asset := models.Asset{LibraryID: 7, Name: "pack"}
 	if err := db.Create(&asset).Error; err != nil {
 		t.Fatal(err)
@@ -154,6 +165,7 @@ func TestMarkVersionQueued_SingleFile(t *testing.T) {
 	ctx := context.Background()
 	db := newProcessDB(t)
 
+	ensureLibrary(t, db, 1)
 	asset := models.Asset{LibraryID: 1, Name: "a"}
 	if err := db.Create(&asset).Error; err != nil {
 		t.Fatal(err)

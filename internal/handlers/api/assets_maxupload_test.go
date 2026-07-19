@@ -14,8 +14,10 @@ func TestPostImport_RejectsOversizeUpload(t *testing.T) {
 	_ = seedLibraryAndSwitch(t, h, u)
 
 	// Small server-wide cap so the test stays cheap. Non-zero MaxUploadBytes is
-	// stored verbatim (the 2 GiB default only applies to a zero value).
-	if err := db.Create(&models.ServerSettings{ID: 1, MaxUploadBytes: 2 << 20}).Error; err != nil {
+	// stored verbatim (the 2 GiB default only applies to a zero value). The
+	// migrations already seed server_settings(id=1), so update rather than insert.
+	if err := db.Model(&models.ServerSettings{}).Where("id = ?", 1).
+		Update("max_upload_bytes", 2<<20).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -32,7 +34,8 @@ func TestPostImport_AcceptsUploadWithinLimit(t *testing.T) {
 	u := seedUser(t, db, "librarian@example.com")
 	_ = seedLibraryAndSwitch(t, h, u)
 
-	if err := db.Create(&models.ServerSettings{ID: 1, MaxUploadBytes: 2 << 20}).Error; err != nil {
+	if err := db.Model(&models.ServerSettings{}).Where("id = ?", 1).
+		Update("max_upload_bytes", 2<<20).Error; err != nil {
 		t.Fatal(err)
 	}
 

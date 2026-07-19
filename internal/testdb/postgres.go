@@ -1,5 +1,6 @@
-// Package testdb provides shared helpers for tests that need a real database
-// instead of the in-memory SQLite default. Currently Postgres-only.
+// Package testdb provides shared helpers for tests that need a database.
+// Postgres is the only supported backend: every test runs against a real
+// Postgres instance, each in its own throwaway schema (test_<random>).
 package testdb
 
 import (
@@ -17,24 +18,33 @@ import (
 	"github.com/thomas-elliott/damson/internal/db"
 )
 
-// PostgresDSNEnv is the env var that points integration tests at a real
-// Postgres instance. Empty / unset → tests skip with t.Skip.
+// PostgresDSNEnv is the env var that points the test suite at a Postgres
+// instance. It is required: with it unset the suite fails fast rather than
+// silently skipping, because Postgres is the only supported backend.
 const PostgresDSNEnv = "DAMSON_TEST_POSTGRES_DSN"
+
+// RequireDSN returns the Postgres DSN from the environment, failing the test
+// if it is unset. Use it in tests that open their own connection(s) rather
+// than going through NewPostgres.
+func RequireDSN(t *testing.T) string {
+	t.Helper()
+	dsn := os.Getenv(PostgresDSNEnv)
+	if dsn == "" {
+		t.Fatalf("%s must be set: the test suite requires a Postgres instance", PostgresDSNEnv)
+	}
+	return dsn
+}
 
 // NewPostgres opens a Postgres connection from $DAMSON_TEST_POSTGRES_DSN,
 // creates a fresh per-test schema (test_<random>), runs all SQL migrations
 // against that schema, and registers a Cleanup to drop it. Each test gets an
 // isolated namespace on the same Postgres instance — no per-test container.
 //
-// Callers should additionally guard the test file with
-// `//go:build postgres_integration` so default `go test ./...` ignores it.
-// This helper enforces the env-var skip as a second line of defence.
+// The DSN is mandatory; an unset value is a hard failure so a run without a
+// database is never mistaken for a passing run.
 func NewPostgres(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := os.Getenv(PostgresDSNEnv)
-	if dsn == "" {
-		t.Skipf("%s not set; skipping Postgres integration test", PostgresDSNEnv)
-	}
+	dsn := RequireDSN(t)
 	schema := newSchemaName(t)
 	return OpenSchema(t, dsn, schema, true)
 }
@@ -80,6 +90,14 @@ func OpenSchema(t *testing.T, dsn, schema string, migrate bool) *gorm.DB {
 	gdb, err := gorm.Open(postgres.New(postgres.Config{DSN: scopedDSN}), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open scoped connection: %v", err)
+	}
+
+	// Bound and close the per-test pool: the suite opens one pool per test, so
+	// without a cap the many concurrent schemas exhaust Postgres max_connections.
+	if sql, err := gdb.DB(); err == nil {
+		sql.SetMaxOpenConns(4)
+		sql.SetMaxIdleConns(2)
+		t.Cleanup(func() { _ = sql.Close() })
 	}
 
 	if migrate {

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
@@ -18,16 +17,16 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
 func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-// newTestHandler returns an api handler backed by in-memory SQLite with all
-// models migrated via AutoMigrate. Postgres-specific features (tsvector,
-// advisory locks) are absent — SQL-migration-based tests need a real
-// Postgres; see docs/archive/technical-design.md §18.
+// newTestHandler returns an api handler backed by a per-test Postgres schema
+// with all SQL migrations applied (tsvector, advisory locks, triggers — the
+// real production schema).
 //
 // Auth defaults to oidc mode (no local authenticator); tests that need
 // /api/auth/login should call newTestHandlerLocal. A local-FS storage
@@ -81,34 +80,7 @@ func newTestHandlerLocal(t *testing.T) (*Handler, *gorm.DB, *auth.LocalAuthentic
 
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
-		&models.User{},
-		&models.UserIdentity{},
-		&models.Library{},
-		&models.LibraryMembership{},
-		&models.AuditLog{},
-		&models.Asset{},
-		&models.AssetVersion{},
-		&models.AssetFile{},
-		&models.AssetImport{},
-		&models.AssetImage{},
-		&models.Tag{},
-		&models.AssetTag{},
-		&models.Licence{},
-		&models.Project{},
-		&models.ProjectAssetPin{},
-		&models.Collection{},
-		&models.CollectionAsset{},
-		&models.LibrarySettings{},
-		&models.ServerSettings{},
-	); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testdb.NewPostgres(t)
 }
 
 func newTestStorage(t *testing.T) storage.Service {
