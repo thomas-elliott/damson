@@ -15,7 +15,7 @@ This document complements:
 
 **Backend**
 - Go 1.26 with the Gin web framework
-- GORM (PostgreSQL in production, in-memory SQLite for tests)
+- GORM (PostgreSQL in both production and tests; each test gets its own schema)
 - OIDC bearer-token auth (`coreos/go-oidc` + `oauth2`)
 - S3-compatible media storage (`internal/services`)
 
@@ -106,7 +106,7 @@ Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON hand
 ### Tests
 Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers are in `internal/handlers/api/api_test.go`:
 
-- `newTestHandler(t)` — returns `(*handler, *gorm.DB)` backed by in-memory SQLite (OIDC mode) with `AutoMigrate` applied to all models and a `LocalFS` storage rooted in `t.TempDir()`
+- `newTestHandler(t)` — returns `(*handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires `DAMSON_TEST_POSTGRES_DSN` (see AGENTS.md "Migrations vs tests")
 - `newTestHandlerLocal(t)` — same but in local-auth mode, with a `*auth.LocalAuthenticator` returned alongside
 - `setupRouter(h, asUser)` — registers routes under `/api`; bypasses real auth by injecting `asUser` via `auth.SetUserForTest`
 - `performGET(r, path)`, `performRequest(r, method, path, body)` — issue requests
@@ -176,7 +176,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Use `IF NOT EXISTS` for idempotency.
 - Primary keys: `bigserial PRIMARY KEY`. Timestamps: `timestamptz NOT NULL DEFAULT now()`.
 - Migrations are SQL-only — no Go migration framework. See `internal/db/migrate.go` for the runner (advisory lock + `schema_migrations` tracking).
-- Schema changes must land in BOTH the SQL migration AND the corresponding GORM struct tag — tests use `AutoMigrate` against the models, production uses the SQL. See AGENTS.md "Migrations vs tests".
+- Schema changes must land in BOTH the SQL migration AND the corresponding GORM struct tag — production and tests both run the SQL migrations, but GORM still maps columns from the struct tags, so a migration/tag mismatch surfaces at runtime (and now in tests). See AGENTS.md "Migrations vs tests".
 
 ## Docker & Release
 

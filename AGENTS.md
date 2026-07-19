@@ -25,19 +25,19 @@ task build            # SPA + Go production binary
 task check            # read-only: lint + format:check + mod:tidy:check
 task lint             # go vet + eslint
 task format           # go fmt + prettier --write
-task test:unit        # Go unit tests + Vitest
-task test:e2e         # Playwright (boots e2e-server + vite internally)
-task test:integration # Postgres-backed Go integration tests
+task test:unit        # Go tests (Postgres-backed) + Vitest
+task test:e2e         # Playwright (boots compose Postgres + e2e-server + vite internally)
 task ci               # full preflight: check + test:unit + test:e2e
 task clean            # remove build artifacts
 ```
 
 Subdomain tasks split by language: `lint:go` / `lint:web`, `format:go` / `format:web`, `format:check:go` / `format:check:web`, `test:unit:go` / `test:unit:web`. Use the umbrella when in doubt.
 
-Run one Go test:
+Run one Go test (Go tests need Postgres — set `DAMSON_TEST_POSTGRES_DSN`, or run under `task test:unit:go` which boots the compose fixture):
 
 ```
-go test ./internal/handlers/api -run '^TestName$'
+DAMSON_TEST_POSTGRES_DSN=postgres://damson:damson@localhost:55432/damson?sslmode=disable \
+  go test ./internal/handlers/api -run '^TestName$'
 go test ./internal/handlers/api -run '^TestName$/SubtestName$'
 ```
 
@@ -103,12 +103,12 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 
 **Production:** SQL-only migrations in `database/migrations/NNN_*.sql`. Runner in `internal/db/migrate.go` reads them via `damson.MigrationsFS` (embedded at project root — see "The damson.go quirk" below), applies in lexicographic order inside a Postgres advisory lock, tracks applied files in `schema_migrations`.
 
-**Tests:** in-memory SQLite via `newTestHandler(t)` + GORM `AutoMigrate` on the model structs. **The two paths are independent** — a schema change must land in BOTH an SQL migration AND the corresponding struct tags. Postgres-specific behaviour (tsvector, JSONB operators, `pg_advisory_lock`) is not exercised by SQLite; when that starts to bite, add a real-Postgres integration tier (see `docs/architecture.md` §17 decision 6).
+**Tests:** the same SQL migrations, run against a real Postgres. `newTestHandler(t)` (and the other test-DB helpers) go through `internal/testdb`, which creates a throwaway per-test schema, applies the migrations, and drops it on cleanup. `DAMSON_TEST_POSTGRES_DSN` is **required** — with it unset the suite fails fast rather than silently skipping (there is no SQLite fallback). A schema change must still land in BOTH an SQL migration AND the corresponding GORM struct tags: the migration is now the test schema too, but GORM maps columns from the tags, so a migration/tag mismatch surfaces in tests. Postgres-specific behaviour (tsvector, JSONB operators, `pg_advisory_lock`) is now exercised directly.
 
 ### Handlers (per CONVENTIONS.md)
 
 - One feature per file (`assets.go`, `library.go`, …); all handlers are receiver methods on the shared unexported `handler` struct.
-- Construction: `api.New(api.Deps{...})` in `main.go`; tests call `newTestHandler(t)` which wires an in-memory SQLite + a `LocalFS` storage rooted in `t.TempDir()`.
+- Construction: `api.New(api.Deps{...})` in `main.go`; tests call `newTestHandler(t)` which wires a per-test Postgres schema (via `internal/testdb`) + a `LocalFS` storage rooted in `t.TempDir()`.
 - Errors: `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`. Generic `"internal error"` for 500 — don't leak internals.
 - Log server-side at failure sites. `main.go` installs a custom `requestLogger()` (not `gin.Logger()`), so every response gets a status/path line. But 4xx handlers that carry diagnostic detail (extractor errors, validation beyond the binding layer) should `slog.Warn` the underlying error *before* `AbortWithStatusJSON` — the JSON body alone won't appear in logs.
 
