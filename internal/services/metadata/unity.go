@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
@@ -183,55 +184,85 @@ func coveoMetadata(r coveoResult, listingURL string) *Metadata {
 	}
 }
 
-// coveoCover prefers the single ec_thumbnails URL, falling back to the first
-// ec_images entry (which may be a JSON array or a JSON-encoded string).
+// coveoCover picks the cover image, preferring the first ec_images entry that
+// is a real still image over ec_thumbnails — the thumbnail field sometimes
+// carries a video/stream URL, which renders broken as a cover. Falls back to
+// ec_thumbnails, then to the first ec_images entry of any kind.
 func coveoCover(raw map[string]any) string {
+	imgs := coveoImageList(raw)
+	for _, u := range imgs {
+		if isStillImageURL(u) {
+			return u
+		}
+	}
 	if t := stringOf(raw["ec_thumbnails"]); t != "" {
 		return t
 	}
-	switch v := raw["ec_images"].(type) {
-	case string:
-		s := strings.TrimSpace(v)
-		if strings.HasPrefix(s, "[") {
-			var arr []string
-			if json.Unmarshal([]byte(s), &arr) == nil && len(arr) > 0 {
-				return arr[0]
-			}
-		}
-		return s
-	case []any:
-		for _, item := range v {
-			if u := stringOf(item); u != "" {
-				return u
-			}
-		}
+	if len(imgs) > 0 {
+		return imgs[0]
 	}
 	return ""
 }
 
-// coveoImages returns every gallery image URL from ec_images (a JSON array, a
-// JSON-encoded string array, or a bare string), deduplicated and with the
-// cover excluded so the gallery doesn't repeat it.
-func coveoImages(raw map[string]any, cover string) []string {
-	var urls []string
+// videoExts and videoHostMarkers identify URLs that are not still images, so
+// they can be skipped when choosing a cover.
+var videoExts = map[string]bool{
+	".mp4": true, ".webm": true, ".mov": true, ".m4v": true,
+	".avi": true, ".mkv": true, ".ogv": true,
+}
+
+var videoHostMarkers = []string{"youtube", "youtu.be", "vimeo", "/video/"}
+
+// isStillImageURL reports whether a gallery URL looks like a still image
+// rather than a video or streaming embed. Unknown shapes are treated as still
+// images (the common case), so only recognised video markers are excluded.
+func isStillImageURL(rawURL string) bool {
+	u := strings.ToLower(strings.TrimSpace(rawURL))
+	if u == "" {
+		return false
+	}
+	for _, m := range videoHostMarkers {
+		if strings.Contains(u, m) {
+			return false
+		}
+	}
+	p := u
+	if i := strings.IndexAny(p, "?#"); i >= 0 {
+		p = p[:i]
+	}
+	return !videoExts[path.Ext(p)]
+}
+
+// coveoImageList parses ec_images (a JSON array, a JSON-encoded string array,
+// or a bare string) into an ordered list of URLs, without dedup or filtering.
+func coveoImageList(raw map[string]any) []string {
 	switch v := raw["ec_images"].(type) {
 	case string:
 		s := strings.TrimSpace(v)
 		if strings.HasPrefix(s, "[") {
 			var arr []string
 			if json.Unmarshal([]byte(s), &arr) == nil {
-				urls = arr
+				return arr
 			}
 		} else if s != "" {
-			urls = []string{s}
+			return []string{s}
 		}
 	case []any:
+		out := make([]string, 0, len(v))
 		for _, item := range v {
 			if u := stringOf(item); u != "" {
-				urls = append(urls, u)
+				out = append(out, u)
 			}
 		}
+		return out
 	}
+	return nil
+}
+
+// coveoImages returns every gallery image URL from ec_images, deduplicated and
+// with the cover excluded so the gallery doesn't repeat it.
+func coveoImages(raw map[string]any, cover string) []string {
+	urls := coveoImageList(raw)
 	seen := map[string]bool{}
 	out := make([]string, 0, len(urls))
 	for _, u := range urls {
