@@ -193,6 +193,47 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	}
 }
 
+func TestPostImport_SuggestsMatchForSameName(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "thomas@datch.io")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	pkg1 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x41), pathname: "Assets/a.bin", content: []byte("a")},
+	})
+	b1, ct1 := buildMultipart(t, "file", "Fantasy Pack 1.0.unitypackage", pkg1)
+	w1 := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w1, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w1)
+	// First upload of a fresh name has nothing to match against.
+	if first.SuggestedMatch != nil {
+		t.Fatalf("unexpected match on first upload: %+v", first.SuggestedMatch)
+	}
+
+	// A second same-named upload (defaulting to a new asset) surfaces the
+	// first as a suggested match for the "add as a version of…" prompt.
+	pkg2 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x42), pathname: "Assets/b.bin", content: []byte("b")},
+	})
+	b2, ct2 := buildMultipart(t, "file", "Fantasy Pack 2.0.unitypackage", pkg2)
+	w2 := postMultipart(r, "/api/imports", b2, ct2)
+	requireStatus(t, w2, http.StatusAccepted)
+	second := jsonResponse[importEnqueueResponse](t, w2)
+	if second.SuggestedMatch == nil || second.SuggestedMatch.AssetID != first.AssetID {
+		t.Fatalf("expected suggested match to point at the first asset, got %+v", second.SuggestedMatch)
+	}
+	// Default behaviour is unchanged: a distinct new asset was still created.
+	if second.AssetID == first.AssetID {
+		t.Fatalf("match detection must not attach; a new asset should be created")
+	}
+	var count int64
+	db.Model(&models.Asset{}).Count(&count)
+	if count != 2 {
+		t.Fatalf("expected 2 assets, got %d", count)
+	}
+}
+
 func TestPostImport_AddsVersionToExistingAsset(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "thomas@datch.io")
