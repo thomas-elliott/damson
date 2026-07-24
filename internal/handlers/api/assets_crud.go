@@ -401,6 +401,105 @@ func (h *Handler) patchAsset(c *gin.Context) {
 	})
 }
 
+func (h *Handler) deleteAssetVersion(c *gin.Context) {
+	lib := getLibrary(c)
+	u := auth.GetUser(c)
+	if lib == nil || u == nil {
+		respond500(c, errRequestContextIncomplete)
+		return
+	}
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	vid, ok := parseIDParam(c, "vid")
+	if !ok {
+		return
+	}
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var asset models.Asset
+		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&asset).Error; err != nil {
+			return err
+		}
+		var version models.AssetVersion
+		if err := tx.Where("id = ? AND asset_id = ?", vid, asset.ID).First(&version).Error; err != nil {
+			return err
+		}
+
+		var pins int64
+		if err := tx.Model(&models.ProjectAssetPin{}).
+			Where("pinned_version_id = ?", version.ID).Count(&pins).Error; err != nil {
+			return err
+		}
+		if pins > 0 {
+			return errConflictf("version is pinned by %d project(s); unpin before deleting", pins)
+		}
+
+		var total int64
+		if err := tx.Model(&models.AssetVersion{}).
+			Where("asset_id = ?", asset.ID).Count(&total).Error; err != nil {
+			return err
+		}
+		if total <= 1 {
+			return errConflictf("cannot delete the only version; delete the asset instead")
+		}
+
+		if asset.CurrentVersionID != nil && *asset.CurrentVersionID == version.ID {
+			next, err := nextCurrentVersion(tx, asset.ID, version.ID)
+			if err != nil {
+				return err
+			}
+			if err := tx.Model(&models.Asset{}).Where("id = ?", asset.ID).
+				Update("current_version_id", next).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Delete(&models.AssetVersion{}, version.ID).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "asset.version.delete",
+			TargetType: "asset",
+			TargetID:   &asset.ID,
+			Diff: audit.Deleted(map[string]any{
+				"version_id":    version.ID,
+				"store_version": version.StoreVersion,
+				"version_label": version.VersionLabel,
+			}),
+		})
+	})
+	if err != nil {
+		respondGORM(c, err, "asset or version not found")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func nextCurrentVersion(tx *gorm.DB, assetID, excludeID uint) (*uint, error) {
+	var versions []models.AssetVersion
+	if err := tx.Where("asset_id = ? AND id <> ?", assetID, excludeID).Find(&versions).Error; err != nil {
+		return nil, err
+	}
+	if len(versions) == 0 {
+		return nil, nil
+	}
+	sort.SliceStable(versions, func(i, j int) bool {
+		a, aok := imports.ParseStoreVersion(versions[i].StoreVersion)
+		b, bok := imports.ParseStoreVersion(versions[j].StoreVersion)
+		if aok != bok {
+			return aok
+		}
+		if !aok {
+			return versions[i].ImportDate.After(versions[j].ImportDate)
+		}
+		return imports.CompareStoreVersions(a, b) > 0
+	})
+	return &versions[0].ID, nil
+}
+
 func versionDisplayName(v models.AssetVersion) string {
 	if v.VersionLabel != "" {
 		return v.VersionLabel
