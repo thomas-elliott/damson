@@ -401,7 +401,18 @@ func (h *Handler) patchAsset(c *gin.Context) {
 	})
 }
 
+func versionDisplayName(v models.AssetVersion) string {
+	if v.VersionLabel != "" {
+		return v.VersionLabel
+	}
+	if v.StoreVersion != "" {
+		return v.StoreVersion
+	}
+	return "unversioned"
+}
+
 type versionPatchRequest struct {
+	VersionLabel *string `json:"version_label,omitempty"`
 	StoreVersion *string `json:"store_version,omitempty"`
 	Notes        *string `json:"notes,omitempty"`
 }
@@ -450,7 +461,24 @@ func (h *Handler) patchAssetVersion(c *gin.Context) {
 		}
 		before := map[string]any{}
 		updates := map[string]any{}
+		if req.VersionLabel != nil {
+			label := strings.TrimSpace(*req.VersionLabel)
+			before["version_label"] = version.VersionLabel
+			version.VersionLabel = label
+			updates["version_label"] = label
+		}
 		if req.StoreVersion != nil {
+			if normStore != "" {
+				var dupes int64
+				if err := tx.Model(&models.AssetVersion{}).
+					Where("asset_id = ? AND store_version = ? AND id <> ?", asset.ID, normStore, version.ID).
+					Count(&dupes).Error; err != nil {
+					return err
+				}
+				if dupes > 0 {
+					return errConflictf("another version already has store version %s", normStore)
+				}
+			}
 			before["store_version"] = version.StoreVersion
 			version.StoreVersion = normStore
 			updates["store_version"] = normStore

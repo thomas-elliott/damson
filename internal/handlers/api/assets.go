@@ -363,7 +363,6 @@ func (h *Handler) postImport(c *gin.Context) {
 		}
 		version := models.AssetVersion{
 			AssetID:         asset.ID,
-			VersionLabel:    "v1",
 			StoreVersion:    storeVersion,
 			ImportDate:      time.Now().UTC(),
 			CreatedByUserID: &u.ID,
@@ -534,32 +533,18 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 
-	nextLabel, err := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-
 	var resp importResponse
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		version := models.AssetVersion{
-			AssetID:                  asset.ID,
-			VersionLabel:             nextLabel,
-			ImportDate:               time.Now().UTC(),
-			PackageKind:              packageKindUnityPackage,
-			OriginalPackageObjectKey: source.OriginalPackageObjectKey,
-			CreatedByUserID:          &u.ID,
-		}
-		if err := tx.Create(&version).Error; err != nil {
+		if err := tx.Where("asset_version_id = ?", source.ID).Delete(&models.AssetFile{}).Error; err != nil {
 			return err
 		}
 
-		fileCount, totalBytes, err := imports.WriteAssetFiles(tx, version.ID, "", 0, "", "", result)
+		fileCount, totalBytes, err := imports.WriteAssetFiles(tx, source.ID, "", 0, "", "", result)
 		if err != nil {
 			return err
 		}
 
-		asset.CurrentVersionID = &version.ID
+		asset.CurrentVersionID = &source.ID
 		if !asset.ThumbnailFromStore && result.ThumbObjectKey != "" {
 			asset.ThumbnailObjectKey = result.ThumbObjectKey
 			asset.ThumbnailContentType = result.ThumbContentType
@@ -570,10 +555,10 @@ func (h *Handler) postReExtract(c *gin.Context) {
 
 		resp = importResponse{
 			AssetID:        asset.ID,
-			AssetVersionID: version.ID,
+			AssetVersionID: source.ID,
 			FileCount:      fileCount,
 			SizeBytes:      totalBytes,
-			PackageKind:    version.PackageKind,
+			PackageKind:    source.PackageKind,
 		}
 		return nil
 	})
