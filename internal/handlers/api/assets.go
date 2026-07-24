@@ -444,6 +444,14 @@ func (h *Handler) postImport(c *gin.Context) {
 		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
 	}
 	if err != nil {
+		slog.Error("import: storage put failed",
+			"library_id", lib.ID,
+			"asset_id", assetID,
+			"version_id", versionID,
+			"import_id", importID,
+			"filename", filename,
+			"package_kind", packageKind,
+			"err", err)
 		if targetAssetID != 0 {
 			h.cleanupFailedVersionUpload(c.Request.Context(), versionID, importID)
 		} else {

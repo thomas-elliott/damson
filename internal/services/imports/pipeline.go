@@ -81,6 +81,13 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	}
 
 	fail := func(reason string) error {
+		slog.Error("imports: pipeline failed",
+			"import_id", jc.importID,
+			"asset_id", jc.asset.ID,
+			"library_id", jc.libraryID,
+			"package_kind", jc.version.PackageKind,
+			"object_key", jc.version.OriginalPackageObjectKey,
+			"reason", reason)
 		if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageFailed, reason); err != nil {
 			slog.Warn("imports: persist failure", "import_id", jc.importID, "err", err)
 		}

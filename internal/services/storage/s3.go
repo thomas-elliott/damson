@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"os"
 	"path"
@@ -184,7 +185,7 @@ func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta Obj
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(tmp, h), r)
 	if err != nil {
-		return "", 0, err
+		return "", 0, s.wrapS3("spool", prefix, err)
 	}
 	key := hex.EncodeToString(h.Sum(nil))
 	objectKey := prefix + "/" + shardedKey(key)
@@ -199,12 +200,12 @@ func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta Obj
 	}
 	var apiErr smithy.APIError
 	if !errors.As(err, &apiErr) || apiErr.ErrorCode() != "NotFound" {
-		return "", 0, err
+		return "", 0, s.wrapS3("head", objectKey, err)
 	}
 
 	// The hashing io.Copy left the offset at EOF; rewind before the upload.
 	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-		return "", 0, err
+		return "", 0, s.wrapS3("rewind", objectKey, err)
 	}
 	_, err = s.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:   &s.bucket,
@@ -213,9 +214,23 @@ func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta Obj
 		Metadata: metaToS3(meta),
 	})
 	if err != nil {
-		return "", 0, err
+		return "", 0, s.wrapS3("upload", objectKey, err)
 	}
 	return key, n, nil
+}
+
+func (s *S3) wrapS3(op, objectKey string, err error) error {
+	if err == nil {
+		return nil
+	}
+	code := ""
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code = apiErr.ErrorCode()
+	}
+	slog.Error("storage: s3 operation failed",
+		"op", op, "object_key", objectKey, "bucket", s.bucket, "aws_code", code, "err", err)
+	return fmt.Errorf("s3 %s (bucket %s, key %s, code %q): %w", op, s.bucket, objectKey, code, err)
 }
 
 // metaToS3 renders ObjectMeta as S3 user metadata. Keys are lowercase-hyphen
@@ -271,7 +286,7 @@ func (s *S3) get(ctx context.Context, key string) (io.ReadCloser, error) {
 		Key:    &key,
 	})
 	if err != nil {
-		return nil, err
+		return nil, s.wrapS3("get", key, err)
 	}
 	return out.Body, nil
 }
@@ -286,7 +301,7 @@ func (s *S3) head(ctx context.Context, key string) (int64, bool, error) {
 		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
 			return 0, false, nil
 		}
-		return 0, false, err
+		return 0, false, s.wrapS3("head", key, err)
 	}
 	if out.ContentLength == nil {
 		return 0, true, nil
