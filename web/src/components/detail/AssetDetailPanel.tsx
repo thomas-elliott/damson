@@ -3,6 +3,7 @@ import {
   Check,
   Download,
   FolderOpen,
+  GitMerge,
   Maximize2,
   Minimize2,
   Pencil,
@@ -53,6 +54,7 @@ import {
 } from "@/hooks/useMutations";
 
 import { LicenceEditor } from "./LicenceEditor";
+import { MergeDialog } from "./MergeDialog";
 import { MetadataActions } from "./MetadataActions";
 
 const WIDTH_KEY = "damson.detail.w";
@@ -230,6 +232,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   const [description, setDescription] = useState(asset.description);
   const [sourceURL, setSourceURL] = useState(asset.source_url);
   const [newTag, setNewTag] = useState("");
+  const [mergeOpen, setMergeOpen] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   const onSaveHeader = () => {
@@ -478,27 +481,42 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
 
       {/* Footer actions */}
       <div className="mt-2 flex items-center justify-between border-t border-line pt-3">
-        <Button
-          variant="danger"
-          leadingIcon={<Trash2 size={12} />}
-          onClick={async () => {
-            const ok = await confirm({
-              title: `Delete "${asset.name}"?`,
-              description: "This removes all versions and files.",
-              confirmLabel: "Delete asset",
-              tone: "danger",
-            });
-            if (ok) del.mutate(asset.id);
-          }}
-        >
-          Delete asset
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="danger"
+            leadingIcon={<Trash2 size={12} />}
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Delete "${asset.name}"?`,
+                description: "This removes all versions and files.",
+                confirmLabel: "Delete asset",
+                tone: "danger",
+              });
+              if (ok) del.mutate(asset.id);
+            }}
+          >
+            Delete asset
+          </Button>
+          <Button
+            variant="ghost"
+            leadingIcon={<GitMerge size={12} />}
+            onClick={() => setMergeOpen(true)}
+          >
+            Merge…
+          </Button>
+        </div>
         {editingName && (
           <Button variant="primary" onClick={onSaveHeader}>
             Save
           </Button>
         )}
       </div>
+      <MergeDialog
+        targetId={asset.id}
+        targetName={asset.name}
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+      />
       {confirmDialog}
     </div>
   );
