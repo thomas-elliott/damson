@@ -267,8 +267,14 @@ func (h *Handler) getAssets(c *gin.Context) {
 // learns about it via SSE on /api/imports/events or by re-fetching the
 // asset.
 type importEnqueueResponse struct {
-	AssetID  uint `json:"asset_id"`
-	ImportID uint `json:"import_id"`
+	AssetID        uint             `json:"asset_id"`
+	ImportID       uint             `json:"import_id"`
+	SuggestedMatch *matchSuggestion `json:"suggested_match,omitempty"`
+}
+
+type matchSuggestion struct {
+	AssetID uint   `json:"asset_id"`
+	Name    string `json:"name"`
 }
 
 // importResponse is the wire shape returned by /reextract — that flow stays
@@ -475,7 +481,14 @@ func (h *Handler) postImport(c *gin.Context) {
 
 	h.importPool.Enqueue(imports.Job{ImportID: importID, LibraryID: libID})
 
-	c.JSON(http.StatusAccepted, importEnqueueResponse{AssetID: assetID, ImportID: importID})
+	resp := importEnqueueResponse{AssetID: assetID, ImportID: importID}
+	if targetAssetID == 0 {
+		name, _ := imports.ParseImportFilename(filename)
+		if m, merr := imports.MatchAssetByName(h.db.WithContext(c.Request.Context()), libID, assetID, name); merr == nil && m != nil {
+			resp.SuggestedMatch = &matchSuggestion{AssetID: m.ID, Name: m.Name}
+		}
+	}
+	c.JSON(http.StatusAccepted, resp)
 }
 
 // cleanupFailedUpload removes the asset/version/import rows created for an
