@@ -19,6 +19,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 )
 
 type assetGridRow struct {
@@ -157,7 +158,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 			Where("atf.tag_id = ?", *f.TagID)
 	} else if f.TagPath != "" {
 		// Match tag + descendants.
-		path := normaliseTagPath(f.TagPath)
+		path := tags.NormalisePath(f.TagPath)
 		q = q.Joins("JOIN asset_tags atf ON atf.asset_id = a.id").
 			Joins("JOIN tags tf ON tf.id = atf.tag_id").
 			Where("tf.library_id = ? AND (tf.path = ? OR tf.path LIKE ?)", libID, path, path+"/%")

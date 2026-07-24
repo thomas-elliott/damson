@@ -18,6 +18,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
@@ -402,6 +403,10 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 
 	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, meta.ImageURLs)
 
+	if h.attachMetadataTags(ctx, libID, asset.ID, userID, meta.Tags) {
+		applied = append(applied, "tags")
+	}
+
 	if len(auditAfter) > 0 {
 		h.auditMetadata(c, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)
 	}
@@ -548,6 +553,31 @@ func (h *Handler) persistSourceRecord(c *gin.Context, asset *models.Asset, rec m
 		return
 	}
 	asset.SourceMetadataJSON = blob
+}
+
+// attachMetadataTags adds every fetched tag to the asset, create-or-reusing
+// each by path. Tags are additive (never removed by a re-fetch); returns true
+// when at least one new link was made so the caller can report "tags" applied.
+func (h *Handler) attachMetadataTags(ctx context.Context, libID, assetID, userID uint, tagList []string) bool {
+	if len(tagList) == 0 {
+		return false
+	}
+	linked := false
+	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, t := range tagList {
+			_, added, err := tags.Attach(tx, libID, &userID, assetID, t)
+			if err != nil {
+				return err
+			}
+			linked = linked || added
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Warn("metadata: attach tags", "err", err, "asset_id", assetID)
+		return false
+	}
+	return linked
 }
 
 func (h *Handler) auditMetadata(c *gin.Context, libID, assetID, userID uint, action string, before, after map[string]any) {
