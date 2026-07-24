@@ -3,6 +3,7 @@ import {
   Check,
   Download,
   FolderOpen,
+  GitMerge,
   Maximize2,
   Minimize2,
   Pencil,
@@ -41,6 +42,7 @@ import {
 import {
   useAddAssetTag,
   useDeleteAsset,
+  useDeleteVersion,
   usePatchAsset,
   usePatchVersion,
   useReExtractVersion,
@@ -52,6 +54,7 @@ import {
 } from "@/hooks/useMutations";
 
 import { LicenceEditor } from "./LicenceEditor";
+import { MergeDialog } from "./MergeDialog";
 import { MetadataActions } from "./MetadataActions";
 
 const WIDTH_KEY = "damson.detail.w";
@@ -229,6 +232,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   const [description, setDescription] = useState(asset.description);
   const [sourceURL, setSourceURL] = useState(asset.source_url);
   const [newTag, setNewTag] = useState("");
+  const [mergeOpen, setMergeOpen] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   const onSaveHeader = () => {
@@ -477,79 +481,148 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
 
       {/* Footer actions */}
       <div className="mt-2 flex items-center justify-between border-t border-line pt-3">
-        <Button
-          variant="danger"
-          leadingIcon={<Trash2 size={12} />}
-          onClick={async () => {
-            const ok = await confirm({
-              title: `Delete "${asset.name}"?`,
-              description: "This removes all versions and files.",
-              confirmLabel: "Delete asset",
-              tone: "danger",
-            });
-            if (ok) del.mutate(asset.id);
-          }}
-        >
-          Delete asset
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="danger"
+            leadingIcon={<Trash2 size={12} />}
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Delete "${asset.name}"?`,
+                description: "This removes all versions and files.",
+                confirmLabel: "Delete asset",
+                tone: "danger",
+              });
+              if (ok) del.mutate(asset.id);
+            }}
+          >
+            Delete asset
+          </Button>
+          <Button
+            variant="ghost"
+            leadingIcon={<GitMerge size={12} />}
+            onClick={() => setMergeOpen(true)}
+          >
+            Merge…
+          </Button>
+        </div>
         {editingName && (
           <Button variant="primary" onClick={onSaveHeader}>
             Save
           </Button>
         )}
       </div>
+      <MergeDialog
+        targetId={asset.id}
+        targetName={asset.name}
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+      />
       {confirmDialog}
     </div>
   );
 }
 
-function GalleryThumb({ image }: { image: AssetImageView }) {
+function GalleryThumb({ image, onOpen }: { image: AssetImageView; onOpen: () => void }) {
   const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="block h-16 w-24 shrink-0 overflow-hidden rounded-md border border-line bg-surface"
-      aria-label="Open preview image"
+    <button
+      type="button"
+      onClick={onOpen}
+      className="block h-16 w-24 shrink-0 cursor-zoom-in overflow-hidden rounded-md border border-line bg-surface"
+      aria-label="Enlarge preview image"
     >
       {url ? (
         <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
       ) : (
         <div className="h-full w-full animate-pulse bg-surface-2" />
       )}
-    </a>
+    </button>
+  );
+}
+
+function GalleryLightbox({ image, onClose }: { image: AssetImageView; onClose: () => void }) {
+  const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Preview image"
+      onClick={onClose}
+      style={{ zIndex: "var(--z-index-dialog)" }}
+      className="fixed inset-0 flex items-center justify-center bg-black/80 p-6"
+    >
+      <IconButton
+        aria-label="Close preview"
+        onClick={onClose}
+        className="absolute right-4 top-4 text-white"
+      >
+        <X size={18} />
+      </IconButton>
+      {url && (
+        <img
+          src={url}
+          alt=""
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-full max-w-full rounded-md object-contain"
+        />
+      )}
+    </div>
   );
 }
 
 function GalleryStrip({ images }: { images: AssetImageView[] }) {
+  const [openId, setOpenId] = useState<number | null>(null);
   if (images.length === 0) return null;
+  const open = images.find((img) => img.id === openId) ?? null;
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1">
-      {images.map((img) => (
-        <GalleryThumb key={img.id} image={img} />
-      ))}
-    </div>
+    <>
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {images.map((img) => (
+          <GalleryThumb key={img.id} image={img} onOpen={() => setOpenId(img.id)} />
+        ))}
+      </div>
+      {open && <GalleryLightbox image={open} onClose={() => setOpenId(null)} />}
+    </>
   );
 }
 
 function VersionRow({ assetId, version }: { assetId: number; version: AssetVersionView }) {
   const patch = usePatchVersion();
+  const del = useDeleteVersion();
+  const { confirm, dialog } = useConfirm();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(version.store_version);
+  const [store, setStore] = useState(version.store_version);
+  const [label, setLabel] = useState(version.version_label);
 
   const onSave = () => {
     patch.mutate(
-      { assetId, versionId: version.id, store_version: value.trim() },
+      { assetId, versionId: version.id, store_version: store.trim(), version_label: label.trim() },
       { onSuccess: () => setEditing(false) },
     );
+  };
+
+  const onDelete = async () => {
+    const ok = await confirm({
+      title: "Delete this version?",
+      description: "Its files are removed. A pinned version can't be deleted.",
+      confirmLabel: "Delete version",
+      tone: "danger",
+    });
+    if (ok) del.mutate({ assetId, versionId: version.id });
   };
 
   const editAction = editing ? (
     <span className="flex items-center gap-1">
       <Input
-        value={value}
-        onChange={(e) => setValue(e.currentTarget.value)}
+        value={store}
+        onChange={(e) => setStore(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") onSave();
           if (e.key === "Escape") setEditing(false);
@@ -557,9 +630,20 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
         placeholder="1.1"
         aria-label="Store version"
         autoFocus
+        className="h-6 w-16 text-small"
+      />
+      <Input
+        value={label}
+        onChange={(e) => setLabel(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSave();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        placeholder="label"
+        aria-label="Version label"
         className="h-6 w-20 text-small"
       />
-      <IconButton aria-label="Save store version" onClick={onSave} disabled={patch.isPending}>
+      <IconButton aria-label="Save version" onClick={onSave} disabled={patch.isPending}>
         <Check size={12} />
       </IconButton>
       <IconButton aria-label="Cancel edit" onClick={() => setEditing(false)}>
@@ -567,28 +651,42 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
       </IconButton>
     </span>
   ) : (
-    <IconButton
-      aria-label="Edit store version"
-      title="Edit store version"
-      onClick={() => {
-        setValue(version.store_version);
-        setEditing(true);
-      }}
-    >
-      <Pencil size={12} />
-    </IconButton>
+    <span className="flex items-center gap-1">
+      <IconButton
+        aria-label="Edit version"
+        title="Edit store version and label"
+        onClick={() => {
+          setStore(version.store_version);
+          setLabel(version.version_label);
+          setEditing(true);
+        }}
+      >
+        <Pencil size={12} />
+      </IconButton>
+      <IconButton
+        aria-label="Delete version"
+        title="Delete this version"
+        onClick={onDelete}
+        disabled={del.isPending}
+      >
+        <Trash2 size={12} />
+      </IconButton>
+    </span>
   );
 
   return (
-    <VersionItem
-      version={version.version_label}
-      storeVersion={version.store_version || undefined}
-      date={new Date(version.import_date).toLocaleDateString()}
-      meta={`${version.file_count} files · ${formatBytes(version.size_bytes)}`}
-      current={version.is_current}
-      notes={version.notes || undefined}
-      action={editAction}
-    />
+    <>
+      <VersionItem
+        version={version.version_label || version.store_version || "unversioned"}
+        storeVersion={version.store_version || undefined}
+        date={new Date(version.import_date).toLocaleDateString()}
+        meta={`${version.file_count} files · ${formatBytes(version.size_bytes)}`}
+        current={version.is_current}
+        notes={version.notes || undefined}
+        action={editAction}
+      />
+      {dialog}
+    </>
   );
 }
 

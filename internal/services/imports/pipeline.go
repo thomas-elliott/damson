@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -40,6 +39,7 @@ type jobContext struct {
 	version   models.AssetVersion
 	libraryID uint
 	isUnity   bool
+	isArchive bool
 }
 
 // Run executes the import pipeline for one job. The asset, version, and
@@ -82,6 +82,13 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	}
 
 	fail := func(reason string) error {
+		slog.Error("imports: pipeline failed",
+			"import_id", jc.importID,
+			"asset_id", jc.asset.ID,
+			"library_id", jc.libraryID,
+			"package_kind", jc.version.PackageKind,
+			"object_key", jc.version.OriginalPackageObjectKey,
+			"reason", reason)
 		if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageFailed, reason); err != nil {
 			slog.Warn("imports: persist failure", "import_id", jc.importID, "err", err)
 		}
@@ -104,21 +111,39 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	}
 
 	var extracted *extract.UnityResult
-	if jc.isUnity {
+	if jc.isArchive {
 		blob, gerr := OpenOriginal(ctx, deps.Storage, jc.version)
 		if gerr != nil {
 			return fail("fetch blob: " + gerr.Error())
 		}
-		ex := &extract.UnityExtractor{
-			Storage: deps.Storage,
-			EntryMeta: storage.ObjectMeta{
-				LibraryID: jc.libraryID,
-				AssetID:   jc.asset.ID,
-				VersionID: jc.version.ID,
-				Kind:      "unitypackage-asset",
-			},
+		var (
+			res  *extract.UnityResult
+			xerr error
+		)
+		switch jc.version.PackageKind {
+		case "zip":
+			ex := &extract.ZipExtractor{
+				Storage: deps.Storage,
+				EntryMeta: storage.ObjectMeta{
+					LibraryID: jc.libraryID,
+					AssetID:   jc.asset.ID,
+					VersionID: jc.version.ID,
+					Kind:      "zip-asset",
+				},
+			}
+			res, xerr = ex.Extract(ctx, blob)
+		default:
+			ex := &extract.UnityExtractor{
+				Storage: deps.Storage,
+				EntryMeta: storage.ObjectMeta{
+					LibraryID: jc.libraryID,
+					AssetID:   jc.asset.ID,
+					VersionID: jc.version.ID,
+					Kind:      "unitypackage-asset",
+				},
+			}
+			res, xerr = ex.Extract(ctx, blob)
 		}
-		res, xerr := ex.Extract(ctx, blob)
 		blob.Close()
 		if xerr != nil {
 			return fail("extract: " + xerr.Error())
@@ -143,7 +168,10 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		settings, sErr := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
 		if sErr != nil {
 			slog.Warn("imports: load settings", "err", sErr, "library_id", jc.libraryID)
-		} else if !jc.isUnity || settings.ThumbnailsUnityPreview {
+			// Loose files thumbnail from the original; zip relies on its
+			// extractor cover (its raw bytes aren't a thumbnailable image), and
+			// unitypackage only when the library opts in.
+		} else if !jc.isArchive || (jc.isUnity && settings.ThumbnailsUnityPreview) {
 			toggles := thumbnail.Toggles{
 				Raster: settings.ThumbnailsRasterEnabled,
 				Audio:  settings.ThumbnailsAudioEnabled,
@@ -172,7 +200,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	}
 
 	err = deps.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if jc.isUnity {
+		if extracted != nil {
 			// Idempotency: clear any existing files (e.g. a resumed run)
 			// before re-writing so the (asset_version_id, relative_path)
 			// unique index doesn't trip.
@@ -227,7 +255,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 
 	// Purge only after the import is marked done: a crash before Done would let
 	// ResumeInFlight re-run extraction against an archive we already deleted.
-	if jc.isUnity {
+	if jc.isArchive {
 		maybePurgeOriginal(ctx, deps, jc)
 	}
 	return nil
@@ -315,6 +343,7 @@ func loadJobContext(db *gorm.DB, importID uint) (jobContext, error) {
 		version:   version,
 		libraryID: asset.LibraryID,
 		isUnity:   version.PackageKind == "unitypackage",
+		isArchive: isArchiveKind(version.PackageKind),
 	}, nil
 }
 
@@ -401,17 +430,6 @@ func WriteAssetFiles(tx *gorm.DB, versionID uint, looseObjectKey string, looseSi
 		return 0, 0, err
 	}
 	return len(rows), total, nil
-}
-
-// NextVersionLabel returns the next `v<N>` label for an asset by counting
-// existing versions. Pulled out of the api package so the retry handler
-// and the pipeline can both call it.
-func NextVersionLabel(db *gorm.DB, assetID uint) (string, error) {
-	var n int64
-	if err := db.Model(&models.AssetVersion{}).Where("asset_id = ?", assetID).Count(&n).Error; err != nil {
-		return "", err
-	}
-	return "v" + strconv.FormatInt(n+1, 10), nil
 }
 
 // loadOrCreateLibrarySettings is the pipeline-local mirror of the api

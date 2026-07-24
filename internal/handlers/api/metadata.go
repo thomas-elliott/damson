@@ -18,6 +18,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
@@ -41,6 +42,7 @@ type metadataView struct {
 	LicenceHint string   `json:"licence_hint,omitempty"`
 	CoverURL    string   `json:"cover_url,omitempty"`
 	ImageURLs   []string `json:"image_urls,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 	Store       string   `json:"store,omitempty"`
 	ListingURL  string   `json:"listing_url,omitempty"`
 }
@@ -62,6 +64,7 @@ func metadataViewFrom(m *metadata.Metadata) *metadataView {
 		LicenceHint: hint,
 		CoverURL:    m.CoverURL,
 		ImageURLs:   m.ImageURLs,
+		Tags:        m.Tags,
 		Store:       m.Store,
 		ListingURL:  m.ListingURL,
 	}
@@ -225,9 +228,120 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 	})
 }
 
+type galleryBackfillResponse struct {
+	Stored int `json:"stored"`
+	Total  int `json:"total"`
+}
+
+// postAssetGalleryBackfill re-runs gallery image storage for an asset from its
+// already-persisted source metadata, so assets enriched before the gallery
+// existed get their images without a fresh storefront lookup. Idempotent:
+// StoreGalleryImages skips source URLs already stored.
+func (h *Handler) postAssetGalleryBackfill(c *gin.Context) {
+	if h.metadata == nil {
+		respond503(c, "metadata service not configured")
+		return
+	}
+	if h.storage == nil {
+		respond500(c, errStorageNotConfigured)
+		return
+	}
+	lib := getLibrary(c)
+	if lib == nil {
+		respond500(c, errRequestContextIncomplete)
+		return
+	}
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var asset models.Asset
+	if err := h.db.WithContext(c.Request.Context()).
+		Where("id = ? AND library_id = ?", id, lib.ID).First(&asset).Error; err != nil {
+		respondGORM(c, err, "asset not found")
+		return
+	}
+	if len(asset.SourceMetadataJSON) == 0 {
+		respond409(c, "no fetched metadata to backfill from; fetch first")
+		return
+	}
+	var rec metadata.SourceRecord
+	if err := json.Unmarshal(asset.SourceMetadataJSON, &rec); err != nil || rec.Metadata == nil {
+		respond409(c, "stored metadata is unreadable; fetch again")
+		return
+	}
+
+	ctx := c.Request.Context()
+	before := h.countAssetImages(ctx, asset.ID)
+	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, rec.Metadata.ImageURLs)
+	after := h.countAssetImages(ctx, asset.ID)
+
+	c.JSON(http.StatusOK, galleryBackfillResponse{Stored: after - before, Total: after})
+}
+
+func (h *Handler) countAssetImages(ctx context.Context, assetID uint) int {
+	var n int64
+	h.db.WithContext(ctx).Model(&models.AssetImage{}).Where("asset_id = ?", assetID).Count(&n)
+	return int(n)
+}
+
 type metadataSearchResponse struct {
 	Query      string          `json:"query"`
 	Candidates []candidateView `json:"candidates"`
+}
+
+func (h *Handler) getMetadataPreview(c *gin.Context) {
+	if h.metadata == nil {
+		respond503(c, "metadata service not configured")
+		return
+	}
+	raw := strings.TrimSpace(c.Query("url"))
+	if raw == "" {
+		respond400(c, asError("url is required"))
+		return
+	}
+	cleaned, err := validateSourceURL(raw)
+	if err != nil {
+		respond400(c, err)
+		return
+	}
+	meta, err := h.metadata.Fetch(c.Request.Context(), cleaned)
+	if err != nil {
+		slog.Warn("metadata preview failed", "url", cleaned, "err", err)
+		respond502(c, "could not fetch listing")
+		return
+	}
+	c.JSON(http.StatusOK, metadataViewFrom(meta))
+}
+
+func (h *Handler) getMetadataImage(c *gin.Context) {
+	if h.metadata == nil {
+		respond503(c, "metadata service not configured")
+		return
+	}
+	raw := strings.TrimSpace(c.Query("url"))
+	if raw == "" {
+		respond400(c, asError("url is required"))
+		return
+	}
+	cleaned, err := validateSourceURL(raw)
+	if err != nil {
+		respond400(c, err)
+		return
+	}
+	data, contentType, err := h.metadata.FetchImage(c.Request.Context(), cleaned)
+	if err != nil {
+		slog.Warn("metadata image proxy failed", "url", cleaned, "err", err)
+		respond502(c, "could not fetch image")
+		return
+	}
+	if !strings.HasPrefix(contentType, "image/") {
+		slog.Warn("metadata image proxy: non-image response", "url", cleaned, "content_type", contentType)
+		respond502(c, "not an image")
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=86400")
+	c.Data(http.StatusOK, contentType, data)
 }
 
 // getMetadataSearch fans out a name search across the storefront adapters and
@@ -402,6 +516,10 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 
 	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, meta.ImageURLs)
 
+	if h.attachMetadataTags(ctx, libID, asset.ID, userID, meta.Tags) {
+		applied = append(applied, "tags")
+	}
+
 	if len(auditAfter) > 0 {
 		h.auditMetadata(c, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)
 	}
@@ -548,6 +666,31 @@ func (h *Handler) persistSourceRecord(c *gin.Context, asset *models.Asset, rec m
 		return
 	}
 	asset.SourceMetadataJSON = blob
+}
+
+// attachMetadataTags adds every fetched tag to the asset, create-or-reusing
+// each by path. Tags are additive (never removed by a re-fetch); returns true
+// when at least one new link was made so the caller can report "tags" applied.
+func (h *Handler) attachMetadataTags(ctx context.Context, libID, assetID, userID uint, tagList []string) bool {
+	if len(tagList) == 0 {
+		return false
+	}
+	linked := false
+	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, t := range tagList {
+			_, added, err := tags.Attach(tx, libID, &userID, assetID, t)
+			if err != nil {
+				return err
+			}
+			linked = linked || added
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Warn("metadata: attach tags", "err", err, "asset_id", assetID)
+		return false
+	}
+	return linked
 }
 
 func (h *Handler) auditMetadata(c *gin.Context, libID, assetID, userID uint, action string, before, after map[string]any) {

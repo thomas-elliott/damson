@@ -10,6 +10,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 )
 
 type tagView struct {
@@ -65,7 +66,7 @@ func (h *Handler) postTag(c *gin.Context) {
 		respond400(c, err)
 		return
 	}
-	path := normaliseTagPath(req.Path)
+	path := tags.NormalisePath(req.Path)
 	if path == "" {
 		respond400(c, asError("path must contain at least one segment"))
 		return
@@ -182,46 +183,18 @@ func (h *Handler) postAssetTag(c *gin.Context) {
 				return err
 			}
 			tagID = t.ID
-		} else {
-			path := normaliseTagPath(req.Path)
-			if path == "" {
-				return errBadRequestf("tag_id or path required (or path exceeds %d bytes)", maxTagPathLength)
-			}
-			// Reuse if present, else create with ancestors.
-			segs := strings.Split(path, "/")
-			var parentID *uint
-			for i := range segs {
-				sub := strings.Join(segs[:i+1], "/")
-				var t models.Tag
-				err := tx.Where("library_id = ? AND path = ?", lib.ID, sub).First(&t).Error
-				if err != nil && !isNotFound(err) {
-					return err
-				}
-				if isNotFound(err) {
-					t = models.Tag{LibraryID: lib.ID, Path: sub, ParentID: parentID}
-					if err := tx.Create(&t).Error; err != nil {
-						return err
-					}
-				}
-				tagID = t.ID
-				parentID = &t.ID
-			}
-		}
-		link := models.AssetTag{AssetID: asset.ID, TagID: tagID}
-		// Idempotent: INSERT ... ON CONFLICT DO NOTHING via FirstOrCreate.
-		if err := tx.Where("asset_id = ? AND tag_id = ?", asset.ID, tagID).
-			Attrs(&link).
-			FirstOrCreate(&link).Error; err != nil {
+			_, err := tags.LinkTag(tx, lib.ID, &u.ID, asset.ID, tagID)
 			return err
 		}
-		return audit.Write(tx, audit.Entry{
-			LibraryID:  &lib.ID,
-			UserID:     &u.ID,
-			ActionType: "asset.tag",
-			TargetType: "asset",
-			TargetID:   &asset.ID,
-			Diff:       audit.Created(map[string]any{"tag_id": tagID}),
-		})
+		id, _, err := tags.Attach(tx, lib.ID, &u.ID, asset.ID, req.Path)
+		if err != nil {
+			return err
+		}
+		if id == 0 {
+			return errBadRequestf("tag_id or path required (or path exceeds %d bytes)", tags.MaxPathLength)
+		}
+		tagID = id
+		return nil
 	})
 	if err != nil {
 		respondGORM(c, err, "asset or tag not found")
@@ -273,36 +246,4 @@ func (h *Handler) deleteAssetTag(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
-}
-
-// maxTagPathLength caps the byte length of a normalised tag path. Generous
-// enough to fit any legitimate hierarchy; tight enough that a malicious
-// caller can't paste megabytes into the column.
-const maxTagPathLength = 1024
-
-// normaliseTagPath trims whitespace, lowercases, collapses multiple slashes,
-// strips leading/trailing slashes. Returns "" when the result exceeds
-// maxTagPathLength so callers surface a 400.
-func normaliseTagPath(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = strings.ReplaceAll(s, "\\", "/")
-	// Collapse repeated slashes + trim ends.
-	for strings.Contains(s, "//") {
-		s = strings.ReplaceAll(s, "//", "/")
-	}
-	s = strings.Trim(s, "/")
-	// Trim each segment, drop empties.
-	parts := strings.Split(s, "/")
-	out := parts[:0]
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	joined := strings.Join(out, "/")
-	if len(joined) > maxTagPathLength {
-		return ""
-	}
-	return joined
 }

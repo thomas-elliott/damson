@@ -68,9 +68,26 @@ const (
 	defaultMaxTotalBytes = 8 << 30 // 8 GiB per package
 	defaultMaxEntries    = 200_000
 	previewContentType   = "image/png"
+	// maxPreviewBuffer caps the total bytes of preview.png sidecars held in
+	// memory while choosing a cover. Real Unity previews are small (tens of
+	// KiB), so this is a safety valve, not a normal limit.
+	maxPreviewBuffer = 64 << 20 // 64 MiB
 )
 
 var guidPrefix = regexp.MustCompile(`^([0-9a-f]{32})(?:/|$)`)
+
+// imageExts are the asset extensions whose embedded preview.png is a real
+// picture worth using as the pack cover, rather than a mesh/audio/script icon
+// or a video frame.
+var imageExts = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".bmp": true,
+	".webp": true, ".tiff": true, ".tif": true, ".tga": true, ".psd": true,
+	".exr": true, ".hdr": true,
+}
+
+func isImagePathname(p string) bool {
+	return imageExts[strings.ToLower(path.Ext(p))]
+}
 
 // Extract streams r (a .unitypackage — either a gzipped tar or a plain tar)
 // and produces a UnityResult. The format is detected from the first two
@@ -141,10 +158,12 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 	}
 
 	var (
-		result      UnityResult
-		totalBytes  int64
-		entries     int
-		previewSeen bool
+		result       UnityResult
+		totalBytes   int64
+		entries      int
+		previewData  = map[string][]byte{}
+		previewOrder []string
+		previewBytes int64
 	)
 
 	for {
@@ -210,8 +229,9 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 			get(guid).pathname = p
 
 		case "preview.png":
-			if previewSeen {
-				// First preview wins; drain & continue.
+			if _, dup := previewData[guid]; dup || previewBytes >= maxPreviewBuffer {
+				// Already have this GUID's preview, or the buffer is full;
+				// drain & continue.
 				if _, derr := io.Copy(io.Discard, io.LimitReader(tr, 1<<20)); derr != nil {
 					return nil, fmt.Errorf("drain preview: %w", derr)
 				}
@@ -221,18 +241,38 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 			if rerr != nil {
 				return nil, fmt.Errorf("read preview %s: %w", hdr.Name, rerr)
 			}
-			sum := sha256.Sum256(data)
-			key := hex.EncodeToString(sum[:])
-			if perr := e.Storage.PutThumb(ctx, key, bytes.NewReader(data)); perr != nil {
-				return nil, fmt.Errorf("put thumb: %w", perr)
-			}
-			result.ThumbObjectKey = key
-			result.ThumbContentType = previewContentType
-			previewSeen = true
+			previewData[guid] = data
+			previewOrder = append(previewOrder, guid)
+			previewBytes += int64(len(data))
 
 		default:
 			// `asset.meta` and anything else is ignored for v1.
 		}
+	}
+
+	// Choose the cover preview: prefer the first (tar-order) preview whose
+	// bundle is an actual image asset, so the pack thumbnail isn't a mesh /
+	// audio / script icon or a video frame. Fall back to the first preview
+	// seen when no image-asset preview exists.
+	cover := ""
+	for _, g := range previewOrder {
+		if b, ok := bundles[g]; ok && isImagePathname(b.pathname) {
+			cover = g
+			break
+		}
+	}
+	if cover == "" && len(previewOrder) > 0 {
+		cover = previewOrder[0]
+	}
+	if cover != "" {
+		data := previewData[cover]
+		sum := sha256.Sum256(data)
+		key := hex.EncodeToString(sum[:])
+		if perr := e.Storage.PutThumb(ctx, key, bytes.NewReader(data)); perr != nil {
+			return nil, fmt.Errorf("put thumb: %w", perr)
+		}
+		result.ThumbObjectKey = key
+		result.ThumbContentType = previewContentType
 	}
 
 	// Assemble files from bundles that have both a pathname and content.
@@ -291,6 +331,10 @@ func cleanUnityPath(raw string) (string, error) {
 	if i := strings.IndexAny(raw, "\r\n"); i >= 0 {
 		raw = raw[:i]
 	}
+	return cleanRelPath(raw)
+}
+
+func cleanRelPath(raw string) (string, error) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
 		return "", errors.New("empty pathname")

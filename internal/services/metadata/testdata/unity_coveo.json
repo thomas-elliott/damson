@@ -10,7 +10,9 @@
         "publisher_name": "JustCreate",
         "ec_price": 0.0,
         "ec_product_id": ["162153"],
-        "ec_thumbnails": "https://assetstorev1-prd-cdn.unity3d.com/key-image/abc.jpg"
+        "ec_thumbnails": "https://assetstorev1-prd-cdn.unity3d.com/key-image/abc.jpg",
+        "ec_category": "Environments",
+        "keywords": ["Nature", "Low Poly", "nature"]
       }
     }
   ]

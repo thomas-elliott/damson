@@ -3,13 +3,18 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UploadAbortedError } from "@/api";
+import { ApiError, UploadAbortedError } from "@/api";
 import { NotificationProvider, useNotifications } from "./NotificationProvider";
 
 const uploadFileMock = vi.fn();
+const fetchMaybeJsonMock = vi.fn();
 vi.mock("@/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api")>();
-  return { ...actual, uploadFile: (...args: unknown[]) => uploadFileMock(...args) };
+  return {
+    ...actual,
+    uploadFile: (...args: unknown[]) => uploadFileMock(...args),
+    fetchMaybeJson: (...args: unknown[]) => fetchMaybeJsonMock(...args),
+  };
 });
 
 const STORAGE_KEY = "damson.notifications";
@@ -31,6 +36,8 @@ describe("NotificationProvider", () => {
   beforeEach(() => {
     localStorage.clear();
     uploadFileMock.mockReset();
+    fetchMaybeJsonMock.mockReset();
+    fetchMaybeJsonMock.mockResolvedValue(null);
   });
   afterEach(() => vi.clearAllMocks());
 
@@ -49,6 +56,65 @@ describe("NotificationProvider", () => {
       read: false,
     });
     expect(result.current.unreadCount).toBe(1);
+  });
+
+  it("offers to add a matched upload as a version, then consolidates on accept", async () => {
+    uploadFileMock
+      .mockResolvedValueOnce({
+        asset_id: 5,
+        suggested_match: { asset_id: 2, name: "Weapon System" },
+      })
+      .mockResolvedValueOnce({ asset_id: 2 });
+    const { result } = render();
+
+    act(() => result.current.startUpload([file()]));
+    await waitFor(() => expect(result.current.notifications).toHaveLength(2));
+
+    const prompt = result.current.notifications.find((n) => n.action);
+    expect(prompt?.action?.label).toBe("Add as version");
+
+    act(() => result.current.runAction(prompt!.id));
+    await waitFor(() => expect(uploadFileMock).toHaveBeenCalledTimes(2));
+    // Re-post the same file attached to the matched asset (asset_id is the 5th arg).
+    expect(uploadFileMock.mock.calls[1][4]).toBe(2);
+    // The standalone asset the first upload created is removed.
+    await waitFor(() =>
+      expect(fetchMaybeJsonMock).toHaveBeenCalledWith(
+        "/api/assets/5",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+
+  it("does not offer a version prompt when the upload has no match", async () => {
+    uploadFileMock.mockResolvedValue({ asset_id: 5 });
+    const { result } = render();
+
+    act(() => result.current.startUpload([file()]));
+    await waitFor(() => expect(result.current.notifications).toHaveLength(1));
+
+    expect(result.current.notifications.some((n) => n.action)).toBe(false);
+  });
+
+  it("surfaces a duplicate-version 409 on accept and keeps the standalone asset", async () => {
+    uploadFileMock
+      .mockResolvedValueOnce({
+        asset_id: 5,
+        suggested_match: { asset_id: 2, name: "Weapon System" },
+      })
+      .mockRejectedValueOnce(new ApiError(409, {}, "this asset already has store version 1.3"));
+    const { result } = render();
+
+    act(() => result.current.startUpload([file()]));
+    await waitFor(() => expect(result.current.notifications).toHaveLength(2));
+
+    const prompt = result.current.notifications.find((n) => n.action)!;
+    act(() => result.current.runAction(prompt.id));
+
+    await waitFor(() =>
+      expect(result.current.notifications.some((n) => n.tone === "warn")).toBe(true),
+    );
+    expect(fetchMaybeJsonMock).not.toHaveBeenCalled();
   });
 
   it("removes a cancelled upload silently — no notification", async () => {

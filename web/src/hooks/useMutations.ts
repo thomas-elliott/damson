@@ -1,7 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson, fetchMaybeJson } from "@/api";
-import type { Me, MetadataFetchResponse, MetadataSearchResponse } from "@/hooks/useDataQueries";
+import type {
+  Me,
+  MetadataFetchResponse,
+  MetadataSearchResponse,
+  MetadataView,
+} from "@/hooks/useDataQueries";
 import { queryKeys } from "@/lib/queryKeys";
 
 // usePatchMe writes the current user's own profile (email + optional display
@@ -49,6 +54,7 @@ export function usePatchVersion() {
     mutationFn: async (input: {
       assetId: number;
       versionId: number;
+      version_label?: string;
       store_version?: string;
       notes?: string;
     }) => {
@@ -65,6 +71,48 @@ export function usePatchVersion() {
   });
 }
 
+export function useDeleteVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { assetId: number; versionId: number }) => {
+      await fetchMaybeJson(`/api/assets/${input.assetId}/versions/${input.versionId}`, {
+        method: "DELETE",
+      });
+      return input;
+    },
+    onSuccess: (v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.assetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
+  });
+}
+
+export interface MergeResponse {
+  target_asset_id: number;
+  merged_versions: number;
+  adoptable: {
+    name?: string;
+    description?: string;
+    thumbnail_object_key?: string;
+    thumbnail_content_type?: string;
+  };
+}
+
+export function useMergeAssets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { targetId: number; source_asset_id: number }) =>
+      fetchJson<MergeResponse>(`/api/assets/${input.targetId}/merge`, {
+        method: "POST",
+        body: JSON.stringify({ source_asset_id: input.source_asset_id }),
+      }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(v.targetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
+  });
+}
+
 export function useDeleteAsset() {
   const qc = useQueryClient();
   return useMutation({
@@ -74,6 +122,36 @@ export function useDeleteAsset() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
+  });
+}
+
+export type BulkAssetAction =
+  | { action: "delete" }
+  | { action: "review" }
+  | { action: "unreview" }
+  | { action: "add_tag"; path: string }
+  | { action: "remove_tag"; path: string }
+  | { action: "add_to_collection"; collection_id: number }
+  | {
+      action: "set_licence";
+      original_text: string;
+      use_detected?: boolean;
+      detected_type?: string;
+    };
+
+export function useBulkAssets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { asset_ids: number[] } & BulkAssetAction) =>
+      fetchJson<{ affected: number }>(`/api/assets/bulk`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.tags });
+      qc.invalidateQueries({ queryKey: queryKeys.collections });
     },
   });
 }
@@ -652,6 +730,16 @@ export function useSearchMetadata() {
   return useMutation({
     mutationFn: async (query: string) =>
       fetchJson<MetadataSearchResponse>(`/api/metadata/search?q=${encodeURIComponent(query)}`),
+  });
+}
+
+// usePreviewMetadata fetches a listing URL's metadata without applying it to
+// any asset — used to expand a candidate row and preview its description +
+// gallery before picking it.
+export function usePreviewMetadata() {
+  return useMutation({
+    mutationFn: async (url: string) =>
+      fetchJson<MetadataView>(`/api/metadata/preview?url=${encodeURIComponent(url)}`),
   });
 }
 

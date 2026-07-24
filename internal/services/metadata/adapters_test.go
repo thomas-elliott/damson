@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -42,6 +43,10 @@ func TestParseSketchfabModel(t *testing.T) {
 	}
 	if len(m.Raw) == 0 {
 		t.Error("raw payload must be persisted")
+	}
+	// tags then categories, by name.
+	if got := strings.Join(m.Tags, ","); got != "tree,low-poly,Nature" {
+		t.Errorf("tags: got %q want %q", got, "tree,low-poly,Nature")
 	}
 }
 
@@ -102,6 +107,10 @@ func TestCoveoMetadata(t *testing.T) {
 	if len(m.Raw) == 0 {
 		t.Error("raw payload must be persisted")
 	}
+	// ec_category then keywords, deduped case-insensitively.
+	if got := strings.Join(m.Tags, ","); got != "Environments,Nature,Low Poly" {
+		t.Errorf("tags: got %q want %q", got, "Environments,Nature,Low Poly")
+	}
 }
 
 func TestCoveoCandidate(t *testing.T) {
@@ -135,6 +144,28 @@ func TestItchLicenceAndParse(t *testing.T) {
 	}
 	if label == "" {
 		t.Error("licence label should not be empty")
+	}
+
+	tags := itchTags(body)
+	if got := strings.Join(tags, ","); got != "Role Playing,pixel-art,tileset,dungeon" {
+		t.Errorf("itch tags: got %q", got)
+	}
+}
+
+func TestParseHTMLKeywords(t *testing.T) {
+	page := []byte(`<html><head>
+		<meta name="keywords" content="platformer, 2d, meta-only">
+		<script type="application/ld+json">{"@type":"Product","name":"X","keywords":["Platformer","Pixel Art","platformer"]}</script>
+		</head><body></body></html>`)
+	m := ParseHTML(page, "https://example.com/x")
+	// JSON-LD keywords first (deduped), then any new meta keyword.
+	got := strings.Join(m.Tags, ",")
+	if got != "Platformer,Pixel Art,2d,meta-only" {
+		t.Fatalf("keywords: got %q", got)
+	}
+	// A no-op (no keyword capture) would leave Tags empty.
+	if len(m.Tags) == 0 {
+		t.Fatal("expected keywords to be captured")
 	}
 }
 

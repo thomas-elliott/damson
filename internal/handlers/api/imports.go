@@ -267,15 +267,11 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		return
 	}
 
-	var (
-		sourceKey   string
-		packageKind string
-	)
+	var sourceKey string
 	if verr == nil && version.PackageKind == packageKindUnityPackage {
 		if version.OriginalPackageObjectKey != "" && !version.OriginalPackagePurged {
 			sourceKey = version.OriginalPackageObjectKey
 		}
-		packageKind = packageKindUnityPackage
 	} else if verr == nil {
 		// Loose case: try the version's retained key first, then fall back
 		// to the first asset_file row.
@@ -289,31 +285,22 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 				sourceKey = f.ObjectKey
 			}
 		}
-		packageKind = packageKindLoose
 	}
 	if sourceKey == "" {
 		respond409(c, "no source blob to retry")
 		return
 	}
 
-	nextLabel, nlErr := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
-	if nlErr != nil {
-		respond500(c, nlErr)
-		return
-	}
-
 	var newImportID uint
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		v := models.AssetVersion{
-			AssetID:                  asset.ID,
-			VersionLabel:             nextLabel,
-			ImportDate:               time.Now().UTC(),
-			CreatedByUserID:          &u.ID,
-			PackageKind:              packageKind,
-			OriginalPackageObjectKey: sourceKey,
-		}
-		if err := tx.Create(&v).Error; err != nil {
-			return err
+		// Retry re-imports into the existing (latest) version — the pipeline
+		// re-extracts into it in place, so no new version row is created.
+		if version.OriginalPackageObjectKey == "" {
+			if err := tx.Model(&models.AssetVersion{}).
+				Where("id = ?", version.ID).
+				Update("original_package_object_key", sourceKey).Error; err != nil {
+				return err
+			}
 		}
 		nextImp := models.AssetImport{
 			AssetID:   asset.ID,

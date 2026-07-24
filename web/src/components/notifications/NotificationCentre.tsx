@@ -31,9 +31,12 @@ export function NotificationCentre() {
     notifications,
     inFlightCount,
     cancelUpload,
+    cancelAllUploads,
+    runAction,
     markRead,
     dismiss,
     clearRead,
+    clearUnread,
   } = useNotifications();
   const [tab, setTab] = useState<TabKey>("notifications");
 
@@ -75,13 +78,22 @@ export function NotificationCentre() {
 
         {showUploads && (
           <TabsContent value="uploads" className="min-h-0 flex-1 overflow-y-auto p-2.5">
+            <div className="mb-2 flex justify-end">
+              <Button size="sm" variant="ghost" onClick={cancelAllUploads}>
+                Cancel all
+              </Button>
+            </div>
             <ul className="flex flex-col gap-2">
               {uploads.map((u) => (
                 <li key={u.id}>
                   <QueueItem
                     name={u.filename}
                     thumb={<UploadCloud size={20} className="text-text-3" />}
-                    sub={<span className="text-mono text-text-3">{formatBytes(u.size)}</span>}
+                    sub={
+                      <span className="text-mono text-text-3">
+                        {u.queued ? `Queued · ${formatBytes(u.size)}` : formatBytes(u.size)}
+                      </span>
+                    }
                     progress={u.progress * 100}
                     actions={
                       <Button size="sm" variant="ghost" onClick={() => cancelUpload(u.id)}>
@@ -99,11 +111,24 @@ export function NotificationCentre() {
           {unread.length === 0 ? (
             <EmptyRow>No new notifications</EmptyRow>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {unread.map((n) => (
-                <NotificationRow key={n.id} n={n} onMarkRead={markRead} onDismiss={dismiss} />
-              ))}
-            </ul>
+            <>
+              <div className="mb-2 flex justify-end">
+                <Button size="sm" variant="ghost" onClick={clearUnread}>
+                  Clear all
+                </Button>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {unread.map((n) => (
+                  <NotificationRow
+                    key={n.id}
+                    n={n}
+                    onAction={runAction}
+                    onMarkRead={markRead}
+                    onDismiss={dismiss}
+                  />
+                ))}
+              </ul>
+            </>
           )}
         </TabsContent>
 
@@ -146,10 +171,12 @@ const TONE_TEXT: Record<NotificationTone, string> = {
 
 function NotificationRow({
   n,
+  onAction,
   onMarkRead,
   onDismiss,
 }: {
   n: AppNotification;
+  onAction?: (id: string) => void;
   onMarkRead?: (id: string) => void;
   onDismiss: (id: string) => void;
 }) {
@@ -167,6 +194,11 @@ function NotificationRow({
       </div>
       {n.message && <span className="pl-6 text-small text-text-3">{n.message}</span>}
       <div className="flex gap-1.5 pl-6">
+        {n.action && onAction && (
+          <Button size="sm" variant="primary" onClick={() => onAction(n.id)}>
+            {n.action.label}
+          </Button>
+        )}
         {onMarkRead && (
           <Button size="sm" variant="ghost" onClick={() => onMarkRead(n.id)}>
             Mark read
