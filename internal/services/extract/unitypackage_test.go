@@ -304,6 +304,40 @@ func TestUnityExtractor_FirstPreviewWins(t *testing.T) {
 	}
 }
 
+// TestUnityExtractor_PrefersImagePathnamePreview proves the cover is taken
+// from the preview whose bundle is an actual image asset, even when a
+// non-image asset's preview appears first in tar order.
+func TestUnityExtractor_PrefersImagePathnamePreview(t *testing.T) {
+	gVideo, gImage := guidN(0xa1), guidN(0xa2)
+	videoPrev := []byte("video-frame-preview")
+	imagePrev := []byte("real-texture-preview")
+	pkg := buildPackage(t, []entry{
+		// Non-image asset (a video) with a preview, first in tar order.
+		{guid: gVideo, leaf: "preview.png", data: videoPrev},
+		{guid: gVideo, leaf: "asset", data: []byte("mp4-bytes")},
+		{guid: gVideo, leaf: "pathname", data: []byte("Assets/Clips/trailer.mp4")},
+		// Image asset with a preview, later in tar order.
+		{guid: gImage, leaf: "preview.png", data: imagePrev},
+		{guid: gImage, leaf: "asset", data: []byte("png-bytes")},
+		{guid: gImage, leaf: "pathname", data: []byte("Assets/Textures/hero.png")},
+	})
+	fs := newFakeStorage()
+	res, err := (&UnityExtractor{Storage: fs}).
+		Extract(context.Background(), bytes.NewReader(pkg))
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	wantSum := sha256.Sum256(imagePrev)
+	wantKey := hex.EncodeToString(wantSum[:])
+	if res.ThumbObjectKey != wantKey {
+		t.Fatalf("cover = %q, want the image-asset preview %q (not the earlier video preview)", res.ThumbObjectKey, wantKey)
+	}
+	videoSum := sha256.Sum256(videoPrev)
+	if res.ThumbObjectKey == hex.EncodeToString(videoSum[:]) {
+		t.Fatalf("cover wrongly taken from the video-asset preview")
+	}
+}
+
 func TestUnityExtractor_TotalBytesCap(t *testing.T) {
 	g := guidN(0x77)
 	pkg := buildPackage(t, []entry{
