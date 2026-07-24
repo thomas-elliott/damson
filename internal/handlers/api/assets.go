@@ -340,6 +340,17 @@ func (h *Handler) postImport(c *gin.Context) {
 		packageKind = packageKindUnityPackage
 	}
 
+	var targetAssetID uint
+	if s := strings.TrimSpace(c.PostForm("asset_id")); s != "" {
+		n, perr := strconv.ParseUint(s, 10, 64)
+		if perr != nil || n == 0 {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid asset_id"})
+			return
+		}
+		targetAssetID = uint(n)
+	}
+	reqStoreVersion := strings.TrimLeft(strings.TrimSpace(c.PostForm("store_version")), "vV")
+
 	// Create the rows before the upload so the object metadata can carry the
 	// asset/version IDs. The version's object key is set after the upload and
 	// the import is enqueued only once it is, so a crash in between leaves a
@@ -352,14 +363,35 @@ func (h *Handler) postImport(c *gin.Context) {
 	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		assetName, storeVersion := imports.ParseImportFilename(filename)
-		asset := models.Asset{
-			LibraryID:       libID,
-			Name:            assetName,
-			NeedsReview:     true,
-			CreatedByUserID: &u.ID,
+		if reqStoreVersion != "" {
+			storeVersion = reqStoreVersion
 		}
-		if err := tx.Create(&asset).Error; err != nil {
-			return err
+		var asset models.Asset
+		if targetAssetID != 0 {
+			if err := tx.Where("id = ? AND library_id = ?", targetAssetID, libID).First(&asset).Error; err != nil {
+				return err
+			}
+			if storeVersion != "" {
+				var dupes int64
+				if err := tx.Model(&models.AssetVersion{}).
+					Where("asset_id = ? AND store_version = ?", asset.ID, storeVersion).
+					Count(&dupes).Error; err != nil {
+					return err
+				}
+				if dupes > 0 {
+					return errConflictf("this asset already has store version %s; delete or replace that version first", storeVersion)
+				}
+			}
+		} else {
+			asset = models.Asset{
+				LibraryID:       libID,
+				Name:            assetName,
+				NeedsReview:     true,
+				CreatedByUserID: &u.ID,
+			}
+			if err := tx.Create(&asset).Error; err != nil {
+				return err
+			}
 		}
 		version := models.AssetVersion{
 			AssetID:         asset.ID,
@@ -385,7 +417,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		respond500(c, err)
+		respondGORM(c, err, "target asset not found")
 		return
 	}
 
@@ -406,7 +438,11 @@ func (h *Handler) postImport(c *gin.Context) {
 		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
 	}
 	if err != nil {
-		h.cleanupFailedUpload(c.Request.Context(), assetID)
+		if targetAssetID != 0 {
+			h.cleanupFailedVersionUpload(c.Request.Context(), versionID, importID)
+		} else {
+			h.cleanupFailedUpload(c.Request.Context(), assetID)
+		}
 		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
 		return
 	}
@@ -454,6 +490,20 @@ func (h *Handler) cleanupFailedUpload(ctx context.Context, assetID uint) {
 	}
 	if err := db.Delete(&models.Asset{}, assetID).Error; err != nil {
 		slog.Warn("import: cleanup failed upload (asset)", "err", err, "asset_id", assetID)
+	}
+}
+
+func (h *Handler) cleanupFailedVersionUpload(ctx context.Context, versionID, importID uint) {
+	db := h.db.WithContext(ctx)
+	if importID != 0 {
+		if err := db.Delete(&models.AssetImport{}, importID).Error; err != nil {
+			slog.Warn("import: cleanup failed version upload (import)", "err", err, "import_id", importID)
+		}
+	}
+	if versionID != 0 {
+		if err := db.Delete(&models.AssetVersion{}, versionID).Error; err != nil {
+			slog.Warn("import: cleanup failed version upload (version)", "err", err, "version_id", versionID)
+		}
 	}
 }
 

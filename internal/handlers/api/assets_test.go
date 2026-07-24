@@ -42,6 +42,28 @@ func buildMultipart(t *testing.T, fieldName, filename string, content []byte) (*
 	return body, w.FormDataContentType()
 }
 
+func buildMultipartWithFields(t *testing.T, fieldName, filename string, content []byte, fields map[string]string) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	for k, v := range fields {
+		if err := w.WriteField(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	part, err := w.CreateFormFile(fieldName, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(part, bytes.NewReader(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return body, w.FormDataContentType()
+}
+
 func postMultipart(r http.Handler, path string, body *bytes.Buffer, contentType string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, path, body)
 	req.Header.Set("Content-Type", contentType)
