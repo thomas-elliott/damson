@@ -197,3 +197,41 @@ stage is a coherent, independently-committable unit — roughly one commit each.
 - **Tag noise control:** normalise via `normaliseTagPath` and import all tags —
   they're cheap to remove — rather than capping or curating a subset.
 - **Scope:** all four areas ship in one PR, as requested.
+
+## Deferred comments
+
+Parked why-notes from the build (comment-free per the workflow; `/cleanup`
+evaluates each and writes back only what the code can't convey, then removes
+this section):
+
+- `internal/models/asset.go` (AssetVersion.StoreVersion) — uniqueness per asset
+  for non-blank store versions is enforced by the partial index
+  `idx_version_asset_store` in migration 018; a GORM tag can't express a
+  `WHERE` clause, so the migration is the source of truth for that constraint.
+- `internal/services/metadata/unity.go` (`isStillImageURL`) — unknown/extensionless
+  URLs are treated as still images because Unity's CDN cover URLs often carry no
+  extension; only recognised video markers are excluded.
+- `internal/services/extract/unitypackage.go` (`maxPreviewBuffer`) — a safety
+  valve, not a normal limit: real Unity previews are tens of KiB, so buffering
+  to pick an image-asset preview degrades gracefully to first-preview only if a
+  pathological package exceeds it.
+- `internal/services/tags/tags.go` (`LinkTag`) — audits only when a new link is
+  created so enrichment re-runs don't emit duplicate `asset.tag` audit noise.
+- `internal/handlers/api/imports.go` (retry) — re-imports into the existing
+  failed version instead of spawning a new one; the pipeline re-extracts into
+  the latest version in place, which is why no new version row is created.
+- `internal/handlers/api/assets.go` (`cleanupFailedVersionUpload`) — removes only
+  the new version + import rows on a failed add-version upload, leaving the
+  pre-existing target asset and its other versions intact (unlike
+  `cleanupFailedUpload`, which deletes the whole asset for a fresh upload).
+- `internal/handlers/api/assets_crud.go` (`deleteAssetVersion` /
+  `nextCurrentVersion`) — repoints `current_version_id` to the highest remaining
+  store version (then unversioned by newest import) before deleting, so the
+  `ON DELETE SET NULL` FK never fires on a stale pointer; blobs are left for GC.
+- `internal/handlers/api/merge.go` (`postAssetMerge`) — every moved row is
+  filtered against the target's existing unique keys so the move can't violate a
+  constraint; anything left unmoved cascade-deletes with the source, and pins on
+  a dropped duplicate version are remapped to the target's equivalent.
+- `web/src/components/detail/AssetDetailPanel.tsx` (`GalleryLightbox`) — inline
+  `zIndex: var(--z-index-dialog)` mirrors `Select.tsx`; the project maps z-index
+  through CSS vars rather than Tailwind `z-*` utilities.
