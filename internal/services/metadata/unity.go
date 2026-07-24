@@ -34,6 +34,7 @@ const (
 var coveoFields = []string{
 	"ec_name", "ec_price", "publisher_name", "ec_product_id",
 	"ec_images", "ec_thumbnails", "ec_shortdesc", "ec_description",
+	"ec_category", "keywords",
 }
 
 // unityProductIDRE captures the trailing numeric id Unity uses, in both the
@@ -175,6 +176,7 @@ func coveoMetadata(r coveoResult, listingURL string) *Metadata {
 		Currency:    "USD",
 		CoverURL:    cover,
 		ImageURLs:   coveoImages(raw, cover),
+		Tags:        coveoTags(raw),
 		StoreID:     firstNonEmpty(firstArrayString(raw["ec_product_id"]), unityProductID(listingURL)),
 		ListingURL:  firstNonEmpty(r.ClickURI, listingURL),
 		// Coveo exposes no per-asset licence field; Asset Store assets carry
@@ -274,6 +276,42 @@ func coveoImages(raw map[string]any, cover string) []string {
 		out = append(out, u)
 	}
 	return out
+}
+
+// coveoTags gathers keyword/category tags from a Coveo result. Both fields may
+// arrive as a bare string, a JSON-encoded string array, or a []any.
+func coveoTags(raw map[string]any) []string {
+	var tags []string
+	tags = append(tags, coveoStringList(raw["ec_category"])...)
+	tags = append(tags, coveoStringList(raw["keywords"])...)
+	return dedupeTags(tags)
+}
+
+// coveoStringList normalises a Coveo field into a slice of strings, handling
+// the bare-string, JSON-encoded-array, and []any shapes Coveo uses.
+func coveoStringList(v any) []string {
+	switch t := v.(type) {
+	case string:
+		s := strings.TrimSpace(t)
+		if strings.HasPrefix(s, "[") {
+			var arr []string
+			if json.Unmarshal([]byte(s), &arr) == nil {
+				return arr
+			}
+		}
+		if s != "" {
+			return []string{s}
+		}
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, item := range t {
+			if s := stringOf(item); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
 }
 
 // htmlToMarkdown converts an HTML fragment to Markdown, preserving structure
