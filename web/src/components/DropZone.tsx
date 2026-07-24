@@ -2,7 +2,15 @@ import { createContext, useCallback, useContext, type ReactNode } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { useUploadIntent } from "@/components/UploadIntentDialog";
 import { DropOverlay, cn } from "@/design-system";
+import {
+  bundleFilesToZip,
+  bundleName,
+  hasFolderStructure,
+  isArchiveFile,
+  topFolderName,
+} from "@/lib/bundleUpload";
 
 interface DropZoneContextValue {
   /** Trigger the OS file picker. Wired to the Upload toolbar button. */
@@ -25,14 +33,44 @@ export function useDropZoneOpen() {
  * `useDropZoneOpen()`.
  */
 export function DropZone({ children }: { children: ReactNode }) {
-  const { startUpload } = useNotifications();
+  const { startUpload, notify } = useNotifications();
+  const { ask, dialog } = useUploadIntent();
 
   const onDrop = useCallback(
     (files: File[]) => {
       if (files.length === 0) return;
-      startUpload(files);
+
+      const folder = hasFolderStructure(files);
+      const unambiguous = (files.length === 1 || files.every(isArchiveFile)) && !folder;
+      if (unambiguous) {
+        startUpload(files);
+        return;
+      }
+
+      void (async () => {
+        const intent = await ask({
+          fileCount: files.length,
+          totalBytes: files.reduce((sum, f) => sum + f.size, 0),
+          folderName: topFolderName(files),
+        });
+        if (intent === null) return;
+        if (intent === "separate") {
+          startUpload(files);
+          return;
+        }
+        try {
+          const zip = await bundleFilesToZip(files, bundleName(files));
+          startUpload([zip]);
+        } catch (err) {
+          notify({
+            tone: "error",
+            title: "Could not bundle the upload",
+            message: err instanceof Error ? err.message : "zipping failed",
+          });
+        }
+      })();
     },
-    [startUpload],
+    [ask, notify, startUpload],
   );
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
@@ -50,6 +88,7 @@ export function DropZone({ children }: { children: ReactNode }) {
         <input {...getInputProps()} />
         {children}
         <DropOverlay active={isDragActive} />
+        {dialog}
       </div>
     </DropZoneContext.Provider>
   );
