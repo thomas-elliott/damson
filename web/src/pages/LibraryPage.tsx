@@ -61,6 +61,8 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const { data: assets, total, loading } = useAssets(filters, hasLibrary);
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+  // Reset the selection when the search/filter scope changes — a render-time
+  // reset rather than an effect so it lands before the grid paints.
   const scopeKey = search.toString();
   const [prevScopeKey, setPrevScopeKey] = useState(scopeKey);
   if (prevScopeKey !== scopeKey) {

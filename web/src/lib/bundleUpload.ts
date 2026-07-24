@@ -60,6 +60,8 @@ export function bundleFilesToZip(files: File[], name: string): Promise<File> {
 }
 
 async function pushFile(entry: ZipPassThrough, file: File): Promise<void> {
+  // Stream in the browser (bounded memory for large files); fall back to
+  // arrayBuffer() where File.stream() is absent (jsdom, older runtimes).
   if (typeof file.stream === "function") {
     const reader = file.stream().getReader();
     for (;;) {

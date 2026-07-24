@@ -168,6 +168,9 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		settings, sErr := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
 		if sErr != nil {
 			slog.Warn("imports: load settings", "err", sErr, "library_id", jc.libraryID)
+			// Loose files thumbnail from the original; zip relies on its
+			// extractor cover (its raw bytes aren't a thumbnailable image), and
+			// unitypackage only when the library opts in.
 		} else if !jc.isArchive || (jc.isUnity && settings.ThumbnailsUnityPreview) {
 			toggles := thumbnail.Toggles{
 				Raster: settings.ThumbnailsRasterEnabled,

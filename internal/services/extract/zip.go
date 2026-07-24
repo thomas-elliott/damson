@@ -114,6 +114,8 @@ func (e *ZipExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult, 
 		if serr != nil {
 			return nil, fmt.Errorf("put blob %s: %w", f.Name, serr)
 		}
+		// UncompressedSize64 above is only the declared size; the streamed
+		// bytes are the real guard against a lying central directory (zip bomb).
 		if wsize > maxEntry {
 			return nil, fmt.Errorf("extract: entry %q exceeds per-entry cap", f.Name)
 		}
