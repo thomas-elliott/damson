@@ -231,6 +231,7 @@ export interface MetadataView {
   licence_hint?: string;
   cover_url?: string;
   image_urls?: string[];
+  tags?: string[];
   store?: string;
   listing_url?: string;
 }
