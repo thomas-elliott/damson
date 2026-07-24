@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { LogOut, Search, UploadCloud } from "lucide-react";
 
 import { AssetGrid } from "@/components/AssetGrid";
+import { BulkAssetBar } from "@/components/BulkAssetBar";
 import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
 import { DropZone, useDropZoneOpen } from "@/components/DropZone";
 import { FileBrowser } from "@/components/filebrowser/FileBrowser";
@@ -58,6 +59,27 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   }, [search]);
 
   const { data: assets, total, loading } = useAssets(filters, hasLibrary);
+
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+  const scopeKey = search.toString();
+  const [prevScopeKey, setPrevScopeKey] = useState(scopeKey);
+  if (prevScopeKey !== scopeKey) {
+    setPrevScopeKey(scopeKey);
+    setSelectedIds(new Set());
+  }
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  const selectedList = useMemo(
+    () => assets.filter((a) => selectedIds.has(a.id)).map((a) => a.id),
+    [assets, selectedIds],
+  );
 
   const onSearchChange = (next: string) => {
     const params = new URLSearchParams(search);
@@ -208,7 +230,16 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 Loading assets…
               </div>
             ) : (
-              <AssetGrid assets={assets} onOpen={onOpenAsset} selectedId={assetId} />
+              <AssetGrid
+                assets={assets}
+                onOpen={onOpenAsset}
+                selectedId={assetId}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+              />
+            )}
+            {selectedList.length > 0 && (
+              <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
             )}
             <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
           </DropZone>

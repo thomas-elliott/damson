@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { AssetCard, EmptyState, LicencePill, formatBytes } from "@/design-system";
+import { AssetCard, Checkbox, EmptyState, LicencePill, cn, formatBytes } from "@/design-system";
 import type { AssetRow } from "@/hooks/useDataQueries";
 import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 
@@ -24,10 +24,14 @@ export function AssetGrid({
   assets,
   onOpen,
   selectedId,
+  selectedIds,
+  onToggleSelect,
 }: {
   assets: AssetRow[];
   onOpen?: (id: number) => void;
   selectedId?: number | null;
+  selectedIds?: Set<number>;
+  onToggleSelect?: (id: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { columns, cellWidth } = useGridMetrics(scrollRef);
@@ -91,7 +95,15 @@ export function AssetGrid({
                 }}
               >
                 {row.map((a) => (
-                  <GridCard key={a.id} asset={a} selected={selectedId === a.id} onOpen={onOpen} />
+                  <GridCard
+                    key={a.id}
+                    asset={a}
+                    selected={selectedId === a.id}
+                    onOpen={onOpen}
+                    selectionActive={!!selectedIds && selectedIds.size > 0}
+                    checked={selectedIds?.has(a.id) ?? false}
+                    onToggleSelect={onToggleSelect}
+                  />
                 ))}
               </div>
             );
@@ -110,39 +122,61 @@ function GridCard({
   asset: a,
   selected,
   onOpen,
+  selectionActive,
+  checked,
+  onToggleSelect,
 }: {
   asset: AssetRow;
   selected: boolean;
   onOpen?: (id: number) => void;
+  selectionActive?: boolean;
+  checked?: boolean;
+  onToggleSelect?: (id: number) => void;
 }) {
   const imageUrl = useBlobUrl(
     a.thumbnail_object_key ? `/api/thumbs/${a.thumbnail_object_key}` : undefined,
   );
   return (
-    <AssetCard
-      name={a.name}
-      data-asset-id={a.id}
-      imageUrl={imageUrl}
-      selected={selected}
-      onSelect={() => onOpen?.(a.id)}
-      sub={
-        <>
-          <span className="font-mono">{formatBytes(a.size_bytes)}</span>
-          {a.file_count > 1 && (
-            <>
-              <span className="text-text-4">·</span>
-              <span className="font-mono">{a.file_count} files</span>
-            </>
+    <div className="group relative">
+      {onToggleSelect && (
+        <div
+          className={cn(
+            "absolute left-2 top-2 z-10 transition-opacity",
+            checked || selectionActive ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
-        </>
-      }
-      trailing={
-        a.licence_spdx ? (
-          <LicencePill status={a.licence_status ?? "unk"} spdx={a.licence_spdx} />
-        ) : undefined
-      }
-      needsReview={a.needs_review}
-    />
+        >
+          <Checkbox
+            checked={checked}
+            onCheckedChange={() => onToggleSelect(a.id)}
+            aria-label={`Select ${a.name}`}
+          />
+        </div>
+      )}
+      <AssetCard
+        name={a.name}
+        data-asset-id={a.id}
+        imageUrl={imageUrl}
+        selected={selected || checked}
+        onSelect={() => onOpen?.(a.id)}
+        sub={
+          <>
+            <span className="font-mono">{formatBytes(a.size_bytes)}</span>
+            {a.file_count > 1 && (
+              <>
+                <span className="text-text-4">·</span>
+                <span className="font-mono">{a.file_count} files</span>
+              </>
+            )}
+          </>
+        }
+        trailing={
+          a.licence_spdx ? (
+            <LicencePill status={a.licence_status ?? "unk"} spdx={a.licence_spdx} />
+          ) : undefined
+        }
+        needsReview={a.needs_review}
+      />
+    </div>
   );
 }
 
