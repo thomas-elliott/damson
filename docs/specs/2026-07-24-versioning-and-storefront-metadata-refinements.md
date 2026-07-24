@@ -242,3 +242,22 @@ version sort (`assets_crud.go`) and `nextCurrentVersion`. They differ subtly
 sorts unversioned by newest import), so extracting a shared comparator risks
 changing display order — left as-is per "don't refactor unrelated code," flagged
 here for a deliberate future consolidation.
+
+## Deferred comments
+
+- `NotificationProvider.tsx` (accept action) — after re-uploading the file to the
+  matched asset, the freshly-created standalone asset is deleted. Why: the plain
+  upload already created it before the match was known; it has no user metadata, so
+  removing it avoids an orphan duplicate without losing anything. The delete runs
+  only on the re-upload's success, so a 409 (asset already has that store version)
+  preserves it.
+- `NotificationProvider.tsx` (`loadNotifications` action filter) — action
+  notifications are dropped on reload. Why: their handler is an in-memory closure
+  holding the `File`; it can't survive a reload, so a persisted action button would
+  be dead.
+- `NotificationProvider.tsx` (`runUploadRef`) — why: the accept action re-invokes
+  `runUpload`; routing through a ref breaks the `useCallback` self-reference.
+- `MergeDialog.tsx` (thumbnail adoption omitted) — the source's name/description are
+  adoptable via `usePatchAsset`, but there's no "set thumbnail from object key"
+  endpoint, so thumbnail adoption is dropped for this round (noted in the spec's
+  follow-up).
