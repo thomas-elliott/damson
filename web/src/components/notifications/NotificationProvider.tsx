@@ -36,6 +36,7 @@ export interface Upload {
   filename: string;
   size: number;
   progress: number;
+  queued: boolean;
 }
 
 export interface NotifyInput {
@@ -52,11 +53,13 @@ interface NotificationContextValue {
   inFlightCount: number;
   startUpload: (files: File[]) => void;
   cancelUpload: (id: string) => void;
+  cancelAllUploads: () => void;
   notify: (input: NotifyInput) => void;
   runAction: (id: string) => void;
   markRead: (id: string) => void;
   dismiss: (id: string) => void;
   clearRead: () => void;
+  clearUnread: () => void;
   toggleOpen: () => void;
   setOpen: (open: boolean) => void;
 }
@@ -65,6 +68,7 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 
 const STORAGE_KEY = "damson.notifications";
 const READ_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_CONCURRENT_UPLOADS = 3;
 
 function newId(): string {
   try {
@@ -98,7 +102,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>(loadNotifications);
   const [open, setOpen] = useState(false);
   const controllers = useRef(new Map<string, AbortController>());
+  const uploadQueue = useRef<Array<{ id: string; start: () => void }>>([]);
+  const activeUploads = useRef(0);
   const actionHandlers = useRef(new Map<string, () => void>());
+
+  const pumpQueue = useCallback(() => {
+    while (activeUploads.current < MAX_CONCURRENT_UPLOADS && uploadQueue.current.length > 0) {
+      const next = uploadQueue.current.shift();
+      if (!next) break;
+      activeUploads.current += 1;
+      next.start();
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -127,62 +142,75 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const id = newId();
       const controller = new AbortController();
       controllers.current.set(id, controller);
-      setUploads((prev) => [...prev, { id, filename: file.name, size: file.size, progress: 0 }]);
-      void uploadFile(
-        "/api/imports",
-        file,
-        (p) => setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, progress: p } : u))),
-        controller.signal,
-        assetId,
-      )
-        .then((resp) => {
-          controllers.current.delete(id);
-          setUploads((prev) => prev.filter((u) => u.id !== id));
-          pushNotification({
-            tone: "success",
-            title: assetId ? `Added version from ${file.name}` : `Uploaded ${file.name}`,
-            source: "upload",
+      setUploads((prev) => [
+        ...prev,
+        { id, filename: file.name, size: file.size, progress: 0, queued: true },
+      ]);
+
+      const start = () => {
+        setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, queued: false } : u)));
+        void uploadFile(
+          "/api/imports",
+          file,
+          (p) => setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, progress: p } : u))),
+          controller.signal,
+          assetId,
+        )
+          .then((resp) => {
+            setUploads((prev) => prev.filter((u) => u.id !== id));
+            pushNotification({
+              tone: "success",
+              title: assetId ? `Added version from ${file.name}` : `Uploaded ${file.name}`,
+              source: "upload",
+            });
+            if (!assetId && resp.suggested_match) {
+              const match = resp.suggested_match;
+              const created = resp.asset_id;
+              pushNotification(
+                {
+                  tone: "info",
+                  title: `Possible new version of ${match.name}`,
+                  message: `Add ${file.name} as a version of ${match.name} instead of a separate asset?`,
+                  source: "upload",
+                  action: { label: "Add as version" },
+                },
+                () =>
+                  runUploadRef.current(file, match.asset_id, () => {
+                    // The plain upload already created a standalone asset; once the
+                    // file is re-attached to the match, remove it. Runs only on
+                    // success, so a duplicate-version 409 leaves it in place.
+                    if (created) deleteAsset.mutate(created);
+                  }),
+              );
+            }
+            onUploaded?.();
+            void queryClient.invalidateQueries({ queryKey: queryKeys.assets() });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.imports });
+          })
+          .catch((err: unknown) => {
+            setUploads((prev) => prev.filter((u) => u.id !== id));
+            if (isUploadAbortedError(err)) return;
+            const duplicate = err instanceof ApiError && err.status === 409;
+            pushNotification({
+              tone: duplicate ? "warn" : "error",
+              title: duplicate
+                ? `${file.name} already exists on that asset`
+                : `Upload failed: ${file.name}`,
+              message: err instanceof Error ? err.message : "upload failed",
+              source: "upload",
+            });
+          })
+          .finally(() => {
+            controllers.current.delete(id);
+            activeUploads.current -= 1;
+            pumpQueue();
           });
-          if (!assetId && resp.suggested_match) {
-            const match = resp.suggested_match;
-            const created = resp.asset_id;
-            pushNotification(
-              {
-                tone: "info",
-                title: `Possible new version of ${match.name}`,
-                message: `Add ${file.name} as a version of ${match.name} instead of a separate asset?`,
-                source: "upload",
-                action: { label: "Add as version" },
-              },
-              () =>
-                runUploadRef.current(file, match.asset_id, () => {
-                  // The plain upload already created a standalone asset; once the
-                  // file is re-attached to the match, remove it. Runs only on
-                  // success, so a duplicate-version 409 leaves it in place.
-                  if (created) deleteAsset.mutate(created);
-                }),
-            );
-          }
-          onUploaded?.();
-          void queryClient.invalidateQueries({ queryKey: queryKeys.assets() });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.imports });
-        })
-        .catch((err: unknown) => {
-          controllers.current.delete(id);
-          setUploads((prev) => prev.filter((u) => u.id !== id));
-          if (isUploadAbortedError(err)) return;
-          const duplicate = err instanceof ApiError && err.status === 409;
-          pushNotification({
-            tone: duplicate ? "warn" : "error",
-            title: duplicate
-              ? `${file.name} already exists on that asset`
-              : `Upload failed: ${file.name}`,
-            message: err instanceof Error ? err.message : "upload failed",
-            source: "upload",
-          });
-        });
+      };
+
+      uploadQueue.current.push({ id, start });
+      pumpQueue();
     },
-    [deleteAsset, pushNotification, queryClient],
+    [deleteAsset, pushNotification, queryClient, pumpQueue],
   );
   useEffect(() => {
     runUploadRef.current = runUpload;
@@ -206,6 +234,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const cancelUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
+    const queued = uploadQueue.current.some((q) => q.id === id);
+    if (queued) {
+      uploadQueue.current = uploadQueue.current.filter((q) => q.id !== id);
+      controllers.current.delete(id);
+      setUploads((prev) => prev.filter((u) => u.id !== id));
+    }
+  }, []);
+
+  const cancelAllUploads = useCallback(() => {
+    uploadQueue.current = [];
+    controllers.current.forEach((c) => c.abort());
+    controllers.current.clear();
+    setUploads([]);
   }, []);
 
   const notify = useCallback(
@@ -233,6 +274,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotifications((prev) => prev.filter((n) => !n.read));
   }, []);
 
+  const clearUnread = useCallback(() => {
+    setNotifications((prev) => {
+      prev.forEach((n) => {
+        if (!n.read) actionHandlers.current.delete(n.id);
+      });
+      return prev.filter((n) => n.read);
+    });
+  }, []);
+
   const toggleOpen = useCallback(() => setOpen((o) => !o), []);
 
   const value = useMemo<NotificationContextValue>(() => {
@@ -245,11 +295,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       inFlightCount: uploads.length,
       startUpload,
       cancelUpload,
+      cancelAllUploads,
       notify,
       runAction,
       markRead,
       dismiss,
       clearRead,
+      clearUnread,
       toggleOpen,
       setOpen,
     };
@@ -259,11 +311,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     open,
     startUpload,
     cancelUpload,
+    cancelAllUploads,
     notify,
     runAction,
     markRead,
     dismiss,
     clearRead,
+    clearUnread,
     toggleOpen,
   ]);
 

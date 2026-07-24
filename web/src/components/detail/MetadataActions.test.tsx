@@ -55,7 +55,7 @@ vi.mock("@/hooks/useMutations", () => ({
   }),
 }));
 
-const blobUrlMock = vi.fn((): string | undefined => "blob:fake");
+const blobUrlMock = vi.fn((_url?: string): string | undefined => "blob:fake");
 vi.mock("@/components/filebrowser/useFileObjectUrl", () => ({
   useBlobUrl: (url?: string) => blobUrlMock(url),
 }));
