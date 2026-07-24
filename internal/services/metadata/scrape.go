@@ -99,7 +99,76 @@ func ParseHTML(data []byte, pageURL string) *Metadata {
 		m.Currency = currency
 		m.LicenceHint = stringField(product, "license")
 	}
+	m.Tags = dedupeTags(append(keywordsField(product), metaKeywords(metaTags)...))
 	return m
+}
+
+// keywordsField reads a JSON-LD "keywords" value, which may be a
+// comma-separated string or an array of strings.
+func keywordsField(node map[string]any) []string {
+	if node == nil {
+		return nil
+	}
+	switch v := node["keywords"].(type) {
+	case string:
+		return splitKeywords(v)
+	case []any:
+		var out []string
+		for _, item := range v {
+			if s := stringOf(item); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+// metaKeywords pulls tags from the <meta name="keywords"> content and any
+// repeated article:tag values collapsed into metaTags (only the first survives
+// dedup, so this is best-effort for the common single-tag case).
+func metaKeywords(metaTags map[string]string) []string {
+	var out []string
+	out = append(out, splitKeywords(metaTags["keywords"])...)
+	out = append(out, splitKeywords(metaTags["article:tag"])...)
+	return out
+}
+
+func splitKeywords(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// dedupeTags trims, drops blanks, and removes case-insensitive duplicates while
+// keeping the first occurrence's original casing and input order.
+func dedupeTags(tags []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		k := strings.ToLower(t)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func attrEquals(n *html.Node, key, val string) bool {

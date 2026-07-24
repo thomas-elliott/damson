@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, Search } from "lucide-react";
+import { ChevronDown, Download, Search } from "lucide-react";
 
 import {
   Button,
@@ -11,10 +11,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  IconButton,
   Input,
+  cn,
 } from "@/design-system";
+import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 import type { AssetDetailView, MetadataCandidate, MetadataConflict } from "@/hooks/useDataQueries";
-import { useApplyMetadata, useFetchMetadata, useSearchMetadata } from "@/hooks/useMutations";
+import {
+  useApplyMetadata,
+  useFetchMetadata,
+  usePreviewMetadata,
+  useSearchMetadata,
+} from "@/hooks/useMutations";
 
 function truncate(s: string, n = 80): string {
   const t = s.trim();
@@ -26,31 +34,73 @@ function candidateSubtitle(c: MetadataCandidate): string {
   return [c.store, c.publisher, price].filter(Boolean).join(" · ");
 }
 
-// Candidate covers are external storefront CDN URLs, so a plain <img> renders
-// them — unlike our own file endpoints, which force octet-stream + nosniff and
-// need the fetchBlob dance.
+function ProxiedImage({ src, className }: { src: string; className?: string }) {
+  const url = useBlobUrl(`/api/metadata/image?url=${encodeURIComponent(src)}`);
+  if (!url) return <div className={cn("animate-pulse bg-bg", className)} />;
+  return <img src={url} alt="" loading="lazy" className={className} />;
+}
+
 function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = usePreviewMetadata();
+
+  const toggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && !preview.data && !preview.isPending) {
+      preview.mutate(c.listing_url);
+    }
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onPick}
-      className="flex w-full items-center gap-2 rounded-md border border-line bg-surface p-2 text-left transition-colors duration-std ease hover:border-line-2 hover:bg-surface-2"
-    >
-      {c.cover_url ? (
-        <img
-          src={c.cover_url}
-          alt=""
-          className="h-10 w-10 shrink-0 rounded object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <div className="h-10 w-10 shrink-0 rounded bg-bg" />
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-ui text-text">{c.title}</div>
-        <div className="truncate text-mono text-text-3">{candidateSubtitle(c)}</div>
+    <div className="rounded-md border border-line bg-surface transition-colors duration-std ease hover:border-line-2">
+      <div className="flex items-center gap-2 p-2">
+        {c.cover_url ? (
+          <ProxiedImage src={c.cover_url} className="h-10 w-10 shrink-0 rounded object-cover" />
+        ) : (
+          <div className="h-10 w-10 shrink-0 rounded bg-bg" />
+        )}
+        <button type="button" onClick={onPick} className="min-w-0 flex-1 text-left">
+          <div className="truncate text-ui text-text">{c.title}</div>
+          <div className="truncate text-mono text-text-3">{candidateSubtitle(c)}</div>
+        </button>
+        <IconButton aria-label={expanded ? "Collapse details" : "Expand details"} onClick={toggle}>
+          <ChevronDown
+            size={14}
+            className={`transition-transform duration-std ease ${expanded ? "rotate-180" : ""}`}
+          />
+        </IconButton>
       </div>
-    </button>
+      {expanded && (
+        <div className="flex flex-col gap-1.5 border-t border-line p-2">
+          {preview.isPending && <p className="text-caption text-text-3">Loading details…</p>}
+          {preview.isError && <p className="text-caption text-err">Couldn't load details</p>}
+          {preview.data && (
+            <>
+              {preview.data.description && (
+                <p className="max-h-32 overflow-y-auto whitespace-pre-line text-caption text-text-2">
+                  {preview.data.description}
+                </p>
+              )}
+              {(preview.data.image_urls?.length ?? 0) > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {preview.data.image_urls!.slice(0, 8).map((src) => (
+                    <ProxiedImage
+                      key={src}
+                      src={src}
+                      className="h-16 w-24 shrink-0 rounded-md border border-line object-cover"
+                    />
+                  ))}
+                </div>
+              )}
+              <Button size="sm" onClick={onPick}>
+                Use this listing
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

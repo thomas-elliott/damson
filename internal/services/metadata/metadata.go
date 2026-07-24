@@ -23,6 +23,7 @@ type Metadata struct {
 	LicenceText string          `json:"licence_text,omitempty"`
 	CoverURL    string          `json:"cover_url,omitempty"`
 	ImageURLs   []string        `json:"image_urls,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
 	Store       string          `json:"store,omitempty"`
 	StoreID     string          `json:"store_id,omitempty"`
 	ListingURL  string          `json:"listing_url,omitempty"`

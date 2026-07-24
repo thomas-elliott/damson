@@ -104,6 +104,40 @@ func TestEnrichAsset_HighConfidenceFillsBlanks(t *testing.T) {
 	}
 }
 
+func TestEnrichAsset_AttachesTags(t *testing.T) {
+	db := enrichTestDB(t)
+	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)
+	fake := &fakeEnricher{
+		cands: []metadata.Candidate{{Title: "Fantasy Pack", ListingURL: "https://x/1", Store: "unity"}},
+		meta: &metadata.Metadata{
+			Store:      "unity",
+			ListingURL: "https://x/1",
+			Tags:       []string{"Fantasy", "RPG"},
+		},
+	}
+	jc := jobContext{asset: *asset, libraryID: 1}
+
+	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
+
+	var links []models.AssetTag
+	if err := db.Where("asset_id = ?", asset.ID).Find(&links).Error; err != nil {
+		t.Fatal(err)
+	}
+	// A no-op wiring would attach nothing — this fails against it.
+	if len(links) != 2 {
+		t.Fatalf("expected 2 tag links from enrichment, got %d", len(links))
+	}
+	var tagRows []models.Tag
+	db.Where("library_id = ?", 1).Order("path").Find(&tagRows)
+	paths := make([]string, len(tagRows))
+	for i, tg := range tagRows {
+		paths[i] = tg.Path
+	}
+	if len(paths) != 2 || paths[0] != "fantasy" || paths[1] != "rpg" {
+		t.Fatalf("tag paths: got %v", paths)
+	}
+}
+
 func TestEnrichAsset_ExactMatchNotFirstCandidate(t *testing.T) {
 	db := enrichTestDB(t)
 	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)

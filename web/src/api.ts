@@ -149,15 +149,23 @@ export async function fetchBlob(url: string, mimeType?: string): Promise<Blob> {
   return mimeType ? blob.slice(0, blob.size, mimeType) : blob;
 }
 
+export interface UploadResponse {
+  asset_id?: number;
+  import_id?: number;
+  suggested_match?: { asset_id: number; name: string };
+}
+
 // uploadFile posts a FormData body (single file under the `file` field) and
 // surfaces XHR upload progress via onProgress. Uses XMLHttpRequest because
-// fetch has no upload-progress events yet.
+// fetch has no upload-progress events yet. When assetId is set the upload is
+// attached as a new version of that asset rather than creating a new one.
 export function uploadFile(
   url: string,
   file: File,
   onProgress?: (fraction: number) => void,
   signal?: AbortSignal,
-): Promise<unknown> {
+  assetId?: number,
+): Promise<UploadResponse> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(new UploadAbortedError());
@@ -167,6 +175,7 @@ export function uploadFile(
       const token = await getAccessToken();
       const form = new FormData();
       form.append("file", file);
+      if (assetId) form.append("asset_id", String(assetId));
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url);
@@ -187,9 +196,9 @@ export function uploadFile(
         cleanup();
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            resolve(JSON.parse(xhr.responseText || "{}"));
+            resolve(JSON.parse(xhr.responseText || "{}") as UploadResponse);
           } catch {
-            resolve(null);
+            resolve({});
           }
         } else if (xhr.status === 401) {
           reject(new AuthRedirectError());

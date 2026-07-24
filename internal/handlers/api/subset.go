@@ -11,7 +11,6 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 type subsetRequest struct {
@@ -89,14 +88,6 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	}
 
 	label := req.VersionLabel
-	if label == "" {
-		next, err := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
-		if err != nil {
-			respond500(c, err)
-			return
-		}
-		label = next
-	}
 
 	var newVersion models.AssetVersion
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
@@ -105,7 +96,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 			VersionLabel:    label,
 			ImportDate:      time.Now().UTC(),
 			PackageKind:     source.PackageKind,
-			Notes:           "subset of " + source.VersionLabel,
+			Notes:           "subset of " + versionDisplayName(source),
 			CreatedByUserID: &u.ID,
 		}
 		// Subsets don't retain the package archive — they're virtual versions
