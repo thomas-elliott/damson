@@ -193,7 +193,35 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	}
 }
 
-func TestPostReExtract_CreatesNewVersion(t *testing.T) {
+func TestPostImport_VersionFromFilenameNotAutoLabel(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+
+	pkg := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x05), pathname: "Assets/foo.bin", content: []byte("foo")},
+	})
+	r := setupRouter(h, u)
+	body, ctype := buildMultipart(t, "file", "Weapon System v3.4.unitypackage", pkg)
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	resp := jsonResponse[importEnqueueResponse](t, w)
+
+	var version models.AssetVersion
+	if err := db.Where("asset_id = ?", resp.AssetID).First(&version).Error; err != nil {
+		t.Fatal(err)
+	}
+	// The store version is parsed from the filename; the label is left blank
+	// (no auto v1) — a no-op regression to "v1" fails the second assertion.
+	if version.StoreVersion != "3.4" {
+		t.Fatalf("store_version: got %q, want 3.4", version.StoreVersion)
+	}
+	if version.VersionLabel != "" {
+		t.Fatalf("version_label should be blank, got %q", version.VersionLabel)
+	}
+}
+
+func TestPostReExtract_UpdatesVersionInPlace(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "librarian@example.com")
 	_ = seedLibraryAndSwitch(t, h, u)
@@ -211,7 +239,6 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	requireStatus(t, w, http.StatusAccepted)
 	first := jsonResponse[importEnqueueResponse](t, w)
 
-	// After the sync pool finishes, the asset has a current version id.
 	var firstAsset models.Asset
 	if err := db.First(&firstAsset, first.AssetID).Error; err != nil {
 		t.Fatal(err)
@@ -221,6 +248,9 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	}
 	firstVersionID := *firstAsset.CurrentVersionID
 
+	var versionsBefore int64
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionsBefore)
+
 	// Re-extract using the retained original package.
 	path := "/api/assets/" + uintStr(first.AssetID) +
 		"/versions/" + uintStr(firstVersionID) + "/reextract"
@@ -228,44 +258,36 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	requireStatus(t, w2, http.StatusCreated)
 	second := jsonResponse[importResponse](t, w2)
 
-	if second.AssetID != first.AssetID {
-		t.Fatalf("asset id changed: %d → %d", first.AssetID, second.AssetID)
-	}
-	if second.AssetVersionID == firstVersionID {
-		t.Fatalf("version id should differ: %d", second.AssetVersionID)
+	// Re-extract updates the same version in place — no new row, same id.
+	if second.AssetVersionID != firstVersionID {
+		t.Fatalf("re-extract should reuse the version id: got %d, want %d", second.AssetVersionID, firstVersionID)
 	}
 	if second.FileCount != 1 {
 		t.Fatalf("expected 1 file, got %d", second.FileCount)
 	}
+	var versionsAfter int64
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionsAfter)
+	if versionsAfter != versionsBefore {
+		t.Fatalf("re-extract created a new version row: before=%d after=%d", versionsBefore, versionsAfter)
+	}
 
-	// Old version rows are untouched.
-	var firstFiles int64
+	// The version keeps exactly its re-extracted files (no duplication).
+	var files int64
 	if err := db.Model(&models.AssetFile{}).
 		Where("asset_version_id = ?", firstVersionID).
-		Count(&firstFiles).Error; err != nil {
+		Count(&files).Error; err != nil {
 		t.Fatal(err)
 	}
-	if firstFiles != 1 {
-		t.Fatalf("first version lost its files: %d", firstFiles)
+	if files != 1 {
+		t.Fatalf("expected 1 file after in-place re-extract, got %d", files)
 	}
 
-	// Asset's current version switched to the new one; labels are v1 / v2.
 	var asset models.Asset
 	if err := db.First(&asset, first.AssetID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if asset.CurrentVersionID == nil || *asset.CurrentVersionID != second.AssetVersionID {
-		t.Fatalf("current_version_id not rolled forward: %+v", asset.CurrentVersionID)
-	}
-	var v2 models.AssetVersion
-	if err := db.First(&v2, second.AssetVersionID).Error; err != nil {
-		t.Fatal(err)
-	}
-	if v2.VersionLabel != "v2" {
-		t.Fatalf("version label: got %q, want v2", v2.VersionLabel)
-	}
-	if v2.OriginalPackageObjectKey == "" {
-		t.Fatalf("v2 did not inherit original package key")
+	if asset.CurrentVersionID == nil || *asset.CurrentVersionID != firstVersionID {
+		t.Fatalf("current_version_id should remain the re-extracted version: %+v", asset.CurrentVersionID)
 	}
 }
 

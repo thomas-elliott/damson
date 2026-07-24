@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -401,17 +400,6 @@ func WriteAssetFiles(tx *gorm.DB, versionID uint, looseObjectKey string, looseSi
 		return 0, 0, err
 	}
 	return len(rows), total, nil
-}
-
-// NextVersionLabel returns the next `v<N>` label for an asset by counting
-// existing versions. Pulled out of the api package so the retry handler
-// and the pipeline can both call it.
-func NextVersionLabel(db *gorm.DB, assetID uint) (string, error) {
-	var n int64
-	if err := db.Model(&models.AssetVersion{}).Where("asset_id = ?", assetID).Count(&n).Error; err != nil {
-		return "", err
-	}
-	return "v" + strconv.FormatInt(n+1, 10), nil
 }
 
 // loadOrCreateLibrarySettings is the pipeline-local mirror of the api
