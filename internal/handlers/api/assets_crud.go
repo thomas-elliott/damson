@@ -627,70 +627,74 @@ func (h *Handler) deleteAsset(c *gin.Context) {
 		return
 	}
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		var asset models.Asset
-		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&asset).Error; err != nil {
-			return err
-		}
-		before := map[string]any{"id": asset.ID, "name": asset.Name}
-		// Explicit child cleanup — SQLite test path doesn't honour FK
-		// cascades that Postgres enforces. No-op when Postgres has
-		// already cascaded.
-		var versionIDs []uint
-		if err := tx.Model(&models.AssetVersion{}).
-			Where("asset_id = ?", asset.ID).
-			Pluck("id", &versionIDs).Error; err != nil {
-			return err
-		}
-		if len(versionIDs) > 0 {
-			if err := tx.Where("asset_version_id IN ?", versionIDs).
-				Delete(&models.AssetFile{}).Error; err != nil {
-				return err
-			}
-		}
-		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetVersion{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetTag{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.CollectionAsset{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.ProjectAssetPin{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.Licence{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetImage{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetImport{}).Error; err != nil {
-			return err
-		}
-		// Break the asset.current_version_id FK before deleting the asset row.
-		asset.CurrentVersionID = nil
-		asset.LicenceID = nil
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-		if err := tx.Delete(&asset).Error; err != nil {
-			return err
-		}
-		return audit.Write(tx, audit.Entry{
-			LibraryID:  &lib.ID,
-			UserID:     &u.ID,
-			ActionType: "asset.delete",
-			TargetType: "asset",
-			TargetID:   &asset.ID,
-			Diff:       audit.Deleted(before),
-		})
+		return deleteAssetTx(tx, lib.ID, u.ID, id)
 	})
 	if err != nil {
 		respondGORM(c, err, "asset not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func deleteAssetTx(tx *gorm.DB, libID, userID, assetID uint) error {
+	var asset models.Asset
+	if err := tx.Where("id = ? AND library_id = ?", assetID, libID).First(&asset).Error; err != nil {
+		return err
+	}
+	before := map[string]any{"id": asset.ID, "name": asset.Name}
+	// Explicit child cleanup — SQLite test path doesn't honour FK
+	// cascades that Postgres enforces. No-op when Postgres has
+	// already cascaded.
+	var versionIDs []uint
+	if err := tx.Model(&models.AssetVersion{}).
+		Where("asset_id = ?", asset.ID).
+		Pluck("id", &versionIDs).Error; err != nil {
+		return err
+	}
+	if len(versionIDs) > 0 {
+		if err := tx.Where("asset_version_id IN ?", versionIDs).
+			Delete(&models.AssetFile{}).Error; err != nil {
+			return err
+		}
+	}
+	if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetVersion{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetTag{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.CollectionAsset{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.ProjectAssetPin{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.Licence{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetImage{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("asset_id = ?", asset.ID).Delete(&models.AssetImport{}).Error; err != nil {
+		return err
+	}
+	// Break the asset.current_version_id FK before deleting the asset row.
+	asset.CurrentVersionID = nil
+	asset.LicenceID = nil
+	if err := tx.Save(&asset).Error; err != nil {
+		return err
+	}
+	if err := tx.Delete(&asset).Error; err != nil {
+		return err
+	}
+	return audit.Write(tx, audit.Entry{
+		LibraryID:  &libID,
+		UserID:     &userID,
+		ActionType: "asset.delete",
+		TargetType: "asset",
+		TargetID:   &asset.ID,
+		Diff:       audit.Deleted(before),
+	})
 }
 
 // postAssetReview marks an asset reviewed (clears needs_review). Idempotent.

@@ -126,6 +126,36 @@ export function useDeleteAsset() {
   });
 }
 
+export type BulkAssetAction =
+  | { action: "delete" }
+  | { action: "review" }
+  | { action: "unreview" }
+  | { action: "add_tag"; path: string }
+  | { action: "remove_tag"; path: string }
+  | { action: "add_to_collection"; collection_id: number }
+  | {
+      action: "set_licence";
+      original_text: string;
+      use_detected?: boolean;
+      detected_type?: string;
+    };
+
+export function useBulkAssets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { asset_ids: number[] } & BulkAssetAction) =>
+      fetchJson<{ affected: number }>(`/api/assets/bulk`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.tags });
+      qc.invalidateQueries({ queryKey: queryKeys.collections });
+    },
+  });
+}
+
 export function useReviewAsset() {
   const qc = useQueryClient();
   return useMutation({
