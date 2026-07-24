@@ -269,7 +269,7 @@ func coveoImages(raw map[string]any, cover string) []string {
 	out := make([]string, 0, len(urls))
 	for _, u := range urls {
 		u = strings.TrimSpace(u)
-		if u == "" || u == cover || seen[u] {
+		if u == "" || u == cover || seen[u] || !isStillImageURL(u) {
 			continue
 		}
 		seen[u] = true
