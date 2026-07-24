@@ -39,6 +39,7 @@ type jobContext struct {
 	version   models.AssetVersion
 	libraryID uint
 	isUnity   bool
+	isArchive bool
 }
 
 // Run executes the import pipeline for one job. The asset, version, and
@@ -110,21 +111,39 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	}
 
 	var extracted *extract.UnityResult
-	if jc.isUnity {
+	if jc.isArchive {
 		blob, gerr := OpenOriginal(ctx, deps.Storage, jc.version)
 		if gerr != nil {
 			return fail("fetch blob: " + gerr.Error())
 		}
-		ex := &extract.UnityExtractor{
-			Storage: deps.Storage,
-			EntryMeta: storage.ObjectMeta{
-				LibraryID: jc.libraryID,
-				AssetID:   jc.asset.ID,
-				VersionID: jc.version.ID,
-				Kind:      "unitypackage-asset",
-			},
+		var (
+			res  *extract.UnityResult
+			xerr error
+		)
+		switch jc.version.PackageKind {
+		case "zip":
+			ex := &extract.ZipExtractor{
+				Storage: deps.Storage,
+				EntryMeta: storage.ObjectMeta{
+					LibraryID: jc.libraryID,
+					AssetID:   jc.asset.ID,
+					VersionID: jc.version.ID,
+					Kind:      "zip-asset",
+				},
+			}
+			res, xerr = ex.Extract(ctx, blob)
+		default:
+			ex := &extract.UnityExtractor{
+				Storage: deps.Storage,
+				EntryMeta: storage.ObjectMeta{
+					LibraryID: jc.libraryID,
+					AssetID:   jc.asset.ID,
+					VersionID: jc.version.ID,
+					Kind:      "unitypackage-asset",
+				},
+			}
+			res, xerr = ex.Extract(ctx, blob)
 		}
-		res, xerr := ex.Extract(ctx, blob)
 		blob.Close()
 		if xerr != nil {
 			return fail("extract: " + xerr.Error())
@@ -149,7 +168,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		settings, sErr := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
 		if sErr != nil {
 			slog.Warn("imports: load settings", "err", sErr, "library_id", jc.libraryID)
-		} else if !jc.isUnity || settings.ThumbnailsUnityPreview {
+		} else if !jc.isArchive || (jc.isUnity && settings.ThumbnailsUnityPreview) {
 			toggles := thumbnail.Toggles{
 				Raster: settings.ThumbnailsRasterEnabled,
 				Audio:  settings.ThumbnailsAudioEnabled,
@@ -178,7 +197,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	}
 
 	err = deps.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if jc.isUnity {
+		if extracted != nil {
 			// Idempotency: clear any existing files (e.g. a resumed run)
 			// before re-writing so the (asset_version_id, relative_path)
 			// unique index doesn't trip.
@@ -233,7 +252,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 
 	// Purge only after the import is marked done: a crash before Done would let
 	// ResumeInFlight re-run extraction against an archive we already deleted.
-	if jc.isUnity {
+	if jc.isArchive {
 		maybePurgeOriginal(ctx, deps, jc)
 	}
 	return nil
@@ -321,6 +340,7 @@ func loadJobContext(db *gorm.DB, importID uint) (jobContext, error) {
 		version:   version,
 		libraryID: asset.LibraryID,
 		isUnity:   version.PackageKind == "unitypackage",
+		isArchive: isArchiveKind(version.PackageKind),
 	}, nil
 }
 

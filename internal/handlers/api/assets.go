@@ -46,6 +46,7 @@ const (
 
 	packageKindLoose        = "loose"
 	packageKindUnityPackage = "unitypackage"
+	packageKindZip          = "zip"
 
 	// MaxBytesReader caps the whole multipart body, not just the file, so the
 	// limit needs headroom for the boundary and part-header framing.
@@ -339,11 +340,17 @@ func (h *Handler) postImport(c *gin.Context) {
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "upload"
 	}
-	isUnity := strings.EqualFold(filepath.Ext(filename), ".unitypackage")
+	ext := strings.ToLower(filepath.Ext(filename))
+	isUnity := ext == ".unitypackage"
+	isZip := ext == ".zip"
+	isArchive := isUnity || isZip
 	contentType := fh.Header.Get("Content-Type")
 	packageKind := packageKindLoose
-	if isUnity {
+	switch {
+	case isUnity:
 		packageKind = packageKindUnityPackage
+	case isZip:
+		packageKind = packageKindZip
 	}
 
 	var targetAssetID uint
@@ -438,7 +445,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		objectKey string
 		size      int64
 	)
-	if isUnity {
+	if isArchive {
 		objectKey, size, err = h.storage.PutOriginal(c.Request.Context(), src, meta)
 	} else {
 		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
@@ -467,7 +474,7 @@ func (h *Handler) postImport(c *gin.Context) {
 			Update("original_package_object_key", objectKey).Error; err != nil {
 			return err
 		}
-		if !isUnity {
+		if !isArchive {
 			f := models.AssetFile{
 				AssetVersionID: versionID,
 				RelativePath:   filename,
