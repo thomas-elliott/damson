@@ -246,6 +246,23 @@ func exactMatchCandidate(assetName string, cands []metadata.Candidate) *metadata
 	return nil
 }
 
+// MatchAssetByName returns an existing asset in the library whose name equals
+// name under normalisation, excluding excludeID. It reuses the same
+// high-confidence title comparison as auto-enrichment. Returns nil when
+// nothing matches.
+func MatchAssetByName(db *gorm.DB, libraryID, excludeID uint, name string) (*models.Asset, error) {
+	var assets []models.Asset
+	if err := db.Where("library_id = ? AND id <> ?", libraryID, excludeID).Find(&assets).Error; err != nil {
+		return nil, err
+	}
+	for i := range assets {
+		if titlesMatch(name, assets[i].Name) {
+			return &assets[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func storeOrSource(store string) string {
 	if store == "" {
 		return "source"
