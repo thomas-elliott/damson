@@ -14,6 +14,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
@@ -103,6 +104,27 @@ func enrichFillBlanks(ctx context.Context, deps Deps, asset *models.Asset, meta 
 		enrichSetThumbnail(ctx, deps, asset, meta.CoverURL)
 	}
 	StoreGalleryImages(ctx, deps.DB, deps.Storage, deps.Metadata, asset.ID, meta.ImageURLs)
+	enrichAttachTags(ctx, deps, asset, meta.Tags)
+}
+
+// enrichAttachTags adds fetched storefront tags to the asset. Additive and
+// best-effort — auto-enrichment never removes tags and any failure is logged
+// and swallowed. Attributed to no user (system enrichment).
+func enrichAttachTags(ctx context.Context, deps Deps, asset *models.Asset, tagList []string) {
+	if len(tagList) == 0 {
+		return
+	}
+	err := deps.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, t := range tagList {
+			if _, _, err := tags.Attach(tx, asset.LibraryID, nil, asset.ID, t); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Warn("enrich: attach tags", "err", err, "asset_id", asset.ID)
+	}
 }
 
 func buildEnrichLicence(meta *metadata.Metadata) *models.Licence {

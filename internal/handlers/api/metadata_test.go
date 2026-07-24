@@ -294,6 +294,61 @@ func TestMetadataFetch_StoresGalleryImages(t *testing.T) {
 	requireStatus(t, tw, http.StatusOK)
 }
 
+func TestMetadataFetch_AttachesTags(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreUnity,
+		Title: "asset", // equal to the asset name → no rename conflict
+		Tags:  []string{"Nature", "Low Poly", "nature"},
+	}}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	asset.SourceURL = "https://assetstore.unity.com/packages/x-1"
+	if err := db.Save(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, w, http.StatusOK)
+	resp := jsonResponse[metadataFetchResponse](t, w)
+	assertContains(t, resp.Applied, "tags")
+
+	// "Nature"/"nature" collapse; both paths lowercase.
+	var tagRows []models.Tag
+	if err := db.Where("library_id = ?", lib.ID).Order("path").Find(&tagRows).Error; err != nil {
+		t.Fatal(err)
+	}
+	paths := make([]string, len(tagRows))
+	for i, tg := range tagRows {
+		paths[i] = tg.Path
+	}
+	if strings.Join(paths, ",") != "low poly,nature" {
+		t.Fatalf("tag paths: got %v", paths)
+	}
+	var linkCount int64
+	db.Model(&models.AssetTag{}).Where("asset_id = ?", asset.ID).Count(&linkCount)
+	if linkCount != 2 {
+		t.Fatalf("expected 2 tag links, got %d", linkCount)
+	}
+
+	// Additive + idempotent: a second fetch neither duplicates links nor
+	// re-reports "tags" applied (LinkTag audits/reports only new links).
+	w2 := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, w2, http.StatusOK)
+	resp2 := jsonResponse[metadataFetchResponse](t, w2)
+	for _, f := range resp2.Applied {
+		if f == "tags" {
+			t.Errorf("second fetch should not re-report tags applied: %v", resp2.Applied)
+		}
+	}
+	db.Model(&models.AssetTag{}).Where("asset_id = ?", asset.ID).Count(&linkCount)
+	if linkCount != 2 {
+		t.Fatalf("links duplicated on re-fetch: %d", linkCount)
+	}
+}
+
 func TestMetadataFetch_NoURL(t *testing.T) {
 	h, db := newTestHandler(t)
 	h.metadata = &fakeMetadata{meta: &metadata.Metadata{}}
