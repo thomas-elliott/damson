@@ -39,6 +39,26 @@ export function MergeDialog({
 
   const candidates = assets.filter((a) => a.id !== targetId);
 
+  const candidateRows = () => {
+    if (loading) return <li className="px-2 py-3 text-small text-text-4">Searching…</li>;
+    if (candidates.length === 0)
+      return <li className="px-2 py-3 text-small text-text-4">No other assets</li>;
+    return candidates.map((a) => (
+      <li key={a.id}>
+        <button
+          type="button"
+          onClick={() => setSourceId(a.id)}
+          className={cn(
+            "w-full truncate rounded-md px-2 py-1.5 text-left text-small text-text-2 transition-colors duration-std ease hover:bg-surface",
+            sourceId === a.id && "bg-surface text-text",
+          )}
+        >
+          {a.name}
+        </button>
+      </li>
+    ));
+  };
+
   const reset = () => {
     setQ("");
     setSourceId(null);
@@ -143,28 +163,7 @@ export function MergeDialog({
                 autoFocus
               />
               {merge.error && <p className="text-small text-err">{merge.error.message}</p>}
-              <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
-                {loading ? (
-                  <li className="px-2 py-3 text-small text-text-4">Searching…</li>
-                ) : candidates.length === 0 ? (
-                  <li className="px-2 py-3 text-small text-text-4">No other assets</li>
-                ) : (
-                  candidates.map((a) => (
-                    <li key={a.id}>
-                      <button
-                        type="button"
-                        onClick={() => setSourceId(a.id)}
-                        className={cn(
-                          "w-full truncate rounded-md px-2 py-1.5 text-left text-small text-text-2 transition-colors duration-std ease hover:bg-surface",
-                          sourceId === a.id && "bg-surface text-text",
-                        )}
-                      >
-                        {a.name}
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
+              <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">{candidateRows()}</ul>
             </DialogBody>
             <DialogFooter>
               <Button variant="ghost" onClick={() => onOpenChange(false)}>

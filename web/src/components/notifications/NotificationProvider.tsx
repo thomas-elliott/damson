@@ -83,6 +83,8 @@ function loadNotifications(): AppNotification[] {
     const parsed = JSON.parse(raw) as AppNotification[];
     if (!Array.isArray(parsed)) return [];
     const cutoff = Date.now() - READ_TTL_MS;
+    // An action's handler is an in-memory closure that can't survive a reload,
+    // so drop persisted action notifications rather than show a dead button.
     return parsed.filter((n) => !n.action && !(n.read && (n.readAt ?? 0) < cutoff));
   } catch {
     return [];
@@ -115,6 +117,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // The accept action re-invokes runUpload; routing through a ref keeps its
+  // useCallback from having to depend on itself.
   const runUploadRef = useRef<(file: File, assetId?: number, onUploaded?: () => void) => void>(
     () => {},
   );
@@ -152,6 +156,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               },
               () =>
                 runUploadRef.current(file, match.asset_id, () => {
+                  // The plain upload already created a standalone asset; once the
+                  // file is re-attached to the match, remove it. Runs only on
+                  // success, so a duplicate-version 409 leaves it in place.
                   if (created) deleteAsset.mutate(created);
                 }),
             );
