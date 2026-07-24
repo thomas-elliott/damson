@@ -42,6 +42,7 @@ type metadataView struct {
 	LicenceHint string   `json:"licence_hint,omitempty"`
 	CoverURL    string   `json:"cover_url,omitempty"`
 	ImageURLs   []string `json:"image_urls,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 	Store       string   `json:"store,omitempty"`
 	ListingURL  string   `json:"listing_url,omitempty"`
 }
@@ -63,6 +64,7 @@ func metadataViewFrom(m *metadata.Metadata) *metadataView {
 		LicenceHint: hint,
 		CoverURL:    m.CoverURL,
 		ImageURLs:   m.ImageURLs,
+		Tags:        m.Tags,
 		Store:       m.Store,
 		ListingURL:  m.ListingURL,
 	}
@@ -286,6 +288,30 @@ func (h *Handler) countAssetImages(ctx context.Context, assetID uint) int {
 type metadataSearchResponse struct {
 	Query      string          `json:"query"`
 	Candidates []candidateView `json:"candidates"`
+}
+
+func (h *Handler) getMetadataPreview(c *gin.Context) {
+	if h.metadata == nil {
+		respond503(c, "metadata service not configured")
+		return
+	}
+	raw := strings.TrimSpace(c.Query("url"))
+	if raw == "" {
+		respond400(c, asError("url is required"))
+		return
+	}
+	cleaned, err := validateSourceURL(raw)
+	if err != nil {
+		respond400(c, err)
+		return
+	}
+	meta, err := h.metadata.Fetch(c.Request.Context(), cleaned)
+	if err != nil {
+		slog.Warn("metadata preview failed", "url", cleaned, "err", err)
+		respond502(c, "could not fetch listing")
+		return
+	}
+	c.JSON(http.StatusOK, metadataViewFrom(meta))
 }
 
 // getMetadataSearch fans out a name search across the storefront adapters and
