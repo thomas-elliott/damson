@@ -198,40 +198,47 @@ stage is a coherent, independently-committable unit — roughly one commit each.
   they're cheap to remove — rather than capping or curating a subset.
 - **Scope:** all four areas ship in one PR, as requested.
 
-## Deferred comments
+## Follow-up (next session)
 
-Parked why-notes from the build (comment-free per the workflow; `/cleanup`
-evaluates each and writes back only what the code can't convey, then removes
-this section):
+Two of stage 10's five frontend features are deferred. Their **backend is complete
+and tested** — these are additive UI wiring only.
 
-- `internal/models/asset.go` (AssetVersion.StoreVersion) — uniqueness per asset
-  for non-blank store versions is enforced by the partial index
-  `idx_version_asset_store` in migration 018; a GORM tag can't express a
-  `WHERE` clause, so the migration is the source of truth for that constraint.
-- `internal/services/metadata/unity.go` (`isStillImageURL`) — unknown/extensionless
-  URLs are treated as still images because Unity's CDN cover URLs often carry no
-  extension; only recognised video markers are excluded.
-- `internal/services/extract/unitypackage.go` (`maxPreviewBuffer`) — a safety
-  valve, not a normal limit: real Unity previews are tens of KiB, so buffering
-  to pick an image-asset preview degrades gracefully to first-preview only if a
-  pathological package exceeds it.
-- `internal/services/tags/tags.go` (`LinkTag`) — audits only when a new link is
-  created so enrichment re-runs don't emit duplicate `asset.tag` audit noise.
-- `internal/handlers/api/imports.go` (retry) — re-imports into the existing
-  failed version instead of spawning a new one; the pipeline re-extracts into
-  the latest version in place, which is why no new version row is created.
-- `internal/handlers/api/assets.go` (`cleanupFailedVersionUpload`) — removes only
-  the new version + import rows on a failed add-version upload, leaving the
-  pre-existing target asset and its other versions intact (unlike
-  `cleanupFailedUpload`, which deletes the whole asset for a fresh upload).
-- `internal/handlers/api/assets_crud.go` (`deleteAssetVersion` /
-  `nextCurrentVersion`) — repoints `current_version_id` to the highest remaining
-  store version (then unversioned by newest import) before deleting, so the
-  `ON DELETE SET NULL` FK never fires on a stale pointer; blobs are left for GC.
-- `internal/handlers/api/merge.go` (`postAssetMerge`) — every moved row is
-  filtered against the target's existing unique keys so the move can't violate a
-  constraint; anything left unmoved cascade-deletes with the source, and pins on
-  a dropped duplicate version are remapped to the target's equivalent.
-- `web/src/components/detail/AssetDetailPanel.tsx` (`GalleryLightbox`) — inline
-  `zIndex: var(--z-index-dialog)` mirrors `Select.tsx`; the project maps z-index
-  through CSS vars rather than Tailwind `z-*` utilities.
+### 1. Upload "add as a version of…" prompt (stages 7 + 8)
+
+The upload response already carries `suggested_match` (`{asset_id, name}`) when a
+confident same-name match exists, and `POST /api/imports` already accepts an
+`asset_id` form field to attach the upload as a new version. What's missing is the
+UI:
+
+- `uploadFile` (`web/src/api.ts`) hardcodes a file-only `FormData`; thread an
+  optional `assetId` through it and `startUpload` (`NotificationProvider.tsx`) so a
+  retry-as-version can re-post the same `File` with `asset_id` set.
+- `uploadFile` already resolves with the parsed response — on success, read
+  `suggested_match` and surface an actionable notification ("This looks like a new
+  version of *<name>* — add as a version?"). Accepting re-uploads with `asset_id`;
+  the default (a new asset) is already what happens.
+- Duplicate store version on the target returns 409 with a clear message — surface
+  it as the "replace the files of that version" affordance (re-extract / delete +
+  re-upload).
+
+### 2. Merge picker (stage 9)
+
+`useMergeAssets` and `POST /api/assets/:id/merge` are in place; the endpoint returns
+`adoptable` (source name/description/thumbnail) for one-click adoption. What's
+missing:
+
+- An asset action (detail-panel footer, next to "Delete asset") opening a
+  source-asset picker — a name search over the library's assets (reuse the asset
+  grid query) with the current asset as the merge target.
+- On success, offer to adopt the returned `adoptable` fields (name/description via
+  the existing `usePatchAsset`; thumbnail adoption needs a "set thumbnail from key"
+  path that doesn't exist yet — scope that or drop thumbnail adoption for v1).
+
+### Minor cleanup suggestion (not applied)
+
+The store-version ordering comparator is duplicated between `getAssetDetail`'s
+version sort (`assets_crud.go`) and `nextCurrentVersion`. They differ subtly
+(detail view keeps SQL import-date order for unversioned rows; `nextCurrentVersion`
+sorts unversioned by newest import), so extracting a shared comparator risks
+changing display order — left as-is per "don't refactor unrelated code," flagged
+here for a deliberate future consolidation.

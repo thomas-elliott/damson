@@ -444,6 +444,8 @@ func (h *Handler) deleteAssetVersion(c *gin.Context) {
 			return errConflictf("cannot delete the only version; delete the asset instead")
 		}
 
+		// Repoint before deleting so the current_version_id FK (ON DELETE SET
+		// NULL) can't null out a version the asset still has.
 		if asset.CurrentVersionID != nil && *asset.CurrentVersionID == version.ID {
 			next, err := nextCurrentVersion(tx, asset.ID, version.ID)
 			if err != nil {

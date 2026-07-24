@@ -74,6 +74,10 @@ func (h *Handler) postAssetMerge(c *gin.Context) {
 		if err := tx.Where("asset_id = ?", source.ID).Find(&sourceVersions).Error; err != nil {
 			return err
 		}
+		// A source version whose store version already exists on the target
+		// can't move (the partial unique index forbids it); it stays on the
+		// source to cascade-delete, and its pins are remapped to the target's
+		// equivalent below.
 		dropRemap := map[uint]uint{}
 		moved := 0
 		for _, v := range sourceVersions {
