@@ -89,6 +89,8 @@ func (h *Handler) postBulkAssets(c *gin.Context) {
 
 	affected := 0
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		// Every id must resolve within the current library; a stray one fails
+		// the whole batch (also the only scope check tags.Attach gets).
 		var found int64
 		if err := tx.Model(&models.Asset{}).
 			Where("id IN ? AND library_id = ?", ids, lib.ID).
