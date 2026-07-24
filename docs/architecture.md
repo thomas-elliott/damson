@@ -324,6 +324,12 @@ sees data.
   object-src 'none'; base-uri 'self'; frame-ancestors 'none';`),
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`. TLS / HSTS is the proxy's job.
+- `img-src` forbids store CDN origins, so external storefront images
+  (candidate covers, preview galleries) are fetched server-side
+  through the SSRF-guarded metadata client and streamed from
+  `GET /api/metadata/image?url=` — gated to `image/*` responses — so
+  the SPA renders them as same-origin `blob:` URLs without widening
+  the policy.
 - `jsonBodyCap` wraps every non-multipart request body in
   `http.MaxBytesReader(1 MiB)`. Multipart uploads
   (`POST /api/imports`) bypass this — they have a streaming
@@ -774,6 +780,14 @@ POST   /api/assets/:id/tags
 DELETE /api/assets/:id/tags/:tagId
 POST   /api/assets/:id/versions/:vid/reextract
 POST   /api/assets/:id/versions/:vid/subset
+
+# Storefront metadata (library-scoped)
+POST   /api/assets/:id/metadata/fetch          # fetch + fill/confirm from a listing
+POST   /api/assets/:id/metadata/apply
+POST   /api/assets/:id/metadata/gallery/backfill
+GET    /api/metadata/preview          # non-mutating fetch-by-url (candidate expand)
+GET    /api/metadata/image            # SSRF-guarded image proxy → same-origin bytes
+GET    /api/metadata/search           # name search across storefront adapters
 
 # Imports (library-scoped)
 POST   /api/imports

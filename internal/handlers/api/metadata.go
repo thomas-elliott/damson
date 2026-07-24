@@ -314,6 +314,36 @@ func (h *Handler) getMetadataPreview(c *gin.Context) {
 	c.JSON(http.StatusOK, metadataViewFrom(meta))
 }
 
+func (h *Handler) getMetadataImage(c *gin.Context) {
+	if h.metadata == nil {
+		respond503(c, "metadata service not configured")
+		return
+	}
+	raw := strings.TrimSpace(c.Query("url"))
+	if raw == "" {
+		respond400(c, asError("url is required"))
+		return
+	}
+	cleaned, err := validateSourceURL(raw)
+	if err != nil {
+		respond400(c, err)
+		return
+	}
+	data, contentType, err := h.metadata.FetchImage(c.Request.Context(), cleaned)
+	if err != nil {
+		slog.Warn("metadata image proxy failed", "url", cleaned, "err", err)
+		respond502(c, "could not fetch image")
+		return
+	}
+	if !strings.HasPrefix(contentType, "image/") {
+		slog.Warn("metadata image proxy: non-image response", "url", cleaned, "content_type", contentType)
+		respond502(c, "not an image")
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=86400")
+	c.Data(http.StatusOK, contentType, data)
+}
+
 // getMetadataSearch fans out a name search across the storefront adapters and
 // returns a merged candidate list for the match picker.
 func (h *Handler) getMetadataSearch(c *gin.Context) {

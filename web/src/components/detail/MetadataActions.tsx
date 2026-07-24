@@ -13,7 +13,9 @@ import {
   DialogTitle,
   IconButton,
   Input,
+  cn,
 } from "@/design-system";
+import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 import type { AssetDetailView, MetadataCandidate, MetadataConflict } from "@/hooks/useDataQueries";
 import {
   useApplyMetadata,
@@ -32,9 +34,12 @@ function candidateSubtitle(c: MetadataCandidate): string {
   return [c.store, c.publisher, price].filter(Boolean).join(" · ");
 }
 
-// Candidate covers + preview images are external storefront CDN URLs, so a
-// plain <img> renders them — unlike our own file endpoints, which force
-// octet-stream + nosniff and need the fetchBlob dance.
+function ProxiedImage({ src, className }: { src: string; className?: string }) {
+  const url = useBlobUrl(`/api/metadata/image?url=${encodeURIComponent(src)}`);
+  if (!url) return <div className={cn("animate-pulse bg-bg", className)} />;
+  return <img src={url} alt="" loading="lazy" className={className} />;
+}
+
 function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const preview = usePreviewMetadata();
@@ -51,12 +56,7 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
     <div className="rounded-md border border-line bg-surface transition-colors duration-std ease hover:border-line-2">
       <div className="flex items-center gap-2 p-2">
         {c.cover_url ? (
-          <img
-            src={c.cover_url}
-            alt=""
-            className="h-10 w-10 shrink-0 rounded object-cover"
-            loading="lazy"
-          />
+          <ProxiedImage src={c.cover_url} className="h-10 w-10 shrink-0 rounded object-cover" />
         ) : (
           <div className="h-10 w-10 shrink-0 rounded bg-bg" />
         )}
@@ -85,11 +85,9 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
               {(preview.data.image_urls?.length ?? 0) > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {preview.data.image_urls!.slice(0, 8).map((src) => (
-                    <img
+                    <ProxiedImage
                       key={src}
                       src={src}
-                      alt=""
-                      loading="lazy"
                       className="h-16 w-24 shrink-0 rounded-md border border-line object-cover"
                     />
                   ))}

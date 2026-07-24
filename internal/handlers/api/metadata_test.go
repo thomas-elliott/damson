@@ -456,6 +456,46 @@ func TestMetadataSearch_RequiresQuery(t *testing.T) {
 	requireStatus(t, w, http.StatusBadRequest)
 }
 
+func TestMetadataImage_ProxiesImage(t *testing.T) {
+	h, db := newTestHandler(t)
+	png := tinyPNG(t)
+	h.metadata = &fakeMetadata{img: png, imgCT: "image/png"}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/image?url=https://cdn.example.com/cover.png")
+	requireStatus(t, w, http.StatusOK)
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "image/png") {
+		t.Fatalf("content-type = %q, want image/png", ct)
+	}
+	if !bytes.Equal(w.Body.Bytes(), png) {
+		t.Fatalf("body mismatch: got %d bytes, want %d", w.Body.Len(), len(png))
+	}
+}
+
+func TestMetadataImage_RejectsNonImage(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{img: []byte("<html>gotcha</html>"), imgCT: "text/html"}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/image?url=https://evil.example.com/page")
+	requireStatus(t, w, http.StatusBadGateway)
+}
+
+func TestMetadataImage_RequiresURL(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/image")
+	requireStatus(t, w, http.StatusBadRequest)
+}
+
 func assertContains(t *testing.T, got []string, want ...string) {
 	t.Helper()
 	set := map[string]bool{}

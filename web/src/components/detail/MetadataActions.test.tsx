@@ -55,6 +55,11 @@ vi.mock("@/hooks/useMutations", () => ({
   }),
 }));
 
+const blobUrlMock = vi.fn((): string | undefined => "blob:fake");
+vi.mock("@/components/filebrowser/useFileObjectUrl", () => ({
+  useBlobUrl: (url?: string) => blobUrlMock(url),
+}));
+
 import { MetadataActions } from "./MetadataActions";
 
 const asset = {
@@ -70,7 +75,35 @@ describe("MetadataActions", () => {
     applyMutate.mockClear();
     searchMutate.mockClear();
     previewMutate.mockClear();
+    blobUrlMock.mockClear();
     previewData = undefined;
+  });
+
+  it("renders candidate covers through the SSRF-guarded image proxy", () => {
+    const withCover = {
+      ...asset,
+      source_metadata: {
+        matched: false,
+        store: "",
+        candidates: [
+          {
+            title: "The Right One",
+            listing_url: "https://x/right",
+            store: "unity",
+            cover_url: "https://cdn.unity.com/a b.png?v=1",
+          },
+        ],
+      },
+    } as AssetDetailView;
+
+    const { container } = render(<MetadataActions asset={withCover} />);
+
+    // A bare <img src={cover_url}> would be blocked by the CSP; the cover must
+    // go through the proxy endpoint with the external URL encoded.
+    expect(blobUrlMock).toHaveBeenCalledWith(
+      `/api/metadata/image?url=${encodeURIComponent("https://cdn.unity.com/a b.png?v=1")}`,
+    );
+    expect(container.querySelector("img")).toHaveAttribute("src", "blob:fake");
   });
 
   it("opens the overwrite-confirm dialog on conflicts and applies the confirmed field", () => {
