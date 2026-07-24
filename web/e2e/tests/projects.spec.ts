@@ -75,10 +75,17 @@ test.describe("Project pin + upgrade flow", () => {
     await expect(page.getByText("Up to date")).toBeVisible();
 
     // Create v2 via subset. The subset handler also flips current_version
-    // to the new id, so updates_available should jump from 0 to 1.
-    const v2 = await subsetVersion(request, session, upload.asset_id, upload.asset_version_id, [
-      firstFileId!,
-    ]);
+    // to the new id, so updates_available should jump from 0 to 1. Version
+    // labels are no longer auto-incremented (store_version is the identity),
+    // so pass the "v2" label explicitly — the upgrade affordance renders it.
+    const v2 = await subsetVersion(
+      request,
+      session,
+      upload.asset_id,
+      upload.asset_version_id,
+      [firstFileId!],
+      "v2",
+    );
     expect(v2.version_label).toBe("v2");
 
     // Reload the project page so useProject refetches against the new
