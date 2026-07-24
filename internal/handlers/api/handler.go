@@ -166,6 +166,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 
 	// Assets
 	scoped.GET("/assets", h.getAssets)
+	scoped.POST("/assets/bulk", h.postBulkAssets)
 	scoped.GET("/assets/:id", h.getAssetDetail)
 	scoped.PATCH("/assets/:id", h.patchAsset)
 	scoped.DELETE("/assets/:id", h.deleteAsset)
@@ -173,6 +174,9 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/assets/:id/rescan", h.postAssetRescan)
 	scoped.POST("/assets/:id/metadata/fetch", h.postAssetMetadataFetch)
 	scoped.POST("/assets/:id/metadata/apply", h.postAssetMetadataApply)
+	scoped.POST("/assets/:id/metadata/gallery/backfill", h.postAssetGalleryBackfill)
+	scoped.GET("/metadata/preview", h.getMetadataPreview)
+	scoped.GET("/metadata/image", h.getMetadataImage)
 	scoped.GET("/metadata/search", h.getMetadataSearch)
 
 	// Imports
@@ -183,6 +187,8 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.GET("/imports/:id/events", h.getImportEventsByID)
 	scoped.POST("/imports/:id/retry", h.postImportRetry)
 	scoped.PATCH("/assets/:id/versions/:vid", h.patchAssetVersion)
+	scoped.DELETE("/assets/:id/versions/:vid", h.deleteAssetVersion)
+	scoped.POST("/assets/:id/merge", h.postAssetMerge)
 	scoped.POST("/assets/:id/versions/:vid/reextract", h.postReExtract)
 	scoped.POST("/assets/:id/versions/:vid/subset", h.postAssetVersionSubset)
 

@@ -29,8 +29,11 @@ Core concerns:
 - **Content-addressed storage** — file bytes live keyed by SHA-256.
   Postgres holds metadata; the same texture appearing in five packages
   occupies one object.
-- **Versioning is immutable** — an `AssetVersion`'s file manifest is
-  fixed once written. Re-extractions produce new versions.
+- **Versions track the external pack version** — an `AssetVersion`'s
+  identity is its `store_version` (e.g. `1.3`), parsed from the upload
+  filename. Re-extraction rewrites a version's files in place rather
+  than spawning a new one; a new version only comes from uploading
+  another pack. Labels are editable and may be blank (unversioned).
 - **Projects are declarative** — a project pins specific versions;
   upgrade is a logged, reversible action.
 - **Audit is a boundary** — every library-scoped write writes an
@@ -43,8 +46,9 @@ landed, what is partial, and what is deferred.
 
 ## 2. Stack
 
-**Backend.** Go 1.26, Gin, GORM (Postgres in production, in-memory
-SQLite for tests). Auth via `coreos/go-oidc/v3` + `oauth2` (OIDC mode)
+**Backend.** Go 1.26, Gin, GORM (Postgres in production and tests —
+the suite runs against a real Postgres via `DAMSON_TEST_POSTGRES_DSN`).
+Auth via `coreos/go-oidc/v3` + `oauth2` (OIDC mode)
 or `golang-jwt/jwt/v5` HS256 (local mode). S3 access via
 `aws-sdk-go-v2`. SPDX matching via `google/licensecheck`. Thumbnails
 are pure Go: stdlib `image` + `golang.org/x/image/{webp,draw,font}`,
@@ -130,10 +134,13 @@ section sketches the shape and relationships.
   `thumbnail_object_key`, `thumbnail_content_type`, `needs_review`,
   `created_by_user_id`, `search_vector` (Postgres tsvector,
   trigger-maintained).
-- **`asset_versions`** — `asset_id`, `version_label`, `notes`,
-  `import_date`, `original_package_object_key` (set for
-  `.unitypackage`), `package_kind` (`unitypackage` | `zip` |
-  `loose` | null). `unique(asset_id, version_label)`.
+- **`asset_versions`** — `asset_id`, `store_version` (the version
+  identity, e.g. `1.3`; blank = unversioned), `version_label` (an
+  optional editable label), `notes`, `import_date`,
+  `original_package_object_key` (set for `.unitypackage`),
+  `package_kind` (`unitypackage` | `zip` | `loose` | null). A partial
+  unique index enforces `unique(asset_id, store_version)` for non-blank
+  store versions, so unversioned rows can coexist.
 - **`asset_files`** — `asset_version_id`, `relative_path`,
   `size_bytes`, `content_hash`, `object_key` (== `content_hash`),
   `detected_type`, `unity_guid`. `unique(asset_version_id,
@@ -188,12 +195,13 @@ applies in lexicographic order inside a Postgres advisory lock,
 tracks applied files in `schema_migrations`. Each file is wrapped
 in `BEGIN; … COMMIT;` and uses `IF NOT EXISTS` throughout.
 
-**Tests** use in-memory SQLite + GORM `AutoMigrate` against the
-model structs. The two paths are independent: a schema change must
-land in **both** an SQL migration **and** the corresponding GORM
-struct tags. Postgres-specific behaviour (tsvector, JSONB
-operators, `pg_advisory_lock`) is not exercised by SQLite; a real-
-Postgres integration tier is a follow-up (see `progress.md`).
+**Tests** run against a real Postgres (each test gets an isolated
+schema with the SQL migrations applied), configured via
+`DAMSON_TEST_POSTGRES_DSN`. A schema change must still land in **both**
+an SQL migration **and** the corresponding GORM struct tags, since the
+model tags remain the second source of truth. Postgres-specific
+behaviour (tsvector, JSONB operators, `pg_advisory_lock`) is exercised
+directly.
 
 ---
 
@@ -316,6 +324,12 @@ sees data.
   object-src 'none'; base-uri 'self'; frame-ancestors 'none';`),
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`. TLS / HSTS is the proxy's job.
+- `img-src` forbids store CDN origins, so external storefront images
+  (candidate covers, preview galleries) are fetched server-side
+  through the SSRF-guarded metadata client and streamed from
+  `GET /api/metadata/image?url=` — gated to `image/*` responses — so
+  the SPA renders them as same-origin `blob:` URLs without widening
+  the policy.
 - `jsonBodyCap` wraps every non-multipart request body in
   `http.MaxBytesReader(1 MiB)`. Multipart uploads
   (`POST /api/imports`) bypass this — they have a streaming
@@ -353,8 +367,9 @@ sees data.
 Handlers are receiver methods on a single `*Handler` struct
 (`internal/handlers/api/handler.go`), constructed via
 `api.New(api.Deps{...})` in `cmd/server/main.go`. Tests construct
-via `newTestHandler(t)` which wires in-memory SQLite + a `LocalFS`
-storage rooted in `t.TempDir()`. One file per feature
+via `newTestHandler(t)` which wires a per-test Postgres schema (all SQL
+migrations applied) + a `LocalFS` storage rooted in `t.TempDir()`. One
+file per feature
 (`assets.go`, `library.go`, `imports.go`, …).
 
 Errors use `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`.
@@ -765,6 +780,14 @@ POST   /api/assets/:id/tags
 DELETE /api/assets/:id/tags/:tagId
 POST   /api/assets/:id/versions/:vid/reextract
 POST   /api/assets/:id/versions/:vid/subset
+
+# Storefront metadata (library-scoped)
+POST   /api/assets/:id/metadata/fetch          # fetch + fill/confirm from a listing
+POST   /api/assets/:id/metadata/apply
+POST   /api/assets/:id/metadata/gallery/backfill
+GET    /api/metadata/preview          # non-mutating fetch-by-url (candidate expand)
+GET    /api/metadata/image            # SSRF-guarded image proxy → same-origin bytes
+GET    /api/metadata/search           # name search across storefront adapters
 
 # Imports (library-scoped)
 POST   /api/imports

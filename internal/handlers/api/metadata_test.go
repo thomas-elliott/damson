@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"image"
 	"image/color"
 	"image/png"
@@ -294,6 +295,115 @@ func TestMetadataFetch_StoresGalleryImages(t *testing.T) {
 	requireStatus(t, tw, http.StatusOK)
 }
 
+func TestMetadataGalleryBackfill(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{img: tinyPNG(t), imgCT: "image/png"}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	rec := metadata.SourceRecord{
+		Store:    metadata.StoreUnity,
+		Metadata: &metadata.Metadata{ImageURLs: []string{"https://cdn.example.com/1.jpg", "https://cdn.example.com/2.jpg"}},
+	}
+	blob, err := json.Marshal(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset.SourceMetadataJSON = blob
+	if err := db.Save(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/gallery/backfill", nil)
+	requireStatus(t, w, http.StatusOK)
+	resp := jsonResponse[galleryBackfillResponse](t, w)
+	if resp.Stored != 2 || resp.Total != 2 {
+		t.Fatalf("backfill result: %+v", resp)
+	}
+	var count int64
+	db.Model(&models.AssetImage{}).Where("asset_id = ?", asset.ID).Count(&count)
+	if count != 2 {
+		t.Fatalf("expected 2 gallery images, got %d", count)
+	}
+
+	// Idempotent: a second backfill stores nothing new.
+	w2 := performRequest(r, http.MethodPost, "/api/assets/1/metadata/gallery/backfill", nil)
+	requireStatus(t, w2, http.StatusOK)
+	resp2 := jsonResponse[galleryBackfillResponse](t, w2)
+	if resp2.Stored != 0 || resp2.Total != 2 {
+		t.Fatalf("second backfill should be a no-op: %+v", resp2)
+	}
+}
+
+func TestMetadataGalleryBackfill_NoMetadata(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedAsset(t, db, lib.ID, "asset")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/gallery/backfill", nil)
+	// No stored source metadata → 409, nothing to backfill from.
+	requireStatus(t, w, http.StatusConflict)
+}
+
+func TestMetadataFetch_AttachesTags(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreUnity,
+		Title: "asset", // equal to the asset name → no rename conflict
+		Tags:  []string{"Nature", "Low Poly", "nature"},
+	}}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	asset.SourceURL = "https://assetstore.unity.com/packages/x-1"
+	if err := db.Save(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, w, http.StatusOK)
+	resp := jsonResponse[metadataFetchResponse](t, w)
+	assertContains(t, resp.Applied, "tags")
+
+	// "Nature"/"nature" collapse; both paths lowercase.
+	var tagRows []models.Tag
+	if err := db.Where("library_id = ?", lib.ID).Order("path").Find(&tagRows).Error; err != nil {
+		t.Fatal(err)
+	}
+	paths := make([]string, len(tagRows))
+	for i, tg := range tagRows {
+		paths[i] = tg.Path
+	}
+	if strings.Join(paths, ",") != "low poly,nature" {
+		t.Fatalf("tag paths: got %v", paths)
+	}
+	var linkCount int64
+	db.Model(&models.AssetTag{}).Where("asset_id = ?", asset.ID).Count(&linkCount)
+	if linkCount != 2 {
+		t.Fatalf("expected 2 tag links, got %d", linkCount)
+	}
+
+	// Additive + idempotent: a second fetch neither duplicates links nor
+	// re-reports "tags" applied (LinkTag audits/reports only new links).
+	w2 := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil)
+	requireStatus(t, w2, http.StatusOK)
+	resp2 := jsonResponse[metadataFetchResponse](t, w2)
+	for _, f := range resp2.Applied {
+		if f == "tags" {
+			t.Errorf("second fetch should not re-report tags applied: %v", resp2.Applied)
+		}
+	}
+	db.Model(&models.AssetTag{}).Where("asset_id = ?", asset.ID).Count(&linkCount)
+	if linkCount != 2 {
+		t.Fatalf("links duplicated on re-fetch: %d", linkCount)
+	}
+}
+
 func TestMetadataFetch_NoURL(t *testing.T) {
 	h, db := newTestHandler(t)
 	h.metadata = &fakeMetadata{meta: &metadata.Metadata{}}
@@ -343,6 +453,46 @@ func TestMetadataSearch_RequiresQuery(t *testing.T) {
 	seedLibraryForUser(t, db, u, "Personal")
 	r := setupRouter(h, u)
 	w := performGET(r, "/api/metadata/search?q=")
+	requireStatus(t, w, http.StatusBadRequest)
+}
+
+func TestMetadataImage_ProxiesImage(t *testing.T) {
+	h, db := newTestHandler(t)
+	png := tinyPNG(t)
+	h.metadata = &fakeMetadata{img: png, imgCT: "image/png"}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/image?url=https://cdn.example.com/cover.png")
+	requireStatus(t, w, http.StatusOK)
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "image/png") {
+		t.Fatalf("content-type = %q, want image/png", ct)
+	}
+	if !bytes.Equal(w.Body.Bytes(), png) {
+		t.Fatalf("body mismatch: got %d bytes, want %d", w.Body.Len(), len(png))
+	}
+}
+
+func TestMetadataImage_RejectsNonImage(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{img: []byte("<html>gotcha</html>"), imgCT: "text/html"}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/image?url=https://evil.example.com/page")
+	requireStatus(t, w, http.StatusBadGateway)
+}
+
+func TestMetadataImage_RequiresURL(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/metadata/image")
 	requireStatus(t, w, http.StatusBadRequest)
 }
 

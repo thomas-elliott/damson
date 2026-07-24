@@ -73,7 +73,26 @@ func parseSketchfabModel(body []byte, listingURL string) (*Metadata, error) {
 		}
 	}
 	m.CoverURL = sketchfabCover(doc)
+	m.Tags = dedupeTags(append(sketchfabNames(doc["tags"]), sketchfabNames(doc["categories"])...))
 	return m, nil
+}
+
+// sketchfabNames extracts the "name" of each object in a Sketchfab array field
+// (tags and categories are both arrays of {name, slug, ...}).
+func sketchfabNames(v any) []string {
+	arr, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, it := range arr {
+		if obj, ok := it.(map[string]any); ok {
+			if name := stringOf(obj["name"]); name != "" {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
 }
 
 // sketchfabCover picks the largest thumbnail image the API offers.

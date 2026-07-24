@@ -19,6 +19,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 )
 
 type assetGridRow struct {
@@ -45,6 +46,7 @@ const (
 
 	packageKindLoose        = "loose"
 	packageKindUnityPackage = "unitypackage"
+	packageKindZip          = "zip"
 
 	// MaxBytesReader caps the whole multipart body, not just the file, so the
 	// limit needs headroom for the boundary and part-header framing.
@@ -157,7 +159,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 			Where("atf.tag_id = ?", *f.TagID)
 	} else if f.TagPath != "" {
 		// Match tag + descendants.
-		path := normaliseTagPath(f.TagPath)
+		path := tags.NormalisePath(f.TagPath)
 		q = q.Joins("JOIN asset_tags atf ON atf.asset_id = a.id").
 			Joins("JOIN tags tf ON tf.id = atf.tag_id").
 			Where("tf.library_id = ? AND (tf.path = ? OR tf.path LIKE ?)", libID, path, path+"/%")
@@ -266,8 +268,14 @@ func (h *Handler) getAssets(c *gin.Context) {
 // learns about it via SSE on /api/imports/events or by re-fetching the
 // asset.
 type importEnqueueResponse struct {
-	AssetID  uint `json:"asset_id"`
-	ImportID uint `json:"import_id"`
+	AssetID        uint             `json:"asset_id"`
+	ImportID       uint             `json:"import_id"`
+	SuggestedMatch *matchSuggestion `json:"suggested_match,omitempty"`
+}
+
+type matchSuggestion struct {
+	AssetID uint   `json:"asset_id"`
+	Name    string `json:"name"`
 }
 
 // importResponse is the wire shape returned by /reextract — that flow stays
@@ -332,12 +340,29 @@ func (h *Handler) postImport(c *gin.Context) {
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "upload"
 	}
-	isUnity := strings.EqualFold(filepath.Ext(filename), ".unitypackage")
+	ext := strings.ToLower(filepath.Ext(filename))
+	isUnity := ext == ".unitypackage"
+	isZip := ext == ".zip"
+	isArchive := isUnity || isZip
 	contentType := fh.Header.Get("Content-Type")
 	packageKind := packageKindLoose
-	if isUnity {
+	switch {
+	case isUnity:
 		packageKind = packageKindUnityPackage
+	case isZip:
+		packageKind = packageKindZip
 	}
+
+	var targetAssetID uint
+	if s := strings.TrimSpace(c.PostForm("asset_id")); s != "" {
+		n, perr := strconv.ParseUint(s, 10, 64)
+		if perr != nil || n == 0 {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid asset_id"})
+			return
+		}
+		targetAssetID = uint(n)
+	}
+	reqStoreVersion := strings.TrimLeft(strings.TrimSpace(c.PostForm("store_version")), "vV")
 
 	// Create the rows before the upload so the object metadata can carry the
 	// asset/version IDs. The version's object key is set after the upload and
@@ -351,18 +376,38 @@ func (h *Handler) postImport(c *gin.Context) {
 	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		assetName, storeVersion := imports.ParseImportFilename(filename)
-		asset := models.Asset{
-			LibraryID:       libID,
-			Name:            assetName,
-			NeedsReview:     true,
-			CreatedByUserID: &u.ID,
+		if reqStoreVersion != "" {
+			storeVersion = reqStoreVersion
 		}
-		if err := tx.Create(&asset).Error; err != nil {
-			return err
+		var asset models.Asset
+		if targetAssetID != 0 {
+			if err := tx.Where("id = ? AND library_id = ?", targetAssetID, libID).First(&asset).Error; err != nil {
+				return err
+			}
+			if storeVersion != "" {
+				var dupes int64
+				if err := tx.Model(&models.AssetVersion{}).
+					Where("asset_id = ? AND store_version = ?", asset.ID, storeVersion).
+					Count(&dupes).Error; err != nil {
+					return err
+				}
+				if dupes > 0 {
+					return errConflictf("this asset already has store version %s; delete or replace that version first", storeVersion)
+				}
+			}
+		} else {
+			asset = models.Asset{
+				LibraryID:       libID,
+				Name:            assetName,
+				NeedsReview:     true,
+				CreatedByUserID: &u.ID,
+			}
+			if err := tx.Create(&asset).Error; err != nil {
+				return err
+			}
 		}
 		version := models.AssetVersion{
 			AssetID:         asset.ID,
-			VersionLabel:    "v1",
 			StoreVersion:    storeVersion,
 			ImportDate:      time.Now().UTC(),
 			CreatedByUserID: &u.ID,
@@ -385,7 +430,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		respond500(c, err)
+		respondGORM(c, err, "target asset not found")
 		return
 	}
 
@@ -400,13 +445,25 @@ func (h *Handler) postImport(c *gin.Context) {
 		objectKey string
 		size      int64
 	)
-	if isUnity {
+	if isArchive {
 		objectKey, size, err = h.storage.PutOriginal(c.Request.Context(), src, meta)
 	} else {
 		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
 	}
 	if err != nil {
-		h.cleanupFailedUpload(c.Request.Context(), assetID)
+		slog.Error("import: storage put failed",
+			"library_id", lib.ID,
+			"asset_id", assetID,
+			"version_id", versionID,
+			"import_id", importID,
+			"filename", filename,
+			"package_kind", packageKind,
+			"err", err)
+		if targetAssetID != 0 {
+			h.cleanupFailedVersionUpload(c.Request.Context(), versionID, importID)
+		} else {
+			h.cleanupFailedUpload(c.Request.Context(), assetID)
+		}
 		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
 		return
 	}
@@ -417,7 +474,7 @@ func (h *Handler) postImport(c *gin.Context) {
 			Update("original_package_object_key", objectKey).Error; err != nil {
 			return err
 		}
-		if !isUnity {
+		if !isArchive {
 			f := models.AssetFile{
 				AssetVersionID: versionID,
 				RelativePath:   filename,
@@ -439,7 +496,14 @@ func (h *Handler) postImport(c *gin.Context) {
 
 	h.importPool.Enqueue(imports.Job{ImportID: importID, LibraryID: libID})
 
-	c.JSON(http.StatusAccepted, importEnqueueResponse{AssetID: assetID, ImportID: importID})
+	resp := importEnqueueResponse{AssetID: assetID, ImportID: importID}
+	if targetAssetID == 0 {
+		name, _ := imports.ParseImportFilename(filename)
+		if m, merr := imports.MatchAssetByName(h.db.WithContext(c.Request.Context()), libID, assetID, name); merr == nil && m != nil {
+			resp.SuggestedMatch = &matchSuggestion{AssetID: m.ID, Name: m.Name}
+		}
+	}
+	c.JSON(http.StatusAccepted, resp)
 }
 
 // cleanupFailedUpload removes the asset/version/import rows created for an
@@ -454,6 +518,22 @@ func (h *Handler) cleanupFailedUpload(ctx context.Context, assetID uint) {
 	}
 	if err := db.Delete(&models.Asset{}, assetID).Error; err != nil {
 		slog.Warn("import: cleanup failed upload (asset)", "err", err, "asset_id", assetID)
+	}
+}
+
+// cleanupFailedVersionUpload removes only the version + import rows from a
+// failed add-version upload; the target asset pre-existed and must survive.
+func (h *Handler) cleanupFailedVersionUpload(ctx context.Context, versionID, importID uint) {
+	db := h.db.WithContext(ctx)
+	if importID != 0 {
+		if err := db.Delete(&models.AssetImport{}, importID).Error; err != nil {
+			slog.Warn("import: cleanup failed version upload (import)", "err", err, "import_id", importID)
+		}
+	}
+	if versionID != 0 {
+		if err := db.Delete(&models.AssetVersion{}, versionID).Error; err != nil {
+			slog.Warn("import: cleanup failed version upload (version)", "err", err, "version_id", versionID)
+		}
 	}
 }
 
@@ -533,32 +613,18 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 
-	nextLabel, err := imports.NextVersionLabel(h.db.WithContext(c.Request.Context()), asset.ID)
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-
 	var resp importResponse
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		version := models.AssetVersion{
-			AssetID:                  asset.ID,
-			VersionLabel:             nextLabel,
-			ImportDate:               time.Now().UTC(),
-			PackageKind:              packageKindUnityPackage,
-			OriginalPackageObjectKey: source.OriginalPackageObjectKey,
-			CreatedByUserID:          &u.ID,
-		}
-		if err := tx.Create(&version).Error; err != nil {
+		if err := tx.Where("asset_version_id = ?", source.ID).Delete(&models.AssetFile{}).Error; err != nil {
 			return err
 		}
 
-		fileCount, totalBytes, err := imports.WriteAssetFiles(tx, version.ID, "", 0, "", "", result)
+		fileCount, totalBytes, err := imports.WriteAssetFiles(tx, source.ID, "", 0, "", "", result)
 		if err != nil {
 			return err
 		}
 
-		asset.CurrentVersionID = &version.ID
+		asset.CurrentVersionID = &source.ID
 		if !asset.ThumbnailFromStore && result.ThumbObjectKey != "" {
 			asset.ThumbnailObjectKey = result.ThumbObjectKey
 			asset.ThumbnailContentType = result.ThumbContentType
@@ -569,10 +635,10 @@ func (h *Handler) postReExtract(c *gin.Context) {
 
 		resp = importResponse{
 			AssetID:        asset.ID,
-			AssetVersionID: version.ID,
+			AssetVersionID: source.ID,
 			FileCount:      fileCount,
 			SizeBytes:      totalBytes,
-			PackageKind:    version.PackageKind,
+			PackageKind:    source.PackageKind,
 		}
 		return nil
 	})

@@ -193,7 +193,153 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	}
 }
 
-func TestPostReExtract_CreatesNewVersion(t *testing.T) {
+func TestPostImport_SuggestsMatchForSameName(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	pkg1 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x41), pathname: "Assets/a.bin", content: []byte("a")},
+	})
+	b1, ct1 := buildMultipart(t, "file", "Fantasy Pack 1.0.unitypackage", pkg1)
+	w1 := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w1, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w1)
+	// First upload of a fresh name has nothing to match against.
+	if first.SuggestedMatch != nil {
+		t.Fatalf("unexpected match on first upload: %+v", first.SuggestedMatch)
+	}
+
+	// A second same-named upload (defaulting to a new asset) surfaces the
+	// first as a suggested match for the "add as a version of…" prompt.
+	pkg2 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x42), pathname: "Assets/b.bin", content: []byte("b")},
+	})
+	b2, ct2 := buildMultipart(t, "file", "Fantasy Pack 2.0.unitypackage", pkg2)
+	w2 := postMultipart(r, "/api/imports", b2, ct2)
+	requireStatus(t, w2, http.StatusAccepted)
+	second := jsonResponse[importEnqueueResponse](t, w2)
+	if second.SuggestedMatch == nil || second.SuggestedMatch.AssetID != first.AssetID {
+		t.Fatalf("expected suggested match to point at the first asset, got %+v", second.SuggestedMatch)
+	}
+	// Default behaviour is unchanged: a distinct new asset was still created.
+	if second.AssetID == first.AssetID {
+		t.Fatalf("match detection must not attach; a new asset should be created")
+	}
+	var count int64
+	db.Model(&models.Asset{}).Count(&count)
+	if count != 2 {
+		t.Fatalf("expected 2 assets, got %d", count)
+	}
+}
+
+func TestPostImport_AddsVersionToExistingAsset(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	// First upload creates the asset (store version 1.0).
+	pkg1 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x21), pathname: "Assets/a.bin", content: []byte("a")},
+	})
+	b1, ct1 := buildMultipart(t, "file", "Weapon System 1.0.unitypackage", pkg1)
+	w1 := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w1, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w1)
+
+	// Second upload targets that asset — a new version, not a new asset.
+	pkg2 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x22), pathname: "Assets/b.bin", content: []byte("b")},
+	})
+	b2, ct2 := buildMultipartWithFields(t, "file", "Weapon System 2.0.unitypackage", pkg2,
+		map[string]string{"asset_id": uintStr(first.AssetID)})
+	w2 := postMultipart(r, "/api/imports", b2, ct2)
+	requireStatus(t, w2, http.StatusAccepted)
+	second := jsonResponse[importEnqueueResponse](t, w2)
+
+	if second.AssetID != first.AssetID {
+		t.Fatalf("upload should attach to the target asset: got %d, want %d", second.AssetID, first.AssetID)
+	}
+	var assetCount int64
+	db.Model(&models.Asset{}).Count(&assetCount)
+	if assetCount != 1 {
+		t.Fatalf("expected 1 asset, got %d (a new asset was created)", assetCount)
+	}
+	var versionCount int64
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionCount)
+	if versionCount != 2 {
+		t.Fatalf("expected 2 versions on the asset, got %d", versionCount)
+	}
+	var stores []string
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Order("store_version").Pluck("store_version", &stores)
+	if len(stores) != 2 || stores[0] != "1.0" || stores[1] != "2.0" {
+		t.Fatalf("store versions: got %v", stores)
+	}
+}
+
+func TestPostImport_DuplicateStoreVersionOnTargetBlocked(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	pkg1 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x31), pathname: "Assets/a.bin", content: []byte("a")},
+	})
+	b1, ct1 := buildMultipart(t, "file", "Pack 1.0.unitypackage", pkg1)
+	w1 := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w1, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w1)
+
+	// A second upload with the same store version is rejected, and the target
+	// asset survives intact (the failure must not wipe it).
+	pkg2 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x32), pathname: "Assets/b.bin", content: []byte("b")},
+	})
+	b2, ct2 := buildMultipartWithFields(t, "file", "Pack 1.0.unitypackage", pkg2,
+		map[string]string{"asset_id": uintStr(first.AssetID)})
+	w2 := postMultipart(r, "/api/imports", b2, ct2)
+	requireStatus(t, w2, http.StatusConflict)
+
+	var assetCount, versionCount int64
+	db.Model(&models.Asset{}).Count(&assetCount)
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionCount)
+	if assetCount != 1 || versionCount != 1 {
+		t.Fatalf("target asset must survive a rejected duplicate: assets=%d versions=%d", assetCount, versionCount)
+	}
+}
+
+func TestPostImport_VersionFromFilenameNotAutoLabel(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+
+	pkg := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x05), pathname: "Assets/foo.bin", content: []byte("foo")},
+	})
+	r := setupRouter(h, u)
+	body, ctype := buildMultipart(t, "file", "Weapon System v3.4.unitypackage", pkg)
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	resp := jsonResponse[importEnqueueResponse](t, w)
+
+	var version models.AssetVersion
+	if err := db.Where("asset_id = ?", resp.AssetID).First(&version).Error; err != nil {
+		t.Fatal(err)
+	}
+	// The store version is parsed from the filename; the label is left blank
+	// (no auto v1) — a no-op regression to "v1" fails the second assertion.
+	if version.StoreVersion != "3.4" {
+		t.Fatalf("store_version: got %q, want 3.4", version.StoreVersion)
+	}
+	if version.VersionLabel != "" {
+		t.Fatalf("version_label should be blank, got %q", version.VersionLabel)
+	}
+}
+
+func TestPostReExtract_UpdatesVersionInPlace(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "librarian@example.com")
 	_ = seedLibraryAndSwitch(t, h, u)
@@ -211,7 +357,6 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	requireStatus(t, w, http.StatusAccepted)
 	first := jsonResponse[importEnqueueResponse](t, w)
 
-	// After the sync pool finishes, the asset has a current version id.
 	var firstAsset models.Asset
 	if err := db.First(&firstAsset, first.AssetID).Error; err != nil {
 		t.Fatal(err)
@@ -221,6 +366,9 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	}
 	firstVersionID := *firstAsset.CurrentVersionID
 
+	var versionsBefore int64
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionsBefore)
+
 	// Re-extract using the retained original package.
 	path := "/api/assets/" + uintStr(first.AssetID) +
 		"/versions/" + uintStr(firstVersionID) + "/reextract"
@@ -228,44 +376,36 @@ func TestPostReExtract_CreatesNewVersion(t *testing.T) {
 	requireStatus(t, w2, http.StatusCreated)
 	second := jsonResponse[importResponse](t, w2)
 
-	if second.AssetID != first.AssetID {
-		t.Fatalf("asset id changed: %d → %d", first.AssetID, second.AssetID)
-	}
-	if second.AssetVersionID == firstVersionID {
-		t.Fatalf("version id should differ: %d", second.AssetVersionID)
+	// Re-extract updates the same version in place — no new row, same id.
+	if second.AssetVersionID != firstVersionID {
+		t.Fatalf("re-extract should reuse the version id: got %d, want %d", second.AssetVersionID, firstVersionID)
 	}
 	if second.FileCount != 1 {
 		t.Fatalf("expected 1 file, got %d", second.FileCount)
 	}
+	var versionsAfter int64
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionsAfter)
+	if versionsAfter != versionsBefore {
+		t.Fatalf("re-extract created a new version row: before=%d after=%d", versionsBefore, versionsAfter)
+	}
 
-	// Old version rows are untouched.
-	var firstFiles int64
+	// The version keeps exactly its re-extracted files (no duplication).
+	var files int64
 	if err := db.Model(&models.AssetFile{}).
 		Where("asset_version_id = ?", firstVersionID).
-		Count(&firstFiles).Error; err != nil {
+		Count(&files).Error; err != nil {
 		t.Fatal(err)
 	}
-	if firstFiles != 1 {
-		t.Fatalf("first version lost its files: %d", firstFiles)
+	if files != 1 {
+		t.Fatalf("expected 1 file after in-place re-extract, got %d", files)
 	}
 
-	// Asset's current version switched to the new one; labels are v1 / v2.
 	var asset models.Asset
 	if err := db.First(&asset, first.AssetID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if asset.CurrentVersionID == nil || *asset.CurrentVersionID != second.AssetVersionID {
-		t.Fatalf("current_version_id not rolled forward: %+v", asset.CurrentVersionID)
-	}
-	var v2 models.AssetVersion
-	if err := db.First(&v2, second.AssetVersionID).Error; err != nil {
-		t.Fatal(err)
-	}
-	if v2.VersionLabel != "v2" {
-		t.Fatalf("version label: got %q, want v2", v2.VersionLabel)
-	}
-	if v2.OriginalPackageObjectKey == "" {
-		t.Fatalf("v2 did not inherit original package key")
+	if asset.CurrentVersionID == nil || *asset.CurrentVersionID != firstVersionID {
+		t.Fatalf("current_version_id should remain the re-extracted version: %+v", asset.CurrentVersionID)
 	}
 }
 

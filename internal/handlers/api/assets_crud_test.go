@@ -117,6 +117,118 @@ func TestPatchAssetVersion_RejectsInvalid(t *testing.T) {
 	}
 }
 
+func TestPatchAssetVersion_EditsLabelAndBlocksDuplicateStore(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	v1 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "1.0"}
+	v2 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "2.0"}
+	if err := db.Create(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&v2).Error; err != nil {
+		t.Fatal(err)
+	}
+	r := setupRouter(h, u)
+
+	// The label is editable.
+	lw := performRequest(r, http.MethodPatch, "/api/assets/1/versions/"+uintStr(v1.ID),
+		map[string]any{"version_label": "release candidate"})
+	requireStatus(t, lw, http.StatusOK)
+	var relabelled models.AssetVersion
+	if err := db.First(&relabelled, v1.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if relabelled.VersionLabel != "release candidate" {
+		t.Fatalf("label not updated: %q", relabelled.VersionLabel)
+	}
+
+	// Setting v2's store version to v1's is blocked (identity must be unique).
+	dw := performRequest(r, http.MethodPatch, "/api/assets/1/versions/"+uintStr(v2.ID),
+		map[string]any{"store_version": "1.0"})
+	requireStatus(t, dw, http.StatusConflict)
+	var unchanged models.AssetVersion
+	if err := db.First(&unchanged, v2.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.StoreVersion != "2.0" {
+		t.Fatalf("store version should be unchanged after conflict, got %q", unchanged.StoreVersion)
+	}
+}
+
+func TestDeleteAssetVersion_RepointsCurrentAndBlocks(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	v1 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "1.0"}
+	v2 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "2.0"}
+	if err := db.Create(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&v2).Error; err != nil {
+		t.Fatal(err)
+	}
+	asset.CurrentVersionID = &v2.ID
+	if err := db.Save(asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	r := setupRouter(h, u)
+
+	// Deleting the current (highest) version repoints current to v1.
+	w := performRequest(r, http.MethodDelete, "/api/assets/1/versions/"+uintStr(v2.ID), nil)
+	requireStatus(t, w, http.StatusNoContent)
+	var refreshed models.Asset
+	if err := db.First(&refreshed, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.CurrentVersionID == nil || *refreshed.CurrentVersionID != v1.ID {
+		t.Fatalf("current_version_id not repointed to v1: %+v", refreshed.CurrentVersionID)
+	}
+	var remaining int64
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", asset.ID).Count(&remaining)
+	if remaining != 1 {
+		t.Fatalf("expected 1 remaining version, got %d", remaining)
+	}
+
+	// The last remaining version can't be deleted.
+	w2 := performRequest(r, http.MethodDelete, "/api/assets/1/versions/"+uintStr(v1.ID), nil)
+	requireStatus(t, w2, http.StatusConflict)
+}
+
+func TestDeleteAssetVersion_BlockedWhenPinned(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	v1 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "1.0"}
+	v2 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "2.0"}
+	if err := db.Create(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&v2).Error; err != nil {
+		t.Fatal(err)
+	}
+	proj := models.Project{LibraryID: lib.ID, Name: "Game"}
+	if err := db.Create(&proj).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.ProjectAssetPin{ProjectID: proj.ID, AssetID: asset.ID, PinnedVersionID: v1.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	r := setupRouter(h, u)
+
+	w := performRequest(r, http.MethodDelete, "/api/assets/1/versions/"+uintStr(v1.ID), nil)
+	requireStatus(t, w, http.StatusConflict)
+	// Still present.
+	var n int64
+	db.Model(&models.AssetVersion{}).Where("id = ?", v1.ID).Count(&n)
+	if n != 1 {
+		t.Fatalf("pinned version should not be deleted")
+	}
+}
+
 func TestGetAssetDetail_OrdersVersionsBySemver(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
