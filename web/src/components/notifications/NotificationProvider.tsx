@@ -68,6 +68,8 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 
 const STORAGE_KEY = "damson.notifications";
 const READ_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Cap in-flight uploads so a large drop doesn't fire N requests at once and
+// saturate the proxy into 502s; the rest queue.
 const MAX_CONCURRENT_UPLOADS = 3;
 
 function newId(): string {
@@ -234,6 +236,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const cancelUpload = useCallback((id: string) => {
     controllers.current.get(id)?.abort();
+    // A still-queued upload has no in-flight request to abort, so drop it from
+    // the queue and the visible list directly.
     const queued = uploadQueue.current.some((q) => q.id === id);
     if (queued) {
       uploadQueue.current = uploadQueue.current.filter((q) => q.id !== id);
