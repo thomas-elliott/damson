@@ -293,6 +293,8 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 
 	var newImportID uint
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		// Retry re-imports into the existing (latest) version — the pipeline
+		// re-extracts into it in place, so no new version row is created.
 		if version.OriginalPackageObjectKey == "" {
 			if err := tx.Model(&models.AssetVersion{}).
 				Where("id = ?", version.ID).

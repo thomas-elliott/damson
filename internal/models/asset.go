@@ -26,9 +26,11 @@ type Asset struct {
 func (Asset) TableName() string { return "assets" }
 
 type AssetVersion struct {
-	ID                       uint   `gorm:"primarykey;auto_increment;not_null"`
-	AssetID                  uint   `gorm:"not null;index:idx_version_asset_date"`
-	VersionLabel             string `gorm:"not null;default:''"`
+	ID           uint   `gorm:"primarykey;auto_increment;not_null"`
+	AssetID      uint   `gorm:"not null;index:idx_version_asset_date"`
+	VersionLabel string `gorm:"not null;default:''"`
+	// Per-asset uniqueness for non-blank store versions is enforced by the
+	// partial index idx_version_asset_store, which a GORM tag can't express.
 	StoreVersion             string `gorm:"not null;default:''"`
 	Notes                    string
 	ImportDate               time.Time `gorm:"not null;default:current_timestamp;index:idx_version_asset_date,sort:desc"`
