@@ -117,6 +117,46 @@ func TestPatchAssetVersion_RejectsInvalid(t *testing.T) {
 	}
 }
 
+func TestPatchAssetVersion_EditsLabelAndBlocksDuplicateStore(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	v1 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "1.0"}
+	v2 := models.AssetVersion{AssetID: asset.ID, StoreVersion: "2.0"}
+	if err := db.Create(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&v2).Error; err != nil {
+		t.Fatal(err)
+	}
+	r := setupRouter(h, u)
+
+	// The label is editable.
+	lw := performRequest(r, http.MethodPatch, "/api/assets/1/versions/"+uintStr(v1.ID),
+		map[string]any{"version_label": "release candidate"})
+	requireStatus(t, lw, http.StatusOK)
+	var relabelled models.AssetVersion
+	if err := db.First(&relabelled, v1.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if relabelled.VersionLabel != "release candidate" {
+		t.Fatalf("label not updated: %q", relabelled.VersionLabel)
+	}
+
+	// Setting v2's store version to v1's is blocked (identity must be unique).
+	dw := performRequest(r, http.MethodPatch, "/api/assets/1/versions/"+uintStr(v2.ID),
+		map[string]any{"store_version": "1.0"})
+	requireStatus(t, dw, http.StatusConflict)
+	var unchanged models.AssetVersion
+	if err := db.First(&unchanged, v2.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.StoreVersion != "2.0" {
+		t.Fatalf("store version should be unchanged after conflict, got %q", unchanged.StoreVersion)
+	}
+}
+
 func TestGetAssetDetail_OrdersVersionsBySemver(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
