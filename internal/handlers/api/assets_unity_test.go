@@ -193,6 +193,83 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	}
 }
 
+func TestPostImport_AddsVersionToExistingAsset(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	// First upload creates the asset (store version 1.0).
+	pkg1 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x21), pathname: "Assets/a.bin", content: []byte("a")},
+	})
+	b1, ct1 := buildMultipart(t, "file", "Weapon System 1.0.unitypackage", pkg1)
+	w1 := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w1, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w1)
+
+	// Second upload targets that asset — a new version, not a new asset.
+	pkg2 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x22), pathname: "Assets/b.bin", content: []byte("b")},
+	})
+	b2, ct2 := buildMultipartWithFields(t, "file", "Weapon System 2.0.unitypackage", pkg2,
+		map[string]string{"asset_id": uintStr(first.AssetID)})
+	w2 := postMultipart(r, "/api/imports", b2, ct2)
+	requireStatus(t, w2, http.StatusAccepted)
+	second := jsonResponse[importEnqueueResponse](t, w2)
+
+	if second.AssetID != first.AssetID {
+		t.Fatalf("upload should attach to the target asset: got %d, want %d", second.AssetID, first.AssetID)
+	}
+	var assetCount int64
+	db.Model(&models.Asset{}).Count(&assetCount)
+	if assetCount != 1 {
+		t.Fatalf("expected 1 asset, got %d (a new asset was created)", assetCount)
+	}
+	var versionCount int64
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionCount)
+	if versionCount != 2 {
+		t.Fatalf("expected 2 versions on the asset, got %d", versionCount)
+	}
+	var stores []string
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Order("store_version").Pluck("store_version", &stores)
+	if len(stores) != 2 || stores[0] != "1.0" || stores[1] != "2.0" {
+		t.Fatalf("store versions: got %v", stores)
+	}
+}
+
+func TestPostImport_DuplicateStoreVersionOnTargetBlocked(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	pkg1 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x31), pathname: "Assets/a.bin", content: []byte("a")},
+	})
+	b1, ct1 := buildMultipart(t, "file", "Pack 1.0.unitypackage", pkg1)
+	w1 := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w1, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w1)
+
+	// A second upload with the same store version is rejected, and the target
+	// asset survives intact (the failure must not wipe it).
+	pkg2 := buildUnityPackage(t, []unityPkgEntry{
+		{guid: testGUID(0x32), pathname: "Assets/b.bin", content: []byte("b")},
+	})
+	b2, ct2 := buildMultipartWithFields(t, "file", "Pack 1.0.unitypackage", pkg2,
+		map[string]string{"asset_id": uintStr(first.AssetID)})
+	w2 := postMultipart(r, "/api/imports", b2, ct2)
+	requireStatus(t, w2, http.StatusConflict)
+
+	var assetCount, versionCount int64
+	db.Model(&models.Asset{}).Count(&assetCount)
+	db.Model(&models.AssetVersion{}).Where("asset_id = ?", first.AssetID).Count(&versionCount)
+	if assetCount != 1 || versionCount != 1 {
+		t.Fatalf("target asset must survive a rejected duplicate: assets=%d versions=%d", assetCount, versionCount)
+	}
+}
+
 func TestPostImport_VersionFromFilenameNotAutoLabel(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "librarian@example.com")
