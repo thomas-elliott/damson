@@ -331,6 +331,10 @@ func cleanUnityPath(raw string) (string, error) {
 	if i := strings.IndexAny(raw, "\r\n"); i >= 0 {
 		raw = raw[:i]
 	}
+	return cleanRelPath(raw)
+}
+
+func cleanRelPath(raw string) (string, error) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
 		return "", errors.New("empty pathname")
