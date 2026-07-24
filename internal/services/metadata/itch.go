@@ -38,7 +38,53 @@ func (ItchAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*M
 			m.LicenceHint = label
 		}
 	}
+	m.Tags = dedupeTags(append(m.Tags, itchTags(resp.Body)...))
 	return m, nil
+}
+
+// itchTags reads the "Tags" and "Genre" rows of the info table, collecting the
+// anchor texts itch renders one link per tag.
+func itchTags(body []byte) []string {
+	doc, err := html.Parse(bytes.NewReader(body))
+	if err != nil {
+		return nil
+	}
+	var tags []string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && (n.Data == "tr" || n.Data == "div") {
+			cells := childCells(n)
+			if len(cells) >= 2 {
+				key := strings.ToLower(strings.TrimSpace(textOf(cells[0])))
+				if strings.Contains(key, "tags") || strings.Contains(key, "genre") {
+					tags = append(tags, anchorTexts(cells[1])...)
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	return tags
+}
+
+// anchorTexts returns the trimmed text of every anchor descendant of n.
+func anchorTexts(n *html.Node) []string {
+	var out []string
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		if node.Type == html.ElementNode && node.Data == "a" {
+			if t := strings.TrimSpace(textOf(node)); t != "" {
+				out = append(out, t)
+			}
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(n)
+	return out
 }
 
 // itchLicence scans the info table for the "Asset license" (or "License") row
