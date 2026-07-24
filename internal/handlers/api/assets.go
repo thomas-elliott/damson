@@ -506,6 +506,8 @@ func (h *Handler) cleanupFailedUpload(ctx context.Context, assetID uint) {
 	}
 }
 
+// cleanupFailedVersionUpload removes only the version + import rows from a
+// failed add-version upload; the target asset pre-existed and must survive.
 func (h *Handler) cleanupFailedVersionUpload(ctx context.Context, versionID, importID uint) {
 	db := h.db.WithContext(ctx)
 	if importID != 0 {
