@@ -20,6 +20,13 @@ describe("upload intent detection", () => {
     expect(hasFolderStructure([fileWithPath("a.png", "a")])).toBe(false);
   });
 
+  it("ignores the ./ marker file-selector adds to loose files", () => {
+    // react-dropzone (via file-selector) sets `path` to `./<name>` for a
+    // top-level file — that is not folder structure.
+    expect(hasFolderStructure([fileWithPath("./a.png", "a")])).toBe(false);
+    expect(topFolderName([fileWithPath("./a.png", "a")])).toBeUndefined();
+  });
+
   it("recognises archive extensions case-insensitively", () => {
     expect(isArchiveFile(new File([], "pack.zip"))).toBe(true);
     expect(isArchiveFile(new File([], "pack.UnityPackage"))).toBe(true);

@@ -12,7 +12,7 @@ export function isArchiveFile(file: File): boolean {
 function relativePath(file: File): string {
   const withPath = file as File & { path?: string };
   const raw = withPath.path || file.webkitRelativePath || file.name;
-  return raw.replace(/^\/+/, "");
+  return raw.replace(/^\.?\/+/, "");
 }
 
 export function hasFolderStructure(files: File[]): boolean {
