@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
   FolderOpen,
   GitMerge,
@@ -26,12 +28,17 @@ import {
   Tag,
   Textarea,
   VersionItem,
+  cn,
   formatBytes,
   isBrowsable,
   useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
-import { downloadFile, useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
+import {
+  downloadFile,
+  useBlobUrls,
+  type BlobSource,
+} from "@/components/filebrowser/useFileObjectUrl";
 import {
   useAssetAudit,
   useAssetDetail,
@@ -74,11 +81,18 @@ export function AssetDetailPanel({
   assetId,
   onClose,
   onBrowse,
+  onReservedWidthChange,
 }: {
   assetId: number | null;
   onClose: () => void;
   /** Open the scoped file browser for this asset (browsable packs only). */
   onBrowse?: (id: number) => void;
+  /**
+   * Reports how much horizontal space the open panel covers (0 when closed or
+   * fullscreen), so a page whose content reaches the right edge can pad itself
+   * out of the way instead of being overlapped.
+   */
+  onReservedWidthChange?: (width: number) => void;
 }) {
   const { data: asset, loading } = useAssetDetail(assetId);
   const [width, setWidth] = useState<number>(readStoredWidth);
@@ -115,13 +129,18 @@ export function AssetDetailPanel({
     return () => observer.disconnect();
   }, [assetId]);
 
-  if (assetId == null) return null;
-
   const isFullscreen = userFullscreen || autoFullscreen;
   // Clamp to the available space at render time (window resize, sidebar
   // widened) while preserving the user's chosen width in state, so it springs
   // back when room reappears.
   const effectiveWidth = Math.min(Math.max(MIN_WIDTH, width), maxWidth);
+  const reservedWidth = assetId == null || isFullscreen ? 0 : effectiveWidth;
+
+  useEffect(() => {
+    onReservedWidthChange?.(reservedWidth);
+  }, [reservedWidth, onReservedWidthChange]);
+
+  if (assetId == null) return null;
 
   const canBrowse = !!asset && isBrowsable(asset.files.length);
   const headerActions = (
@@ -297,6 +316,9 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         </div>
       </div>
 
+      {/* Storefront gallery — above Overview so the pictures read as the hero. */}
+      <AssetGallery images={asset.images} />
+
       {/* Description + source url. */}
       <Section title="Overview" defaultOpen>
         <div className="flex flex-col gap-2.5">
@@ -326,7 +348,6 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             />
           </FieldRow>
           <MetadataActions asset={asset} />
-          <GalleryStrip images={asset.images} />
         </div>
       </Section>
 
@@ -522,41 +543,140 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   );
 }
 
-function GalleryThumb({ image, onOpen }: { image: AssetImageView; onOpen: () => void }) {
-  const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
+function thumbSource(image: AssetImageView): BlobSource {
+  return { url: `/api/thumbs/${image.object_key}`, mime: image.content_type };
+}
+
+function wrapIndex(next: number, count: number): number {
+  return ((next % count) + count) % count;
+}
+
+// AssetGallery shows the storefront gallery one image at a time — prev/next
+// step through it, a click opens the lightbox on the image you're looking at.
+// Every image stays mounted in the sliding track so stepping doesn't re-fetch.
+function AssetGallery({ images }: { images: AssetImageView[] }) {
+  const urls = useBlobUrls(images.map(thumbSource));
+  const [index, setIndex] = useState(0);
+  const [zoomed, setZoomed] = useState(false);
+
+  if (images.length === 0) return null;
+
+  const current = Math.min(index, images.length - 1);
+  const step = (delta: number) => setIndex(wrapIndex(current + delta, images.length));
+
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-md border border-line bg-surface">
+      <div
+        className="flex h-full w-full transition-transform duration-std ease"
+        style={{ transform: `translateX(-${current * 100}%)` }}
+      >
+        {images.map((img, i) => (
+          <button
+            key={img.id}
+            type="button"
+            onClick={() => {
+              setIndex(i);
+              setZoomed(true);
+            }}
+            aria-label={`Enlarge preview image ${i + 1} of ${images.length}`}
+            className="h-full w-full shrink-0 cursor-zoom-in"
+          >
+            <GalleryFrame url={urls[thumbSource(img).url]} className="object-cover" />
+          </button>
+        ))}
+      </div>
+      {images.length > 1 && (
+        <>
+          <GalleryArrow side="left" onClick={() => step(-1)} />
+          <GalleryArrow side="right" onClick={() => step(1)} />
+          <GalleryCount current={current} total={images.length} />
+        </>
+      )}
+      {zoomed && (
+        <GalleryLightbox
+          images={images}
+          urls={urls}
+          index={current}
+          onIndexChange={setIndex}
+          onClose={() => setZoomed(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function GalleryFrame({ url, className }: { url?: string; className?: string }) {
+  if (!url) return <div className="h-full w-full animate-pulse bg-surface-2" />;
+  return <img src={url} alt="" className={cn("h-full w-full", className)} />;
+}
+
+function GalleryArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
   return (
     <button
       type="button"
-      onClick={onOpen}
-      className="block h-16 w-24 shrink-0 cursor-zoom-in overflow-hidden rounded-md border border-line bg-surface"
-      aria-label="Enlarge preview image"
-    >
-      {url ? (
-        <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
-      ) : (
-        <div className="h-full w-full animate-pulse bg-surface-2" />
+      onClick={onClick}
+      aria-label={side === "left" ? "Previous image" : "Next image"}
+      className={cn(
+        "absolute top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full",
+        "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        side === "left" ? "left-1.5" : "right-1.5",
       )}
+    >
+      {side === "left" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
     </button>
   );
 }
 
-function GalleryLightbox({ image, onClose }: { image: AssetImageView; onClose: () => void }) {
-  const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
+function GalleryCount({ current, total }: { current: number; total: number }) {
+  return (
+    <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-pill bg-black/60 px-1.5 py-0.5 text-mono tabular-nums text-white">
+      {current + 1} / {total}
+    </span>
+  );
+}
+
+// GalleryLightbox is the full-screen view of the same carousel. Keys are handled
+// on the dialog itself (not the document) and propagation stopped, so the page's
+// own arrow/escape shortcuts don't move the grid selection behind it.
+function GalleryLightbox({
+  images,
+  urls,
+  index,
+  onIndexChange,
+  onClose,
+}: {
+  images: AssetImageView[];
+  urls: Record<string, string>;
+  index: number;
+  onIndexChange: (next: number) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    ref.current?.focus();
+  }, []);
+
+  const step = (delta: number) => onIndexChange(wrapIndex(index + delta, images.length));
+
   return (
     <div
+      ref={ref}
       role="dialog"
       aria-modal="true"
-      aria-label="Preview image"
+      aria-label={`Preview image ${index + 1} of ${images.length}`}
+      tabIndex={-1}
       onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+        else if (e.key === "ArrowLeft") step(-1);
+        else if (e.key === "ArrowRight") step(1);
+        else return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       style={{ zIndex: "var(--z-index-dialog)" }}
-      className="fixed inset-0 flex items-center justify-center bg-black/80 p-6"
+      className="fixed inset-0 flex items-center justify-center bg-black/80 p-6 focus-visible:outline-hidden"
     >
       <IconButton
         aria-label="Close preview"
@@ -565,31 +685,40 @@ function GalleryLightbox({ image, onClose }: { image: AssetImageView; onClose: (
       >
         <X size={18} />
       </IconButton>
-      {url && (
-        <img
-          src={url}
-          alt=""
-          onClick={(e) => e.stopPropagation()}
-          className="max-h-full max-w-full rounded-md object-contain"
-        />
+      <img
+        src={urls[thumbSource(images[index]).url]}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-full max-w-full rounded-md object-contain"
+      />
+      {images.length > 1 && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <LightboxArrow side="left" onClick={() => step(-1)} />
+          <LightboxArrow side="right" onClick={() => step(1)} />
+          <span className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-pill bg-black/60 px-2 py-0.5 text-mono tabular-nums text-white">
+            {index + 1} / {images.length}
+          </span>
+        </div>
       )}
     </div>
   );
 }
 
-function GalleryStrip({ images }: { images: AssetImageView[] }) {
-  const [openId, setOpenId] = useState<number | null>(null);
-  if (images.length === 0) return null;
-  const open = images.find((img) => img.id === openId) ?? null;
+function LightboxArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
   return (
-    <>
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {images.map((img) => (
-          <GalleryThumb key={img.id} image={img} onOpen={() => setOpenId(img.id)} />
-        ))}
-      </div>
-      {open && <GalleryLightbox image={open} onClose={() => setOpenId(null)} />}
-    </>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={side === "left" ? "Previous image" : "Next image"}
+      className={cn(
+        "absolute top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full",
+        "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        side === "left" ? "left-4" : "right-4",
+      )}
+    >
+      {side === "left" ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
+    </button>
   );
 }
 

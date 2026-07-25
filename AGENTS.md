@@ -47,6 +47,8 @@ Vitest single-file:
 cd web && pnpm run test -- src/path/to/file.test.tsx --run
 ```
 
+Local dev sign-in (`task dev:spa`, local auth mode) uses a throwaway account — email `thomas@smol.cloud`, password `password1`. Not a real credential; it exists so the SPA can be driven end-to-end against the dev server.
+
 ## Conventions
 
 The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in mind while editing:
