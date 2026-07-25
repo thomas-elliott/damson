@@ -21,6 +21,8 @@ export function parseAssetFilters(search: URLSearchParams): AssetFilters {
   return f;
 }
 
+// Counts the sidebar filters only: the search term has its own visible input,
+// so badging it would flag something already on screen.
 export function activeFilterCount(filters: AssetFilters): number {
   return Object.entries(filters).filter(([key, value]) => key !== "q" && value !== undefined)
     .length;
