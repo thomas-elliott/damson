@@ -73,17 +73,11 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
   }, [allFiles]);
 
   const resultsMode = query.trim() !== "" || types.size > 0;
-  // The "All files" root row (empty path, no active filter) is a flat listing of
-  // every file in the pack — matching its count badge. Folder navigation still
-  // works via the sidebar tree and breadcrumb; drilling into a folder shows that
-  // folder's own contents. `flatMode` is when the main pane shows a flat list.
-  const showAll = !resultsMode && path.length === 0;
-  const flatMode = resultsMode || showAll;
 
   // The ordered files for the current view — drives the grid/list and the
   // detail-panel prev/next stepping.
   const { folders, listingFiles, truncated } = useMemo(() => {
-    if (flatMode) {
+    if (resultsMode) {
       const q = query.trim().toLowerCase();
       let matches = allFiles;
       if (q) matches = matches.filter((f) => f.name.toLowerCase().includes(q));
@@ -102,7 +96,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
         .map((n) => ({ ...n, dir: path })),
       truncated: false,
     };
-  }, [flatMode, query, types, allFiles, tree, path]);
+  }, [resultsMode, query, types, allFiles, tree, path]);
 
   const openFile = openKey ? byKey.get(openKey) : undefined;
   const openIndex = openFile
@@ -316,14 +310,14 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
                 <div className="text-ui text-text-2">
                   {resultsMode
                     ? "No files match"
-                    : showAll
+                    : path.length === 0
                       ? "No files in this pack"
                       : "This folder is empty"}
                 </div>
                 <div className="mt-1 text-small text-text-4">
                   {resultsMode
                     ? "Try a different search or clear the file-type filter."
-                    : showAll
+                    : path.length === 0
                       ? "This asset has no files to show."
                       : "Navigate up to find files."}
                 </div>
@@ -347,7 +341,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
                     file={file}
                     selected={selected.has(key)}
                     open={openKey === key}
-                    pathLabel={flatMode ? file.dir.join("/") : undefined}
+                    pathLabel={resultsMode ? file.dir.join("/") : undefined}
                     onOpen={() => open(file)}
                     onSelect={() => toggleSelect(file)}
                   />
@@ -356,9 +350,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
             </div>
           ) : (
             <FileBrowserList
-              folders={flatMode ? [] : folders}
+              folders={resultsMode ? [] : folders}
               files={listingFiles}
-              showPath={flatMode}
+              showPath={resultsMode}
               selected={selected}
               onOpenFolder={(name) => navigate([...path, name])}
               onOpenFile={(file) => open(file)}
