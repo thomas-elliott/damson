@@ -346,6 +346,13 @@ data + state lives in `web/src/components/filebrowser/`.
   `isBrowsable(fileCount)`. Covered by unit tests.
 - **`FileThumb`** / **`FilePlaceholder`** — image-or-placeholder preview
   surface; image-type files render from a caller-supplied `imageSrc`.
+- **`FilePreview`** — per-type preview *dispatcher* for the file detail panel:
+  picks the richest viewer a file type supports, falling back to `FileThumb`
+  when none applies or the bytes aren't loaded. Currently only the inline
+  image viewer is wired; later viewers slot in above the fallback and should
+  be `lazy`-loaded so heavy deps stay out of the main bundle (the component's
+  doc comment carries the pattern). The caller supplies `previewUrl` from an
+  authenticated blob fetch — the component does no fetching of its own.
 - **`FolderCard`** / **`FileCard`** — grid tiles (file card has a type badge +
   selection check + `open` highlight, mirroring `AssetCard`).
 - **`FileBrowserList`** — dense table view of folders + files.
@@ -378,8 +385,8 @@ matrices).
 
 Two Vitest projects:
 
-- **`unit`** (`task web:test`) — jsdom, component unit tests.
-- **`storybook`** (`task web:test:stories`) — Playwright Chromium, every
+- **`unit`** (`task test:unit:web`) — jsdom, component unit tests.
+- **`storybook`** (`task test:stories`) — Playwright Chromium, every
   `*.stories.tsx` runs as a browser test with axe-core checks. Requires
   `npx playwright install chromium` once.
 
@@ -404,7 +411,7 @@ Follow the pattern of the nearest existing component.
    states. Add a "States" matrix story wrapping sections in
    `pseudo-<state>-all` when `:hover`/`:focus-visible`/`:active` matter.
 4. Export from the tier's `index.ts` barrel.
-5. Run `task web:test:all` — the storybook project must pass with
+5. Run `task test:unit:web` and `task test:stories` — the storybook project must pass with
    `a11y.test = "error"`.
 
 If axe flags a contrast issue, fix the token or reach for a brighter
