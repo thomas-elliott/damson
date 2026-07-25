@@ -30,6 +30,8 @@ export function UserMenu({ displayName, email }: { displayName: string; email: s
 
   return (
     <DropdownMenu>
+      {/* Both this trigger and NavRailItem's tooltip resolve onto the same
+          button, so the rail item stays a single interactive element. */}
       <DropdownMenuTrigger asChild>
         <NavRailItem
           label="Account"
@@ -64,7 +66,7 @@ export function UserMenu({ displayName, email }: { displayName: string; email: s
           <SettingsIcon size={13} className="text-text-3" />
           Settings
         </DropdownMenuItem>
-        <DropdownMenuItem aria-label="Sign out" onSelect={() => void logout()}>
+        <DropdownMenuItem onSelect={() => void logout()}>
           <LogOut size={13} className="text-text-3" />
           Sign out
         </DropdownMenuItem>

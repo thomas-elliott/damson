@@ -16,8 +16,8 @@ const MANIFEST: ManifestEntry[] = [
 
 const TREE = buildFileTree(MANIFEST);
 
-function mount(path: string[] = [], onNavigate = vi.fn()) {
-  const utils = render(
+function view(path: string[], onNavigate = vi.fn()) {
+  return (
     <FileTreeSidebar
       assetName="Castle Pack"
       query=""
@@ -29,9 +29,12 @@ function mount(path: string[] = [], onNavigate = vi.fn()) {
       typeCounts={{}}
       activeTypes={new Set()}
       onToggleType={vi.fn()}
-    />,
+    />
   );
-  return { ...utils, onNavigate };
+}
+
+function mount(path: string[] = [], onNavigate = vi.fn()) {
+  return { ...render(view(path, onNavigate)), onNavigate };
 }
 
 /** The row button whose label matches exactly, or undefined when not rendered. */
@@ -100,20 +103,7 @@ describe("FileTreeSidebar", () => {
 
     // A re-render at the same path must not resurrect the subtree — the old
     // render-time ancestor union did exactly that.
-    rerender(
-      <FileTreeSidebar
-        assetName="Castle Pack"
-        query=""
-        onQueryChange={vi.fn()}
-        tree={TREE}
-        totalFiles={5}
-        path={["Assets", "Prefabs"]}
-        onNavigate={vi.fn()}
-        typeCounts={{}}
-        activeTypes={new Set()}
-        onToggleType={vi.fn()}
-      />,
-    );
+    rerender(view(["Assets", "Prefabs"]));
     expect(row("Buildings")).toBeUndefined();
     expect(caret("Prefabs")).toHaveAttribute("aria-expanded", "false");
   });
@@ -123,20 +113,7 @@ describe("FileTreeSidebar", () => {
     await userEvent.click(caret("Assets"));
     expect(row("Prefabs")).toBeUndefined();
 
-    rerender(
-      <FileTreeSidebar
-        assetName="Castle Pack"
-        query=""
-        onQueryChange={vi.fn()}
-        tree={TREE}
-        totalFiles={5}
-        path={["Assets", "Prefabs"]}
-        onNavigate={vi.fn()}
-        typeCounts={{}}
-        activeTypes={new Set()}
-        onToggleType={vi.fn()}
-      />,
-    );
+    rerender(view(["Assets", "Prefabs"]));
     expect(row("Prefabs")).toBeDefined();
     expect(caret("Assets")).toHaveAttribute("aria-expanded", "true");
   });

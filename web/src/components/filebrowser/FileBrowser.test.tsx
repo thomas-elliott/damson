@@ -58,27 +58,29 @@ function mount() {
 }
 
 /**
- * Names of the folder/file cards in the main listing, in render order —
- * scoped away from the tree sidebar, which lists the same folder names.
+ * The folder/file cards in the main listing, in render order, each paired with
+ * its name — scoped away from the tree sidebar, which lists the same folders.
  */
-function listing(): string[] {
+function cards(): { el: HTMLElement; name: string }[] {
   const sidebar = screen.getByRole("complementary", { name: "Filters" });
   return screen
     .getAllByRole("button")
     .filter((el) => !sidebar.contains(el))
-    .map((el) => el.querySelector("div.truncate.text-ui.font-medium")?.textContent ?? "")
-    .filter(Boolean);
+    .map((el) => ({
+      el,
+      name: el.querySelector("div.truncate.text-ui.font-medium")?.textContent ?? "",
+    }))
+    .filter((card) => card.name !== "");
 }
 
-/** The listing card whose name matches exactly. */
+function listing(): string[] {
+  return cards().map((card) => card.name);
+}
+
 function listingCard(name: string): HTMLElement {
-  const sidebar = screen.getByRole("complementary", { name: "Filters" });
-  const card = screen
-    .getAllByRole("button")
-    .filter((el) => !sidebar.contains(el))
-    .find((el) => el.querySelector("div.truncate.text-ui.font-medium")?.textContent === name);
+  const card = cards().find((c) => c.name === name);
   if (!card) throw new Error(`no listing card named ${name}`);
-  return card;
+  return card.el;
 }
 
 describe("FileBrowser root listing", () => {

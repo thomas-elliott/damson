@@ -185,12 +185,12 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
 
   return (
     <Shell
-      sidebar={hasLibrary && filtersOpen ? <LibraryFilterSidebar filters={filters} /> : undefined}
+      sidebar={lib && filtersOpen ? <LibraryFilterSidebar filters={filters} /> : undefined}
       main={
-        hasLibrary ? (
+        lib ? (
           <DropZone>
             <Toolbar>
-              {lib && <LibraryPicker current={lib} />}
+              <LibraryPicker current={lib} />
               <span className="shrink-0 text-small tabular-nums text-text-3">{total} assets</span>
               <Button
                 variant="secondary"
