@@ -276,8 +276,6 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           totalFiles={allFiles.length}
           path={path}
           onNavigate={navigate}
-          openFileKey={openKey}
-          onOpenFile={(node, dir) => open({ name: node.name, dir })}
           typeCounts={counts}
           activeTypes={types}
           onToggleType={toggleType}
