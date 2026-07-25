@@ -1,6 +1,18 @@
-import { useNavigate } from "react-router";
-import { AlertTriangle, CheckCircle2, Inbox, Loader2, RotateCw } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useSearchParams } from "react-router";
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  Inbox,
+  Loader2,
+  Package,
+  RotateCw,
+} from "lucide-react";
 
+import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
+import { FindListingButton } from "@/components/detail/MetadataActions";
+import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 import { Shell } from "@/components/Shell";
 import {
   Badge,
@@ -10,23 +22,49 @@ import {
   EmptyState,
   QueueItem,
   Toolbar,
+  cn,
 } from "@/design-system";
 import { useImports, useMe, type ImportRow } from "@/hooks/useDataQueries";
 import { useImportEvents } from "@/hooks/useImportEvents";
-import { useRetryImport } from "@/hooks/useMutations";
+import { useRetryImport, useReviewAsset } from "@/hooks/useMutations";
+
+const IN_FLIGHT_STAGES = ["uploaded", "extracting", "detecting", "thumbnailing"];
+
+// plainSnippet flattens storefront markdown to prose for the clamped card line.
+function plainSnippet(md: string): string {
+  return md
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`#>]/g, "")
+    .replace(/\\([-.])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /**
  * Import queue. Backed by GET /api/imports: the active section is the review
  * backlog — anything in flight, failed, or completed but not yet reviewed —
  * and a retained "finished" section shows recently-reviewed imports (7 days /
- * 50 rows). Failed rows expose a Retry button; the rest open the asset detail
- * panel for review.
+ * 50 rows). Review happens in place: the card carries the thumbnail and
+ * description, opens the detail panel beside the list, and offers store-match
+ * and mark-reviewed actions without leaving the queue.
  */
 export function QueuePage() {
   const { data: imports, finished, loading } = useImports("in_flight");
   const { data: me } = useMe();
   useImportEvents(me?.current_library?.id);
-  const navigate = useNavigate();
+  const [search, setSearch] = useSearchParams();
+
+  const [reserved, setReserved] = useState(0);
+  const onReservedWidthChange = useCallback((w: number) => setReserved(w), []);
+
+  const reviewing = search.get("asset") ? Number(search.get("asset")) : null;
+  const setReviewing = (id: number | null) => {
+    const next = new URLSearchParams(search);
+    if (id == null) next.delete("asset");
+    else next.set("asset", String(id));
+    setSearch(next, { replace: true });
+  };
+
   return (
     <Shell
       main={
@@ -47,7 +85,10 @@ export function QueuePage() {
               description="Everything that arrived via import has been checked. New unreviewed assets will show up here automatically."
             />
           ) : (
-            <div className="flex flex-col gap-2 p-3">
+            <div
+              style={{ paddingRight: reserved ? reserved + 12 : undefined }}
+              className="flex flex-1 flex-col gap-2 overflow-auto p-3"
+            >
               {imports.length === 0 ? (
                 <div className="px-1 py-6 text-center text-ui text-text-3">
                   Nothing waiting for review.
@@ -57,7 +98,8 @@ export function QueuePage() {
                   <ImportQueueRow
                     key={imp.id}
                     imp={imp}
-                    onOpen={() => navigate(`/library/${imp.asset_id}`)}
+                    active={reviewing === imp.asset_id}
+                    onReview={() => setReviewing(imp.asset_id)}
                   />
                 ))
               )}
@@ -70,24 +112,62 @@ export function QueuePage() {
                     <FinishedImportRow
                       key={imp.id}
                       imp={imp}
-                      onOpen={() => navigate(`/library/${imp.asset_id}`)}
+                      active={reviewing === imp.asset_id}
+                      onOpen={() => setReviewing(imp.asset_id)}
                     />
                   ))}
                 </>
               )}
             </div>
           )}
+          <AssetDetailPanel
+            assetId={reviewing}
+            onClose={() => setReviewing(null)}
+            onReservedWidthChange={onReservedWidthChange}
+          />
         </>
       }
     />
   );
 }
 
-function FinishedImportRow({ imp, onOpen }: { imp: ImportRow; onOpen: () => void }) {
+// ImportThumb shows the asset's thumbnail once it has one, else the stage:
+// spinner in flight, warning on failure, placeholder when done without an image.
+function ImportThumb({ imp }: { imp: ImportRow }) {
+  const url = useBlobUrl(
+    imp.thumbnail_object_key ? `/api/thumbs/${imp.thumbnail_object_key}` : undefined,
+  );
+  if (url) return <img src={url} alt="" className="h-full w-full object-cover" />;
+  if (imp.stage === "failed") return <AlertTriangle size={20} className="text-err" />;
+  if (IN_FLIGHT_STAGES.includes(imp.stage))
+    return <Loader2 size={20} className="animate-spin text-text-3" />;
+  return <Package size={20} className="text-text-4" />;
+}
+
+function activeRowClass(active: boolean): string {
+  return active ? "border-accent ring-1 ring-accent-ring" : "";
+}
+
+function FinishedImportRow({
+  imp,
+  active,
+  onOpen,
+}: {
+  imp: ImportRow;
+  active: boolean;
+  onOpen: () => void;
+}) {
   return (
     <QueueItem
+      className={activeRowClass(active)}
       name={imp.asset_name || `Import #${imp.id}`}
-      thumb={<CheckCircle2 size={20} className="text-text-3" />}
+      thumb={
+        imp.thumbnail_object_key ? (
+          <ImportThumb imp={imp} />
+        ) : (
+          <CheckCircle2 size={20} className="text-text-3" />
+        )
+      }
       sub={
         <>
           <Badge size="sm" mono tone="ok">
@@ -105,32 +185,69 @@ function FinishedImportRow({ imp, onOpen }: { imp: ImportRow; onOpen: () => void
   );
 }
 
-function ImportQueueRow({ imp, onOpen }: { imp: ImportRow; onOpen: () => void }) {
+function ImportQueueRow({
+  imp,
+  active,
+  onReview,
+}: {
+  imp: ImportRow;
+  active: boolean;
+  onReview: () => void;
+}) {
   const retry = useRetryImport();
-  const stage = imp.stage;
-  const isFailed = stage === "failed";
+  const review = useReviewAsset();
+  const isFailed = imp.stage === "failed";
+  const description = imp.description ? plainSnippet(imp.description) : "";
 
   return (
     <QueueItem
+      className={cn("cursor-pointer", activeRowClass(active))}
+      onClick={onReview}
+      thumbSize={80}
       name={imp.asset_name || `Import #${imp.id}`}
-      thumb={
-        isFailed ? (
-          <AlertTriangle size={20} className="text-err" />
-        ) : (
-          <Loader2 size={20} className="text-text-3" />
-        )
-      }
+      thumb={<ImportThumb imp={imp} />}
       sub={
         <>
           <Badge size="sm" mono tone={isFailed ? "err" : imp.needs_review ? "warn" : "ok"}>
-            {stage}
+            {imp.stage}
           </Badge>
+          {imp.has_metadata && (
+            <Badge size="sm" mono tone="ok">
+              matched
+            </Badge>
+          )}
           {isFailed && imp.error && <span className="truncate text-err">{imp.error}</span>}
           <span className="text-text-4">updated {new Date(imp.updated_at).toLocaleString()}</span>
         </>
       }
+      detail={
+        description ? (
+          <p className="line-clamp-3 text-small text-text-3">{description}</p>
+        ) : (
+          <p className="text-small text-text-4">No description yet — try a store match.</p>
+        )
+      }
       actions={
-        <>
+        <div className="flex flex-col items-stretch gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button size="sm" variant="primary" onClick={onReview}>
+            Review
+          </Button>
+          <FindListingButton
+            assetId={imp.asset_id}
+            assetName={imp.asset_name}
+            label={imp.has_metadata ? "Re-match" : "Find listing"}
+          />
+          {imp.needs_review && (
+            <Button
+              size="sm"
+              variant="ghost"
+              leadingIcon={<Check size={12} />}
+              disabled={review.isPending}
+              onClick={() => review.mutate(imp.asset_id)}
+            >
+              Mark reviewed
+            </Button>
+          )}
           {isFailed && (
             <Button
               size="sm"
@@ -142,10 +259,7 @@ function ImportQueueRow({ imp, onOpen }: { imp: ImportRow; onOpen: () => void })
               Retry
             </Button>
           )}
-          <Button size="sm" variant="primary" onClick={onOpen}>
-            Review
-          </Button>
-        </>
+        </div>
       }
     />
   );

@@ -347,7 +347,8 @@ test.describe("OIDC sign-in callback", () => {
     await page.goto(`/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`);
     await page.waitForURL("**/library");
 
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Account" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
 
     // DISCOVERY_DOC advertises no end_session_endpoint, so logout() falls back
     // to clearing the stored user locally and hard-redirecting to /login.

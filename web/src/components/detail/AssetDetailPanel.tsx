@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
+  ExternalLink,
   FolderOpen,
   GitMerge,
   Maximize2,
@@ -21,23 +24,30 @@ import {
   Input,
   KeyValueList,
   LicencePill,
+  Markdown,
+  MarkdownEditor,
   Section,
   StatusDot,
   Tag,
-  Textarea,
   VersionItem,
+  cn,
   formatBytes,
   isBrowsable,
   useConfirm,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
-import { downloadFile, useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
+import {
+  downloadFile,
+  useBlobUrls,
+  type BlobSource,
+} from "@/components/filebrowser/useFileObjectUrl";
 import {
   useAssetAudit,
   useAssetDetail,
   type AssetDetailView,
   type AssetImageView,
   type AssetVersionView,
+  type LicenceView,
 } from "@/hooks/useDataQueries";
 import {
   useAddAssetTag,
@@ -55,7 +65,7 @@ import {
 
 import { LicenceEditor } from "./LicenceEditor";
 import { MergeDialog } from "./MergeDialog";
-import { MetadataActions } from "./MetadataActions";
+import { EnrichmentReview, MetadataActions } from "./MetadataActions";
 
 const WIDTH_KEY = "damson.detail.w";
 const DEFAULT_WIDTH = 440;
@@ -74,11 +84,18 @@ export function AssetDetailPanel({
   assetId,
   onClose,
   onBrowse,
+  onReservedWidthChange,
 }: {
   assetId: number | null;
   onClose: () => void;
   /** Open the scoped file browser for this asset (browsable packs only). */
   onBrowse?: (id: number) => void;
+  /**
+   * Reports how much horizontal space the open panel covers (0 when closed or
+   * fullscreen), so a page whose content reaches the right edge can pad itself
+   * out of the way instead of being overlapped.
+   */
+  onReservedWidthChange?: (width: number) => void;
 }) {
   const { data: asset, loading } = useAssetDetail(assetId);
   const [width, setWidth] = useState<number>(readStoredWidth);
@@ -115,13 +132,18 @@ export function AssetDetailPanel({
     return () => observer.disconnect();
   }, [assetId]);
 
-  if (assetId == null) return null;
-
   const isFullscreen = userFullscreen || autoFullscreen;
   // Clamp to the available space at render time (window resize, sidebar
   // widened) while preserving the user's chosen width in state, so it springs
   // back when room reappears.
   const effectiveWidth = Math.min(Math.max(MIN_WIDTH, width), maxWidth);
+  const reservedWidth = assetId == null || isFullscreen ? 0 : effectiveWidth;
+
+  useEffect(() => {
+    onReservedWidthChange?.(reservedWidth);
+  }, [reservedWidth, onReservedWidthChange]);
+
+  if (assetId == null) return null;
 
   const canBrowse = !!asset && isBrowsable(asset.files.length);
   const headerActions = (
@@ -174,7 +196,6 @@ export function AssetDetailPanel({
 }
 
 function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse?: () => void }) {
-  const patch = usePatchAsset();
   const review = useReviewAsset();
   const del = useDeleteAsset();
   const addTag = useAddAssetTag();
@@ -227,20 +248,10 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
     });
   };
 
-  const [editingName, setEditingName] = useState(false);
-  const [name, setName] = useState(asset.name);
-  const [description, setDescription] = useState(asset.description);
-  const [sourceURL, setSourceURL] = useState(asset.source_url);
   const [newTag, setNewTag] = useState("");
+  const [licenceOpen, setLicenceOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
-
-  const onSaveHeader = () => {
-    patch.mutate(
-      { id: asset.id, name, description, source_url: sourceURL },
-      { onSuccess: () => setEditingName(false) },
-    );
-  };
 
   const onAddTag = () => {
     const v = newTag.trim();
@@ -250,85 +261,24 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
 
   return (
     <div className="@container flex flex-col gap-3 p-3">
-      {/* Hero: name + licence + needs-review. */}
-      <div className="flex flex-col gap-2">
-        {editingName ? (
-          <FieldRow label="Name">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.currentTarget.value)}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSaveHeader();
-                if (e.key === "Escape") setEditingName(false);
-              }}
-            />
-          </FieldRow>
-        ) : (
+      {/* The name lives in the panel header; only status chips sit here. */}
+      {asset.needs_review && (
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setEditingName(true)}
-            className="group flex items-center gap-2 text-left text-heading-medium text-text"
+            onClick={() => review.mutate(asset.id)}
+            className="inline-flex items-center gap-1 rounded-pill border border-warn-tint bg-warn-tint px-2 py-0.5 text-mono text-warn"
           >
-            <span className="truncate">{asset.name}</span>
-            <Pencil
-              size={12}
-              className="opacity-0 transition-opacity duration-std ease group-hover:opacity-100 text-text-3"
-            />
+            <StatusDot tone="warn" /> Needs review
+            <Check size={11} />
           </button>
-        )}
-        <div className="flex flex-wrap items-center gap-1.5">
-          {asset.licence && (
-            <LicencePill
-              status={asset.licence.status}
-              spdx={asset.licence.detected_type || "Unknown"}
-            />
-          )}
-          {asset.needs_review && (
-            <button
-              type="button"
-              onClick={() => review.mutate(asset.id)}
-              className="inline-flex items-center gap-1 rounded-pill border border-warn-tint bg-warn-tint px-2 py-0.5 text-mono text-warn"
-            >
-              <StatusDot tone="warn" /> Needs review
-              <Check size={11} />
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
-      {/* Description + source url. */}
-      <Section title="Overview" defaultOpen>
-        <div className="flex flex-col gap-2.5">
-          <FieldRow label="Description">
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.currentTarget.value)}
-              onBlur={() => {
-                if (description !== asset.description) {
-                  patch.mutate({ id: asset.id, description });
-                }
-              }}
-              placeholder="What's this asset for?"
-              rows={3}
-            />
-          </FieldRow>
-          <FieldRow label="Source URL">
-            <Input
-              value={sourceURL}
-              onChange={(e) => setSourceURL(e.currentTarget.value)}
-              onBlur={() => {
-                if (sourceURL !== asset.source_url) {
-                  patch.mutate({ id: asset.id, source_url: sourceURL });
-                }
-              }}
-              placeholder="https://…"
-            />
-          </FieldRow>
-          <MetadataActions asset={asset} />
-          <GalleryStrip images={asset.images} />
-        </div>
-      </Section>
+      {/* Storefront gallery — above Overview so the pictures read as the hero. */}
+      <AssetGallery images={asset.images} />
+
+      <OverviewSection asset={asset} />
 
       {/* Tags */}
       <Section title="Tags" accessory={`${asset.tags.length}`} defaultOpen>
@@ -438,7 +388,12 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       </Section>
 
       {/* Licence */}
-      <Section title="Licence" defaultOpen>
+      <Section
+        title="Licence"
+        open={licenceOpen}
+        onOpenChange={setLicenceOpen}
+        accessory={licenceOpen ? null : <LicenceSummary licence={asset.licence ?? null} />}
+      >
         <LicenceEditor
           assetId={asset.id}
           existing={asset.licence ?? null}
@@ -505,11 +460,6 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             Merge…
           </Button>
         </div>
-        {editingName && (
-          <Button variant="primary" onClick={onSaveHeader}>
-            Save
-          </Button>
-        )}
       </div>
       <MergeDialog
         targetId={asset.id}
@@ -522,41 +472,362 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   );
 }
 
-function GalleryThumb({ image, onOpen }: { image: AssetImageView; onOpen: () => void }) {
-  const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
+// OverviewSection reads as rendered prose and flips to a form on demand: the
+// description is markdown (storefront enrichment writes it that way), so a
+// permanent textarea showed raw syntax for a field most users only ever read.
+// An asset with no description opens straight into the form.
+function OverviewSection({ asset }: { asset: AssetDetailView }) {
+  // "auto" opens the form for a description-less asset without stealing focus
+  // from the grid; only an explicit Edit puts the caret in the editor.
+  const [editing, setEditing] = useState<"no" | "auto" | "user">(
+    asset.description.trim() === "" ? "auto" : "no",
+  );
+  const [open, setOpen] = useState(true);
+
+  const startEditing = () => {
+    setEditing("user");
+    setOpen(true);
+  };
+
+  return (
+    <Section
+      title="Overview"
+      open={open}
+      onOpenChange={setOpen}
+      accessory={
+        editing === "no" ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            leadingIcon={<Pencil size={12} />}
+            onClick={startEditing}
+          >
+            Edit
+          </Button>
+        ) : null
+      }
+    >
+      <div className="flex flex-col gap-2.5">
+        {editing === "no" ? (
+          <OverviewRead asset={asset} />
+        ) : (
+          // Mounted on the flip into edit mode, so its fields seed from
+          // whatever the server last returned — including a metadata fetch
+          // that landed while the panel sat in read mode.
+          <OverviewForm
+            asset={asset}
+            autoFocus={editing === "user"}
+            onDone={() => setEditing("no")}
+          />
+        )}
+      </div>
+    </Section>
+  );
+}
+
+// The collapsed Licence header carries the identifier, so the one fact people
+// scan for doesn't need the section opened. Expanded, LicenceEditor shows the
+// same pill, so the accessory drops away.
+function LicenceSummary({ licence }: { licence: LicenceView | null }) {
+  if (!licence) return <span className="text-small text-text-4">Not set</span>;
+  return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} noDot />;
+}
+
+function OverviewRead({ asset }: { asset: AssetDetailView }) {
+  const source = asset.source_url.trim();
+  return (
+    <>
+      {asset.description.trim() ? (
+        <ClampedDescription>{asset.description}</ClampedDescription>
+      ) : (
+        <p className="text-small text-text-4">No description yet.</p>
+      )}
+      {/* Source link and the fetch actions share one line — they're all about
+          where this asset's metadata comes from. */}
+      <div className="flex items-start justify-between gap-2">
+        {source ? (
+          <a
+            href={source}
+            target="_blank"
+            rel="noreferrer noopener"
+            title={source}
+            className="inline-flex min-w-0 items-center gap-1 pt-1 text-small text-accent hover:underline"
+          >
+            <span className="truncate">{sourceLabel(source)}</span>
+            <ExternalLink size={11} className="shrink-0" />
+          </a>
+        ) : (
+          <span className="pt-1 text-small text-text-4">No source URL</span>
+        )}
+        <MetadataActions asset={asset} />
+      </div>
+    </>
+  );
+}
+
+// Store descriptions run to hundreds of lines, which buried every section below
+// Overview. Collapsed height is measured in ems of the body text so the clamp
+// stays five lines however the type scale moves; the toggle only appears when
+// the content actually exceeds it (measured on the content, not the clamped
+// box, so it stays correct while expanded).
+const CLAMP_LINES = 5;
+const CLAMP_LINE_HEIGHT = 1.4;
+const CLAMP_EM = `${CLAMP_LINES * CLAMP_LINE_HEIGHT}em`;
+
+function ClampedDescription({ children }: { children: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const content = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = content.current;
+    if (!el) return;
+    const measure = () => {
+      const limit = parseFloat(getComputedStyle(el).fontSize) * CLAMP_LINES * CLAMP_LINE_HEIGHT;
+      setOverflows(el.scrollHeight > limit + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children]);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="relative overflow-hidden"
+        style={expanded ? undefined : { maxHeight: CLAMP_EM }}
+      >
+        <Markdown ref={content}>{children}</Markdown>
+        {!expanded && overflows && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-panel to-transparent" />
+        )}
+      </div>
+      {overflows && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="self-start text-small text-accent hover:underline"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OverviewForm({
+  asset,
+  autoFocus,
+  onDone,
+}: {
+  asset: AssetDetailView;
+  autoFocus?: boolean;
+  onDone: () => void;
+}) {
+  const patch = usePatchAsset();
+  const [name, setName] = useState(asset.name);
+  const [description, setDescription] = useState(asset.description);
+  const [sourceURL, setSourceURL] = useState(asset.source_url);
+
+  const onSave = () => {
+    patch.mutate(
+      {
+        id: asset.id,
+        name: name.trim() || asset.name,
+        description,
+        source_url: sourceURL.trim(),
+      },
+      { onSuccess: onDone },
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <FieldRow label="Name">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave();
+          }}
+        />
+      </FieldRow>
+      <FieldRow label="Description">
+        <MarkdownEditor
+          value={description}
+          onChange={setDescription}
+          aria-label="Description"
+          placeholder="What's this asset for? Markdown is supported."
+          maxHeight={320}
+          autoFocus={autoFocus}
+        />
+      </FieldRow>
+      <FieldRow label="Source URL">
+        <Input
+          value={sourceURL}
+          onChange={(e) => setSourceURL(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave();
+          }}
+          placeholder="https://…"
+        />
+      </FieldRow>
+      <EnrichmentReview asset={asset} />
+      <div className="flex items-center justify-end gap-1.5">
+        <Button variant="ghost" size="sm" onClick={onDone} disabled={patch.isPending}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" onClick={onSave} disabled={patch.isPending}>
+          {patch.isPending ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function sourceLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function thumbSource(image: AssetImageView): BlobSource {
+  return { url: `/api/thumbs/${image.object_key}`, mime: image.content_type };
+}
+
+function wrapIndex(next: number, count: number): number {
+  return ((next % count) + count) % count;
+}
+
+// AssetGallery shows the storefront gallery one image at a time — prev/next
+// step through it, a click opens the lightbox on the image you're looking at.
+// Every image stays mounted in the sliding track so stepping doesn't re-fetch.
+function AssetGallery({ images }: { images: AssetImageView[] }) {
+  const urls = useBlobUrls(images.map(thumbSource));
+  const [index, setIndex] = useState(0);
+  const [zoomed, setZoomed] = useState(false);
+
+  if (images.length === 0) return null;
+
+  const current = Math.min(index, images.length - 1);
+  const step = (delta: number) => setIndex(wrapIndex(current + delta, images.length));
+
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-md border border-line bg-surface">
+      <div
+        className="flex h-full w-full transition-transform duration-std ease"
+        style={{ transform: `translateX(-${current * 100}%)` }}
+      >
+        {images.map((img, i) => (
+          <button
+            key={img.id}
+            type="button"
+            onClick={() => {
+              setIndex(i);
+              setZoomed(true);
+            }}
+            aria-label={`Enlarge preview image ${i + 1} of ${images.length}`}
+            className="h-full w-full shrink-0 cursor-zoom-in"
+          >
+            <GalleryFrame url={urls[thumbSource(img).url]} className="object-cover" />
+          </button>
+        ))}
+      </div>
+      {images.length > 1 && (
+        <>
+          <GalleryArrow side="left" onClick={() => step(-1)} />
+          <GalleryArrow side="right" onClick={() => step(1)} />
+          <GalleryCount current={current} total={images.length} />
+        </>
+      )}
+      {zoomed && (
+        <GalleryLightbox
+          images={images}
+          urls={urls}
+          index={current}
+          onIndexChange={setIndex}
+          onClose={() => setZoomed(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function GalleryFrame({ url, className }: { url?: string; className?: string }) {
+  if (!url) return <div className="h-full w-full animate-pulse bg-surface-2" />;
+  return <img src={url} alt="" className={cn("h-full w-full", className)} />;
+}
+
+function GalleryArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
   return (
     <button
       type="button"
-      onClick={onOpen}
-      className="block h-16 w-24 shrink-0 cursor-zoom-in overflow-hidden rounded-md border border-line bg-surface"
-      aria-label="Enlarge preview image"
-    >
-      {url ? (
-        <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
-      ) : (
-        <div className="h-full w-full animate-pulse bg-surface-2" />
+      onClick={onClick}
+      aria-label={side === "left" ? "Previous image" : "Next image"}
+      className={cn(
+        "absolute top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full",
+        "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        side === "left" ? "left-1.5" : "right-1.5",
       )}
+    >
+      {side === "left" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
     </button>
   );
 }
 
-function GalleryLightbox({ image, onClose }: { image: AssetImageView; onClose: () => void }) {
-  const url = useBlobUrl(`/api/thumbs/${image.object_key}`, image.content_type);
+function GalleryCount({ current, total }: { current: number; total: number }) {
+  return (
+    <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-pill bg-black/60 px-1.5 py-0.5 text-mono tabular-nums text-white">
+      {current + 1} / {total}
+    </span>
+  );
+}
+
+// GalleryLightbox is the full-screen view of the same carousel. Keys are handled
+// on the dialog itself (not the document) and propagation stopped, so the page's
+// own arrow/escape shortcuts don't move the grid selection behind it.
+function GalleryLightbox({
+  images,
+  urls,
+  index,
+  onIndexChange,
+  onClose,
+}: {
+  images: AssetImageView[];
+  urls: Record<string, string>;
+  index: number;
+  onIndexChange: (next: number) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    ref.current?.focus();
+  }, []);
+
+  const step = (delta: number) => onIndexChange(wrapIndex(index + delta, images.length));
+
   return (
     <div
+      ref={ref}
       role="dialog"
       aria-modal="true"
-      aria-label="Preview image"
+      aria-label={`Preview image ${index + 1} of ${images.length}`}
+      tabIndex={-1}
       onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+        else if (e.key === "ArrowLeft") step(-1);
+        else if (e.key === "ArrowRight") step(1);
+        else return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       style={{ zIndex: "var(--z-index-dialog)" }}
-      className="fixed inset-0 flex items-center justify-center bg-black/80 p-6"
+      className="fixed inset-0 flex items-center justify-center bg-black/80 p-6 focus-visible:outline-hidden"
     >
       <IconButton
         aria-label="Close preview"
@@ -565,31 +836,40 @@ function GalleryLightbox({ image, onClose }: { image: AssetImageView; onClose: (
       >
         <X size={18} />
       </IconButton>
-      {url && (
-        <img
-          src={url}
-          alt=""
-          onClick={(e) => e.stopPropagation()}
-          className="max-h-full max-w-full rounded-md object-contain"
-        />
+      <img
+        src={urls[thumbSource(images[index]).url]}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-full max-w-full rounded-md object-contain"
+      />
+      {images.length > 1 && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <LightboxArrow side="left" onClick={() => step(-1)} />
+          <LightboxArrow side="right" onClick={() => step(1)} />
+          <span className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-pill bg-black/60 px-2 py-0.5 text-mono tabular-nums text-white">
+            {index + 1} / {images.length}
+          </span>
+        </div>
       )}
     </div>
   );
 }
 
-function GalleryStrip({ images }: { images: AssetImageView[] }) {
-  const [openId, setOpenId] = useState<number | null>(null);
-  if (images.length === 0) return null;
-  const open = images.find((img) => img.id === openId) ?? null;
+function LightboxArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
   return (
-    <>
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {images.map((img) => (
-          <GalleryThumb key={img.id} image={img} onOpen={() => setOpenId(img.id)} />
-        ))}
-      </div>
-      {open && <GalleryLightbox image={open} onClose={() => setOpenId(null)} />}
-    </>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={side === "left" ? "Previous image" : "Next image"}
+      className={cn(
+        "absolute top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full",
+        "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        side === "left" ? "left-4" : "right-4",
+      )}
+    >
+      {side === "left" ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
+    </button>
   );
 }
 

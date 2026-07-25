@@ -9,7 +9,10 @@ Companions:
 - [`docs/CONVENTIONS.md`](CONVENTIONS.md) — coding standards, handler
   patterns, test helpers
 - [`docs/design-system.md`](design-system.md) — frontend design system
-- [`docs/progress.md`](progress.md) — milestone-by-milestone status
+- [`docs/progress.md`](progress.md) — what has landed, slice by slice
+- [`docs/specs/`](specs/) — signed-off specs; the *why* behind each
+  post-MVP slice
+- [`docs/observability.md`](observability.md) — logging and log queries
 - [`AGENTS.md`](../AGENTS.md) — quick-start guidance for agentic coding
 
 ---
@@ -38,9 +41,16 @@ Core concerns:
   upgrade is a logged, reversible action.
 - **Audit is a boundary** — every library-scoped write writes an
   `audit_log` row in the same DB transaction.
+- **Enrichment beats re-typing** — when an asset came from a
+  storefront, its listing metadata is fetched rather than hand-entered
+  (§9).
+- **Heavy work is queued, not inline** — imports and preview rendering
+  are durable Postgres-backed jobs whose state survives a restart
+  (§12).
 
-The MVP is M0–M7; see [`docs/progress.md`](progress.md) for what has
-landed, what is partial, and what is deferred.
+The M0–M7 MVP ladder is complete; post-MVP work is spec-driven under
+[`docs/specs/`](specs/). See [`docs/progress.md`](progress.md) for
+what has landed and what is deferred.
 
 ---
 
@@ -50,13 +60,15 @@ landed, what is partial, and what is deferred.
 the suite runs against a real Postgres via `DAMSON_TEST_POSTGRES_DSN`).
 Auth via `coreos/go-oidc/v3` + `oauth2` (OIDC mode)
 or `golang-jwt/jwt/v5` HS256 (local mode). S3 access via
-`aws-sdk-go-v2`. SPDX matching via `google/licensecheck`. Thumbnails
-are pure Go: stdlib `image` + `golang.org/x/image/{webp,draw,font}`,
-plus `hajimehoshi/go-mp3` and `jfreymuth/oggvorbis` for audio. WAV is
+`aws-sdk-go-v2`. Background jobs via `riverqueue/river` on its own
+`pgx/v5` pool (§12). SPDX matching via `google/licensecheck`.
+Thumbnails and previews are pure Go: stdlib `image` +
+`golang.org/x/image/{webp,tiff,bmp,draw,font}`, plus
+`hajimehoshi/go-mp3` and `jfreymuth/oggvorbis` for audio. WAV is
 parsed in-tree. No CGo.
 
-**Frontend.** React 19, TypeScript (strict), Vite 8. TanStack Query 5
-for server state. React Router 7 (data router). Tailwind 4 with OKLCH
+**Frontend.** React 19, TypeScript 6 (strict), Vite 8. TanStack Query 5
+for server state. React Router 8 (data router). Tailwind 4 with OKLCH
 design tokens. Radix UI headless primitives + hand-rolled components
 under `web/src/design-system/`. `class-variance-authority` for
 variants; `clsx` + `tailwind-merge` via a `cn()` helper.
@@ -79,20 +91,29 @@ Module path: `github.com/thomas-elliott/damson`.
 damson/
 ├── Taskfile.yml
 ├── Dockerfile
-├── damson.go                 # //go:embed for migrations + SPA (see §11)
-├── cmd/server/main.go        # entry point: HTTP server, middleware, wiring
+├── damson.go                 # //go:embed for migrations + SPA (see below)
+├── cmd/
+│   ├── server/main.go        # entry point: HTTP server, middleware, wiring
+│   └── e2e-server/main.go    # test-only binary for Playwright (Postgres + /api/test/*)
 ├── internal/
 │   ├── auth/                 # Authenticator interface + local + oidc impls
 │   ├── config/               # env loading, panic-on-missing
 │   ├── db/                   # gorm.Open, migration runner
 │   ├── handlers/api/         # one file per feature; receivers on *Handler
 │   ├── models/               # GORM models, one file per entity
+│   ├── queue/                # River client + workers (import / preview queues)
 │   ├── services/
-│   │   ├── audit/            # audit log writer (same-tx with mutation)
-│   │   ├── extract/          # .unitypackage extractor
+│   │   ├── audit/            # audit log writer (same-tx with mutation) + retention purge
+│   │   ├── extract/          # .unitypackage (tar) + .zip extractors
+│   │   ├── imports/          # import pipeline, stage transitions, SSE, enrichment
 │   │   ├── licence/          # SPDX + Unity EULA detection
+│   │   ├── metadata/         # storefront adapters (Unity / Sketchfab / itch) + scraper
+│   │   ├── preview/          # per-file preview derivatives + processing-queue state
 │   │   ├── storage/          # storage.Service interface + LocalFS + S3
+│   │   │   └── cleanup/      # orphan blob scan / delete
+│   │   ├── tags/             # tag path helpers
 │   │   └── thumbnail/        # raster / audio / font workers
+│   ├── testdb/               # per-test Postgres schema harness
 │   └── web/                  # SPA static handler
 ├── database/migrations/      # NNN_*.sql, applied on startup
 ├── web/                      # React SPA (Vite); built into web/static/
@@ -114,10 +135,17 @@ section sketches the shape and relationships.
 
 ### 4.1 Identity, libraries, audit
 
-- **`users`** — `id`, `subject` (OIDC `sub` claim or `local:<email>`),
-  `email`, `display_name`, `role` (`user` | `sysadmin`),
-  `current_library_id`, `password_hash` (local mode only),
-  `tokens_valid_after` (local-mode revocation watermark).
+- **`users`** — `id`, `email`, `display_name`, `role`
+  (`user` | `sysadmin`), `current_library_id`, `password_hash`
+  (local mode only), `tokens_valid_after` (local-mode revocation
+  watermark). `email` is the cross-IdP join key, so it carries a
+  **partial** unique index on `lower(email) WHERE email <> ''` —
+  freshly-created OIDC users with no verified email claim sit at `''`
+  (`needs_profile`) until they set one.
+- **`user_identities`** — `user_id`, `issuer`, `subject`;
+  `unique(issuer, subject)`. One row per external IdP identity, so a
+  single damson user can sign in through several IdPs. Local-mode
+  users are matched by email + `password_hash` and have no row here.
 - **`libraries`** — `id`, `name`, `description`.
 - **`library_memberships`** — `library_id` × `user_id` × `role`
   (`admin` | `member`); `unique(library_id, user_id)`.
@@ -131,23 +159,35 @@ section sketches the shape and relationships.
 
 - **`assets`** — `library_id`, `name`, `description`, `source_url`
   (validated http/https only), `licence_id`, `current_version_id`,
-  `thumbnail_object_key`, `thumbnail_content_type`, `needs_review`,
+  `thumbnail_object_key`, `thumbnail_content_type`,
+  `thumbnail_from_store` (the thumbnail came from a storefront
+  listing, so package extraction must not clobber it), `needs_review`,
   `created_by_user_id`, `search_vector` (Postgres tsvector,
   trigger-maintained).
+- **`asset_images`** — `asset_id`, `source_url`, `object_key`,
+  `content_type`, `sort_order`; `unique(asset_id, source_url)`. The
+  storefront preview gallery, fetched server-side and stored as
+  ordinary blobs (§9.1).
 - **`asset_versions`** — `asset_id`, `store_version` (the version
   identity, e.g. `1.3`; blank = unversioned), `version_label` (an
   optional editable label), `notes`, `import_date`,
-  `original_package_object_key` (set for `.unitypackage`),
+  `original_package_object_key` (set for archive imports),
+  `original_package_purged` (the retained archive was reclaimed after
+  extraction per `library_settings.retain_original_packages`),
   `package_kind` (`unitypackage` | `zip` | `loose` | null). A partial
   unique index enforces `unique(asset_id, store_version)` for non-blank
   store versions, so unversioned rows can coexist.
 - **`asset_files`** — `asset_version_id`, `relative_path`,
   `size_bytes`, `content_hash`, `object_key` (== `content_hash`),
   `detected_type`, `unity_guid`. `unique(asset_version_id,
-  relative_path)`.
+  relative_path)`. Preview derivative state lives here as columns
+  rather than a side table: `preview_object_key`,
+  `preview_content_type`, `preview_status` (`unsupported` | `queued` |
+  `processing` | `done` | `failed`), `preview_updated_at` (§11).
 - **`asset_imports`** — `asset_id`, `stage` (`uploaded` |
-  `extracting` | `detecting` | `thumbnailing` | `done` | `failed`),
-  `error`. One row per import; the queue surface filters non-`done`.
+  `extracting` | `detecting` | `thumbnailing` | `enriching` | `done` |
+  `failed`), `error`. One row per import and the durable source of
+  truth for import state; the queue surface filters non-`done`.
 
 ### 4.3 Tags, projects, collections, licences
 
@@ -180,8 +220,11 @@ section sketches the shape and relationships.
   `theme_default`, `grid_density_default`,
   `retain_original_packages`, `dedupe_enabled`,
   `thumbnails_{raster,audio,font,unity_preview}_enabled`,
+  `previews_enabled` (per-file preview derivatives, §11),
+  `auto_enrich_enabled` (storefront lookup during import, §9),
+  `preferred_store` (default storefront adapter, e.g. `unity`),
   `audit_retention_days` (nullable; consumed by the background purge
-  worker in `internal/services/audit/purge.go` — see §12).
+  worker in `internal/services/audit/purge.go` — see §14).
 
 Library-scoped entities all carry `library_id` directly.
 `created_by_user_id` / `pinned_by_user_id` are **attribution, not
@@ -189,11 +232,16 @@ ownership** — they do not affect access rules.
 
 ### 4.5 Migrations
 
-SQL-only, in `database/migrations/NNN_*.sql`. The runner
-(`internal/db/migrate.go`) reads them via `damson.MigrationsFS`,
-applies in lexicographic order inside a Postgres advisory lock,
-tracks applied files in `schema_migrations`. Each file is wrapped
-in `BEGIN; … COMMIT;` and uses `IF NOT EXISTS` throughout.
+SQL-only, in `database/migrations/NNN_*.sql` (001–018 at time of
+writing). The runner (`internal/db/migrate.go`) reads them via
+`damson.MigrationsFS`, applies in lexicographic order inside a
+Postgres advisory lock, tracks applied files in `schema_migrations`.
+Each file is wrapped in `BEGIN; … COMMIT;` and uses `IF NOT EXISTS`
+throughout.
+
+River's `river_*` tables are **not** in this sequence — River owns its
+own migration set, run from `queue.New` under the same advisory-lock
+discipline (§12).
 
 **Tests** run against a real Postgres (each test gets an isolated
 schema with the SQL migrations applied), configured via
@@ -216,22 +264,55 @@ impls picked at startup by `DAMSON_STORAGE_MODE`:
   hash so a bug at the HTTP boundary cannot escalate to a path
   traversal.
 - **`s3`** — `aws-sdk-go-v2` with endpoint override + path-style
-  for MinIO. HEAD-before-PUT dedup. Same key layout as LocalFS so
-  a deployment can migrate with a plain copy.
+  for MinIO / Garage. HEAD-before-PUT dedup. Same key layout as
+  LocalFS so a deployment can migrate with a plain copy.
+  Blob puts stream through `manager.Uploader` (multipart), so a
+  multi-GB upload never lands in memory; only the small, bounded
+  `PutThumb` path buffers.
 
-Two key prefixes:
+Three key prefixes, all `<prefix>/<hh>/<hhhhh…>`:
 
-- `blobs/<hh>/<hhhhh…>` — every file referenced by
-  `asset_files.object_key` and every original `.unitypackage`
-  archive referenced by `asset_versions.original_package_object_key`.
-- `thumbs/<hh>/<hhhhh…>` — generated thumbnails. Derived data;
+- `blobs/` — every file referenced by `asset_files.object_key`. The
+  extracted-content pool.
+- `originals/` — uploaded archives (`.unitypackage` / `.zip`)
+  referenced by `asset_versions.original_package_object_key`, kept
+  separate from the extracted-content pool so retention and purge
+  can act on them independently.
+- `thumbs/` — generated thumbnails **and** per-file preview
+  derivatives (`asset_files.preview_object_key`). Derived data;
   rebuildable.
 
 `object_key == content_hash`. An asset file row is a *reference* to
 a blob — two assets sharing a texture share `object_key`.
 
-Garbage collection is deferred. A later sweep walks references and
-deletes unreferenced blobs.
+Objects are stamped with `ObjectMeta` (filename, owning ids) on first
+write, readable back via `StatMeta` — enough to identify an object
+from the store side alone. `List` enumerates a prefix, which is what
+the orphan sweep walks.
+
+### 5.1 Orphan cleanup
+
+Nothing on the write path deletes blobs: deleting an asset removes
+its rows and leaves the objects. Reclaiming them is a deliberate,
+sysadmin-driven two-step in `internal/services/storage/cleanup`,
+exposed as `POST /api/admin/storage/cleanup/scan` and
+`.../cleanup/delete`.
+
+- **Scan** (`FindOrphans`) lists every object under the swept
+  prefixes and returns those referenced by no live DB row *and* last
+  modified before `now - DAMSON_ORPHAN_MIN_AGE` (default `168h`).
+  The age floor is the guard against deleting an in-flight upload
+  whose row has not committed yet.
+- **Delete** (`DeleteOrphans`) takes an explicit key list and
+  re-verifies each one against a freshly-read reference set and a
+  fresh listing immediately before deleting. A key that became
+  referenced, dropped below the minimum age, or already vanished is
+  reported as skipped with a reason rather than deleted. Every
+  successful deletion is audited.
+
+Purged originals are deliberately excluded from the known set, so a
+`retain_original_packages=false` purge that failed part-way becomes a
+legitimate cleanup target on the next sweep.
 
 ---
 
@@ -250,8 +331,8 @@ JWT `iss` and `aud` are derived from `DAMSON_BASE_URL` so a token
 leaked from one Damson cannot replay against another.
 `users.tokens_valid_after` is a revocation watermark — JWTs with
 `iat` before that instant are rejected (used by member removal).
-Synthetic subject `"local:<email>"` so the `users.subject` unique
-index still works.
+Local users are looked up by `lower(email)` with a non-null
+`password_hash`; they hold no `user_identities` row.
 
 Login is gated by `auth.LoginThrottle` (in-memory, per-IP +
 per-email; 5 burst, 1/min refill). 429 on empty bucket. Same bucket
@@ -270,6 +351,24 @@ reset.
 `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`. The SPA runs the
 interactive flow with `oidc-client-ts` and `automaticSilentRenew`
 keeps the bearer fresh.
+
+`OIDCAuthenticator.resolveUser` maps a validated token to a damson
+user in three steps, all inside one transaction:
+
+1. An existing `user_identities` row for `(issuer, subject)` → its
+   user.
+2. Else, when the IdP asserts a **verified** email, an existing user
+   with that email (case-insensitive) → link a new identity row to
+   them. This is what lets someone who signed up through one IdP log
+   in through another and land on the same account.
+3. Else, create a user seeded from the claims plus its first identity
+   row, then run `BootstrapFirstAdmin` inside the same transaction.
+
+Unverified email claims are dropped entirely — a new user created
+from one gets a blank email and the `needs_profile` flag. Email and
+display name are only ever used to seed a new profile or as the join
+key; once a user exists the app owns those fields (`PATCH /api/me`)
+and later logins never overwrite them.
 
 ### 6.2 Bootstrap
 
@@ -390,33 +489,82 @@ alone does not appear in logs.
 
 ## 8. Import pipeline
 
-Background-first by design, currently synchronous in code (M2+).
-Stage state is tracked in `asset_imports`; the queue surface
-filters non-`done`.
+Asynchronous. `POST /api/imports` spools the upload, persists the
+blob, creates the rows, and returns `202` with an
+`asset_imports` row in the `uploaded` stage; a River job on the
+`import` queue does the rest (§12). `asset_imports.stage` is the
+durable source of truth for progress — SSE is a notification channel
+over the top of it, so a dropped event is recoverable by refetching.
 
 ```
+HTTP (POST /api/imports)
 [1] Upload streamed to temp + SHA-256
 [2] PutBlob (skip if already present)
-[3] Create asset (needs_review=true) + first version
-[4] If .unitypackage → extract (gzipped tar or raw tar)
+[3] Create asset (needs_review=true) + first version + import row
+[4] Enqueue an import job → 202
+
+Worker (internal/services/imports.Run)
+[5] stage=extracting
+      .unitypackage → tar extractor  (§8.1)
+      .zip          → zip extractor  (§8.2)
+      loose file    → already persisted in [2]
       ├─ Stream each inner blob back to storage
       ├─ Write asset_files rows (path, size, hash, unity_guid)
-      ├─ Harvest preview.png if present → thumbnail candidate
-      └─ Set package_kind='unitypackage', retain original
-    Otherwise → single file already persisted in [2]
-[5] Licence detection on candidate licence files
-[6] Thumbnail generation (raster / audio / font / icon fallback)
-[7] Update search_vector (Postgres trigger)
-[8] Emit audit entry: asset.import
+      ├─ Harvest a cover / preview.png if present → thumbnail candidate
+      └─ Set package_kind, retain or purge the original per settings
+[6] stage=detecting      licence detection on candidate licence files
+[7] stage=thumbnailing   raster / audio / font / icon fallback
+[8] stage=enriching      storefront metadata lookup (§9), gated by
+                         library_settings.auto_enrich_enabled
+[9] stage=done           audit entry: asset.import
+    Preview work is enqueued onto the preview queue (§11, §12)
 ```
 
-Failure path: extract failures persist a stub asset +
-`stage='failed'` import row so the queue surface can retry via
-`POST /api/imports/:id/retry`. The retry path requires an
-`asset_files` row for non-Unity imports (Unity case still uses
-`original_package_object_key`) — stops the retry from creating a
-manifest-empty asset version when the upload bytes were never
-persisted.
+The `enriching` transition fires even when enrichment is disabled, so
+the SSE stage sequence stays stable for the SPA; `enrichAsset` itself
+is the gated no-op.
+
+Failure path: a failure at any stage persists `stage='failed'` plus
+the reason on the import row, so the queue surface can retry via
+`POST /api/imports/:id/retry`. Retry re-runs the pipeline against the
+retained source blob and creates a brand-new version plus a fresh
+import row in `uploaded` — the same code path as a first upload.
+Only `failed` rows are retryable; `done` returns 409. The retry path
+requires an `asset_files` row for non-archive imports (archives still
+use `original_package_object_key`) — this stops a retry from creating
+a manifest-empty version when the upload bytes were never persisted.
+
+On boot, `imports.ResumeInFlight` re-enqueues rows left mid-stage by a
+restart. River dedupes by args, so it is safe to run every start.
+
+**Upload intent.** The SPA caps upload concurrency and asks what a
+multi-file drop means before sending: separate assets, or one asset
+bundled from a folder. Bundling is client-side — the browser zips the
+folder and uploads a single archive. Uploads are owned by the
+notification centre (§16.7) rather than by the library page, so
+navigating away no longer aborts them.
+
+**Version matching and merge.** The `POST /api/imports` response
+carries an optional `suggested_match` (`{asset_id, name}`) when the
+incoming pack looks like a new version of an existing asset; the SPA
+prompts, and on accept re-targets the upload as a version of that
+asset instead of a new one. Store versions parsed from the filename
+order component-wise via `imports.CompareStoreVersions`.
+`POST /api/assets/:id/merge` folds one asset into another after the
+fact, moving tags, collection references and project pins (remapping
+dropped pins) onto the target.
+
+**Subset version** — `POST /api/assets/:id/versions/:vid/subset`
+creates a new version whose `asset_files` rows are a subset of the
+source version. Object keys are reused — no re-upload. Audited as
+`asset.version.subset`. The file-picking UI is the **scoped file
+browser** (`web/src/components/filebrowser/`): a full-page tree
+browser at `/library/:assetId/browse`, entered via "Browse files" from
+a browsable asset (current version with more than one file). It
+superseded the original flat checkbox-list dialog
+(`SubsetVersionDialog`, retired). Source version is the asset's
+current version — the only one whose files are loaded into the panel
+today.
 
 **Subset version** — `POST /api/assets/:id/versions/:vid/subset`
 creates a new version whose `asset_files` rows are a subset of the
@@ -446,16 +594,86 @@ to storage, records `(guid, path, size, hash, object_key)`.
 
 Extraction safety: per-entry size cap, total uncompressed size
 cap, reject paths containing `..` or absolute prefixes
-(zip-slip). Re-extraction reads the retained original from
-storage and produces a new version.
+(zip-slip). Re-extraction reads the retained original from storage
+and rewrites the version's files **in place** — it does not spawn a
+new version (§1).
 
-Zip-format `.unitypackage` (Unity Hub exports) is not supported
-yet — current uploads fail at import with a descriptive 400. See
-`progress.md` "Stretch goals".
+### 8.2 Zip extraction
+
+`internal/services/extract/zip.go`. `.zip` uploads are a first-class
+archive kind (`package_kind='zip'`), covering both Unity Hub's
+zip-format exports and ordinary asset archives, and produce the same
+`UnityResult` the tar path does. Same safety envelope: per-entry and
+total-uncompressed caps, zip-slip rejection. A cover image found in
+the archive is harvested as the thumbnail candidate.
 
 ---
 
-## 9. Licence detection
+## 9. Storefront metadata enrichment
+
+`internal/services/metadata/`. An uploaded package carries only what
+can be derived from its bytes — a filename-shaped name, an extracted
+thumbnail, a locally detected licence. When the asset came from an
+online storefront, the listing holds description, publisher, store
+URL, licence terms, a proper cover and a preview gallery. This
+subsystem fetches that.
+
+**Registry and adapters.** `Registry` maps a URL host to a `Fetcher`,
+falling back to a generic HTML scraper for unknown hosts. Matching is
+exact or dot-suffixed on a registered host (e.g.
+`assetstore.unity.com`). Dedicated adapters: Unity Asset Store
+(`unity.go`), Sketchfab (`sketchfab.go`), itch.io (`itch.go`).
+Adapters that can also search by name implement `Searcher`; the
+generic scraper does not. `library_settings.preferred_store` picks
+which store wins when several could match.
+
+**Entry points.**
+
+- `POST /api/assets/:id/metadata/fetch` — fetch a listing and return
+  the fields for the user to confirm.
+- `POST /api/assets/:id/metadata/apply` — write the confirmed fields
+  onto the asset, including storefront tags.
+- `GET /api/metadata/search` — search by name across the adapters
+  that support it, for picking a listing when no URL is known.
+- `GET /api/metadata/preview` — non-mutating fetch-by-URL, used to
+  expand a candidate before committing to it.
+
+Auto-enrichment runs as the `enriching` stage of the import pipeline
+(§8), gated by `library_settings.auto_enrich_enabled`.
+
+**SSRF guard.** The shared `Client` (`client.go`) is the only thing
+that fetches remote URLs — adapters never dial out directly — so it
+is the single choke point for outbound protections. Its custom dialer
+resolves each destination host and refuses non-public addresses
+(loopback, RFC1918 / `fc00::/7` private, link-local, …) with
+`ErrBlockedAddress`. Because the check runs at dial time rather than
+on the URL, a redirect into internal space is caught too. It also
+caps body size, bounds the redirect chain, rejects redirects to
+unsupported schemes, and rate-limits requests.
+
+### 9.1 Storefront images
+
+The CSP's `img-src` deliberately does not include store CDN origins
+(§6.4), so listing imagery cannot be loaded by the browser directly.
+Instead:
+
+- The chosen **cover** is fetched server-side and stored as an
+  ordinary content-addressed blob, becoming the asset thumbnail with
+  `assets.thumbnail_from_store=true` so a later extraction or rescan
+  does not overwrite it.
+- The **preview gallery** lands in `asset_images`, one row per image,
+  ordered by `sort_order` and unique per `(asset_id, source_url)`.
+  Video URLs are filtered out. `POST
+  /api/assets/:id/metadata/gallery/backfill` populates the gallery for
+  assets enriched before it existed.
+- Anything still remote is proxied through
+  `GET /api/metadata/image?url=`, which is SSRF-guarded and gated to
+  `image/*` responses, so the SPA renders it as a same-origin `blob:`
+  URL without widening the policy.
+
+---
+
+## 10. Licence detection
 
 `internal/services/licence/detect.go`:
 
@@ -479,7 +697,17 @@ list and the projects view.
 
 ---
 
-## 10. Thumbnails
+## 11. Thumbnails and previews
+
+Two related but distinct derivative pipelines:
+
+- **Thumbnails** — one small image *per asset*, for the grid.
+  Generated inline during the import job.
+- **Previews** — one larger image *per file*, for the file browser's
+  detail panel. Generated as their own tracked, retryable work on the
+  preview queue.
+
+### 11.1 Thumbnails
 
 `internal/services/thumbnail/`. One worker per category,
 dispatched by detected type:
@@ -504,22 +732,103 @@ dispatched by detected type:
 `thumbnail_object_key` so the serving handler sets the right
 `Content-Type` without sniffing bytes. Honours
 `library_settings.thumbnails_*` toggles. Failures log+swallow —
-the SPA falls back to icons.
+the SPA falls back to icons. A thumbnail adopted from a storefront
+listing sets `thumbnail_from_store` and is not overwritten by a
+later extraction or rescan (§9.1).
+
+### 11.2 File previews
+
+`internal/services/preview/`. Where a thumbnail is a small per-asset
+image, a preview is a **web-safe, browser-renderable derivative of one
+file** — larger, so the file detail panel shows real detail — for
+formats a browser cannot open directly. Currently pure-Go raster
+decoding (TIFF, BMP, and friends) with the rest of the taxonomy
+staged behind it. Previews are stored content-addressed under the
+same `thumbs/` prefix.
+
+Guards: a long-edge cap on the output, and a decompression-bomb guard
+that reads `DecodeConfig` first and skips anything whose declared
+dimensions exceed ~100 MP.
+
+**Per-file state.** `asset_files.preview_status` is first-class state,
+not an implicit property, which is what makes the work observable and
+retryable:
+
+| Status | Meaning |
+|---|---|
+| `unsupported` | no backend renderer for this type — the common case |
+| `queued` | supported, awaiting a worker |
+| `processing` | a worker is rendering it |
+| `done` | `preview_object_key` is set |
+| `failed` | the render errored; retryable via requeue |
+
+Classification runs over a version's files and marks the supported set
+`queued`; everything else `unsupported`. A version's rollup status is
+derived from its file counts — `processing` if any file is mid-render,
+else `queued` while any remain, else terminal (failures surface as a
+Failed count rather than a status).
+
+**Surfaces.** `GET /api/previews` is the processing-queue view and
+`GET /api/previews/events` streams transitions; the SPA renders them
+at `/processing`. Requeue is available per asset
+(`POST /api/assets/:id/previews/requeue`) or per file
+(`.../files/:fileId/previews/requeue`), which is also how a `failed`
+render is retried. `GET /api/previews/:objectKey` serves the bytes.
+Gated by `library_settings.previews_enabled`.
 
 ---
 
-## 11. Search
+## 12. Background jobs (River)
+
+`internal/queue`. Imports and previews run as
+[River](https://riverqueue.com) jobs — a Postgres-backed queue —
+replacing the hand-rolled bounded goroutine pools draining in-memory
+channels that preceded it. The pipelines themselves are unchanged;
+River wraps them, and enqueue becomes a `river_job` row instead of a
+channel send. See `docs/specs/2026-07-19-river-queue-migration.md`
+for the reasoning.
+
+- **Two queues.** `import` and `preview`, sized independently so each
+  can be tuned — and, later, moved to a dedicated worker container.
+- **Its own pool.** River runs on a dedicated `pgxpool`, separate
+  from GORM's, so its LISTEN/NOTIFY-driven low-latency pickup and its
+  connection usage stay isolated from web traffic.
+- **Ids only.** `ImportArgs{ImportID, LibraryID}` and
+  `PreviewArgs{LibraryID, VersionID, FileID}` — the job payload
+  carries identifiers and the worker reloads everything from the DB.
+  `FileID == 0` means every queued file in the version.
+- **Migrations.** River owns its `river_*` schema and migrates it
+  from `queue.New` under the same advisory-lock discipline as the
+  app's own runner. These tables are not part of
+  `database/migrations/`.
+- **Timeouts and sizing.** Per-queue job timeout, defaulting to
+  `DefaultJobTimeout` (30 min — generous, because imports can be
+  multi-GB). Worker counts default to `GOMAXPROCS`. Both are
+  overridable per queue (§15.1).
+- **Resume on boot.** `imports.ResumeInFlight` /
+  `preview.ResumeInFlight` re-enqueue rows left mid-flight by a
+  restart. River dedupes by args, so this is idempotent and also
+  covered the one-time cutover of rows in flight before River existed.
+
+The database stays the source of truth throughout: the queue tracks
+*work*, while `asset_imports.stage` and `asset_files.preview_status`
+track *state*.
+
+---
+
+## 13. Search
 
 A `search_vector` column on `assets`, maintained by triggers on
 `assets` (`name`, `description`) and `asset_tags` (path
-aggregation). Postgres uses
-`search_vector @@ plainto_tsquery('simple', $1)` with a GIN index.
+aggregation). Postgres matches with a GIN index against a
+prefix-aware `to_tsquery('simple', …)` built by `buildPrefixTsQuery`,
+so "pack" matches "package".
 
-The SQLite test tier falls back to `LIKE` on `name` /
-`description` — the handler dispatches on `db.Dialector.Name()`.
-SQLite-backed handler tests therefore exercise the `LIKE` branch;
-`search_vector` and triggers are validated only when a real-
-Postgres integration tier comes online.
+`applyAssetFilters` still carries a non-Postgres `LIKE` fallback
+branch on `name` / `description`, dispatched on
+`db.Dialector.Name()`. It is dead code — Postgres is the only
+dialect in production *and* in tests — and the tsvector path,
+triggers and GIN index are now exercised directly by the suite.
 
 `applyAssetFilters` composes filters: `q` (search), `tag_id` /
 `tag_path` (matches descendants), `licence_status`,
@@ -534,7 +843,7 @@ adding a derived column.
 
 ---
 
-## 12. Audit
+## 14. Audit
 
 - Written in the same DB transaction as the domain mutation it
   describes. The service panics on missing action / target type
@@ -562,7 +871,7 @@ adding a derived column.
 
 ---
 
-## 13. Configuration
+## 15. Configuration
 
 Loaded once at startup by `internal/config/config.go`. A `.env` in
 the repo root is auto-loaded; real env vars win on conflict.
@@ -577,7 +886,7 @@ direct var and the `_FILE` variant panics at startup.
 The only always-required value is `DAMSON_POSTGRES_DSN` (or its
 `_FILE` form).
 
-### 13.1 Always
+### 15.1 Always
 
 | Var | Default |
 |---|---|
@@ -585,11 +894,23 @@ The only always-required value is `DAMSON_POSTGRES_DSN` (or its
 | `DAMSON_LISTEN_ADDR` | `:8080` |
 | `DAMSON_BASE_URL` | `http://localhost:8080` |
 | `DAMSON_LOG_LEVEL` | `info` |
+| `DAMSON_LOG_FORMAT` | `json` (`text` for local dev — see `docs/observability.md`) |
 | `DAMSON_AUTH_MODE` | `local` (or `oidc`) |
 | `DAMSON_STORAGE_MODE` | `local` (or `s3`) |
 | `DAMSON_AUDIT_PURGE_INTERVAL` | `24h` (Go duration; non-positive falls back to default) |
+| `DAMSON_ORPHAN_MIN_AGE` | `168h` (7 days; minimum object age before orphan cleanup will delete it — §5.1) |
 
-### 13.2 `DAMSON_AUTH_MODE=local` (default)
+Background queues (§12). Unset / unparseable / non-positive values
+fall back to the default in every case.
+
+| Var | Default |
+|---|---|
+| `DAMSON_IMPORT_QUEUE_WORKERS` | `GOMAXPROCS` |
+| `DAMSON_PREVIEW_QUEUE_WORKERS` | `GOMAXPROCS` |
+| `DAMSON_IMPORT_JOB_TIMEOUT` | `30m` (Go duration) |
+| `DAMSON_PREVIEW_JOB_TIMEOUT` | `30m` (Go duration) |
+
+### 15.2 `DAMSON_AUTH_MODE=local` (default)
 
 | Var | Default / required |
 |---|---|
@@ -598,7 +919,7 @@ The only always-required value is `DAMSON_POSTGRES_DSN` (or its
 | `DAMSON_LOCAL_ADMIN_EMAIL` | optional — when set with `_PASSWORD`, seeds first admin |
 | `DAMSON_LOCAL_ADMIN_PASSWORD` | optional |
 
-### 13.3 `DAMSON_AUTH_MODE=oidc`
+### 15.3 `DAMSON_AUTH_MODE=oidc`
 
 | Var | Required? |
 |---|---|
@@ -610,13 +931,13 @@ Frontend env (Vite, OIDC only): `VITE_OIDC_AUTHORITY`,
 `VITE_OIDC_CLIENT_ID`, `VITE_OIDC_SCOPE`, `VITE_OIDC_REDIRECT_URI`,
 `VITE_OIDC_SILENT_REDIRECT_URI`, `VITE_OIDC_POST_LOGOUT_REDIRECT_URI`.
 
-### 13.4 `DAMSON_STORAGE_MODE=local` (default)
+### 15.4 `DAMSON_STORAGE_MODE=local` (default)
 
 | Var | Default |
 |---|---|
 | `DAMSON_STORAGE_LOCAL_PATH` | `./data/blobs` |
 
-### 13.5 `DAMSON_STORAGE_MODE=s3`
+### 15.5 `DAMSON_STORAGE_MODE=s3`
 
 | Var | Default / required |
 |---|---|
@@ -631,29 +952,36 @@ See `.env.example` for the canonical list.
 
 ---
 
-## 14. Frontend
+## 16. Frontend
 
-### 14.1 Layout shell
+### 16.1 Layout shell
 
 `AppShell` composes `NavRail` + `FilterSidebar` + main area.
 Routes (`web/src/App.tsx`):
 
 ```
-/                       → redirect to /library
-/library                → asset grid + filter sidebar
-/library/:assetId       → grid + detail panel open
-/queue                  → filtered library view (needs_review=true)
-/projects               → projects index
-/projects/:id           → project detail
-/collections            → collections index
-/collections/:id        → collection detail
-/audit                  → library audit log
-/admin/audit            → server audit log (sysadmin)
-/settings               → settings (theme, density, thumbnails,
-                          retention, members, server admin)
-/login                  → local-mode login
-/bootstrap              → local-mode first-admin form
+/                        → redirect to /library
+/library                 → asset grid + filter sidebar
+/library/:assetId        → grid + detail panel open
+/library/:assetId/browse → scoped file browser (full-page tree, §8)
+/queue                   → filtered library view (needs_review=true)
+/processing              → preview processing queue (§11.2)
+/projects                → projects index
+/projects/:id            → project detail
+/collections             → collections index
+/collections/:id         → collection detail
+/audit                   → library audit log
+/admin/audit             → server audit log (sysadmin)
+/settings                → settings (theme, density, thumbnails,
+                           previews, enrichment, retention, members,
+                           server admin, storage cleanup)
+/login                   → local-mode login
+/bootstrap               → local-mode first-admin form
+/auth/callback           → OIDC redirect landing
 ```
+
+Everything except `/login`, `/bootstrap` and `/auth/callback` sits
+behind `<AuthGuard>`.
 
 The asset detail panel is URL-addressable so a pasted link opens
 the right asset. It is user-resizable (overlay mode only): a left-edge
@@ -661,7 +989,7 @@ drag handle controls width, persisted to `localStorage` under
 `damson.detail.w` (default 440 px, min 320 px); a header button toggles
 fullscreen (covers the full grid area). Viewports ≤ 640 px auto-fullscreen.
 
-### 14.2 State
+### 16.2 State
 
 - **Server state** through TanStack Query 5. Query keys live in
   `lib/queryKeys.ts` only; data hooks in `hooks/useDataQueries.ts`
@@ -674,7 +1002,7 @@ fullscreen (covers the full grid area). Viewports ≤ 640 px auto-fullscreen.
   applies the stored theme so light-mode users do not see a dark
   flash.
 
-### 14.3 API client
+### 16.3 API client
 
 `src/api.ts` — `fetchJson<T>` / `fetchMaybeJson<T>` attach the
 bearer, handle 401 (silent renew on OIDC; `AuthRedirectError` on
@@ -685,7 +1013,7 @@ from components** — the only exceptions are pre-auth endpoints in
 `uploadFile(url, file, onProgress)` uses `XMLHttpRequest` for
 upload progress (fetch lacks it).
 
-### 14.4 SPA auth flow
+### 16.4 SPA auth flow
 
 1. App boots → `useAuthMode()` hits `/api/auth/mode` (public) and
    the result is cached in TanStack Query (single source of truth —
@@ -706,7 +1034,7 @@ upload progress (fetch lacks it).
    `AuthRedirectError` (local). The dedicated local refresh keeps
    typical sessions from ever reaching the 401 path.
 
-### 14.5 Grid
+### 16.5 Grid
 
 `@tanstack/react-virtual`. Column count comes from a
 `ResizeObserver`-driven hook; keyboard selection scrolls into view
@@ -718,7 +1046,7 @@ ref instead of being re-created on each refetch, so
 Keyboard shortcuts (`useKeyboardShortcuts`): `/` and `cmd+k` focus
 search, arrow keys navigate, `enter` opens, `escape` closes.
 
-### 14.6 Design system
+### 16.6 Design system
 
 Spec: [`docs/design-system.md`](design-system.md). Three tiers
 under `web/src/design-system/`: **primitives** (Button, Input,
@@ -727,9 +1055,22 @@ Dialog, …), **compositions** (AppShell, NavRail, DetailPanel, …),
 component ships a `*.stories.tsx`; Vitest runs them as real
 Chromium tests with axe-core a11y checks (`a11y.test = "error"`).
 
+### 16.7 Notification centre
+
+`web/src/components/notifications/`. Client-side only — there is no
+notifications table or endpoint. `NotificationProvider` is mounted
+above the router in `App.tsx`, which is the point: **it owns the
+upload queue**, so uploads survive navigation. Previously upload
+state lived in `DropZone` inside `LibraryPage`, and React Router
+unmounting the page aborted the in-flight XHR.
+
+It also drives the shell's unread / in-flight badge, and is where
+upload concurrency capping, per-upload cancel, clear-all, and the
+"add as a version of an existing asset?" prompt live (§8).
+
 ---
 
-## 15. API surface
+## 17. API surface
 
 REST-ish JSON under `/api`. The list mirrors
 `internal/handlers/api/handler.go`. Library-scoped endpoints
@@ -746,11 +1087,13 @@ GET    /api/health
 
 # Session / user
 GET    /api/me
+PATCH  /api/me                        # app-owned email / display name
 GET    /api/libraries
 POST   /api/me/current-library
 POST   /api/auth/refresh              # local mode (re-issues JWT)
 
 # Libraries (cross-library; handler-gated)
+POST   /api/libraries
 PATCH  /api/libraries/:id
 DELETE /api/libraries/:id
 GET    /api/libraries/:id/members
@@ -764,13 +1107,20 @@ PATCH  /api/admin/users/:id
 GET    /api/admin/settings
 PATCH  /api/admin/settings
 GET    /api/admin/audit               # ?scope=server (default) | all
+POST   /api/admin/storage/cleanup/scan    # list orphaned objects
+POST   /api/admin/storage/cleanup/delete  # delete an explicit key list
 
 # Assets (library-scoped)
 GET    /api/assets
+POST   /api/assets/bulk               # action over a selection: delete, review,
+                                      #   unreview, add_tag, remove_tag,
+                                      #   add_to_collection, set_licence
 GET    /api/assets/:id
 PATCH  /api/assets/:id
 DELETE /api/assets/:id
 POST   /api/assets/:id/review
+POST   /api/assets/:id/rescan         # re-derive licence + thumbnail from files
+POST   /api/assets/:id/merge          # fold another asset into this one
 GET    /api/assets/:id/audit
 GET    /api/assets/:id/licence
 PUT    /api/assets/:id/licence
@@ -778,6 +1128,10 @@ POST   /api/assets/:id/licence/review
 GET    /api/assets/:id/licence/detect
 POST   /api/assets/:id/tags
 DELETE /api/assets/:id/tags/:tagId
+
+# Versions (library-scoped)
+PATCH  /api/assets/:id/versions/:vid
+DELETE /api/assets/:id/versions/:vid
 POST   /api/assets/:id/versions/:vid/reextract
 POST   /api/assets/:id/versions/:vid/subset
 
@@ -790,10 +1144,19 @@ GET    /api/metadata/image            # SSRF-guarded image proxy → same-origin
 GET    /api/metadata/search           # name search across storefront adapters
 
 # Imports (library-scoped)
-POST   /api/imports
-GET    /api/imports
+POST   /api/imports                   # multipart; 202 + optional suggested_match
+GET    /api/imports                   # ?stage=<name> | all
+GET    /api/imports/events            # SSE: library-wide stage transitions
 GET    /api/imports/:id
+GET    /api/imports/:id/events        # SSE: one import
 POST   /api/imports/:id/retry
+
+# Previews (library-scoped)
+GET    /api/previews                  # processing-queue view
+GET    /api/previews/events           # SSE: preview transitions
+GET    /api/previews/:objectKey       # serve a preview derivative
+POST   /api/assets/:id/previews/requeue
+POST   /api/assets/:id/files/:fileId/previews/requeue
 
 # Tags / licences (library-scoped)
 GET    /api/tags
@@ -835,16 +1198,14 @@ GET    /api/thumbs/:objectKey
 GET    /api/audit
 ```
 
-Endpoints documented in the archived tech design but **not
-implemented** are listed in `progress.md` "Foundations the tech
-design assumes but hasn't been built yet" — notably `POST
-/api/libraries` and SSE imports (`/api/imports/events`). `DELETE
-/api/libraries/:id` and `POST /api/auth/refresh` (local mode) landed
-in the Alpha leftover-features rollup.
+Every endpoint the archived tech design assumed is now implemented —
+the last gaps (`POST /api/libraries`, SSE imports) closed with the
+async-pipeline and River work. `docs/progress.md` tracks what has
+landed since.
 
 ---
 
-## 16. Deployment
+## 18. Deployment
 
 Multi-stage Dockerfile (no CGo; runtime image is slim):
 
@@ -857,13 +1218,29 @@ Multi-stage Dockerfile (no CGo; runtime image is slim):
 The binary serves the SPA at `/` with a fallback (any non-`/api`
 route that is not a static asset returns `index.html`).
 
-Releases are automated via GitHub Actions
-(`.github/workflows/release.yml`): pushing a `v*.*.*` tag builds
-and pushes to `ghcr.io/<owner>/damson` with `{version}`,
-`{major}.{minor}`, `{major}` tags. `main-build.yml` builds
-`main-<sha>` on every push to `main`.
+CI/CD is **Woodpecker** (`.woodpecker.yml`) — not GitHub Actions.
+Two pipelines off one file:
 
-### 16.1 First-run flow
+- **Push to `main`** — lint, Go tests, web tests, Playwright e2e,
+  then a buildkit-rootless image build pushed to
+  `ghcr.io/thomas-elliott/damson:main-<sha>` (plus `latest`), then a
+  kustomize image-tag bump in the gitops repo for the **test**
+  environment, which ArgoCD reconciles.
+- **Tag `v*.*.*`** — no rebuild. The already-built, already-tested
+  `main-<sha>` image is *promoted* with `crane` to `{version}`,
+  `{major}.{minor}` and `{major}` tags, then the **prod** kustomize
+  tag is bumped.
+
+Two consequences worth knowing before touching the file: the
+Playwright step's image tag must stay in lockstep with
+`@playwright/test` in `web/package.json` (pinned exactly, so the
+bundled browsers resolve), and a tag can only be released if that
+commit was previously built on `main`.
+
+Deployment target is the kerbol k8s cluster, namespaces
+`damson-test` and `damson-prod` (see `docs/observability.md`).
+
+### 18.1 First-run flow
 
 1. Start the container. `DAMSON_POSTGRES_DSN` is the only
    always-required env var — local auth + local storage are the
@@ -885,12 +1262,13 @@ Alternatives:
   startup, the bootstrap page is skipped.
 - **OIDC.** `DAMSON_AUTH_MODE=oidc` — the first user to sign in on
   an empty system runs the same bootstrap transaction (no admin
-  email list). Users are keyed by their `sub`; one with no email
-  claim fills it in on first login.
+  email list). Users are keyed by `(issuer, subject)` in
+  `user_identities`; one with no verified email claim fills it in on
+  first login (§6.1).
 
 ---
 
-## 17. Confirmed decisions
+## 19. Confirmed decisions
 
 Reproduced from the archived tech design §22 and updated where
 the code diverges:
@@ -901,15 +1279,29 @@ the code diverges:
    archived tech design described OIDC only; local mode is
    `internal/auth/local.go` + `internal/handlers/api/auth.go`.
 4. Upload path: in-server streaming (Go server hashes in-stream
-   and puts to storage). Revisit only if the server becomes a
-   bottleneck.
-5. Import staging: real `asset_imports` table.
-6. Integration test tier: SQLite-only today. A real-Postgres tier
-   for tsvector / advisory locks is a follow-up.
+   and puts to storage, multipart to S3). Revisit only if the server
+   becomes a bottleneck.
+5. Import staging: real `asset_imports` table. It stays the durable
+   source of truth for stage state even now that River owns the
+   scheduling (§12).
+6. Test tier: **real Postgres everywhere**, per-test schema via
+   `internal/testdb`, `DAMSON_TEST_POSTGRES_DSN` required. SQLite is
+   gone — the driver is no longer a dependency, and tsvector, JSONB
+   operators and advisory locks are exercised directly.
 7. Thumbnail pipeline: stdlib `image` + `golang.org/x/image/*`.
    No CGo, no third-party encoder. JPEG for photographic content,
-   PNG for everything else.
+   PNG for everything else. File previews (§11.2) follow the same
+   pure-Go constraint.
 8. Ownership model: library-based group ownership.
 9. **Accent colour is yellow only** — no theme-swap. **Dark default,
    light override on `data-theme`.** Hand-rolled components on
    Radix headless primitives — no shadcn/ui.
+10. Background jobs: River on Postgres, replacing hand-rolled
+    goroutine pools. Chosen for durability across restarts and
+    observable job state without building a scheduler.
+11. External identities live in `user_identities`, keyed
+    `(issuer, subject)`, with verified email as the cross-IdP join
+    key. `users.subject` was dropped (migration 008).
+12. Storefront metadata is fetched server-side through one
+    SSRF-guarded client, and listing imagery is re-hosted as local
+    blobs rather than widening the CSP to store CDNs.

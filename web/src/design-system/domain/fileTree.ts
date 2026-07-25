@@ -135,6 +135,25 @@ export function nodesAtPath(tree: TreeNode[], path: string[]): TreeNode[] {
   return nodes;
 }
 
+/**
+ * Keys of every folder shallower than `depth`, "/"-joined. Expanding exactly
+ * these leaves folders at `depth` visible but shut.
+ */
+export function folderKeysToDepth(tree: TreeNode[], depth: number): string[] {
+  const keys: string[] = [];
+  const walk = (nodes: TreeNode[], parent: string[]) => {
+    if (parent.length >= depth) return;
+    for (const node of nodes) {
+      if (node.type !== "folder") continue;
+      const here = [...parent, node.name];
+      keys.push(here.join("/"));
+      walk(node.children, here);
+    }
+  };
+  walk(tree, []);
+  return keys;
+}
+
 /** Flatten every file in the tree, each paired with its folder path. */
 export function flattenFiles(tree: TreeNode[], parent: string[] = []): FlatFile[] {
   const out: FlatFile[] = [];
