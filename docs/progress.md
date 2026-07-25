@@ -45,6 +45,36 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### Library top bar, rail account menu, file-manager browser — 2026-07-25
+
+Scoped by
+[`specs/2026-07-25-library-topbar-file-manager-browser.md`](specs/2026-07-25-library-topbar-file-manager-browser.md).
+Front-end only — no API, schema or handler change.
+
+- **The library toolbar is the page's identity row.** Library switcher (doubling
+  as the title) + asset count, a `Filter` toggle, search, then Upload. The
+  `Library · N assets` breadcrumb is gone — it repeated the switcher.
+- **Filters are a toggleable sidebar, closed by default** (persisted per browser
+  under `damson.library.filters`), so the grid gets the 248px back. No new
+  composition: `AppShell` already collapses its sidebar column when no sidebar is
+  passed. The toggle badges the active-filter count so nothing filters invisibly.
+- `project_id` now actually filters. The sidebar wrote the search param but
+  `LibraryPage` never parsed it, so clicking a project highlighted it and
+  filtered nothing. Filter parsing moved to `lib/libraryFilters.ts`.
+- **Account controls consolidated** into a rail-foot avatar menu (`UserMenu`):
+  identity, Light/Dark, Settings, Sign out. The standalone theme rail item and
+  the two sign-out buttons it replaced (filter-sidebar footer, `SignedOutSidebar`)
+  are gone.
+- **The scoped file browser behaves like a file manager.** Its root view is the
+  root *folder* (folders first, then that folder's files) rather than a flat
+  listing of the whole pack; the flat listing is now only for search and
+  file-type results, where the 300-result cap was always load-bearing. The tree
+  is folders-only and expands to depth 3 on open.
+- Two behaviour changes that follow from the above: the file detail panel's
+  prev/next stepper walks the current folder rather than the whole pack, and a
+  flat "every file" listing is reachable only via a search term or type filter.
+  A first-class flat mode would be a third option on the grid/list control.
+
 ### Asset sidebar refinements — 2026-07-25
 
 No spec — UI polish on the library detail panel.
