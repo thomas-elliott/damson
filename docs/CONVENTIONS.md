@@ -30,6 +30,7 @@ This document complements:
 - Radix UI headless primitives (`@radix-ui/react-*`) + hand-rolled components under `web/src/design-system/`
 - `class-variance-authority` for component variants; `clsx` + `tailwind-merge` via a `cn()` helper
 - `lucide-react` icons; `@fontsource/inter` + `@fontsource/jetbrains-mono` self-hosted fonts
+- CodeMirror 6 (`@codemirror/*`) for markdown editing and `@lezer/markdown` for the matching read-only renderer — see the `MarkdownEditor` / `Markdown` primitives
 
 **Tooling**
 - Task (`Taskfile.yml`) for all developer workflows

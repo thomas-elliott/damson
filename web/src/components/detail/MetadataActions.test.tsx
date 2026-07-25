@@ -60,7 +60,7 @@ vi.mock("@/components/filebrowser/useFileObjectUrl", () => ({
   useBlobUrl: (url?: string) => blobUrlMock(url),
 }));
 
-import { MetadataActions } from "./MetadataActions";
+import { EnrichmentReview, MetadataActions } from "./MetadataActions";
 
 const asset = {
   id: 7,
@@ -96,7 +96,7 @@ describe("MetadataActions", () => {
       },
     } as AssetDetailView;
 
-    const { container } = render(<MetadataActions asset={withCover} />);
+    const { container } = render(<EnrichmentReview asset={withCover} />);
 
     // A bare <img src={cover_url}> would be blocked by the CSP; the cover must
     // go through the proxy endpoint with the external URL encoded.
@@ -156,7 +156,7 @@ describe("MetadataActions", () => {
       },
     } as AssetDetailView;
 
-    render(<MetadataActions asset={withMeta} />);
+    render(<EnrichmentReview asset={withMeta} />);
     // Abstain provenance must render, and the stored candidate must be pickable.
     expect(screen.getByText(/No confident match/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /The Right One/i }));
@@ -174,7 +174,7 @@ describe("MetadataActions", () => {
 
   it("fetches a candidate's details only when expanded", () => {
     previewData = undefined;
-    render(<MetadataActions asset={withCandidate} />);
+    render(<EnrichmentReview asset={withCandidate} />);
     // Not fetched until expanded — the eager version would fail this guard.
     expect(previewMutate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Expand details/i }));
@@ -183,7 +183,7 @@ describe("MetadataActions", () => {
 
   it("shows the fetched description only once expanded", () => {
     previewData = { description: "A big pack of dungeon tiles." };
-    render(<MetadataActions asset={withCandidate} />);
+    render(<EnrichmentReview asset={withCandidate} />);
     // Collapsed by default — details stay hidden until the row is expanded.
     expect(screen.queryByText(/dungeon tiles/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Expand details/i }));

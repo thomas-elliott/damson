@@ -45,6 +45,36 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### Asset sidebar refinements — 2026-07-25
+
+No spec — UI polish on the library detail panel.
+
+- The asset name is no longer repeated: it lives in the panel header only, and
+  renaming moved into the Overview edit form (with description + source URL),
+  replacing the click-the-title-to-rename affordance and the footer Save.
+- **Overview reads as rendered markdown.** Descriptions are markdown (storefront
+  enrichment writes them that way) but were shown in a permanent textarea, so
+  most users only ever saw raw syntax. Read mode renders the description and
+  shows the source URL as a link; an Edit button in the section header flips to
+  the form. An asset with no description opens straight into the form.
+- New `Markdown` + `MarkdownEditor` primitives (CodeMirror 6 +
+  `@lezer/markdown`) back that — see [`design-system.md`](design-system.md).
+- The rendered description is clamped to five lines with a Read more / Show less
+  toggle (store descriptions run to hundreds of lines and buried every section
+  below Overview), and the editor caps at 320px with internal scrolling.
+- Read mode puts the source-URL link and the Fetch / Find listing buttons on one
+  line; enrichment provenance (`Metadata from unity · date · listing`, plus the
+  stored candidates for correcting a bad match) is housekeeping rather than
+  content, so it only shows in edit mode. `EnrichmentReview` is now its own
+  exported component owning its fetch cycle, and `MetadataActions` is just the
+  two buttons.
+- Licence section starts collapsed and carries the SPDX identifier as a pill in
+  its header while collapsed — the one fact people scan for, without opening the
+  section. Licence chips dropped from the library grid cards and the sidebar hero
+  (still on project pins, where they earn the space).
+- Storybook now globs `src/components/**` too, and the sidebar has real stories
+  (`App/AssetDetailPanel`) driven by a stubbed `window.fetch`.
+
 ### Versioning rework + storefront-metadata refinements — 2026-07-24 → 07-25
 
 Spec: [`specs/2026-07-24-versioning-and-storefront-metadata-refinements.md`](specs/2026-07-24-versioning-and-storefront-metadata-refinements.md)
