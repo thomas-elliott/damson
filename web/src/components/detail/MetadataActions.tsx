@@ -104,15 +104,11 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
   );
 }
 
-// MetadataActions renders the "Fetch" (from source URL) and "Find listing"
-// (name search) actions, the match-picker dialog, and the overwrite-confirm
-// dialog for conflicting fields.
-export function MetadataActions({ asset }: { asset: AssetDetailView }) {
+// useMetadataFetch owns the fetch → conflict → apply cycle for one asset and
+// returns the confirm dialog as an element for the caller to render.
+function useMetadataFetch(assetId: number) {
   const fetchMeta = useFetchMetadata();
   const applyMeta = useApplyMetadata();
-  const search = useSearchMetadata();
-
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [conflicts, setConflicts] = useState<MetadataConflict[] | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [note, setNote] = useState<string | null>(null);
@@ -120,7 +116,7 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
   const runFetch = (url?: string) => {
     setNote(null);
     fetchMeta.mutate(
-      { id: asset.id, url },
+      { id: assetId, url },
       {
         onSuccess: (res) => {
           if (res.conflicts.length > 0) {
@@ -147,7 +143,7 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
       return;
     }
     applyMeta.mutate(
-      { id: asset.id, fields },
+      { id: assetId, fields },
       {
         onSuccess: (res) => {
           setConflicts(null);
@@ -157,6 +153,75 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
     );
   };
 
+  return {
+    runFetch,
+    note,
+    pending: fetchMeta.isPending,
+    failed: fetchMeta.isError,
+    dialog: (
+      <ConflictDialog
+        conflicts={conflicts}
+        selected={selected}
+        setSelected={setSelected}
+        onClose={() => setConflicts(null)}
+        onApply={onApply}
+        pending={applyMeta.isPending}
+      />
+    ),
+  };
+}
+
+// FindListingButton is the standalone name-search entry point — picker plus
+// fetch, for callers with no room for the full panel (the import queue card).
+export function FindListingButton({
+  assetId,
+  assetName,
+  label = "Find listing",
+}: {
+  assetId: number;
+  assetName: string;
+  label?: string;
+}) {
+  const search = useSearchMetadata();
+  const meta = useMetadataFetch(assetId);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={meta.pending}
+        onClick={() => {
+          setOpen(true);
+          search.mutate(assetName);
+        }}
+      >
+        <Search size={12} /> {meta.pending ? "Fetching…" : label}
+      </Button>
+      <MatchPickerDialog
+        open={open}
+        onOpenChange={setOpen}
+        assetName={assetName}
+        search={search}
+        onPick={(url) => {
+          setOpen(false);
+          meta.runFetch(url);
+        }}
+      />
+      {meta.dialog}
+    </>
+  );
+}
+
+// MetadataActions renders the "Fetch" (from source URL) and "Find listing"
+// (name search) actions, the match-picker dialog, and the overwrite-confirm
+// dialog for conflicting fields.
+export function MetadataActions({ asset }: { asset: AssetDetailView }) {
+  const search = useSearchMetadata();
+  const meta = useMetadataFetch(asset.id);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const hasSource = asset.source_url.trim() !== "";
 
   return (
@@ -164,8 +229,8 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <Button
           size="sm"
-          onClick={() => runFetch()}
-          disabled={!hasSource || fetchMeta.isPending}
+          onClick={() => meta.runFetch()}
+          disabled={!hasSource || meta.pending}
           title={hasSource ? "Fetch metadata from the source URL" : "Set a source URL first"}
         >
           <Download size={12} /> Fetch
@@ -180,11 +245,11 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
         >
           <Search size={12} /> Find listing
         </Button>
-        {fetchMeta.isError && <span className="text-mono text-err">Fetch failed</span>}
-        {note && <span className="text-mono text-text-3">{note}</span>}
+        {meta.failed && <span className="text-mono text-err">Fetch failed</span>}
+        {meta.note && <span className="text-mono text-text-3">{meta.note}</span>}
       </div>
 
-      <EnrichmentReview asset={asset} onPick={(url) => runFetch(url)} />
+      <EnrichmentReview asset={asset} onPick={(url) => meta.runFetch(url)} />
 
       <MatchPickerDialog
         open={pickerOpen}
@@ -193,18 +258,11 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
         search={search}
         onPick={(url) => {
           setPickerOpen(false);
-          runFetch(url);
+          meta.runFetch(url);
         }}
       />
 
-      <ConflictDialog
-        conflicts={conflicts}
-        selected={selected}
-        setSelected={setSelected}
-        onClose={() => setConflicts(null)}
-        onApply={onApply}
-        pending={applyMeta.isPending}
-      />
+      {meta.dialog}
     </div>
   );
 }

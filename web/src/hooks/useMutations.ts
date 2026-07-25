@@ -166,6 +166,7 @@ export function useReviewAsset() {
     onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: queryKeys.asset(id) });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.imports });
     },
   });
 }
@@ -757,6 +758,7 @@ export function useFetchMetadata() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: queryKeys.asset(v.id) });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.imports });
     },
   });
 }
@@ -773,6 +775,7 @@ export function useApplyMetadata() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: queryKeys.asset(v.id) });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.imports });
     },
   });
 }
