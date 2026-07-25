@@ -9,12 +9,12 @@ import { Shell } from "./Shell";
 import { NotificationProvider } from "./notifications/NotificationProvider";
 
 vi.mock("@/hooks/useDataQueries", () => ({
-  useMe: () => ({ data: { id: 1, email: "a@b.c" }, loading: false }),
+  useMe: () => ({ data: { id: 1, email: "a@b.c", display_name: "Ada B" }, loading: false }),
   useImports: () => ({ total: 0 }),
   usePreviewQueue: () => ({ total: 0 }),
 }));
 vi.mock("@/hooks/useTheme", () => ({
-  useTheme: () => ({ mode: "dark", toggle: vi.fn() }),
+  useTheme: () => ({ mode: "dark", setTheme: vi.fn(), toggle: vi.fn() }),
 }));
 
 const STORAGE_KEY = "damson.notifications";
@@ -74,5 +74,16 @@ describe("Shell notification bell", () => {
     const bell = screen.getByRole("button", { name: "Notifications" });
     await waitFor(() => expect(bell).not.toHaveTextContent("0"));
     expect(bell).toHaveTextContent("");
+  });
+});
+
+describe("Shell rail account controls", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("carries an account menu and no standalone theme toggle", () => {
+    mount();
+    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch to light theme" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Switch to dark theme" })).toBeNull();
   });
 });
