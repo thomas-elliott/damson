@@ -263,7 +263,11 @@ orchestrate these rather than rebuilding the layout each time.
 
 - **`AppShell`** — 3-column CSS grid: rail (52px) | sidebar (adjustable,
   default 248px) | main (fills). Sidebar is optional; when omitted the
-  grid collapses to rail + main.
+  grid collapses to rail + main, which is how pages implement a toggleable
+  sidebar (see the library's `Filter` toggle). The persisted width
+  (`damson.sidebar.w`) is read whether or not a sidebar is currently
+  mounted, so toggling one back open restores the user's width instead of
+  overwriting it with the default; an explicit `sidebarWidth` still wins.
 - **`NavRail`** + **`NavRailItem`** + **`NavRailSpacer`** — vertical
   icon nav with tooltip labels (250ms delay), `badge` prop for counts,
   `active` renders a left accent bar. `brand` slot at top.
@@ -370,10 +374,17 @@ data + state lives in `web/src/components/filebrowser/`.
 - **`FolderCard`** / **`FileCard`** — grid tiles (file card has a type badge +
   selection check + `open` highlight, mirroring `AssetCard`).
 - **`FileBrowserList`** — dense table view of folders + files.
-- **`FileTreeSidebar`** — scope header + in-pack search + directory tree +
+- **`FileTreeSidebar`** — scope header + in-pack search + folder tree +
   file-type filter (composes `FilterSidebar`/`SearchInput`/`Section`). Tree rows
   keep the caret toggle and the navigate target as **sibling** buttons to stay
-  free of the axe nested-interactive violation.
+  free of the axe nested-interactive violation. **Folders only** — files are
+  opened from the grid, so a folder with no subfolders renders no caret.
+  Folders shallower than depth 3 are expanded on first render (from
+  `folderKeysToDepth`), computed in a `useState` initialiser so later
+  navigation can't stomp a manual collapse. The caret expands/collapses; the
+  label navigates *and* reveals. Reveal-on-navigate is a **state write** on
+  `path` change, not a render-time union with the path's ancestors — the
+  union made a folder on the current path impossible to collapse.
 - **`FileBrowserToolbar`** — breadcrumb path + active filter chips + grid/list
   toggle (composes `Toolbar`/`Breadcrumb`/`SegmentedControl`).
 - **`FileDetailPanel`** — per-file detail reusing the detail-panel chrome

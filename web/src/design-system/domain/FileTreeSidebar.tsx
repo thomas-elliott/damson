@@ -10,7 +10,6 @@ import { FileGlyph } from "./FileGlyph";
 import { fileTypeMeta, type FileType } from "./fileTypes";
 import { countFiles, folderKeysToDepth, type FolderNode, type TreeNode } from "./fileTree";
 
-/** Folders shallower than this are expanded on first render. */
 const DEFAULT_EXPANDED_DEPTH = 3;
 
 export interface FileTreeSidebarProps {
@@ -163,10 +162,6 @@ interface TreeNavNodeProps {
   onNavigate: (path: string[]) => void;
 }
 
-/**
- * One folder in the tree. Files are deliberately absent — the grid opens
- * files; the tree only navigates folders.
- */
 function TreeNavNode({
   node,
   parent,
