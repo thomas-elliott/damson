@@ -7,6 +7,7 @@ export * from "./SegmentedControl";
 export * from "./Input";
 export * from "./SearchInput";
 export * from "./Textarea";
+export * from "./MarkdownEditor";
 
 // Display
 export * from "./Badge";
@@ -17,6 +18,7 @@ export * from "./Kbd";
 export * from "./StatusDot";
 export * from "./ProgressBar";
 export * from "./Glyph";
+export * from "./Markdown";
 
 // Radix atoms
 export * from "./Checkbox";
