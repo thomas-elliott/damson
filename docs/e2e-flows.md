@@ -171,6 +171,11 @@ but the SPA-side callback handling is testable in isolation.
 real provider in CI; the value is in catching SPA-side regressions in
 `LoginCallbackPage` and `lib/oidc.ts`.
 
+The same spec covers sign-out (stored user cleared, redirect to `/login`).
+Sign-out lives in the rail-foot account menu, so the test opens the
+`Account` trigger first and then clicks the `Sign out` **menuitem** — there
+is no top-level sign-out button any more.
+
 ---
 
 ## Tier 3 — nice-to-have (implemented)
