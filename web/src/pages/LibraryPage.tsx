@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { LogOut, Search, UploadCloud } from "lucide-react";
+import { SlidersHorizontal, UploadCloud } from "lucide-react";
 
 import { AssetGrid } from "@/components/AssetGrid";
 import { BulkAssetBar } from "@/components/BulkAssetBar";
@@ -8,10 +8,10 @@ import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
 import { DropZone, useDropZoneOpen } from "@/components/DropZone";
 import { FileBrowser } from "@/components/filebrowser/FileBrowser";
 import { LibraryFilterSidebar } from "@/components/LibraryFilterSidebar";
+import { LibraryPicker } from "@/components/LibraryPicker";
 import { Shell } from "@/components/Shell";
 import {
-  Breadcrumb,
-  BreadcrumbItem,
+  Badge,
   Button,
   EmptyState,
   SearchInput,
@@ -20,16 +20,14 @@ import {
   isBrowsable,
 } from "@/design-system";
 import { FolderOpen, Library as LibraryIcon } from "lucide-react";
-import {
-  useAssets,
-  useMe,
-  type AssetFilters,
-  type AssetRow,
-  type LicenceStatus,
-  type Me,
-} from "@/hooks/useDataQueries";
+import { useAssets, useMe, type AssetFilters, type AssetRow } from "@/hooks/useDataQueries";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { logout } from "@/lib/logout";
+import {
+  activeFilterCount,
+  parseAssetFilters,
+  readFiltersOpen,
+  writeFiltersOpen,
+} from "@/lib/libraryFilters";
 
 export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const { data: me } = useMe();
@@ -41,22 +39,15 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const assetId = params.assetId ? Number(params.assetId) : null;
   const browsing = browse && assetId != null;
 
-  const filters: AssetFilters = useMemo(() => {
-    const f: AssetFilters = {};
-    const q = search.get("q");
-    if (q) f.q = q;
-    const tag = search.get("tag");
-    if (tag) f.tag_path = tag;
-    const lic = search.get("licence");
-    if (lic) f.licence_status = lic as LicenceStatus;
-    const spdx = search.get("spdx");
-    if (spdx) f.licence_spdx = spdx;
-    const kind = search.get("kind");
-    if (kind) f.package_kind = kind;
-    const needsReview = search.get("needs_review");
-    if (needsReview === "true") f.needs_review = true;
-    return f;
-  }, [search]);
+  const filters: AssetFilters = useMemo(() => parseAssetFilters(search), [search]);
+  const filterCount = activeFilterCount(filters);
+
+  const [filtersOpen, setFiltersOpen] = useState(readFiltersOpen);
+  const toggleFilters = () => {
+    const next = !filtersOpen;
+    setFiltersOpen(next);
+    writeFiltersOpen(next);
+  };
 
   const { data: assets, total, loading } = useAssets(filters, hasLibrary);
 
@@ -190,22 +181,32 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const selectedAsset = assetId != null ? assets.find((a) => a.id === assetId) : undefined;
   const canBrowseSelected = !!selectedAsset && isBrowsable(selectedAsset.file_count);
 
+  const lib = me.current_library;
+
   return (
     <Shell
-      sidebar={
-        hasLibrary ? (
-          <LibraryFilterSidebar me={me} filters={filters} />
-        ) : (
-          <SignedOutSidebar me={me} />
-        )
-      }
+      sidebar={hasLibrary && filtersOpen ? <LibraryFilterSidebar filters={filters} /> : undefined}
       main={
         hasLibrary ? (
           <DropZone>
             <Toolbar>
-              <Breadcrumb count={`${total} assets`}>
-                <BreadcrumbItem current>Library</BreadcrumbItem>
-              </Breadcrumb>
+              {lib && <LibraryPicker current={lib} />}
+              <span className="shrink-0 text-small tabular-nums text-text-3">{total} assets</span>
+              <Button
+                variant="secondary"
+                pressed={filtersOpen}
+                aria-expanded={filtersOpen}
+                leadingIcon={<SlidersHorizontal size={12} />}
+                onClick={toggleFilters}
+                className={filterCount > 0 ? "border-accent/50 text-text" : undefined}
+              >
+                Filter
+                {filterCount > 0 && (
+                  <Badge tone="accent" shape="pill">
+                    {filterCount}
+                  </Badge>
+                )}
+              </Button>
               <div className="min-w-[220px] max-w-[360px] flex-1">
                 <SearchInput
                   ref={searchInputRef}
@@ -303,28 +304,5 @@ function UploadButton() {
     >
       Upload
     </Button>
-  );
-}
-
-function SignedOutSidebar({ me }: { me: Me }) {
-  return (
-    <div className="flex h-full flex-col justify-end border-r border-line bg-panel p-3">
-      <div className="flex items-center justify-between gap-2 text-small">
-        <span className="truncate font-mono text-text-3" title={me.email}>
-          {me.display_name || me.email}
-        </span>
-        <button
-          type="button"
-          aria-label="Sign out"
-          onClick={() => void logout()}
-          className="text-text-3 hover:text-text"
-        >
-          <LogOut size={13} />
-        </button>
-      </div>
-      <div className="sr-only">
-        <Search size={1} />
-      </div>
-    </div>
   );
 }
