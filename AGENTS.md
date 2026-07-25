@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+`CLAUDE.md` is a symlink to this file — edit `AGENTS.md`.
 
 ## Project documents
 
@@ -9,29 +9,15 @@ Before making non-trivial changes, read the docs in `docs/`. They describe the c
 - `docs/architecture.md` — current architecture, data model, API surface, shipped decisions
 - `docs/CONVENTIONS.md` — stack, formatting rules, handler patterns, test helpers
 - `docs/design-system.md` — frontend design system spec
-- `docs/progress.md` — milestone-by-milestone status of what's actually in the tree; read this before starting a new slice so you know what foundations do (and don't) already exist
-- `docs/archive/` — original product / technical / UI design docs (Draft v1/v2). They drove the M0–M7 build and are kept verbatim for historical reference; section numbers and API shapes have drifted, so prefer `architecture.md` for the live shape and only consult the archive for the *why*
+- `docs/progress.md` — what's actually in the tree: the MVP ladder in summary, then post-MVP work slice by slice. Read this before starting a new slice so you know what foundations do (and don't) already exist
+- `docs/specs/` — signed-off specs, `YYYY-MM-DD-slug.md`. Post-MVP work is spec-driven: each file is the agreed scope for one slice, written before implementation and left in place afterwards as the record of *why* it was built that way
+- `docs/observability.md` — logging shape, request correlation, LogsQL queries
+- `docs/e2e-flows.md` — Playwright coverage: what's tested, what's deliberately not
+- `docs/archive/` — historical inputs, kept verbatim: the original product / technical / UI design docs (Draft v1/v2) that drove M0–M7, plus point-in-time research artefacts (preview feasibility, dependency audit). Section numbers and API shapes have drifted — prefer `architecture.md` for the live shape and consult the archive only for the *why*
 
 ## Development commands
 
-All workflows go through Task (`Taskfile.yml`) — do not invoke `go`, `npm`, `docker compose` directly for build/test/lint operations. Run `task --list` to discover targets. Naming follows a canonical vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `run`/`dev`, `install`) with `:` for subtasks. The high-frequency ones:
-
-```
-task                  # alias for `task --list`
-task install          # Go modules + npm + Playwright browsers (fresh clone)
-task dev              # Go API only (air hot-reload)
-task dev:spa          # backend + Vite SPA in parallel
-task build            # SPA + Go production binary
-task check            # read-only: lint + format:check + mod:tidy:check
-task lint             # go vet + eslint
-task format           # go fmt + prettier --write
-task test:unit        # Go tests (Postgres-backed) + Vitest
-task test:e2e         # Playwright (boots compose Postgres + e2e-server + vite internally)
-task ci               # full preflight: check + test:unit + test:e2e
-task clean            # remove build artifacts
-```
-
-Subdomain tasks split by language: `lint:go` / `lint:web`, `format:go` / `format:web`, `format:check:go` / `format:check:web`, `test:unit:go` / `test:unit:web`. Use the umbrella when in doubt.
+All workflows go through Task (`Taskfile.yml`) — do not invoke `go`, `npm`, `docker compose` directly for build/test/lint operations. Run `task --list` to discover targets. Naming follows a canonical vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `run`/`dev`, `install`) with `:` for subtasks, and subdomain tasks split by language (`lint:go` / `lint:web`, …) — use the umbrella when in doubt.
 
 Run one Go test (Go tests need Postgres — set `DAMSON_TEST_POSTGRES_DSN`, or run under `task test:unit:go`, which defaults to the shared local Postgres on 5432 via the `damson_test` database):
 
@@ -59,7 +45,7 @@ The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in
 - **Never log tokens or raw session values.** Applies to `slog` debug output, error wraps, anything that might end up in a log collector.
 - **Mirror existing patterns; don't refactor unrelated code.** Focused changes only. Read `docs/` before architectural changes.
 - **Taskfile shell.** `Taskfile.yml` commands run under mvdan/sh (Task's embedded interpreter), not bash. Bash-isms like `trap INT TERM`, process substitution, and `set -o pipefail` fail silently or with confusing errors — wrap in `bash -c '...'` when you need them.
-- **`go mod tidy` is enforced in CI.** `.github/workflows/ci.yml` runs `go mod tidy` then `git diff --exit-code -- go.mod go.sum` and fails the build on any drift. Whenever you add an import — especially when a previously-indirect dep becomes a direct require because new code uses it — run `task mod:tidy:check` (or `go mod tidy` + diff) before committing. `task check` (and `task ci`) include this step; running either locally before pushing avoids CI-only failures.
+- **`go mod tidy` is enforced in CI.** CI is Woodpecker (`.woodpecker.yml`, not GitHub Actions). It runs `go mod tidy` then `git diff --exit-code -- go.mod go.sum` and fails the build on any drift. Whenever you add an import — especially when a previously-indirect dep becomes a direct require because new code uses it — run `task mod:tidy:check` (or `go mod tidy` + diff) before committing. `task check` (and `task ci`) include this step; running either locally before pushing avoids CI-only failures.
 
 ## Architecture
 
@@ -77,8 +63,10 @@ Implications:
 
 `internal/auth` defines `Authenticator` with two concrete impls, picked at startup by `DAMSON_AUTH_MODE`:
 
-- **Local** (default; `local.go`) — bcrypt password hashes in `users.password_hash`, issues HS256 JWTs (1h TTL, `jwtIssuer = "damson-local"`). `users.tokens_valid_after` acts as a revocation watermark: JWTs with `iat` before that instant are rejected. Synthetic subject `"local:<email>"` so the `users.subject` unique index still works.
-- **OIDC** (`oidc.go`) — validates IdP bearer tokens, upserts the user by `sub` only (email/name are optional claims, seeded once at creation and thereafter app-owned via `PATCH /api/me`). A user with no email is flagged `needs_profile` so the SPA collects one on first login.
+- **Local** (default; `local.go`) — bcrypt password hashes in `users.password_hash`, issues HS256 JWTs (1h TTL). Users are matched by `lower(email)` + a non-null `password_hash`; local users have no `user_identities` row. `users.tokens_valid_after` acts as a revocation watermark: JWTs with `iat` before that instant are rejected.
+
+  `users.subject` no longer exists — migration 008 dropped it and moved external identities to `user_identities`. Don't reintroduce a synthetic-subject pattern.
+- **OIDC** (`oidc.go`) — validates IdP bearer tokens and resolves them through `user_identities` (`unique(issuer, subject)`), not through `users.subject`. A damson user can therefore carry several IdP identities. Resolution order: match an existing identity row → else match a **verified** email claim against `users.email` (case-insensitive) and link a new identity to that user → else create a user and its first identity. Email is the cross-IdP join key, so it is unique among non-blank values (partial unique index on `lower(email)`); unverified email claims are dropped. A user with no email is flagged `needs_profile` so the SPA collects one on first login, after which email/name are app-owned via `PATCH /api/me`.
 
 Both modes share one bootstrap path (`BootstrapFirstAdmin`): the first user on an empty system (no other users, no libraries) gets sysadmin + "Personal" library + admin membership + `current_library_id`, all in one transaction. No env-var allowlist — identity is whoever signs in first.
 
@@ -89,9 +77,20 @@ Local-mode bootstrap has two entry points: the env-seeded startup path (`SeedLoc
 `internal/services/storage.Service` has two impls, picked by `DAMSON_STORAGE_MODE`:
 
 - `LocalFS` (default) — content-addressed under `<root>/blobs/<hh>/<hash>` and `<root>/thumbs/<hh>/<hash>`. Atomic rename, SHA-256 dedup.
-- `S3` — aws-sdk-go-v2 with endpoint override + path-style for MinIO. HEAD-before-PUT dedup.
+- `S3` — aws-sdk-go-v2 with endpoint override + path-style for MinIO/Garage. Blob puts go through `manager.Uploader` (streaming multipart) so a multi-GB upload never lands in memory; only the small, bounded `PutThumb` path buffers. HEAD-before-PUT dedup.
 
-Layout matches between backends so a deployment can migrate with a plain copy.
+Layout matches between backends so a deployment can migrate with a plain copy. Per-file preview derivatives share the `thumbs/` prefix.
+
+Blobs are never deleted on the write path — deleting an asset leaves its objects behind. Reclaiming them is a deliberate, sysadmin-driven two-step in `internal/services/storage/cleanup`: `FindOrphans` lists objects referenced by no live row and older than `DAMSON_ORPHAN_MIN_AGE` (default `168h`), then `DeleteOrphans` re-verifies each key against a freshly-read reference set immediately before deleting and audits every deletion. Exposed as `POST /api/admin/storage/cleanup/{scan,delete}`.
+
+### Background jobs (River)
+
+Imports and previews run as [River](https://riverqueue.com) jobs (`internal/queue`), Postgres-backed — not goroutine pools. Two queues, `import` and `preview`, sized independently. River owns its own pgxpool, separate from GORM's, so LISTEN/NOTIFY pickup and queue connections stay isolated from web traffic. River's own migrations run from `queue.New`, not from `database/migrations/`.
+
+- Enqueue writes a `river_job` row; job args carry ids only, and the pipeline reloads everything from the DB.
+- `asset_imports.stage` (and `asset_files.preview_status`) remain the durable source of truth for user-visible state — the SSE broadcasters are notification channels only, so a dropped event is recoverable by refetching.
+- Import stages: `uploaded → extracting → detecting → thumbnailing → enriching → done`, or `failed`. Imports hand off preview work by enqueuing onto the preview queue.
+- On boot, `imports.ResumeInFlight` / `preview.ResumeInFlight` re-enqueue rows left mid-flight. River dedupes by args, so this is idempotent and safe every start.
 
 ### Request lifecycle
 
@@ -131,12 +130,6 @@ Route wiring in `internal/handlers/api/handler.go`: public routes, then an `auth
 
 ## Environment variables
 
-Loaded in `internal/config/config.go`. A `.env` in the repo root is auto-loaded at startup (real env vars win on conflict). See `.env.example` for the full set. Secrets (`DAMSON_POSTGRES_DSN`, `DAMSON_JWT_SIGNING_KEY`, `DAMSON_LOCAL_ADMIN_PASSWORD`, `DAMSON_S3_ACCESS_KEY`, `DAMSON_S3_SECRET_KEY`) also accept a `<NAME>_FILE` variant that reads the value from that path — for Docker Secrets. Setting both the direct var and the `_FILE` variant panics at startup. The only always-required var is `DAMSON_POSTGRES_DSN` (or `DAMSON_POSTGRES_DSN_FILE`). `DAMSON_JWT_SIGNING_KEY` is optional in local mode — if unset, `internal/auth.LoadOrCreateJWTKey` generates 32 random bytes on first boot and persists them to `./data/jwt.key` (overridable via `DAMSON_JWT_KEY_FILE`). Defaults worth knowing: `DAMSON_LISTEN_ADDR=:8080`, `DAMSON_BASE_URL=http://localhost:8080`, `DAMSON_LOG_LEVEL=info`, `DAMSON_AUTH_MODE=local`, `DAMSON_STORAGE_MODE=local`, `DAMSON_STORAGE_LOCAL_PATH=./data/blobs`.
-
-Mode-dependent:
-- `DAMSON_AUTH_MODE=oidc` → `DAMSON_OIDC_ISSUER_URL`, `DAMSON_OIDC_CLIENT_ID`, `DAMSON_OIDC_AUDIENCE`.
-- `DAMSON_AUTH_MODE=local` → `DAMSON_JWT_SIGNING_KEY` (≥32 bytes), `DAMSON_LOCAL_ADMIN_EMAIL`, `DAMSON_LOCAL_ADMIN_PASSWORD`.
-- `DAMSON_STORAGE_MODE=s3` → `DAMSON_S3_ENDPOINT`, `DAMSON_S3_REGION`, `DAMSON_S3_BUCKET`, `DAMSON_S3_ACCESS_KEY`, `DAMSON_S3_SECRET_KEY`, `DAMSON_S3_FORCE_PATH_STYLE` (default true).
-- `DAMSON_STORAGE_MODE=local` → `DAMSON_STORAGE_LOCAL_PATH` (default `./data/blobs`).
+Loaded in `internal/config/config.go`; see `.env.example` for the full set and the per-mode requirements. A `.env` in the repo root is auto-loaded at startup (real env vars win on conflict). Secrets (`DAMSON_POSTGRES_DSN`, `DAMSON_JWT_SIGNING_KEY`, `DAMSON_LOCAL_ADMIN_PASSWORD`, `DAMSON_S3_ACCESS_KEY`, `DAMSON_S3_SECRET_KEY`) also accept a `<NAME>_FILE` variant that reads the value from that path — for Docker Secrets. Setting both the direct var and the `_FILE` variant panics at startup. The only always-required var is `DAMSON_POSTGRES_DSN` (or `DAMSON_POSTGRES_DSN_FILE`). `DAMSON_JWT_SIGNING_KEY` is optional in local mode — if unset, `internal/auth.LoadOrCreateJWTKey` generates 32 random bytes on first boot and persists them to `./data/jwt.key` (overridable via `DAMSON_JWT_KEY_FILE`).
 
 Missing required values panic at startup (deliberate — see CONVENTIONS.md "Return early on error").
