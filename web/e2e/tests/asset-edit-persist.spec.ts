@@ -61,7 +61,10 @@ test.describe("Asset edits persist across reload", () => {
 
     // Save the licence — paste, detect, save-detected. The detect call is
     // a server round-trip but the save is what we care about; await both
-    // so an unsaved licence can't sneak past the reload.
+    // so an unsaved licence can't sneak past the reload. The Licence section
+    // starts collapsed, so open it first.
+    const licenceSection = page.getByRole("button", { name: "Licence" });
+    await licenceSection.click();
     await page.getByPlaceholder(/MIT License\.\.\./).fill(LICENCE_TEXT);
     await Promise.all([
       page.waitForResponse(
@@ -87,6 +90,7 @@ test.describe("Asset edits persist across reload", () => {
     await page.reload();
 
     await expect(page.getByLabel(`Remove ${TAG_PATH}`)).toBeVisible();
+    await page.getByRole("button", { name: "Licence" }).click();
     await expect(page.getByText("Original text")).toBeVisible();
     await expect(page.getByPlaceholder(/MIT License\.\.\./)).toHaveCount(0);
   });

@@ -43,7 +43,8 @@ var unityProductIDRE = regexp.MustCompile(`(\d+)/?$`)
 
 func (UnityAdapter) Store() string { return StoreUnity }
 
-// Fetch resolves the product id from the listing URL and looks it up in Coveo.
+// Fetch resolves the product id from the listing URL and looks it up in Coveo,
+// then reads the listing page for the screenshot gallery Coveo omits.
 func (UnityAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
 	id := unityProductID(rawURL)
 	if id == "" {
@@ -60,7 +61,85 @@ func (UnityAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*
 	if len(resp.Results) == 0 {
 		return nil, fmt.Errorf("unity: no product %s in coveo", id)
 	}
-	return coveoMetadata(resp.Results[0], rawURL), nil
+	md := coveoMetadata(resp.Results[0], rawURL)
+	if len(md.ImageURLs) == 0 {
+		md.ImageURLs = unityListingGallery(ctx, client, firstNonEmpty(md.ListingURL, rawURL))
+	}
+	return md, nil
+}
+
+// unityGalleryLimit caps how many listing screenshots one fetch carries.
+const unityGalleryLimit = 24
+
+// unityProductImage is one entry of the listing page's product image array.
+type unityProductImage struct {
+	Type         string `json:"type"`
+	ImageURL     string `json:"imageUrl"`
+	ThumbnailURL string `json:"thumbnailUrl"`
+}
+
+// unityListingGallery reads the package page and returns its screenshot URLs.
+// Coveo carries only the key image (ec_images is null for every product), but
+// the client-rendered page ships its GraphQL result inline, and that payload
+// holds the gallery. Best-effort: any failure yields no gallery, not an error,
+// since the Coveo metadata on its own is still worth keeping.
+func unityListingGallery(ctx context.Context, client *Client, listingURL string) []string {
+	if listingURL == "" {
+		return nil
+	}
+	resp, err := client.Get(ctx, listingURL, nil)
+	if err != nil || resp.StatusCode >= 400 {
+		return nil
+	}
+	return unityGalleryFromPage(resp.Body, firstNonEmpty(resp.FinalURL, listingURL))
+}
+
+// unityImagesKey is the JSON key holding the product image array in the page's
+// inlined GraphQL payload.
+const unityImagesKey = `"images":`
+
+// unityGalleryFromPage extracts still-image gallery URLs from an inlined
+// product payload. Each `"images":` array is decoded until one yields usable
+// image URLs, so unrelated arrays of the same name are skipped rather than
+// mistaken for the gallery.
+func unityGalleryFromPage(body []byte, pageURL string) []string {
+	s := string(body)
+	for off := 0; ; {
+		i := strings.Index(s[off:], unityImagesKey)
+		if i < 0 {
+			return nil
+		}
+		start := off + i + len(unityImagesKey)
+		off = start
+		dec := json.NewDecoder(strings.NewReader(s[start:]))
+		var imgs []unityProductImage
+		if err := dec.Decode(&imgs); err != nil {
+			continue
+		}
+		if urls := unityGalleryURLs(imgs, pageURL); len(urls) > 0 {
+			return urls
+		}
+	}
+}
+
+// unityGalleryURLs resolves, filters and dedupes product image entries. Video
+// entries (a YouTube embed is listed alongside the screenshots) are dropped —
+// their imageUrl isn't an image.
+func unityGalleryURLs(imgs []unityProductImage, pageURL string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(imgs))
+	for _, img := range imgs {
+		u := resolveURL(pageURL, strings.TrimSpace(img.ImageURL))
+		if u == "" || seen[u] || !isStillImageURL(u) {
+			continue
+		}
+		seen[u] = true
+		out = append(out, u)
+		if len(out) == unityGalleryLimit {
+			break
+		}
+	}
+	return out
 }
 
 // Search queries the Unity Asset Store via Coveo.

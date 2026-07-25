@@ -14,10 +14,15 @@ by Postgres and an S3-compatible object store (or a local filesystem).
   handler patterns, test helpers
 - [`docs/design-system.md`](docs/design-system.md) — frontend design
   system spec
-- [`docs/progress.md`](docs/progress.md) — milestone-by-milestone
-  implementation status
-- [`docs/archive/`](docs/archive/) — original design documents kept for
-  historical reference (no longer maintained against the code)
+- [`docs/progress.md`](docs/progress.md) — what has landed, slice by slice
+- [`docs/specs/`](docs/specs/) — signed-off specs; post-MVP work is
+  spec-driven and each file records the *why* behind one slice
+- [`docs/observability.md`](docs/observability.md) — logging shape and
+  LogsQL queries
+- [`docs/e2e-flows.md`](docs/e2e-flows.md) — Playwright coverage
+- [`docs/archive/`](docs/archive/) — original design documents and
+  point-in-time research, kept for historical reference (no longer
+  maintained against the code)
 - [`AGENTS.md`](AGENTS.md) — quick-start guidance for agentic coding
 
 ## Quick start (Docker)

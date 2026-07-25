@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { AssetCard, Checkbox, EmptyState, LicencePill, cn, formatBytes } from "@/design-system";
+import { AssetCard, Checkbox, EmptyState, cn, formatBytes } from "@/design-system";
 import type { AssetRow } from "@/hooks/useDataQueries";
 import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 
@@ -168,11 +168,6 @@ function GridCard({
               </>
             )}
           </>
-        }
-        trailing={
-          a.licence_spdx ? (
-            <LicencePill status={a.licence_status ?? "unk"} spdx={a.licence_spdx} />
-          ) : undefined
         }
         needsReview={a.needs_review}
       />

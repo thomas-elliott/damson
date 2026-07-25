@@ -57,7 +57,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
         onClick?.(e);
       }}
       className={cn(
-        "flex flex-col gap-2 rounded-md text-left",
+        "flex w-full min-w-0 flex-col gap-2 rounded-md text-left",
         "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
         className,
       )}
@@ -88,12 +88,18 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           />
         )}
       </div>
-      <div className="flex items-start justify-between gap-2 px-0.5">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-ui font-medium text-text">{name}</div>
-          {sub && <div className="mt-0.5 flex items-center gap-1 text-caption">{sub}</div>}
-        </div>
-        {trailing && <div className="shrink-0">{trailing}</div>}
+      <div className="min-w-0 px-0.5">
+        <div className="truncate text-ui font-medium text-text">{name}</div>
+        {(sub || trailing) && (
+          <div className="mt-0.5 flex items-center justify-between gap-1.5">
+            {sub && (
+              <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-caption">
+                {sub}
+              </div>
+            )}
+            {trailing && <div className="shrink-0">{trailing}</div>}
+          </div>
+        )}
       </div>
     </button>
   );

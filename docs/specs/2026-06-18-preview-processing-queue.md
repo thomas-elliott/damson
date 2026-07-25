@@ -1,7 +1,7 @@
 # Preview Processing Queue & Requeue
 
 **Status:** signed off (2026-06-18) — ready for `implement`.
-**Origin brief:** `docs/preview-processing-queue-brief.md`.
+**Origin brief:** `docs/archive/preview-processing-queue-brief.md`.
 **Builds on:** `docs/specs/2026-06-18-file-previews.md` (the previewing feature whose
 validation surfaced these gaps).
 

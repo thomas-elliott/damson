@@ -1,15 +1,12 @@
 import { useSearchParams } from "react-router";
-import { ChevronDown, ChevronRight, LogOut } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { FilterSidebar, Section, StatusDot } from "@/design-system";
-import { LibraryPicker } from "@/components/LibraryPicker";
-import { logout } from "@/lib/logout";
 import {
   useProjects,
   useTags,
   type AssetFilters,
   type LicenceStatus,
-  type Me,
   type TagView,
 } from "@/hooks/useDataQueries";
 
@@ -26,11 +23,10 @@ const PACKAGE_KINDS: { value: string; label: string }[] = [
   { value: "zip", label: "Zip archive" },
 ];
 
-export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFilters }) {
+export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
   const [search, setSearch] = useSearchParams();
   const { data: tags } = useTags();
   const { data: projects } = useProjects();
-  const lib = me.current_library;
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(search);
@@ -40,30 +36,7 @@ export function LibraryFilterSidebar({ me, filters }: { me: Me; filters: AssetFi
   };
 
   return (
-    <FilterSidebar
-      header={
-        lib ? (
-          <LibraryPicker current={lib} />
-        ) : (
-          <div className="text-ui text-text-3">No library</div>
-        )
-      }
-      footer={
-        <div className="flex items-center justify-between gap-2 text-small">
-          <span className="truncate font-mono text-text-3" title={me.email}>
-            {me.display_name || me.email}
-          </span>
-          <button
-            type="button"
-            aria-label="Sign out"
-            onClick={() => void logout()}
-            className="text-text-3 transition-colors duration-std ease hover:text-text"
-          >
-            <LogOut size={13} />
-          </button>
-        </div>
-      }
-    >
+    <FilterSidebar>
       <Section title="Projects" defaultOpen={false}>
         {projects.length === 0 ? (
           <div className="text-small text-text-4">No projects yet</div>

@@ -23,14 +23,18 @@ import (
 // We build the filename from the asset's first file row when available; the
 // asset name otherwise.
 type importRow struct {
-	ID          uint      `json:"id"`
-	AssetID     uint      `json:"asset_id"`
-	AssetName   string    `json:"asset_name"`
-	Stage       string    `json:"stage"`
-	Error       string    `json:"error,omitempty"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	CreatedAt   time.Time `json:"created_at"`
-	NeedsReview bool      `json:"needs_review"`
+	ID                 uint      `json:"id"`
+	AssetID            uint      `json:"asset_id"`
+	AssetName          string    `json:"asset_name"`
+	Stage              string    `json:"stage"`
+	Error              string    `json:"error,omitempty"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	CreatedAt          time.Time `json:"created_at"`
+	NeedsReview        bool      `json:"needs_review"`
+	Description        string    `json:"description,omitempty"`
+	ThumbnailObjectKey string    `json:"thumbnail_object_key,omitempty"`
+	SourceURL          string    `json:"source_url,omitempty"`
+	HasMetadata        bool      `json:"has_metadata"`
 }
 
 type importListResponse struct {
@@ -41,28 +45,43 @@ type importListResponse struct {
 
 // importScanRow is the raw projection for both queue sections.
 type importScanRow struct {
-	ID          uint
-	AssetID     uint
-	AssetName   string
-	Stage       string
-	Error       string
-	UpdatedAt   time.Time
-	CreatedAt   time.Time
-	NeedsReview bool
+	ID                 uint
+	AssetID            uint
+	AssetName          string
+	Stage              string
+	Error              string
+	UpdatedAt          time.Time
+	CreatedAt          time.Time
+	NeedsReview        bool
+	Description        string
+	ThumbnailObjectKey string
+	SourceURL          string
+	HasMetadata        bool
 }
 
-const importRowSelect = "i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at, a.created_at, a.needs_review"
+const importDescriptionChars = 400
+
+var importRowSelect = fmt.Sprintf(
+	"i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at, a.created_at, "+
+		"a.needs_review, left(a.description, %d) AS description, a.thumbnail_object_key, "+
+		"a.source_url, (a.source_metadata_json IS NOT NULL) AS has_metadata",
+	importDescriptionChars,
+)
 
 func (r importScanRow) toRow() importRow {
 	return importRow{
-		ID:          r.ID,
-		AssetID:     r.AssetID,
-		AssetName:   r.AssetName,
-		Stage:       r.Stage,
-		Error:       r.Error,
-		UpdatedAt:   r.UpdatedAt,
-		CreatedAt:   r.CreatedAt,
-		NeedsReview: r.NeedsReview,
+		ID:                 r.ID,
+		AssetID:            r.AssetID,
+		AssetName:          r.AssetName,
+		Stage:              r.Stage,
+		Error:              r.Error,
+		UpdatedAt:          r.UpdatedAt,
+		CreatedAt:          r.CreatedAt,
+		NeedsReview:        r.NeedsReview,
+		Description:        r.Description,
+		ThumbnailObjectKey: r.ThumbnailObjectKey,
+		SourceURL:          r.SourceURL,
+		HasMetadata:        r.HasMetadata,
 	}
 }
 
@@ -168,22 +187,12 @@ func (h *Handler) getImport(c *gin.Context) {
 		return
 	}
 
-	type row struct {
-		ID          uint
-		AssetID     uint
-		AssetName   string
-		Stage       string
-		Error       string
-		UpdatedAt   time.Time
-		CreatedAt   time.Time
-		NeedsReview bool
-	}
-	var r row
+	var r importScanRow
 	err := h.db.WithContext(c.Request.Context()).
 		Table("asset_imports AS i").
 		Joins("JOIN assets a ON a.id = i.asset_id").
 		Where("i.id = ? AND a.library_id = ?", id, lib.ID).
-		Select("i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at, a.created_at, a.needs_review").
+		Select(importRowSelect).
 		Scan(&r).Error
 	if err != nil {
 		respond500(c, err)
@@ -193,16 +202,7 @@ func (h *Handler) getImport(c *gin.Context) {
 		respond404(c, "import not found")
 		return
 	}
-	c.JSON(http.StatusOK, importRow{
-		ID:          r.ID,
-		AssetID:     r.AssetID,
-		AssetName:   r.AssetName,
-		Stage:       r.Stage,
-		Error:       r.Error,
-		UpdatedAt:   r.UpdatedAt,
-		CreatedAt:   r.CreatedAt,
-		NeedsReview: r.NeedsReview,
-	})
+	c.JSON(http.StatusOK, r.toRow())
 }
 
 // postImportRetry re-runs the import pipeline against the previous import's

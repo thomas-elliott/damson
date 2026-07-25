@@ -186,6 +186,13 @@ Atomic components with no domain knowledge. All live under
   hint (⌘K).
 - **`Textarea`** — resizable vertical, same invalid/disabled semantics
   as `Input`.
+- **`MarkdownEditor`** — markdown source editor on CodeMirror 6
+  (`@codemirror/lang-markdown`) with source highlighting mapped onto the
+  tokens, wrapping, and undo history. CodeMirror is code-split behind
+  `lazy` (`MarkdownEditorView.tsx` is the host), so read-only views never
+  load it. Its surface is a `contenteditable` with `role="textbox"`, which a
+  `FieldRow` `<label for>` cannot name — callers **must** pass `aria-label`
+  (the prop is required for that reason).
 
 ### Display
 
@@ -198,6 +205,13 @@ Atomic components with no domain knowledge. All live under
 - **`Tag`** — `variant: solid|add`. The `add` variant is dashed-border
   with a Plus icon for "add new tag" affordances.
 - **`Kbd`** — inline keyboard hint, mono 10.5px with a bordered surface.
+- **`Markdown`** — renders CommonMark + GFM as React elements, parsed with
+  CodeMirror's own `@lezer/markdown` grammar so the read view and
+  `MarkdownEditor` can't disagree about a document. Safe for untrusted
+  input by construction: no HTML is interpreted (raw tags render as text),
+  link targets are restricted to `http(s)`/`mailto`, and images render as
+  labelled links out rather than `<img>` so a store description can't
+  hot-link third-party requests. Covered by `Markdown.test.tsx`.
 - **`StatusDot`** — 6/8px coloured dot, optional `ring` for "on a
   background" use.
 - **`ProgressBar`** — 3/4px high, `tone: accent|ok|warn|err`. Caller
@@ -249,7 +263,11 @@ orchestrate these rather than rebuilding the layout each time.
 
 - **`AppShell`** — 3-column CSS grid: rail (52px) | sidebar (adjustable,
   default 248px) | main (fills). Sidebar is optional; when omitted the
-  grid collapses to rail + main.
+  grid collapses to rail + main, which is how pages implement a toggleable
+  sidebar (see the library's `Filter` toggle). The persisted width
+  (`damson.sidebar.w`) is read whether or not a sidebar is currently
+  mounted, so toggling one back open restores the user's width instead of
+  overwriting it with the default; an explicit `sidebarWidth` still wins.
 - **`NavRail`** + **`NavRailItem`** + **`NavRailSpacer`** — vertical
   icon nav with tooltip labels (250ms delay), `badge` prop for counts,
   `active` renders a left accent bar. `brand` slot at top.
@@ -346,13 +364,27 @@ data + state lives in `web/src/components/filebrowser/`.
   `isBrowsable(fileCount)`. Covered by unit tests.
 - **`FileThumb`** / **`FilePlaceholder`** — image-or-placeholder preview
   surface; image-type files render from a caller-supplied `imageSrc`.
+- **`FilePreview`** — per-type preview *dispatcher* for the file detail panel:
+  picks the richest viewer a file type supports, falling back to `FileThumb`
+  when none applies or the bytes aren't loaded. Currently only the inline
+  image viewer is wired; later viewers slot in above the fallback and should
+  be `lazy`-loaded so heavy deps stay out of the main bundle (the component's
+  doc comment carries the pattern). The caller supplies `previewUrl` from an
+  authenticated blob fetch — the component does no fetching of its own.
 - **`FolderCard`** / **`FileCard`** — grid tiles (file card has a type badge +
   selection check + `open` highlight, mirroring `AssetCard`).
 - **`FileBrowserList`** — dense table view of folders + files.
-- **`FileTreeSidebar`** — scope header + in-pack search + directory tree +
+- **`FileTreeSidebar`** — scope header + in-pack search + folder tree +
   file-type filter (composes `FilterSidebar`/`SearchInput`/`Section`). Tree rows
   keep the caret toggle and the navigate target as **sibling** buttons to stay
-  free of the axe nested-interactive violation.
+  free of the axe nested-interactive violation. **Folders only** — files are
+  opened from the grid, so a folder with no subfolders renders no caret.
+  Folders shallower than depth 3 are expanded on first render (from
+  `folderKeysToDepth`), computed in a `useState` initialiser so later
+  navigation can't stomp a manual collapse. The caret expands/collapses; the
+  label navigates *and* reveals. Reveal-on-navigate is a **state write** on
+  `path` change, not a render-time union with the path's ancestors — the
+  union made a folder on the current path impossible to collapse.
 - **`FileBrowserToolbar`** — breadcrumb path + active filter chips + grid/list
   toggle (composes `Toolbar`/`Breadcrumb`/`SegmentedControl`).
 - **`FileDetailPanel`** — per-file detail reusing the detail-panel chrome
@@ -378,10 +410,18 @@ matrices).
 
 Two Vitest projects:
 
-- **`unit`** (`task web:test`) — jsdom, component unit tests.
-- **`storybook`** (`task web:test:stories`) — Playwright Chromium, every
+- **`unit`** (`task test:unit:web`) — jsdom, component unit tests.
+- **`storybook`** (`task test:stories`) — Playwright Chromium, every
   `*.stories.tsx` runs as a browser test with axe-core checks. Requires
   `npx playwright install chromium` once.
+
+The story glob (`.storybook/main.ts`) covers `src/design-system/**` **and**
+`src/components/**`. The second entry is for app-level stories: wired
+components rendered with their real hooks against a stubbed `window.fetch`,
+which is how the library sidebar is captured (`App/AssetDetailPanel`).
+Prefer a design-system story where the component is presentational — an
+app-level story is for the cases where the value is in seeing the wired
+thing, gallery fetches and all.
 
 Contrast exceptions: if a story legitimately uses a decorative
 low-contrast element (e.g. an all-caps 10.5px label in `text-text-4`),
@@ -404,7 +444,7 @@ Follow the pattern of the nearest existing component.
    states. Add a "States" matrix story wrapping sections in
    `pseudo-<state>-all` when `:hover`/`:focus-visible`/`:active` matter.
 4. Export from the tier's `index.ts` barrel.
-5. Run `task web:test:all` — the storybook project must pass with
+5. Run `task test:unit:web` and `task test:stories` — the storybook project must pass with
    `a11y.test = "error"`.
 
 If axe flags a contrast issue, fix the token or reach for a brighter

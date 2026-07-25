@@ -40,15 +40,18 @@ export function AppShell({
   sidebarMax = 480,
   className,
 }: AppShellProps) {
+  // The stored width is read whether or not a sidebar is mounted, so a page
+  // that starts collapsed restores the user's width on open instead of
+  // overwriting it with the default.
   const [stateW, setStateW] = useState<number>(() => {
-    if (!resizableSidebar) return sidebarWidth ?? DEFAULT_SIDEBAR_W;
-    if (typeof window === "undefined") return sidebarWidth ?? DEFAULT_SIDEBAR_W;
+    if (sidebarWidth !== undefined) return sidebarWidth;
+    if (typeof window === "undefined") return DEFAULT_SIDEBAR_W;
     const stored = window.localStorage.getItem(SIDEBAR_W_KEY);
     const parsed = stored ? Number(stored) : NaN;
     if (Number.isFinite(parsed) && parsed >= sidebarMin && parsed <= sidebarMax) {
       return parsed;
     }
-    return sidebarWidth ?? DEFAULT_SIDEBAR_W;
+    return DEFAULT_SIDEBAR_W;
   });
 
   useEffect(() => {

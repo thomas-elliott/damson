@@ -35,9 +35,18 @@ the logs only, never to the client.
 
 ## Asynchronous work
 
+Background jobs run on River (`internal/queue`) across two queues, `import`
+and `preview`. River emits its own lifecycle logging through the same `slog`
+handler.
+
 Import pipeline failures are logged at `error` with `import_id` and
 `library_id` (`internal/services/imports/worker.go`); the per-stage failure
 reason is also persisted to `asset_imports.error` and streamed over SSE.
+Preview failures land the same way against `asset_files.preview_status`.
+
+Because the DB row is the durable source of truth in both cases, a log line
+is a *diagnostic*, not the record — to ask "what failed and why", query
+`asset_imports.error` / `preview_status` rather than reconstructing from logs.
 
 ## Shipping to VictoriaLogs
 
@@ -66,6 +75,9 @@ namespace:="damson-prod" path:"/api/imports" status:>=500 | fields _time, err, r
 
 # Async import pipeline failures
 namespace:="damson-prod" msg:"import pipeline failed" | fields _time, import_id, library_id, err
+
+# Background job errors across both queues
+namespace:="damson-prod" level:"ERROR" msg:~"job|queue|preview" | fields _time, msg, err
 
 # Slowest requests in the last hour
 namespace:="damson-prod" _time:1h | sort by (duration_ms desc) | limit 20

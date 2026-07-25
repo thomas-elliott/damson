@@ -1,7 +1,7 @@
 # File Previews for the Scoped File Browser
 
 **Status:** signed off (lavish alignment, 2026-06-18). Ready for `implement`.
-**Source research:** `docs/preview-research.md` · **Scoping brief:** `docs/preview-feasibility-brief.md`
+**Source research:** `docs/archive/preview-research.md` · **Scoping brief:** `docs/archive/preview-feasibility-brief.md`
 
 ## Problem
 
