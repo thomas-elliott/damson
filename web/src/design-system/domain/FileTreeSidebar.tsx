@@ -10,6 +10,8 @@ import { FileGlyph } from "./FileGlyph";
 import { fileTypeMeta, type FileType } from "./fileTypes";
 import { countFiles, folderKeysToDepth, type FolderNode, type TreeNode } from "./fileTree";
 
+// Folders shallower than this open on first render, so folders at this depth
+// are visible but shut.
 const DEFAULT_EXPANDED_DEPTH = 3;
 
 export interface FileTreeSidebarProps {
@@ -36,7 +38,7 @@ export interface FileTreeSidebarProps {
   className?: string;
 }
 
-/** Collect the open-by-default folder keys (every ancestor of the path). */
+/** Every folder key along a path, "/"-joined — the path itself included. */
 function ancestorKeys(path: string[]): string[] {
   const keys: string[] = [];
   const acc: string[] = [];
@@ -62,10 +64,15 @@ export function FileTreeSidebar({
   onToggleType,
   className,
 }: FileTreeSidebarProps) {
+  // Seeded once: recomputing when the tree refetches would re-open folders the
+  // user has since collapsed.
   const [openFolders, setOpenFolders] = useState<Set<string>>(
     () => new Set([...folderKeysToDepth(tree, DEFAULT_EXPANDED_DEPTH), ...ancestorKeys(path)]),
   );
 
+  // Navigating reveals the new path by writing its ancestors into state, so a
+  // manual collapse survives. Unioning them at render time instead would make
+  // any folder on the current path impossible to collapse.
   const pathKey = path.join("/");
   const [prevPathKey, setPrevPathKey] = useState(pathKey);
   if (prevPathKey !== pathKey) {

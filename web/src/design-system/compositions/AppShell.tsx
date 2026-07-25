@@ -40,6 +40,9 @@ export function AppShell({
   sidebarMax = 480,
   className,
 }: AppShellProps) {
+  // The stored width is read whether or not a sidebar is mounted, so a page
+  // that starts collapsed restores the user's width on open instead of
+  // overwriting it with the default.
   const [stateW, setStateW] = useState<number>(() => {
     if (sidebarWidth !== undefined) return sidebarWidth;
     if (typeof window === "undefined") return DEFAULT_SIDEBAR_W;
