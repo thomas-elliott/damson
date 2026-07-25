@@ -627,6 +627,10 @@ export interface ImportRow {
   updated_at: string;
   created_at: string;
   needs_review: boolean;
+  description?: string;
+  thumbnail_object_key?: string;
+  source_url?: string;
+  has_metadata: boolean;
 }
 
 interface ImportListResponse {

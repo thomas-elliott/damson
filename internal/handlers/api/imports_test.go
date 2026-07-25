@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +69,51 @@ func TestGetImports_ReviewBacklogAndFinished(t *testing.T) {
 	}
 	if body.Finished != nil {
 		t.Fatalf("stage=all should not carry a finished tail, got %+v", body.Finished)
+	}
+}
+
+func TestGetImports_CarriesReviewCardFields(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	long := strings.Repeat("x", importDescriptionChars+50)
+	asset := models.Asset{
+		LibraryID:          lib.ID,
+		Name:               "enriched",
+		Description:        long,
+		SourceURL:          "https://assetstore.unity.com/packages/package/1",
+		SourceMetadataJSON: []byte(`{"store":"unity"}`),
+		ThumbnailObjectKey: "ab/abc123",
+		NeedsReview:        true,
+	}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	imp := models.AssetImport{AssetID: asset.ID, Stage: "done", UpdatedAt: time.Now().UTC()}
+	if err := db.Create(&imp).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/imports")
+	requireStatus(t, w, http.StatusOK)
+	body := jsonResponse[importListResponse](t, w)
+	if len(body.Imports) != 1 {
+		t.Fatalf("expected 1 import, got %+v", body.Imports)
+	}
+	got := body.Imports[0]
+	if got.ThumbnailObjectKey != "ab/abc123" {
+		t.Fatalf("thumbnail key: %q", got.ThumbnailObjectKey)
+	}
+	if got.SourceURL != asset.SourceURL {
+		t.Fatalf("source url: %q", got.SourceURL)
+	}
+	if !got.HasMetadata {
+		t.Fatal("expected has_metadata for an asset with stored source metadata")
+	}
+	if len(got.Description) != importDescriptionChars {
+		t.Fatalf("expected the description capped at %d chars, got %d", importDescriptionChars, len(got.Description))
 	}
 }
 
