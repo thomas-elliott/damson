@@ -41,14 +41,14 @@ export function AppShell({
   className,
 }: AppShellProps) {
   const [stateW, setStateW] = useState<number>(() => {
-    if (!resizableSidebar) return sidebarWidth ?? DEFAULT_SIDEBAR_W;
-    if (typeof window === "undefined") return sidebarWidth ?? DEFAULT_SIDEBAR_W;
+    if (sidebarWidth !== undefined) return sidebarWidth;
+    if (typeof window === "undefined") return DEFAULT_SIDEBAR_W;
     const stored = window.localStorage.getItem(SIDEBAR_W_KEY);
     const parsed = stored ? Number(stored) : NaN;
     if (Number.isFinite(parsed) && parsed >= sidebarMin && parsed <= sidebarMax) {
       return parsed;
     }
-    return sidebarWidth ?? DEFAULT_SIDEBAR_W;
+    return DEFAULT_SIDEBAR_W;
   });
 
   useEffect(() => {
