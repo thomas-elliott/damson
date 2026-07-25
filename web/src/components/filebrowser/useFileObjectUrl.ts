@@ -60,6 +60,68 @@ export function useBlobUrl(url: string | undefined, mime?: string): string | und
   return objectUrl;
 }
 
+/** One authenticated endpoint to resolve, with the MIME to re-type it to. */
+export interface BlobSource {
+  url: string;
+  mime?: string;
+}
+
+/**
+ * Resolve several authenticated endpoints to `blob:` object URLs, keyed by URL.
+ * Entries appear as they load rather than all at once, so a viewer can paint
+ * the first image while the rest arrive; every URL is revoked when the set
+ * changes or the component unmounts. Use this over a `useBlobUrl` per item when
+ * the items must stay loaded together (e.g. a carousel that steps between them).
+ */
+export function useBlobUrls(sources: BlobSource[]): Record<string, string> {
+  // Keying on the contents rather than the array identity keeps a refetch that
+  // returns the same images from re-downloading them. The resolved map is
+  // tagged with the key it belongs to, so a stale set is discarded on read
+  // rather than cleared by a second state write.
+  const key = sources.map((s) => `${s.url}|${s.mime ?? ""}`).join("\n");
+  const [resolved, setResolved] = useState<{ key: string; urls: Record<string, string> }>({
+    key: "",
+    urls: EMPTY_URLS,
+  });
+
+  useEffect(() => {
+    const entries = key
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [url, mime] = line.split("|");
+        return { url, mime: mime || undefined };
+      });
+    if (entries.length === 0) return;
+    let cancelled = false;
+    const created: string[] = [];
+    for (const entry of entries) {
+      fetchBlob(entry.url, entry.mime)
+        .then((blob) => {
+          if (cancelled) return;
+          const objectUrl = URL.createObjectURL(blob);
+          created.push(objectUrl);
+          setResolved((prev) => ({
+            key,
+            urls:
+              prev.key === key
+                ? { ...prev.urls, [entry.url]: objectUrl }
+                : { [entry.url]: objectUrl },
+          }));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+      created.forEach(URL.revokeObjectURL);
+    };
+  }, [key]);
+
+  return resolved.key === key ? resolved.urls : EMPTY_URLS;
+}
+
+const EMPTY_URLS: Record<string, string> = {};
+
 /**
  * Resolve a file's bytes (GET /api/files/:objectKey) to an object URL, re-typed
  * to `mime`. Undefined while loading, on error, or when either is absent.
