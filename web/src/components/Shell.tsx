@@ -8,15 +8,13 @@ import {
   Images,
   Inbox,
   Library,
-  Moon,
   Settings as SettingsIcon,
-  Sun,
 } from "lucide-react";
 
 import { AppShell, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { UserMenu } from "@/components/UserMenu";
 import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
-import { useTheme } from "@/hooks/useTheme";
 
 /**
  * Damson's top-level layout. Wraps every authenticated page with the nav
@@ -30,7 +28,12 @@ export function Shell({ main, sidebar }: { main: ReactNode; sidebar?: ReactNode 
   if (!me) return null;
 
   return (
-    <AppShell rail={<DamsonRail />} sidebar={sidebar} main={main} resizableSidebar={!!sidebar} />
+    <AppShell
+      rail={<DamsonRail displayName={me.display_name} email={me.email} />}
+      sidebar={sidebar}
+      main={main}
+      resizableSidebar={!!sidebar}
+    />
   );
 }
 
@@ -38,9 +41,8 @@ function LoadingShell() {
   return <div className="grid h-screen place-items-center bg-bg text-ui text-text-3">Loading…</div>;
 }
 
-function DamsonRail() {
+function DamsonRail({ displayName, email }: { displayName: string; email: string }) {
   const { pathname } = useLocation();
-  const { mode, toggle } = useTheme();
   const { total: queueCount } = useImports("in_flight");
   // Badge count comes from the query (refreshed on its staleTime); the live SSE
   // stream is subscribed on the Processing queue page itself, mirroring how the
@@ -90,11 +92,6 @@ function DamsonRail() {
       />
       <NavRailSpacer />
       <NavRailItem
-        icon={mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        label={mode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-        onSelect={toggle}
-      />
-      <NavRailItem
         icon={<Bell size={16} />}
         label="Notifications"
         badge={notifBadge > 0 ? notifBadge : undefined}
@@ -106,6 +103,7 @@ function DamsonRail() {
         label="Settings"
         active={pathname.startsWith("/settings")}
       />
+      <UserMenu displayName={displayName} email={email} />
     </NavRail>
   );
 }
