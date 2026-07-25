@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Folder, FolderOpen } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
@@ -8,7 +8,10 @@ import { Section } from "@/design-system/compositions/Section";
 
 import { FileGlyph } from "./FileGlyph";
 import { fileTypeMeta, type FileType } from "./fileTypes";
-import { countFiles, type FileNode, type TreeNode } from "./fileTree";
+import { countFiles, folderKeysToDepth, type FolderNode, type TreeNode } from "./fileTree";
+
+/** Folders shallower than this are expanded on first render. */
+const DEFAULT_EXPANDED_DEPTH = 3;
 
 export interface FileTreeSidebarProps {
   /** Scope header — the asset being browsed. */
@@ -22,12 +25,9 @@ export interface FileTreeSidebarProps {
   tree: TreeNode[];
   /** Total files in the pack — shown against the "All files" root row. */
   totalFiles: number;
-  /** Current folder path; ancestors auto-expand. Empty = root. */
+  /** Current folder path; navigating reveals it. Empty = root. */
   path: string[];
   onNavigate: (path: string[]) => void;
-  /** "/"-joined path of the open file, for active highlight. */
-  openFileKey?: string;
-  onOpenFile: (file: FileNode, dir: string[]) => void;
 
   /** File counts per type, for the filter group. */
   typeCounts: Partial<Record<FileType, number>>;
@@ -58,23 +58,25 @@ export function FileTreeSidebar({
   totalFiles,
   path,
   onNavigate,
-  openFileKey,
-  onOpenFile,
   typeCounts,
   activeTypes,
   onToggleType,
   className,
 }: FileTreeSidebarProps) {
-  // User-toggled folders. The displayed set (below) also force-expands the
-  // current path's ancestors so navigating reveals the active folder — derived
-  // at render rather than synced through a state-writing effect.
-  const [openFolders, setOpenFolders] = useState<Set<string>>(() => new Set());
+  const [openFolders, setOpenFolders] = useState<Set<string>>(
+    () => new Set([...folderKeysToDepth(tree, DEFAULT_EXPANDED_DEPTH), ...ancestorKeys(path)]),
+  );
 
-  const expanded = useMemo(() => {
-    const set = new Set(openFolders);
-    for (const key of ancestorKeys(path)) set.add(key);
-    return set;
-  }, [openFolders, path]);
+  const pathKey = path.join("/");
+  const [prevPathKey, setPrevPathKey] = useState(pathKey);
+  if (prevPathKey !== pathKey) {
+    setPrevPathKey(pathKey);
+    setOpenFolders((prev) => {
+      const next = new Set(prev);
+      for (const key of ancestorKeys(path)) next.add(key);
+      return next;
+    });
+  }
 
   const toggleFolder = (key: string) =>
     setOpenFolders((prev) => {
@@ -87,7 +89,7 @@ export function FileTreeSidebar({
   const types = (Object.keys(typeCounts) as FileType[]).sort(
     (a, b) => (typeCounts[b] ?? 0) - (typeCounts[a] ?? 0),
   );
-  const pathKey = path.join("/");
+  const folders = tree.filter((n): n is FolderNode => n.type === "folder");
 
   return (
     <FilterSidebar
@@ -112,7 +114,7 @@ export function FileTreeSidebar({
         </div>
       }
     >
-      <Section title="Files">
+      <Section title="Folders">
         <TreeRow
           icon={<Boxes size={12} strokeWidth={1.5} />}
           label="All files"
@@ -121,18 +123,16 @@ export function FileTreeSidebar({
           active={path.length === 0}
           onActivate={() => onNavigate([])}
         />
-        {tree.map((node, i) => (
+        {folders.map((node) => (
           <TreeNavNode
-            key={i}
+            key={node.name}
             node={node}
             parent={[]}
             depth={0}
-            openFolders={expanded}
+            openFolders={openFolders}
             toggleFolder={toggleFolder}
             activePathKey={pathKey}
-            openFileKey={openFileKey}
             onNavigate={onNavigate}
-            onOpenFile={onOpenFile}
           />
         ))}
       </Section>
@@ -154,17 +154,19 @@ export function FileTreeSidebar({
 }
 
 interface TreeNavNodeProps {
-  node: TreeNode;
+  node: FolderNode;
   parent: string[];
   depth: number;
   openFolders: Set<string>;
   toggleFolder: (key: string) => void;
   activePathKey: string;
-  openFileKey?: string;
   onNavigate: (path: string[]) => void;
-  onOpenFile: (file: FileNode, dir: string[]) => void;
 }
 
+/**
+ * One folder in the tree. Files are deliberately absent — the grid opens
+ * files; the tree only navigates folders.
+ */
 function TreeNavNode({
   node,
   parent,
@@ -172,31 +174,17 @@ function TreeNavNode({
   openFolders,
   toggleFolder,
   activePathKey,
-  openFileKey,
   onNavigate,
-  onOpenFile,
 }: TreeNavNodeProps) {
   const here = [...parent, node.name];
   const key = here.join("/");
-
-  if (node.type === "file") {
-    return (
-      <TreeRow
-        icon={<FileGlyph ftype={node.ftype} size={12} strokeWidth={1.5} />}
-        label={node.name}
-        depth={depth}
-        active={openFileKey === key}
-        onActivate={() => onOpenFile(node, parent)}
-      />
-    );
-  }
-
+  const childFolders = node.children.filter((n): n is FolderNode => n.type === "folder");
   const isOpen = openFolders.has(key);
   return (
     <>
       <TreeRow
         icon={
-          isOpen ? (
+          isOpen && childFolders.length > 0 ? (
             <FolderOpen size={12} strokeWidth={1.5} />
           ) : (
             <Folder size={12} strokeWidth={1.5} />
@@ -207,23 +195,21 @@ function TreeNavNode({
         depth={depth}
         active={activePathKey === key}
         onActivate={() => onNavigate(here)}
-        expandable
+        expandable={childFolders.length > 0}
         expanded={isOpen}
         onToggle={() => toggleFolder(key)}
       />
       {isOpen &&
-        node.children.map((child, i) => (
+        childFolders.map((child) => (
           <TreeNavNode
-            key={i}
+            key={child.name}
             node={child}
             parent={here}
             depth={depth + 1}
             openFolders={openFolders}
             toggleFolder={toggleFolder}
             activePathKey={activePathKey}
-            openFileKey={openFileKey}
             onNavigate={onNavigate}
-            onOpenFile={onOpenFile}
           />
         ))}
     </>

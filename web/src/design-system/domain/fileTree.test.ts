@@ -4,6 +4,7 @@ import {
   buildFileTree,
   countFiles,
   flattenFiles,
+  folderKeysToDepth,
   isBrowsable,
   nodesAtPath,
   pathKey,
@@ -80,6 +81,38 @@ describe("countFiles / flattenFiles / typeCounts", () => {
   });
   it("counts files by display type", () => {
     expect(typeCounts(tree)).toEqual({ prefab: 2, texture: 1, doc: 1 });
+  });
+});
+
+describe("folderKeysToDepth", () => {
+  const DEEP: ManifestEntry[] = [
+    { relative_path: "A/B/C/D/leaf.txt", size_bytes: 1 },
+    { relative_path: "A/sibling.txt", size_bytes: 1 },
+    { relative_path: "Z/only-a-file.txt", size_bytes: 1 },
+    { relative_path: "root.txt", size_bytes: 1 },
+  ];
+  const tree = buildFileTree(DEEP);
+
+  it("expands folders shallower than the given depth, leaving that depth shut", () => {
+    expect(folderKeysToDepth(tree, 3).sort()).toEqual(["A", "A/B", "A/B/C", "Z"].sort());
+  });
+
+  it("never includes files", () => {
+    expect(folderKeysToDepth(tree, 9)).not.toContain("root.txt");
+    expect(folderKeysToDepth(tree, 9)).not.toContain("A/sibling.txt");
+  });
+
+  it("returns the whole folder set when the depth exceeds the tree", () => {
+    expect(folderKeysToDepth(tree, 9).sort()).toEqual(["A", "A/B", "A/B/C", "A/B/C/D", "Z"].sort());
+  });
+
+  it("expands nothing at depth 0, and only the roots at depth 1", () => {
+    expect(folderKeysToDepth(tree, 0)).toEqual([]);
+    expect(folderKeysToDepth(tree, 1).sort()).toEqual(["A", "Z"]);
+  });
+
+  it("returns nothing for an empty tree", () => {
+    expect(folderKeysToDepth([], 3)).toEqual([]);
   });
 });
 
