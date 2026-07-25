@@ -186,6 +186,13 @@ Atomic components with no domain knowledge. All live under
   hint (⌘K).
 - **`Textarea`** — resizable vertical, same invalid/disabled semantics
   as `Input`.
+- **`MarkdownEditor`** — markdown source editor on CodeMirror 6
+  (`@codemirror/lang-markdown`) with source highlighting mapped onto the
+  tokens, wrapping, and undo history. CodeMirror is code-split behind
+  `lazy` (`MarkdownEditorView.tsx` is the host), so read-only views never
+  load it. Its surface is a `contenteditable` with `role="textbox"`, which a
+  `FieldRow` `<label for>` cannot name — callers **must** pass `aria-label`
+  (the prop is required for that reason).
 
 ### Display
 
@@ -198,6 +205,13 @@ Atomic components with no domain knowledge. All live under
 - **`Tag`** — `variant: solid|add`. The `add` variant is dashed-border
   with a Plus icon for "add new tag" affordances.
 - **`Kbd`** — inline keyboard hint, mono 10.5px with a bordered surface.
+- **`Markdown`** — renders CommonMark + GFM as React elements, parsed with
+  CodeMirror's own `@lezer/markdown` grammar so the read view and
+  `MarkdownEditor` can't disagree about a document. Safe for untrusted
+  input by construction: no HTML is interpreted (raw tags render as text),
+  link targets are restricted to `http(s)`/`mailto`, and images render as
+  labelled links out rather than `<img>` so a store description can't
+  hot-link third-party requests. Covered by `Markdown.test.tsx`.
 - **`StatusDot`** — 6/8px coloured dot, optional `ring` for "on a
   background" use.
 - **`ProgressBar`** — 3/4px high, `tone: accent|ok|warn|err`. Caller
@@ -389,6 +403,14 @@ Two Vitest projects:
 - **`storybook`** (`task test:stories`) — Playwright Chromium, every
   `*.stories.tsx` runs as a browser test with axe-core checks. Requires
   `npx playwright install chromium` once.
+
+The story glob (`.storybook/main.ts`) covers `src/design-system/**` **and**
+`src/components/**`. The second entry is for app-level stories: wired
+components rendered with their real hooks against a stubbed `window.fetch`,
+which is how the library sidebar is captured (`App/AssetDetailPanel`).
+Prefer a design-system story where the component is presentational — an
+app-level story is for the cases where the value is in seeing the wired
+thing, gallery fetches and all.
 
 Contrast exceptions: if a story legitimately uses a decorative
 low-contrast element (e.g. an all-caps 10.5px label in `text-text-4`),

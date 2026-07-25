@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  ExternalLink,
   FolderOpen,
   GitMerge,
   Maximize2,
@@ -23,10 +24,11 @@ import {
   Input,
   KeyValueList,
   LicencePill,
+  Markdown,
+  MarkdownEditor,
   Section,
   StatusDot,
   Tag,
-  Textarea,
   VersionItem,
   cn,
   formatBytes,
@@ -45,6 +47,7 @@ import {
   type AssetDetailView,
   type AssetImageView,
   type AssetVersionView,
+  type LicenceView,
 } from "@/hooks/useDataQueries";
 import {
   useAddAssetTag,
@@ -62,7 +65,7 @@ import {
 
 import { LicenceEditor } from "./LicenceEditor";
 import { MergeDialog } from "./MergeDialog";
-import { MetadataActions } from "./MetadataActions";
+import { EnrichmentReview, MetadataActions } from "./MetadataActions";
 
 const WIDTH_KEY = "damson.detail.w";
 const DEFAULT_WIDTH = 440;
@@ -193,7 +196,6 @@ export function AssetDetailPanel({
 }
 
 function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse?: () => void }) {
-  const patch = usePatchAsset();
   const review = useReviewAsset();
   const del = useDeleteAsset();
   const addTag = useAddAssetTag();
@@ -246,20 +248,10 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
     });
   };
 
-  const [editingName, setEditingName] = useState(false);
-  const [name, setName] = useState(asset.name);
-  const [description, setDescription] = useState(asset.description);
-  const [sourceURL, setSourceURL] = useState(asset.source_url);
   const [newTag, setNewTag] = useState("");
+  const [licenceOpen, setLicenceOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
-
-  const onSaveHeader = () => {
-    patch.mutate(
-      { id: asset.id, name, description, source_url: sourceURL },
-      { onSuccess: () => setEditingName(false) },
-    );
-  };
 
   const onAddTag = () => {
     const v = newTag.trim();
@@ -269,87 +261,24 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
 
   return (
     <div className="@container flex flex-col gap-3 p-3">
-      {/* Hero: name + licence + needs-review. */}
-      <div className="flex flex-col gap-2">
-        {editingName ? (
-          <FieldRow label="Name">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.currentTarget.value)}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSaveHeader();
-                if (e.key === "Escape") setEditingName(false);
-              }}
-            />
-          </FieldRow>
-        ) : (
+      {/* The name lives in the panel header; only status chips sit here. */}
+      {asset.needs_review && (
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setEditingName(true)}
-            className="group flex items-center gap-2 text-left text-heading-medium text-text"
+            onClick={() => review.mutate(asset.id)}
+            className="inline-flex items-center gap-1 rounded-pill border border-warn-tint bg-warn-tint px-2 py-0.5 text-mono text-warn"
           >
-            <span className="truncate">{asset.name}</span>
-            <Pencil
-              size={12}
-              className="opacity-0 transition-opacity duration-std ease group-hover:opacity-100 text-text-3"
-            />
+            <StatusDot tone="warn" /> Needs review
+            <Check size={11} />
           </button>
-        )}
-        <div className="flex flex-wrap items-center gap-1.5">
-          {asset.licence && (
-            <LicencePill
-              status={asset.licence.status}
-              spdx={asset.licence.detected_type || "Unknown"}
-            />
-          )}
-          {asset.needs_review && (
-            <button
-              type="button"
-              onClick={() => review.mutate(asset.id)}
-              className="inline-flex items-center gap-1 rounded-pill border border-warn-tint bg-warn-tint px-2 py-0.5 text-mono text-warn"
-            >
-              <StatusDot tone="warn" /> Needs review
-              <Check size={11} />
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Storefront gallery — above Overview so the pictures read as the hero. */}
       <AssetGallery images={asset.images} />
 
-      {/* Description + source url. */}
-      <Section title="Overview" defaultOpen>
-        <div className="flex flex-col gap-2.5">
-          <FieldRow label="Description">
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.currentTarget.value)}
-              onBlur={() => {
-                if (description !== asset.description) {
-                  patch.mutate({ id: asset.id, description });
-                }
-              }}
-              placeholder="What's this asset for?"
-              rows={3}
-            />
-          </FieldRow>
-          <FieldRow label="Source URL">
-            <Input
-              value={sourceURL}
-              onChange={(e) => setSourceURL(e.currentTarget.value)}
-              onBlur={() => {
-                if (sourceURL !== asset.source_url) {
-                  patch.mutate({ id: asset.id, source_url: sourceURL });
-                }
-              }}
-              placeholder="https://…"
-            />
-          </FieldRow>
-          <MetadataActions asset={asset} />
-        </div>
-      </Section>
+      <OverviewSection asset={asset} />
 
       {/* Tags */}
       <Section title="Tags" accessory={`${asset.tags.length}`} defaultOpen>
@@ -459,7 +388,12 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       </Section>
 
       {/* Licence */}
-      <Section title="Licence" defaultOpen>
+      <Section
+        title="Licence"
+        open={licenceOpen}
+        onOpenChange={setLicenceOpen}
+        accessory={licenceOpen ? null : <LicenceSummary licence={asset.licence ?? null} />}
+      >
         <LicenceEditor
           assetId={asset.id}
           existing={asset.licence ?? null}
@@ -526,11 +460,6 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             Merge…
           </Button>
         </div>
-        {editingName && (
-          <Button variant="primary" onClick={onSaveHeader}>
-            Save
-          </Button>
-        )}
       </div>
       <MergeDialog
         targetId={asset.id}
@@ -541,6 +470,228 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       {confirmDialog}
     </div>
   );
+}
+
+// OverviewSection reads as rendered prose and flips to a form on demand: the
+// description is markdown (storefront enrichment writes it that way), so a
+// permanent textarea showed raw syntax for a field most users only ever read.
+// An asset with no description opens straight into the form.
+function OverviewSection({ asset }: { asset: AssetDetailView }) {
+  // "auto" opens the form for a description-less asset without stealing focus
+  // from the grid; only an explicit Edit puts the caret in the editor.
+  const [editing, setEditing] = useState<"no" | "auto" | "user">(
+    asset.description.trim() === "" ? "auto" : "no",
+  );
+  const [open, setOpen] = useState(true);
+
+  const startEditing = () => {
+    setEditing("user");
+    setOpen(true);
+  };
+
+  return (
+    <Section
+      title="Overview"
+      open={open}
+      onOpenChange={setOpen}
+      accessory={
+        editing === "no" ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            leadingIcon={<Pencil size={12} />}
+            onClick={startEditing}
+          >
+            Edit
+          </Button>
+        ) : null
+      }
+    >
+      <div className="flex flex-col gap-2.5">
+        {editing === "no" ? (
+          <OverviewRead asset={asset} />
+        ) : (
+          // Mounted on the flip into edit mode, so its fields seed from
+          // whatever the server last returned — including a metadata fetch
+          // that landed while the panel sat in read mode.
+          <OverviewForm
+            asset={asset}
+            autoFocus={editing === "user"}
+            onDone={() => setEditing("no")}
+          />
+        )}
+      </div>
+    </Section>
+  );
+}
+
+// The collapsed Licence header carries the identifier, so the one fact people
+// scan for doesn't need the section opened. Expanded, LicenceEditor shows the
+// same pill, so the accessory drops away.
+function LicenceSummary({ licence }: { licence: LicenceView | null }) {
+  if (!licence) return <span className="text-small text-text-4">Not set</span>;
+  return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} noDot />;
+}
+
+function OverviewRead({ asset }: { asset: AssetDetailView }) {
+  const source = asset.source_url.trim();
+  return (
+    <>
+      {asset.description.trim() ? (
+        <ClampedDescription>{asset.description}</ClampedDescription>
+      ) : (
+        <p className="text-small text-text-4">No description yet.</p>
+      )}
+      {/* Source link and the fetch actions share one line — they're all about
+          where this asset's metadata comes from. */}
+      <div className="flex items-start justify-between gap-2">
+        {source ? (
+          <a
+            href={source}
+            target="_blank"
+            rel="noreferrer noopener"
+            title={source}
+            className="inline-flex min-w-0 items-center gap-1 pt-1 text-small text-accent hover:underline"
+          >
+            <span className="truncate">{sourceLabel(source)}</span>
+            <ExternalLink size={11} className="shrink-0" />
+          </a>
+        ) : (
+          <span className="pt-1 text-small text-text-4">No source URL</span>
+        )}
+        <MetadataActions asset={asset} />
+      </div>
+    </>
+  );
+}
+
+// Store descriptions run to hundreds of lines, which buried every section below
+// Overview. Collapsed height is measured in ems of the body text so the clamp
+// stays five lines however the type scale moves; the toggle only appears when
+// the content actually exceeds it (measured on the content, not the clamped
+// box, so it stays correct while expanded).
+const CLAMP_LINES = 5;
+const CLAMP_LINE_HEIGHT = 1.4;
+const CLAMP_EM = `${CLAMP_LINES * CLAMP_LINE_HEIGHT}em`;
+
+function ClampedDescription({ children }: { children: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const content = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = content.current;
+    if (!el) return;
+    const measure = () => {
+      const limit = parseFloat(getComputedStyle(el).fontSize) * CLAMP_LINES * CLAMP_LINE_HEIGHT;
+      setOverflows(el.scrollHeight > limit + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children]);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="relative overflow-hidden"
+        style={expanded ? undefined : { maxHeight: CLAMP_EM }}
+      >
+        <Markdown ref={content}>{children}</Markdown>
+        {!expanded && overflows && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-panel to-transparent" />
+        )}
+      </div>
+      {overflows && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="self-start text-small text-accent hover:underline"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OverviewForm({
+  asset,
+  autoFocus,
+  onDone,
+}: {
+  asset: AssetDetailView;
+  autoFocus?: boolean;
+  onDone: () => void;
+}) {
+  const patch = usePatchAsset();
+  const [name, setName] = useState(asset.name);
+  const [description, setDescription] = useState(asset.description);
+  const [sourceURL, setSourceURL] = useState(asset.source_url);
+
+  const onSave = () => {
+    patch.mutate(
+      {
+        id: asset.id,
+        name: name.trim() || asset.name,
+        description,
+        source_url: sourceURL.trim(),
+      },
+      { onSuccess: onDone },
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <FieldRow label="Name">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave();
+          }}
+        />
+      </FieldRow>
+      <FieldRow label="Description">
+        <MarkdownEditor
+          value={description}
+          onChange={setDescription}
+          aria-label="Description"
+          placeholder="What's this asset for? Markdown is supported."
+          maxHeight={320}
+          autoFocus={autoFocus}
+        />
+      </FieldRow>
+      <FieldRow label="Source URL">
+        <Input
+          value={sourceURL}
+          onChange={(e) => setSourceURL(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave();
+          }}
+          placeholder="https://…"
+        />
+      </FieldRow>
+      <EnrichmentReview asset={asset} />
+      <div className="flex items-center justify-end gap-1.5">
+        <Button variant="ghost" size="sm" onClick={onDone} disabled={patch.isPending}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" onClick={onSave} disabled={patch.isPending}>
+          {patch.isPending ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function sourceLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }
 
 function thumbSource(image: AssetImageView): BlobSource {

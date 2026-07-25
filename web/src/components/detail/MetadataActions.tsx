@@ -216,7 +216,8 @@ export function FindListingButton({
 
 // MetadataActions renders the "Fetch" (from source URL) and "Find listing"
 // (name search) actions, the match-picker dialog, and the overwrite-confirm
-// dialog for conflicting fields.
+// dialog for conflicting fields. Right-aligned so it can sit opposite the
+// source-URL link on one line.
 export function MetadataActions({ asset }: { asset: AssetDetailView }) {
   const search = useSearchMetadata();
   const meta = useMetadataFetch(asset.id);
@@ -225,8 +226,8 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
   const hasSource = asset.source_url.trim() !== "";
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5">
         <Button
           size="sm"
           onClick={() => meta.runFetch()}
@@ -245,11 +246,9 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
         >
           <Search size={12} /> Find listing
         </Button>
-        {meta.failed && <span className="text-mono text-err">Fetch failed</span>}
-        {meta.note && <span className="text-mono text-text-3">{meta.note}</span>}
       </div>
-
-      <EnrichmentReview asset={asset} onPick={(url) => meta.runFetch(url)} />
+      {meta.failed && <span className="text-mono text-err">Fetch failed</span>}
+      {meta.note && <span className="text-right text-mono text-text-3">{meta.note}</span>}
 
       <MatchPickerDialog
         open={pickerOpen}
@@ -269,14 +268,10 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
 
 // EnrichmentReview surfaces the persisted enrichment provenance (which store,
 // when, matched vs abstained) and any stored candidates for one-click
-// correction when auto-enrich picked wrong or abstained.
-function EnrichmentReview({
-  asset,
-  onPick,
-}: {
-  asset: AssetDetailView;
-  onPick: (url: string) => void;
-}) {
+// correction when auto-enrich picked wrong or abstained. Provenance is
+// housekeeping rather than content, so the panel only shows it in edit mode.
+export function EnrichmentReview({ asset }: { asset: AssetDetailView }) {
+  const meta = useMetadataFetch(asset.id);
   const sm = asset.source_metadata;
   if (!sm) return null;
 
@@ -311,12 +306,15 @@ function EnrichmentReview({
           <ul className="flex flex-col gap-1">
             {candidates.map((c, i) => (
               <li key={`${c.listing_url}-${i}`}>
-                <CandidateRow c={c} onPick={() => onPick(c.listing_url)} />
+                <CandidateRow c={c} onPick={() => meta.runFetch(c.listing_url)} />
               </li>
             ))}
           </ul>
         </div>
       )}
+      {meta.failed && <span className="text-mono text-err">Fetch failed</span>}
+      {meta.note && <span className="text-mono text-text-3">{meta.note}</span>}
+      {meta.dialog}
     </div>
   );
 }
