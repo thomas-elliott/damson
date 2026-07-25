@@ -200,7 +200,6 @@ export const TreeSidebar: Story = {
           totalFiles={TOTAL}
           path={path}
           onNavigate={setPath}
-          onOpenFile={(_, fileDir) => setPath(fileDir)}
           typeCounts={typeCounts(ALL_FILES)}
           activeTypes={types}
           onToggleType={toggleType}
@@ -316,11 +315,6 @@ export const FullLayout: Story = {
             totalFiles={TOTAL}
             path={path}
             onNavigate={setPath}
-            openFileKey={openKey}
-            onOpenFile={(node, fileDir) => {
-              setPath(fileDir);
-              setOpenKey(pathKey(fileDir, node.name));
-            }}
             typeCounts={typeCounts(ALL_FILES)}
             activeTypes={types}
             onToggleType={toggleType}
