@@ -32,6 +32,8 @@ export function parseAssetFilters(search: URLSearchParams): AssetFilters {
   if (store) f.store = store;
   const releasedAfter = search.get("released_after");
   if (releasedAfter) f.released_after = releasedAfter;
+  const updates = search.get("updates_available");
+  if (updates === "true") f.updates_available = true;
   const sort = search.get("sort");
   if (sort && (ASSET_SORTS as string[]).includes(sort)) f.sort = sort as AssetSort;
   return f;
