@@ -8,11 +8,19 @@
         "ec_name": "Low-Poly Simple Nature Pack",
         "ec_description": "<p>A <b>tidy</b> low-poly nature set.</p>",
         "publisher_name": "JustCreate",
+        "publisher_id": "44390",
         "ec_price": 0.0,
         "ec_product_id": ["162153"],
         "ec_thumbnails": "https://assetstorev1-prd-cdn.unity3d.com/key-image/abc.jpg",
-        "ec_category": "Environments",
-        "keywords": ["Nature", "Low Poly", "nature"]
+        "ec_category_level1": "3d",
+        "ec_category_level2": "3d > environments",
+        "ec_category_level3": "3d > environments > landscapes",
+        "ec_keywords": ["Landscape", "Terrain", "lowpoly", "Landscape"],
+        "first_published_at": 1581414433000,
+        "last_published_at": 1683401715000,
+        "min_unity_version": 202003,
+        "ec_rating": 4.85,
+        "ec_rating_count": 126
       }
     }
   ]
