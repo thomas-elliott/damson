@@ -4,21 +4,9 @@ import { ExternalLink, Pencil } from "lucide-react";
 import { Button, FieldRow, Input, Pill, Section } from "@/design-system";
 import type { AssetDetailView, MetadataAttribute } from "@/hooks/useDataQueries";
 import { usePatchAsset } from "@/hooks/useMutations";
+import { storeLabel } from "@/lib/stores";
 
-const STORE_LABELS: Record<string, string> = {
-  unity: "Unity Asset Store",
-  sketchfab: "Sketchfab",
-  itch: "itch.io",
-  generic: "Other",
-};
-
-function storeLabel(store?: string): string | undefined {
-  if (!store) return undefined;
-  return STORE_LABELS[store] ?? store;
-}
-
-// Dates arrive as full timestamps but only the day is meaningful for a release
-// or store-update date, so the time is dropped rather than shown as midnight.
+// Day precision only: these dates carry a time that would render as midnight.
 function formatDate(iso?: string): string | undefined {
   if (!iso) return undefined;
   const d = new Date(iso);
@@ -176,8 +164,6 @@ function DefinitionList({ rows }: { rows: { label: string; value?: string; href?
   );
 }
 
-// Every field is sent as a string, and an empty one clears the column, so a
-// wrong hand-entered value can be removed rather than only overwritten.
 function DetailsForm({ asset, onDone }: { asset: AssetDetailView; onDone: () => void }) {
   const patch = usePatchAsset();
   const [fields, setFields] = useState({
