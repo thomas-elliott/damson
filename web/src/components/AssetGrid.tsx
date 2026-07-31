@@ -170,6 +170,7 @@ function GridCard({
           </>
         }
         needsReview={a.needs_review}
+        updateAvailable={a.update_available}
       />
     </div>
   );

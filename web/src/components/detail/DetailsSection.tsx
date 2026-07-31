@@ -78,6 +78,11 @@ export function DetailsSection({ asset }: { asset: AssetDetailView }) {
       accessory={
         editing ? null : (
           <div className="flex items-center gap-1.5">
+            {asset.update_available && asset.latest_store_version && (
+              <Pill tone="accent" title="A newer version is available from the store">
+                update: {asset.latest_store_version}
+              </Pill>
+            )}
             {!open && storeLabel(asset.store) && (
               <Pill tone="neutral">{storeLabel(asset.store)}</Pill>
             )}

@@ -177,6 +177,14 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
         </ul>
       </Section>
 
+      <Section title="Updates" defaultOpen={false}>
+        <FilterRow
+          label="Updates available"
+          active={!!filters.updates_available}
+          onClick={() => setParam("updates_available", filters.updates_available ? null : "true")}
+        />
+      </Section>
+
       <Section title="Needs review" defaultOpen={false}>
         <FilterRow
           label="Unreviewed only"

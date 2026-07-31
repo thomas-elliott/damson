@@ -191,6 +191,15 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		})
 	}
 
+	heldStoreVersions := make([]string, 0, len(view.Versions))
+	for _, v := range view.Versions {
+		if v.StoreVersion != "" {
+			heldStoreVersions = append(heldStoreVersions, v.StoreVersion)
+		}
+	}
+	view.UpdateAvailable, _ = imports.StoreUpdateAvailable(
+		derefString(asset.LatestStoreVersion), heldStoreVersions)
+
 	// Files for the current version only — the detail panel scopes to the
 	// current version, and the version selector triggers a separate request
 	// if the user wants to inspect an older one.

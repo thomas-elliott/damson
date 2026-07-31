@@ -35,6 +35,7 @@ type assetGridRow struct {
 	PackageKind        string     `json:"package_kind,omitempty"`
 	Publisher          string     `json:"publisher,omitempty"`
 	ReleasedAt         *time.Time `json:"released_at,omitempty"`
+	UpdateAvailable    bool       `json:"update_available,omitempty"`
 }
 
 type assetListResponse struct {
@@ -71,7 +72,29 @@ type assetListFilters struct {
 	Publisher     string     // exact publisher match
 	Store         string     // exact store match
 	ReleasedAfter *time.Time // released_at >= this instant
+	UpdatesOnly   bool       // latest_store_version is newer than every version held
 	Sort          string     // created_desc (default) | released_desc | released_asc | name_asc
+}
+
+// storeVersionArraySQL renders a dotted-numeric store version as an int[] for
+// semantic ordering, or NULL when it isn't orderable. The CASE guards the cast:
+// a non-numeric segment would otherwise abort the whole query, and WHERE-clause
+// conjuncts have no guaranteed evaluation order. Trailing .0 segments are
+// trimmed first so 1.0 and 1 compare equal, matching
+// imports.CompareStoreVersions.
+func storeVersionArraySQL(column string) string {
+	return `CASE WHEN ` + column + ` ~ '^[0-9]+(\.[0-9]+)*$'
+		THEN string_to_array(regexp_replace(` + column + `, '(\.0)+$', ''), '.')::int[] END`
+}
+
+// updatesAvailableSQL matches assets whose latest known store version is newer
+// than the highest version they hold. A NULL on either side — nothing fetched,
+// or no orderable version held — yields NULL, so the asset is not matched.
+// Mirrors imports.StoreUpdateAvailable, which drives the badge.
+func updatesAvailableSQL() string {
+	return storeVersionArraySQL("a.latest_store_version") + ` > (
+		SELECT MAX(` + storeVersionArraySQL("v.store_version") + `)
+		FROM asset_versions v WHERE v.asset_id = a.id)`
 }
 
 // assetSortColumns maps the sort query values to their ORDER BY clause. Only
@@ -107,6 +130,9 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 		Publisher:     strings.TrimSpace(c.Query("publisher")),
 		Store:         strings.TrimSpace(c.Query("store")),
 		Sort:          strings.TrimSpace(c.Query("sort")),
+	}
+	if s := c.Query("updates_available"); s == "true" || s == "1" {
+		f.UpdatesOnly = true
 	}
 	if s := strings.TrimSpace(c.Query("released_after")); s != "" {
 		for _, layout := range []string{time.RFC3339, "2006-01-02"} {
@@ -176,6 +202,9 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 	}
 	if f.ReleasedAfter != nil {
 		q = q.Where("a.released_at >= ?", *f.ReleasedAfter)
+	}
+	if f.UpdatesOnly {
+		q = q.Where(updatesAvailableSQL())
 	}
 	if f.LicenceSPDX != "" || f.LicenceStatus != "" {
 		q = q.Joins("LEFT JOIN licences l ON l.id = a.licence_id")
@@ -266,6 +295,8 @@ func (h *Handler) getAssets(c *gin.Context) {
 		LicenceSPDX        string
 		Publisher          *string
 		ReleasedAt         *time.Time
+		LatestStoreVersion *string
+		StoreVersions      string
 	}
 	var rows []row
 	err := base.Session(&gorm.Session{}).
@@ -275,7 +306,9 @@ func (h *Handler) getAssets(c *gin.Context) {
 		// dedup-by-value silently undercounted whenever two files shared a size.
 		// Subqueries are immune to both.
 		Select(`a.id, a.name, a.needs_review, a.created_at, a.thumbnail_object_key,
-			a.publisher, a.released_at,
+			a.publisher, a.released_at, a.latest_store_version,
+			COALESCE((SELECT string_agg(v3.store_version, ',') FROM asset_versions v3
+				WHERE v3.asset_id = a.id AND v3.store_version <> ''), '') AS store_versions,
 			COALESCE((SELECT COUNT(*) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS file_count,
 			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS size_bytes,
 			COALESCE(cv2.package_kind, '') AS package_kind,
@@ -297,6 +330,11 @@ func (h *Handler) getAssets(c *gin.Context) {
 		// Status is derived for display; the SQL filter (above) has already
 		// picked the matching rows. Empty SPDX → "unk".
 		status := quickLicenceStatus(r.LicenceSPDX)
+		var held []string
+		if r.StoreVersions != "" {
+			held = strings.Split(r.StoreVersions, ",")
+		}
+		updateAvailable, _ := imports.StoreUpdateAvailable(derefString(r.LatestStoreVersion), held)
 		out = append(out, assetGridRow{
 			ID:                 r.ID,
 			Name:               r.Name,
@@ -310,6 +348,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 			LicenceStatus:      status,
 			Publisher:          derefString(r.Publisher),
 			ReleasedAt:         r.ReleasedAt,
+			UpdateAvailable:    updateAvailable,
 		})
 	}
 

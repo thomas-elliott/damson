@@ -128,6 +128,20 @@ describe("DetailsSection", () => {
     expect(payload.price).toBe("");
   });
 
+  it("flags an available store update in the section header", () => {
+    render(
+      <DetailsSection
+        asset={baseAsset({ update_available: true, latest_store_version: "1.24" })}
+      />,
+    );
+    expect(screen.getByText(/update: 1\.24/)).toBeInTheDocument();
+  });
+
+  it("shows no update pill when the asset is current", () => {
+    render(<DetailsSection asset={baseAsset({ latest_store_version: "1.24" })} />);
+    expect(screen.queryByText(/update:/)).not.toBeInTheDocument();
+  });
+
   it("seeds the date inputs as plain dates, not timestamps", () => {
     render(<DetailsSection asset={baseAsset({ released_at: "2020-02-11T09:47:13Z" })} />);
     fireEvent.click(screen.getByRole("button", { name: /edit/i }));

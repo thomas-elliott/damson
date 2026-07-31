@@ -99,6 +99,12 @@ describe("parseAssetFilters — storefront metadata filters", () => {
     }
   });
 
+  it("reads the updates-available filter only when explicitly true", () => {
+    expect(parse("updates_available=true").updates_available).toBe(true);
+    expect(parse("updates_available=false").updates_available).toBeUndefined();
+    expect(parse("").updates_available).toBeUndefined();
+  });
+
   it("counts the new filters in the badge but not the sort", () => {
     expect(activeFilterCount(parse("publisher=JustCreate"))).toBe(1);
     expect(
