@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -423,5 +424,127 @@ func TestGetAssetFacets_RouteDoesNotCollideWithAssetID(t *testing.T) {
 	requireStatus(t, w, http.StatusOK)
 	if body := w.Body.String(); !strings.Contains(body, "publishers") {
 		t.Fatalf("facets route returned %q — likely matched /assets/:id instead", body)
+	}
+}
+
+// seedAssetWithVersions creates an asset carrying a latest-known store version
+// plus the store versions it already holds.
+func seedAssetWithVersions(t *testing.T, db *gorm.DB, libID uint, name, latest string, held ...string) *models.Asset {
+	t.Helper()
+	a := seedAsset(t, db, libID, name)
+	if latest != "" {
+		if err := db.Model(a).Update("latest_store_version", &latest).Error; err != nil {
+			t.Fatalf("set latest_store_version: %v", err)
+		}
+	}
+	for _, sv := range held {
+		v := models.AssetVersion{AssetID: a.ID, StoreVersion: sv}
+		if err := db.Create(&v).Error; err != nil {
+			t.Fatalf("seed version %q: %v", sv, err)
+		}
+		if a.CurrentVersionID == nil {
+			id := v.ID
+			if err := db.Model(a).Update("current_version_id", &id).Error; err != nil {
+				t.Fatalf("set current version: %v", err)
+			}
+			a.CurrentVersionID = &id
+		}
+	}
+	return a
+}
+
+// The SQL filter and the Go comparison that drives the badge must agree, or the
+// grid shows a badge on an asset the filter hides (and vice versa). They are
+// separate implementations, so this pins them together over the same rows.
+func TestUpdatesAvailableFilterAgreesWithTheBadge(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	type spec struct {
+		name   string
+		latest string
+		held   []string
+		want   bool
+	}
+	specs := []spec{
+		{"outdated", "1.24", []string{"1.23"}, true},
+		{"current", "1.24", []string{"1.24"}, false},
+		{"held newer than store", "1.23", []string{"1.24"}, false},
+		{"double digit minor", "1.10", []string{"1.9"}, true},
+		{"double digit minor reversed", "1.9", []string{"1.10"}, false},
+		{"highest held wins", "1.24", []string{"1.9", "1.23", "1.10"}, true},
+		{"holds the newest already", "1.24", []string{"1.9", "1.24"}, false},
+		{"trailing zero is equal", "1.0", []string{"1"}, false},
+		{"no versions held", "1.24", nil, false},
+		{"nothing fetched", "", []string{"1.23"}, false},
+		// A hand-edited latest version need not be dotted-numeric. It must not
+		// abort the query with a cast error, and must not match.
+		{"latest unorderable", "1.24-beta", []string{"1.23"}, false},
+		{"held unorderable", "1.24", []string{"nightly"}, false},
+		{"mixed orderability", "1.24", []string{"nightly", "1.23"}, true},
+	}
+
+	byID := map[uint]spec{}
+	wantIDs := map[uint]bool{}
+	for _, sp := range specs {
+		a := seedAssetWithVersions(t, db, lib.ID, sp.name, sp.latest, sp.held...)
+		byID[a.ID] = sp
+		if sp.want {
+			wantIDs[a.ID] = true
+		}
+	}
+
+	r := setupRouter(h, u)
+
+	// The badge, as the grid derives it.
+	w := performGET(r, "/api/assets?limit=200")
+	requireStatus(t, w, http.StatusOK)
+	var list struct {
+		Assets []struct {
+			ID              uint `json:"id"`
+			UpdateAvailable bool `json:"update_available"`
+		} `json:"assets"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Assets) != len(specs) {
+		t.Fatalf("listed %d assets, want %d", len(list.Assets), len(specs))
+	}
+	for _, a := range list.Assets {
+		if a.UpdateAvailable != byID[a.ID].want {
+			t.Errorf("badge for %q = %v, want %v", byID[a.ID].name, a.UpdateAvailable, byID[a.ID].want)
+		}
+	}
+
+	// The filter, which runs the comparison in SQL.
+	filtered := listAssetIDs(t, r, "/api/assets?updates_available=true&limit=200")
+	if len(filtered) != len(wantIDs) {
+		names := make([]string, 0, len(filtered))
+		for _, id := range filtered {
+			names = append(names, byID[id].name)
+		}
+		t.Fatalf("filter matched %v, want %d assets", names, len(wantIDs))
+	}
+	for _, id := range filtered {
+		if !wantIDs[id] {
+			t.Errorf("filter matched %q, which the badge says is up to date", byID[id].name)
+		}
+	}
+
+	// And the detail view, which derives it a third way from the version rows.
+	for id, sp := range byID {
+		dw := performGET(r, "/api/assets/"+strconv.FormatUint(uint64(id), 10))
+		requireStatus(t, dw, http.StatusOK)
+		var detail struct {
+			UpdateAvailable bool `json:"update_available"`
+		}
+		if err := json.Unmarshal(dw.Body.Bytes(), &detail); err != nil {
+			t.Fatal(err)
+		}
+		if detail.UpdateAvailable != sp.want {
+			t.Errorf("detail view for %q = %v, want %v", sp.name, detail.UpdateAvailable, sp.want)
+		}
 	}
 }

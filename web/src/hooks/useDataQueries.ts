@@ -100,6 +100,7 @@ export interface AssetRow {
   package_kind?: string;
   publisher?: string;
   released_at?: string;
+  update_available?: boolean;
 }
 
 interface AssetListResponse {
@@ -121,6 +122,7 @@ export interface AssetFilters {
   publisher?: string;
   store?: string;
   released_after?: string;
+  updates_available?: boolean;
   sort?: AssetSort;
 }
 
@@ -335,6 +337,7 @@ export interface AssetDetailView {
   price_currency?: string;
   rating?: number;
   rating_count?: number;
+  update_available?: boolean;
   licence?: LicenceView;
   source_metadata?: SourceMetadataView;
   tags: AssetTagView[];
