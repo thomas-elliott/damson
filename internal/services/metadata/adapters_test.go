@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSketchfabUID(t *testing.T) {
@@ -107,9 +108,87 @@ func TestCoveoMetadata(t *testing.T) {
 	if len(m.Raw) == 0 {
 		t.Error("raw payload must be persisted")
 	}
-	// ec_category then keywords, deduped case-insensitively.
-	if got := strings.Join(m.Tags, ","); got != "Environments,Nature,Low Poly" {
-		t.Errorf("tags: got %q want %q", got, "Environments,Nature,Low Poly")
+	// ec_keywords, deduped case-insensitively. The live index field is
+	// ec_keywords, not keywords — asking for the wrong name silently yielded no
+	// keyword tags at all.
+	if got := strings.Join(m.Tags, ","); got != "Landscape,Terrain,lowpoly" {
+		t.Errorf("tags: got %q want %q", got, "Landscape,Terrain,lowpoly")
+	}
+	// The category must arrive as one hierarchical path, not as ec_category's
+	// three arrow-separated, leading-space entries.
+	if m.CategoryPath != "3d/environments/landscapes" {
+		t.Errorf("category path: got %q", m.CategoryPath)
+	}
+	for _, tag := range m.Tags {
+		if strings.Contains(tag, ">") || tag != strings.TrimSpace(tag) {
+			t.Errorf("tag %q carries category separators or padding", tag)
+		}
+	}
+	if m.Engine != "unity" {
+		t.Errorf("engine: got %q", m.Engine)
+	}
+	if m.MinEngineVersion != "2020.3" {
+		t.Errorf("min engine version: got %q, want the packed 202003 unpacked", m.MinEngineVersion)
+	}
+	if m.ReleasedAt == nil || !m.ReleasedAt.Equal(time.Date(2020, 2, 11, 9, 47, 13, 0, time.UTC)) {
+		t.Errorf("released at: got %v", m.ReleasedAt)
+	}
+	if m.StoreUpdatedAt == nil || !m.StoreUpdatedAt.Equal(time.Date(2023, 5, 6, 19, 35, 15, 0, time.UTC)) {
+		t.Errorf("store updated at: got %v", m.StoreUpdatedAt)
+	}
+	if m.Rating != 4.85 || m.RatingCount != 126 {
+		t.Errorf("rating: got %v (%d)", m.Rating, m.RatingCount)
+	}
+	if m.PublisherURL != "https://assetstore.unity.com/publishers/44390" {
+		t.Errorf("publisher url: got %q", m.PublisherURL)
+	}
+}
+
+func TestCoveoCategoryPathFallsBackThroughLevels(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  map[string]any
+		want string
+	}{
+		{"level3", map[string]any{"ec_category_level3": "3d > environments > landscapes"}, "3d/environments/landscapes"},
+		{"level2 only", map[string]any{"ec_category_level2": "3d > environments"}, "3d/environments"},
+		{"level1 only", map[string]any{"ec_category_level1": "3d"}, "3d"},
+		{"array shape", map[string]any{"ec_category_level3": []any{"2d > gui > icons"}}, "2d/gui/icons"},
+		{"none", map[string]any{}, ""},
+		{"blank", map[string]any{"ec_category_level3": "  >  > "}, ""},
+	}
+	for _, c := range cases {
+		if got := coveoCategoryPath(c.raw); got != c.want {
+			t.Errorf("%s: coveoCategoryPath = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestUnityMinVersionLabel(t *testing.T) {
+	cases := map[any]string{
+		202003.0: "2020.3",
+		201904.0: "2019.4",
+		"202003": "2020.3",
+		202010.0: "2020.10",
+		600000.0: "6000.0",
+		"":       "",
+		"6":      "6",
+	}
+	for in, want := range cases {
+		if got := unityMinVersionLabel(in); got != want {
+			t.Errorf("unityMinVersionLabel(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCoveoEpochTime(t *testing.T) {
+	if got := coveoEpochTime(1581414433000.0); got == nil || !got.Equal(time.Date(2020, 2, 11, 9, 47, 13, 0, time.UTC)) {
+		t.Errorf("coveoEpochTime = %v", got)
+	}
+	for _, in := range []any{nil, 0.0, -1.0, "", "not a number", map[string]any{}} {
+		if got := coveoEpochTime(in); got != nil {
+			t.Errorf("coveoEpochTime(%v) = %v, want nil", in, got)
+		}
 	}
 }
 
