@@ -6,12 +6,26 @@ import (
 )
 
 type Asset struct {
-	ID                   uint   `gorm:"primarykey;auto_increment;not_null"`
-	LibraryID            uint   `gorm:"not null;index"`
-	Name                 string `gorm:"not null"`
-	Description          string
-	SourceURL            string
-	SourceMetadataJSON   json.RawMessage `gorm:"type:jsonb"`
+	ID                 uint   `gorm:"primarykey;auto_increment;not_null"`
+	LibraryID          uint   `gorm:"not null;index"`
+	Name               string `gorm:"not null"`
+	Description        string
+	SourceURL          string
+	SourceMetadataJSON json.RawMessage `gorm:"type:jsonb"`
+	// Storefront metadata promoted to first-class columns (migration 019).
+	Publisher            *string
+	PublisherURL         *string
+	Store                *string
+	StoreProductID       *string
+	ReleasedAt           *time.Time
+	StoreUpdatedAt       *time.Time
+	LatestStoreVersion   *string
+	Engine               *string
+	MinEngineVersion     *string
+	Price                *string
+	PriceCurrency        *string
+	Rating               *float64 `gorm:"type:numeric(3,2)"`
+	RatingCount          *int
 	LicenceID            *uint
 	CurrentVersionID     *uint
 	ThumbnailObjectKey   string

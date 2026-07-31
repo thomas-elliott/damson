@@ -410,6 +410,12 @@ func WriteAssetFiles(tx *gorm.DB, versionID uint, looseObjectKey string, looseSi
 		return 1, looseSize, nil
 	}
 
+	// Postgres' extended protocol caps one statement at 65535 bind parameters,
+	// and each asset_files row binds a dozen columns, so a single multi-row
+	// INSERT fails past roughly five thousand files. Batch well under that; the
+	// batches share the caller's transaction, so the write stays atomic.
+	const assetFileInsertBatch = 1000
+
 	var total int64
 	rows := make([]models.AssetFile, 0, len(extracted.Files))
 	for _, f := range extracted.Files {
@@ -426,7 +432,7 @@ func WriteAssetFiles(tx *gorm.DB, versionID uint, looseObjectKey string, looseSi
 	if len(rows) == 0 {
 		return 0, 0, nil
 	}
-	if err := tx.Create(&rows).Error; err != nil {
+	if err := tx.CreateInBatches(&rows, assetFileInsertBatch).Error; err != nil {
 		return 0, 0, err
 	}
 	return len(rows), total, nil
