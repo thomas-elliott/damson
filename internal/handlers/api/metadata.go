@@ -502,6 +502,18 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		}
 	}
 
+	fieldBefore, fieldUpdates, fieldConflicts := imports.MetadataFieldUpdates(asset, meta, confirm)
+	for _, fc := range fieldConflicts {
+		conflicts = append(conflicts, metadataConflict{Field: fc.Field, Current: fc.Current, Proposed: fc.Proposed})
+	}
+	for k, v := range fieldBefore {
+		before[k] = v
+	}
+	for k, v := range fieldUpdates {
+		updates[k] = v
+		applied = append(applied, k)
+	}
+
 	auditBefore := map[string]any{}
 	auditAfter := map[string]any{}
 	if len(updates) > 0 {
@@ -536,7 +548,7 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 
 	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, meta.ImageURLs)
 
-	if h.attachMetadataTags(ctx, libID, asset.ID, userID, meta.Tags) {
+	if h.attachMetadataTags(ctx, libID, asset.ID, userID, imports.MetadataTagList(meta)) {
 		applied = append(applied, "tags")
 	}
 
