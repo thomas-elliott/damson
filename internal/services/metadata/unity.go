@@ -9,7 +9,9 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 )
@@ -32,9 +34,11 @@ const (
 // coveoFields are the raw fields we ask Coveo to return; a narrow set keeps
 // the payload small and the mapping stable.
 var coveoFields = []string{
-	"ec_name", "ec_price", "publisher_name", "ec_product_id",
+	"ec_name", "ec_price", "publisher_name", "publisher_id", "ec_product_id",
 	"ec_images", "ec_thumbnails", "ec_shortdesc", "ec_description",
-	"ec_category", "keywords",
+	"ec_category_level3", "ec_keywords",
+	"first_published_at", "last_published_at", "min_unity_version",
+	"ec_rating", "ec_rating_count",
 }
 
 // unityProductIDRE captures the trailing numeric id Unity uses, in both the
@@ -202,22 +206,110 @@ func coveoMetadata(r coveoResult, listingURL string) *Metadata {
 	rawJSON, _ := json.Marshal(r)
 	cover := coveoCover(raw)
 	return &Metadata{
-		Store:       StoreUnity,
-		Title:       stringOf(raw["ec_name"]),
-		Description: htmlToMarkdown(firstNonEmpty(stringOf(raw["ec_description"]), stringOf(raw["ec_shortdesc"]))),
-		Publisher:   stringOf(raw["publisher_name"]),
-		Price:       numOrString(raw["ec_price"]),
-		Currency:    "USD",
-		CoverURL:    cover,
-		ImageURLs:   coveoImages(raw, cover),
-		Tags:        coveoTags(raw),
-		StoreID:     firstNonEmpty(firstArrayString(raw["ec_product_id"]), unityProductID(listingURL)),
-		ListingURL:  firstNonEmpty(r.ClickURI, listingURL),
+		Store:            StoreUnity,
+		Title:            stringOf(raw["ec_name"]),
+		Description:      htmlToMarkdown(firstNonEmpty(stringOf(raw["ec_description"]), stringOf(raw["ec_shortdesc"]))),
+		Publisher:        stringOf(raw["publisher_name"]),
+		PublisherURL:     coveoPublisherURL(raw),
+		Price:            numOrString(raw["ec_price"]),
+		Currency:         "USD",
+		CoverURL:         cover,
+		ImageURLs:        coveoImages(raw, cover),
+		Tags:             coveoTags(raw),
+		CategoryPath:     coveoCategoryPath(raw),
+		StoreID:          firstNonEmpty(firstArrayString(raw["ec_product_id"]), unityProductID(listingURL)),
+		ListingURL:       firstNonEmpty(r.ClickURI, listingURL),
+		Engine:           "unity",
+		MinEngineVersion: unityMinVersionLabel(raw["min_unity_version"]),
+		ReleasedAt:       coveoEpochTime(raw["first_published_at"]),
+		StoreUpdatedAt:   coveoEpochTime(raw["last_published_at"]),
+		Rating:           coveoFloat(raw["ec_rating"]),
+		RatingCount:      int(coveoFloat(raw["ec_rating_count"])),
 		// Coveo exposes no per-asset licence field; Asset Store assets carry
 		// the standard EULA.
 		LicenceHint: "unity-eula",
 		Raw:         rawJSON,
 	}
+}
+
+// coveoPublisherURL builds the store's publisher page from publisher_id. The
+// listing payload's own publisher URL is preferred where it exists; this is the
+// fallback when only Coveo answered.
+func coveoPublisherURL(raw map[string]any) string {
+	id := strings.TrimSpace(firstArrayString(raw["publisher_id"]))
+	if id == "" {
+		return ""
+	}
+	return "https://" + unityHost + "/publishers/" + id
+}
+
+// coveoCategoryPath turns ec_category_level3 ("3d > environments > landscapes")
+// into a single hierarchical tag path ("3d/environments/landscapes"). The
+// ec_category field is deliberately not used: it arrives as three entries, each
+// with the arrow separators and a leading space, which yields three malformed
+// flat tags instead of one path. Falls back to the shallower levels.
+func coveoCategoryPath(raw map[string]any) string {
+	for _, key := range []string{"ec_category_level3", "ec_category_level2", "ec_category_level1"} {
+		v := firstNonEmpty(coveoStringList(raw[key])...)
+		if v == "" {
+			continue
+		}
+		parts := strings.Split(v, ">")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if p = strings.TrimSpace(p); p != "" {
+				out = append(out, p)
+			}
+		}
+		if len(out) > 0 {
+			return strings.Join(out, "/")
+		}
+	}
+	return ""
+}
+
+// unityMinVersionLabel renders min_unity_version, a packed YYYYMM integer
+// (202003), as the release label Unity itself uses (2020.3). Anything that
+// isn't in that shape passes through as-is.
+func unityMinVersionLabel(v any) string {
+	s := strings.TrimSpace(numOrString(v))
+	if len(s) < 5 {
+		return s
+	}
+	minor := strings.TrimLeft(s[4:], "0")
+	if minor == "" {
+		minor = "0"
+	}
+	return s[:4] + "." + minor
+}
+
+// coveoEpochTime reads a Coveo millisecond timestamp. Returns nil for a missing
+// or non-positive value so an absent date stays absent.
+func coveoEpochTime(v any) *time.Time {
+	ms := int64(coveoFloat(v))
+	if ms <= 0 {
+		return nil
+	}
+	t := time.UnixMilli(ms).UTC()
+	return &t
+}
+
+// coveoFloat reads a numeric Coveo field, which may arrive as a number or as a
+// string.
+func coveoFloat(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case int:
+		return float64(t)
+	case string:
+		f, err := strconv.ParseFloat(strings.TrimSpace(t), 64)
+		if err != nil {
+			return 0
+		}
+		return f
+	}
+	return 0
 }
 
 // coveoCover picks the cover image, preferring the first ec_images entry that
@@ -312,13 +404,11 @@ func coveoImages(raw map[string]any, cover string) []string {
 	return out
 }
 
-// coveoTags gathers keyword/category tags from a Coveo result. Both fields may
-// arrive as a bare string, a JSON-encoded string array, or a []any.
+// coveoTags gathers the keyword tags from a Coveo result. The field may arrive
+// as a bare string, a JSON-encoded string array, or a []any. Category is not
+// included here — it becomes CategoryPath, a single hierarchical path.
 func coveoTags(raw map[string]any) []string {
-	var tags []string
-	tags = append(tags, coveoStringList(raw["ec_category"])...)
-	tags = append(tags, coveoStringList(raw["keywords"])...)
-	return dedupeTags(tags)
+	return dedupeTags(coveoStringList(raw["ec_keywords"]))
 }
 
 // coveoStringList normalises a Coveo field into a slice of strings, handling

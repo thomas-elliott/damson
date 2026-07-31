@@ -245,23 +245,27 @@ func unityApplyListing(md *Metadata, l *unityListing, pageURL string) {
 	}
 
 	md.Engine = "unity"
-	if t := unityParseTime(p.FirstPublishedDate); t != nil {
-		md.ReleasedAt = t
+	if md.ReleasedAt == nil {
+		md.ReleasedAt = unityParseTime(p.FirstPublishedDate)
 	}
-	if len(p.SupportedUnityVersions) > 0 {
+	if md.MinEngineVersion == "" && len(p.SupportedUnityVersions) > 0 {
 		md.MinEngineVersion = unityShortVersion(p.SupportedUnityVersions[0])
 	}
 	if l.version != nil {
 		md.LatestStoreVersion = strings.TrimSpace(l.version.Name)
-		if t := unityParseTime(l.version.PublishedDate); t != nil {
-			md.StoreUpdatedAt = t
+		if md.StoreUpdatedAt == nil {
+			md.StoreUpdatedAt = unityParseTime(l.version.PublishedDate)
 		}
 	}
 	if l.publisher != nil {
 		if md.Publisher == "" {
 			md.Publisher = strings.TrimSpace(l.publisher.Name)
 		}
-		md.PublisherURL = firstNonEmpty(strings.TrimSpace(l.publisher.URL), strings.TrimSpace(l.publisher.SupportURL))
+		md.PublisherURL = firstNonEmpty(
+			strings.TrimSpace(l.publisher.URL),
+			strings.TrimSpace(l.publisher.SupportURL),
+			md.PublisherURL,
+		)
 	}
 	if l.category != nil && md.CategoryPath == "" {
 		md.CategoryPath = strings.TrimSpace(l.category.Slug)
@@ -269,11 +273,17 @@ func unityApplyListing(md *Metadata, l *unityListing, pageURL string) {
 	if len(l.tags) > 0 {
 		md.Tags = dedupeTags(append(md.Tags, l.tags...))
 	}
-	if p.Rating != nil && p.Rating.Count > 0 {
+	// Coveo's ec_rating carries more precision than the payload's rounded
+	// average, so it wins when both answered.
+	if md.Rating == 0 && p.Rating != nil {
 		md.Rating = p.Rating.Average
-		md.RatingCount = p.Rating.Count
-	} else if p.ReviewCount > 0 {
-		md.RatingCount = p.ReviewCount
+	}
+	if md.RatingCount == 0 {
+		if p.Rating != nil && p.Rating.Count > 0 {
+			md.RatingCount = p.Rating.Count
+		} else if p.ReviewCount > 0 {
+			md.RatingCount = p.ReviewCount
+		}
 	}
 	if p.Price != nil {
 		if md.Price == "" {
