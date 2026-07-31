@@ -170,3 +170,26 @@ func TestItchInfoRowsIgnoresEverythingOutsideTheInfoPanel(t *testing.T) {
 		t.Errorf("harvested %d attributes, expected only the info panel's few: %v", len(m.Attributes), got)
 	}
 }
+
+// itch spells its Creative Commons licences out in full, so a label match on
+// the abbreviation alone misses them.
+func TestSPDXFromLabelCreativeCommonsFullNames(t *testing.T) {
+	cases := map[string]string{
+		"Creative Commons Zero v1.0 Universal":                  "CC0-1.0",
+		"Creative Commons Attribution v4.0 International":       "CC-BY-4.0",
+		"Creative Commons Attribution_ShareAlike v4.0":          "CC-BY-SA-4.0",
+		"Creative Commons Attribution_NonCommercial v4.0":       "CC-BY-NC-4.0",
+		"Creative Commons Attribution_NonCommercial_ShareAlike": "CC-BY-NC-SA-4.0",
+		// NoDerivatives has no id in the detector's table. Mapping it to CC-BY
+		// would grant modification the licence forbids, so it stays unknown and
+		// the raw label survives as the hint.
+		"Creative Commons Attribution_NoDerivatives v4.0":          "",
+		"Creative Commons Attribution_NonCommercial_NoDerivatives": "",
+		"All rights reserved": "",
+	}
+	for label, want := range cases {
+		if got := spdxFromLabel(label); got != want {
+			t.Errorf("spdxFromLabel(%q) = %q, want %q", label, got, want)
+		}
+	}
+}

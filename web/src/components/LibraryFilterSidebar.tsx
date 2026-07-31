@@ -10,6 +10,7 @@ import {
   type LicenceStatus,
   type TagView,
 } from "@/hooks/useDataQueries";
+import { storeLabel } from "@/lib/stores";
 
 const LICENCE_STATUSES: { value: LicenceStatus; label: string }[] = [
   { value: "ok", label: "Compliant" },
@@ -24,9 +25,8 @@ const PACKAGE_KINDS: { value: string; label: string }[] = [
   { value: "zip", label: "Zip archive" },
 ];
 
-// RELEASED_AFTER_PRESETS avoid a date picker for what is nearly always a
-// coarse "how recent" question. Boundaries are resolved when clicked so they
-// stay correct across a long-lived session.
+// Boundaries resolve when clicked, so a long-lived session never pins a stale
+// date.
 const RELEASED_AFTER_PRESETS: { years: number; label: string }[] = [
   { years: 1, label: "Last year" },
   { years: 2, label: "Last 2 years" },
@@ -38,13 +38,6 @@ function yearsAgoISODate(years: number): string {
   d.setFullYear(d.getFullYear() - years);
   return d.toISOString().slice(0, 10);
 }
-
-const STORE_LABELS: Record<string, string> = {
-  unity: "Unity Asset Store",
-  sketchfab: "Sketchfab",
-  itch: "itch.io",
-  generic: "Other",
-};
 
 export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
   const [search, setSearch] = useSearchParams();
@@ -144,7 +137,7 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
             {facets.stores.map((st) => (
               <li key={st.value}>
                 <FilterRow
-                  label={STORE_LABELS[st.value] ?? st.value}
+                  label={storeLabel(st.value)}
                   count={st.count}
                   active={filters.store === st.value}
                   onClick={() => setParam("store", filters.store === st.value ? null : st.value)}

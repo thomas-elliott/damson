@@ -71,10 +71,10 @@ func itchInfoRows(body []byte) []itchRow {
 	if err != nil {
 		return nil
 	}
-	// Scope to the info panel. A whole-document walk also harvests the
-	// "More information" disclosure wrapper — whose two child divs make it look
-	// like a row with the entire table as its value — and the community
-	// discussion list, whose post entries use the same two-div shape.
+	// Scope to the info panel. A whole-document walk also matches the "More
+	// information" disclosure wrapper, whose two child divs carry the entire
+	// table as one value, and the community post list, which uses the same
+	// two-div shape.
 	root := itchInfoPanel(doc)
 	if root == nil {
 		root = doc
@@ -130,8 +130,8 @@ func itchInfoPanel(n *html.Node) *html.Node {
 	return nil
 }
 
-// itchMaxLabelLen keeps prose blocks that happen to sit in a two-div layout from
-// being mistaken for info rows — real labels are short ("Made with", "Platforms").
+// itchMaxLabelLen rejects prose blocks laid out as two divs. Real labels are
+// short ("Made with", "Platforms").
 const itchMaxLabelLen = 24
 
 // itchApplyRows maps the harvested rows onto typed fields where they fit, and
@@ -328,11 +328,19 @@ func firstHref(n *html.Node) string {
 }
 
 // spdxFromLabel maps a human licence label ("Creative Commons Attribution
-// v4.0", "CC0", "MIT License") to an SPDX id where confident.
+// v4.0", "CC0", "MIT License") to an SPDX id where confident. Returns "" when
+// there's no confident mapping — the caller keeps the raw label as a hint.
 func spdxFromLabel(label string) string {
 	l := strings.ToLower(label)
 	switch {
-	case strings.Contains(l, "cc0") || strings.Contains(l, "public domain"):
+	// NoDerivatives has no id in the detector's attribute table, and it also
+	// contains "attribution", so without this guard it would fall through to
+	// CC-BY-4.0 — which grants modification the licence forbids.
+	case strings.Contains(l, "noderivative"), strings.Contains(l, "no derivative"):
+		return ""
+	case strings.Contains(l, "cc0"),
+		strings.Contains(l, "creative commons zero"),
+		strings.Contains(l, "public domain"):
 		return "CC0-1.0"
 	case strings.Contains(l, "attribution") && strings.Contains(l, "noncommercial") && strings.Contains(l, "sharealike"):
 		return "CC-BY-NC-SA-4.0"
