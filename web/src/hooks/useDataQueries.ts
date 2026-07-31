@@ -846,3 +846,34 @@ export function useServerSettings(enabled: boolean = true) {
     reload: q.refetch,
   };
 }
+
+// -- /api/me/tokens ---------------------------------------------------------
+
+export interface ApiToken {
+  id: number;
+  label: string;
+  prefix: string;
+  scope: "read" | "write";
+  library_id: number;
+  library_name?: string;
+  created_at: string;
+  last_used_at?: string | null;
+  expires_at?: string | null;
+  revoked_at?: string | null;
+}
+
+export function useApiTokens(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.apiTokens,
+    queryFn: () => fetchJson<{ tokens: ApiToken[] }>(`/api/me/tokens`),
+    staleTime: 30 * 1000,
+    gcTime: 5 * MINUTE,
+    enabled,
+  });
+  return {
+    data: q.data?.tokens ?? [],
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
+}
