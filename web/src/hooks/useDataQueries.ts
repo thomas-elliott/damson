@@ -98,6 +98,8 @@ export interface AssetRow {
   licence_spdx?: string;
   licence_status?: LicenceStatus;
   package_kind?: string;
+  publisher?: string;
+  released_at?: string;
 }
 
 interface AssetListResponse {
@@ -116,6 +118,24 @@ export interface AssetFilters {
   source_host?: string;
   needs_review?: boolean;
   package_kind?: string;
+  publisher?: string;
+  store?: string;
+  released_after?: string;
+  sort?: AssetSort;
+}
+
+export type AssetSort =
+  "created_desc" | "created_asc" | "released_desc" | "released_asc" | "name_asc";
+
+export interface AssetFacet {
+  value: string;
+  count: number;
+}
+
+export interface AssetFacetsView {
+  publishers: AssetFacet[];
+  stores: AssetFacet[];
+  engines: AssetFacet[];
 }
 
 function filtersToQuery(f: AssetFilters | undefined): string {
@@ -354,6 +374,22 @@ export interface TagView {
   path: string;
   parent_id?: number;
   asset_count: number;
+}
+
+export function useAssetFacets(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.assetFacets,
+    queryFn: () => fetchJson<AssetFacetsView>("/api/assets/facets"),
+    staleTime: 5 * MINUTE,
+    gcTime: 1 * HOUR,
+    enabled,
+  });
+  return {
+    data: q.data ?? { publishers: [], stores: [], engines: [] },
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
 }
 
 export function useTags(enabled: boolean = true) {
