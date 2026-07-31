@@ -279,13 +279,13 @@ func TestUnityHumanSize(t *testing.T) {
 	}
 }
 
-func TestUnityParseTime(t *testing.T) {
-	if got := unityParseTime("2020-02-11T09:47:13Z"); got == nil || got.Year() != 2020 {
+func TestParseTimestamp(t *testing.T) {
+	if got := parseTimestamp("2020-02-11T09:47:13Z"); got == nil || got.Year() != 2020 {
 		t.Fatalf("unityParseTime = %v", got)
 	}
 	for _, in := range []string{"", "   ", "not a date", "11/02/2020"} {
-		if got := unityParseTime(in); got != nil {
-			t.Fatalf("unityParseTime(%q) = %v, want nil", in, got)
+		if got := parseTimestamp(in); got != nil {
+			t.Fatalf("parseTimestamp(%q) = %v, want nil", in, got)
 		}
 	}
 }
