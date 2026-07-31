@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -98,9 +100,90 @@ func ParseHTML(data []byte, pageURL string) *Metadata {
 		m.Price = price
 		m.Currency = currency
 		m.LicenceHint = stringField(product, "license")
+		m.PublisherURL = resolveURL(pageURL, publisherURLField(product))
+		m.ReleasedAt = parseTimestamp(stringField(product, "datePublished"))
+		m.StoreUpdatedAt = parseTimestamp(stringField(product, "dateModified"))
+		m.Rating, m.RatingCount = aggregateRating(product)
+	}
+	if m.ReleasedAt == nil {
+		m.ReleasedAt = parseTimestamp(firstNonEmpty(metaTags["article:published_time"], metaTags["og:article:published_time"]))
 	}
 	m.Tags = dedupeTags(append(keywordsField(product), metaKeywords(metaTags)...))
 	return m
+}
+
+// publisherURLField reads the URL of the JSON-LD brand or offer seller, so a
+// generic listing still links out to whoever made the asset.
+func publisherURLField(product map[string]any) string {
+	for _, node := range []any{product["brand"], product["offers"], product["publisher"], product["author"]} {
+		switch v := node.(type) {
+		case map[string]any:
+			if u := stringOf(v["url"]); u != "" {
+				return u
+			}
+			if seller, ok := v["seller"].(map[string]any); ok {
+				if u := stringOf(seller["url"]); u != "" {
+					return u
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// aggregateRating reads a JSON-LD aggregateRating node. Both members arrive as
+// either a number or a numeric string depending on the site.
+func aggregateRating(product map[string]any) (float64, int) {
+	node, ok := product["aggregateRating"].(map[string]any)
+	if !ok {
+		return 0, 0
+	}
+	return numberOf(node["ratingValue"]), int(numberOf(node["ratingCount"]))
+}
+
+// numberOf reads a JSON value that may be a number or a numeric string.
+func numberOf(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case string:
+		f, err := strconv.ParseFloat(strings.TrimSpace(t), 64)
+		if err != nil {
+			return 0
+		}
+		return f
+	}
+	return 0
+}
+
+// timestampLayouts covers the shapes the stores use: RFC 3339, the naive
+// local-time form Sketchfab returns, plain dates, and itch's "@"-separated
+// abbr title. A fractional second is accepted even where the layout omits it.
+var timestampLayouts = []string{
+	time.RFC3339,
+	"2006-01-02T15:04:05",
+	"2006-01-02",
+	"2 January 2006 @ 15:04 MST",
+	"2 January 2006 @ 15:04",
+	"2 January 2006",
+	"January 2, 2006",
+}
+
+// parseTimestamp reads a store timestamp in any of the layouts the adapters
+// encounter. Returns nil for a blank or unparseable value, so an absent date
+// stays absent rather than becoming the zero time.
+func parseTimestamp(s string) *time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	for _, layout := range timestampLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			utc := t.UTC()
+			return &utc
+		}
+	}
+	return nil
 }
 
 // keywordsField reads a JSON-LD "keywords" value, which may be a

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -62,7 +63,10 @@ func parseSketchfabModel(body []byte, listingURL string) (*Metadata, error) {
 	}
 	if user, ok := doc["user"].(map[string]any); ok {
 		m.Publisher = firstNonEmpty(stringOf(user["displayName"]), stringOf(user["username"]))
+		m.PublisherURL = stringOf(user["profileUrl"])
 	}
+	m.ReleasedAt = parseTimestamp(firstNonEmpty(stringOf(doc["publishedAt"]), stringOf(doc["createdAt"])))
+	m.StoreUpdatedAt = parseTimestamp(stringOf(doc["updatedAt"]))
 	if lic, ok := doc["license"].(map[string]any); ok {
 		label := firstNonEmpty(stringOf(lic["fullName"]), stringOf(lic["label"]))
 		slug := stringOf(lic["slug"])
@@ -74,7 +78,74 @@ func parseSketchfabModel(body []byte, listingURL string) (*Metadata, error) {
 	}
 	m.CoverURL = sketchfabCover(doc)
 	m.Tags = dedupeTags(append(sketchfabNames(doc["tags"]), sketchfabNames(doc["categories"])...))
+	m.CategoryPath = sketchfabCategoryPath(doc)
+	sketchfabAttributes(m, doc)
 	return m, nil
+}
+
+// sketchfabCategoryPath uses the model's first category as its path. Sketchfab
+// categories are flat, so the path is a single segment.
+func sketchfabCategoryPath(doc map[string]any) string {
+	names := sketchfabNames(doc["categories"])
+	if len(names) == 0 {
+		return ""
+	}
+	return names[0]
+}
+
+// sketchfabAttributes records the geometry and engagement counts the Data API
+// exposes, in the order the spec sheet should render them.
+func sketchfabAttributes(m *Metadata, doc map[string]any) {
+	for _, a := range []struct{ key, label, field string }{
+		{"vertex_count", "Vertices", "vertexCount"},
+		{"face_count", "Faces", "faceCount"},
+		{"material_count", "Materials", "materialCount"},
+		{"texture_count", "Textures", "textureCount"},
+		{"animation_count", "Animations", "animationCount"},
+		{"sound_count", "Sounds", "soundCount"},
+	} {
+		if n := numberOf(doc[a.field]); n > 0 {
+			m.AddAttribute(a.key, a.label, formatCount(n))
+		}
+	}
+	if v, ok := doc["isDownloadable"].(bool); ok {
+		m.AddAttribute("downloadable", "Downloadable", yesNo(v))
+	}
+	for _, a := range []struct{ key, label, field string }{
+		{"view_count", "Views", "viewCount"},
+		{"like_count", "Likes", "likeCount"},
+		{"download_count", "Downloads", "downloadCount"},
+	} {
+		if n := numberOf(doc[a.field]); n > 0 {
+			m.AddAttribute(a.key, a.label, formatCount(n))
+		}
+	}
+	if lic, ok := doc["license"].(map[string]any); ok {
+		m.AddAttribute("licence_requirements", "Licence requirements", stringOf(lic["requirements"]))
+	}
+}
+
+// formatCount renders a whole-number count with thousands separators.
+func formatCount(n float64) string {
+	s := strconv.FormatInt(int64(n), 10)
+	if len(s) <= 3 {
+		return s
+	}
+	var out []byte
+	for i, c := range []byte(s) {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			out = append(out, ',')
+		}
+		out = append(out, c)
+	}
+	return string(out)
+}
+
+func yesNo(v bool) string {
+	if v {
+		return "Yes"
+	}
+	return "No"
 }
 
 // sketchfabNames extracts the "name" of each object in a Sketchfab array field

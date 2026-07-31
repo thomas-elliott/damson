@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -31,33 +32,60 @@ func (ItchAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*M
 	if m.ListingURL == "" {
 		m.ListingURL = resp.FinalURL
 	}
-	if label, href := itchLicence(resp.Body); label != "" {
+	rows := itchInfoRows(resp.Body)
+	if label, href := itchLicenceFromRows(rows); label != "" {
 		if spdx := firstNonEmpty(spdxFromLicenceURL(href), spdxFromLabel(label)); spdx != "" {
 			m.LicenceHint = spdx
 		} else if m.LicenceHint == "" {
 			m.LicenceHint = label
 		}
 	}
-	m.Tags = dedupeTags(append(m.Tags, itchTags(resp.Body)...))
+	m.Tags = dedupeTags(append(m.Tags, itchTagsFromRows(rows)...))
+	itchApplyRows(m, rows, resp.FinalURL)
 	return m, nil
 }
 
-// itchTags reads the "Tags" and "Genre" rows of the info table, collecting the
-// anchor texts itch renders one link per tag.
-func itchTags(body []byte) []string {
+// itchRow is one label/value pair of the "More information" table. Date rows
+// render as relative text ("14 days ago") with the real timestamp in the
+// abbr title, so both are captured.
+type itchRow struct {
+	Label     string
+	Value     string
+	Href      string
+	AbbrTitle string
+	Anchors   []string
+}
+
+// itchInfoRowLabels maps a row label to the typed field it fills. Everything
+// else becomes a spec-sheet attribute.
+var itchTypedRowLabels = map[string]bool{
+	"author": true, "published": true, "release date": true, "updated": true,
+	"tags": true, "genre": true, "rating": true,
+}
+
+// itchInfoRows walks the listing once and returns every label/value row of the
+// info table, in page order. It replaces the per-field walkers that each parsed
+// the whole document again.
+func itchInfoRows(body []byte) []itchRow {
 	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil
 	}
-	var tags []string
+	var rows []itchRow
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && (n.Data == "tr" || n.Data == "div") {
 			cells := childCells(n)
 			if len(cells) >= 2 {
-				key := strings.ToLower(strings.TrimSpace(textOf(cells[0])))
-				if strings.Contains(key, "tags") || strings.Contains(key, "genre") {
-					tags = append(tags, anchorTexts(cells[1])...)
+				label := strings.ToLower(strings.TrimSpace(textOf(cells[0])))
+				if label != "" && len(label) <= itchMaxLabelLen {
+					rows = append(rows, itchRow{
+						Label:     label,
+						Value:     strings.TrimSpace(textOf(cells[1])),
+						Href:      firstHref(cells[1]),
+						AbbrTitle: firstAbbrTitle(cells[1]),
+						Anchors:   anchorTexts(cells[1]),
+					})
 				}
 			}
 		}
@@ -66,7 +94,130 @@ func itchTags(body []byte) []string {
 		}
 	}
 	walk(doc)
+	return rows
+}
+
+// itchMaxLabelLen keeps prose blocks that happen to sit in a two-div layout from
+// being mistaken for info rows — real labels are short ("Made with", "Platforms").
+const itchMaxLabelLen = 24
+
+// itchApplyRows maps the harvested rows onto typed fields where they fit, and
+// records the rest as spec-sheet attributes in page order.
+func itchApplyRows(m *Metadata, rows []itchRow, pageURL string) {
+	for _, r := range rows {
+		switch {
+		case r.Label == "author" || r.Label == "publisher":
+			if m.Publisher == "" || m.Publisher == "itch.io" {
+				m.Publisher = r.Value
+			}
+			if u := resolveURL(pageURL, r.Href); u != "" {
+				m.PublisherURL = u
+			}
+		case r.Label == "published" || r.Label == "release date":
+			if t := itchRowTime(r); t != nil {
+				m.ReleasedAt = t
+			}
+		case r.Label == "updated":
+			if t := itchRowTime(r); t != nil {
+				m.StoreUpdatedAt = t
+			}
+		case itchTypedRowLabels[r.Label],
+			strings.Contains(r.Label, "license"), strings.Contains(r.Label, "licence"),
+			strings.Contains(r.Label, "tags"), strings.Contains(r.Label, "genre"):
+			// Handled elsewhere: tags and genre feed Tags, the licence row feeds
+			// LicenceHint, and rating comes from the page's JSON-LD
+			// aggregateRating.
+		default:
+			m.AddAttribute(itchAttributeKey(r.Label), itchAttributeLabel(r.Label), r.Value)
+		}
+	}
+}
+
+// itchRowTime prefers the abbr title's absolute timestamp over the row's
+// relative text ("14 days ago"), which carries no usable date.
+func itchRowTime(r itchRow) *time.Time {
+	if t := parseTimestamp(strings.TrimSuffix(strings.TrimSpace(r.AbbrTitle), " UTC")); t != nil {
+		return t
+	}
+	return parseTimestamp(r.Value)
+}
+
+// itchAttributeKey turns a row label into a stable snake_case attribute key.
+func itchAttributeKey(label string) string {
+	var sb strings.Builder
+	prevUnderscore := false
+	for _, r := range label {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			sb.WriteRune(r)
+			prevUnderscore = false
+		default:
+			if !prevUnderscore && sb.Len() > 0 {
+				sb.WriteByte('_')
+				prevUnderscore = true
+			}
+		}
+	}
+	return strings.Trim(sb.String(), "_")
+}
+
+// itchAttributeLabel restores the row label's display casing, which itchInfoRows
+// lowercased for matching.
+func itchAttributeLabel(label string) string {
+	if label == "" {
+		return ""
+	}
+	return strings.ToUpper(label[:1]) + label[1:]
+}
+
+func itchLicenceFromRows(rows []itchRow) (label, href string) {
+	for _, r := range rows {
+		if strings.Contains(r.Label, "license") || strings.Contains(r.Label, "licence") {
+			return r.Value, r.Href
+		}
+	}
+	return "", ""
+}
+
+func itchTagsFromRows(rows []itchRow) []string {
+	var tags []string
+	for _, r := range rows {
+		if strings.Contains(r.Label, "tags") || strings.Contains(r.Label, "genre") {
+			tags = append(tags, r.Anchors...)
+		}
+	}
 	return tags
+}
+
+// itchTags reads the "Tags" and "Genre" rows of the info table, collecting the
+// anchor texts itch renders one link per tag.
+func itchTags(body []byte) []string {
+	return itchTagsFromRows(itchInfoRows(body))
+}
+
+// firstAbbrTitle returns the title attribute of the first abbr descendant —
+// where itch keeps the absolute timestamp behind its relative date text.
+func firstAbbrTitle(n *html.Node) string {
+	var title string
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		if title != "" {
+			return
+		}
+		if node.Type == html.ElementNode && node.Data == "abbr" {
+			for _, a := range node.Attr {
+				if a.Key == "title" {
+					title = a.Val
+					return
+				}
+			}
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(n)
+	return title
 }
 
 // anchorTexts returns the trimmed text of every anchor descendant of n.
@@ -90,34 +241,7 @@ func anchorTexts(n *html.Node) []string {
 // itchLicence scans the info table for the "Asset license" (or "License") row
 // and returns its label text and any anchor href.
 func itchLicence(body []byte) (label, href string) {
-	doc, err := html.Parse(bytes.NewReader(body))
-	if err != nil {
-		return "", ""
-	}
-	var found bool
-	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if found {
-			return
-		}
-		if n.Type == html.ElementNode && (n.Data == "tr" || n.Data == "div") {
-			cells := childCells(n)
-			if len(cells) >= 2 {
-				key := strings.ToLower(strings.TrimSpace(textOf(cells[0])))
-				if strings.Contains(key, "license") || strings.Contains(key, "licence") {
-					label = strings.TrimSpace(textOf(cells[1]))
-					href = firstHref(cells[1])
-					found = true
-					return
-				}
-			}
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
-		}
-	}
-	walk(doc)
-	return label, href
+	return itchLicenceFromRows(itchInfoRows(body))
 }
 
 // childCells returns the direct td/div children of a row-like node — the
