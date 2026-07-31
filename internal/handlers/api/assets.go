@@ -23,16 +23,18 @@ import (
 )
 
 type assetGridRow struct {
-	ID                 uint      `json:"id"`
-	Name               string    `json:"name"`
-	FileCount          int       `json:"file_count"`
-	SizeBytes          int64     `json:"size_bytes"`
-	NeedsReview        bool      `json:"needs_review"`
-	CreatedAt          time.Time `json:"created_at"`
-	ThumbnailObjectKey string    `json:"thumbnail_object_key,omitempty"`
-	LicenceSPDX        string    `json:"licence_spdx,omitempty"`
-	LicenceStatus      string    `json:"licence_status,omitempty"`
-	PackageKind        string    `json:"package_kind,omitempty"`
+	ID                 uint       `json:"id"`
+	Name               string     `json:"name"`
+	FileCount          int        `json:"file_count"`
+	SizeBytes          int64      `json:"size_bytes"`
+	NeedsReview        bool       `json:"needs_review"`
+	CreatedAt          time.Time  `json:"created_at"`
+	ThumbnailObjectKey string     `json:"thumbnail_object_key,omitempty"`
+	LicenceSPDX        string     `json:"licence_spdx,omitempty"`
+	LicenceStatus      string     `json:"licence_status,omitempty"`
+	PackageKind        string     `json:"package_kind,omitempty"`
+	Publisher          string     `json:"publisher,omitempty"`
+	ReleasedAt         *time.Time `json:"released_at,omitempty"`
 }
 
 type assetListResponse struct {
@@ -66,6 +68,32 @@ type assetListFilters struct {
 	SourceHost    string // exact-match host portion of source_url
 	NeedsReview   *bool  // unreviewed-only when true
 	PackageKind   string
+	Publisher     string     // exact publisher match
+	Store         string     // exact store match
+	ReleasedAfter *time.Time // released_at >= this instant
+	Sort          string     // created_desc (default) | released_desc | released_asc | name_asc
+}
+
+// assetSortColumns maps the sort query values to their ORDER BY clause. Only
+// these values are accepted, so the clause is never built from user input.
+// Release-date sorts put assets with no release date last either way.
+var assetSortColumns = map[string]string{
+	"created_desc":  "a.created_at DESC",
+	"created_asc":   "a.created_at ASC",
+	"released_desc": "a.released_at DESC NULLS LAST",
+	"released_asc":  "a.released_at ASC NULLS LAST",
+	"name_asc":      "a.name ASC",
+}
+
+const defaultAssetSort = "created_desc"
+
+// assetOrderClause resolves a sort value, falling back to the default for
+// anything unrecognised.
+func assetOrderClause(sort string) string {
+	if clause, ok := assetSortColumns[sort]; ok {
+		return clause
+	}
+	return assetSortColumns[defaultAssetSort]
 }
 
 func parseAssetFilters(c *gin.Context) assetListFilters {
@@ -76,6 +104,18 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 		LicenceSPDX:   strings.TrimSpace(c.Query("licence_spdx")),
 		SourceHost:    strings.TrimSpace(c.Query("source_host")),
 		PackageKind:   strings.TrimSpace(c.Query("package_kind")),
+		Publisher:     strings.TrimSpace(c.Query("publisher")),
+		Store:         strings.TrimSpace(c.Query("store")),
+		Sort:          strings.TrimSpace(c.Query("sort")),
+	}
+	if s := strings.TrimSpace(c.Query("released_after")); s != "" {
+		for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+			if t, err := time.Parse(layout, s); err == nil {
+				utc := t.UTC()
+				f.ReleasedAfter = &utc
+				break
+			}
+		}
 	}
 	if s := c.Query("tag_id"); s != "" {
 		if n, err := strconv.ParseUint(s, 10, 64); err == nil && n > 0 {
@@ -127,6 +167,15 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 		// refinement. Escape `%` and `_` so user input doesn't become
 		// an unintended wildcard. ESCAPE clause works on Postgres + SQLite.
 		q = q.Where(`a.source_url LIKE ? ESCAPE '\'`, "%"+escapeLikePattern(f.SourceHost)+"%")
+	}
+	if f.Publisher != "" {
+		q = q.Where("a.publisher = ?", f.Publisher)
+	}
+	if f.Store != "" {
+		q = q.Where("a.store = ?", f.Store)
+	}
+	if f.ReleasedAfter != nil {
+		q = q.Where("a.released_at >= ?", *f.ReleasedAfter)
 	}
 	if f.LicenceSPDX != "" || f.LicenceStatus != "" {
 		q = q.Joins("LEFT JOIN licences l ON l.id = a.licence_id")
@@ -215,6 +264,8 @@ func (h *Handler) getAssets(c *gin.Context) {
 		SizeBytes          int64
 		PackageKind        string
 		LicenceSPDX        string
+		Publisher          *string
+		ReleasedAt         *time.Time
 	}
 	var rows []row
 	err := base.Session(&gorm.Session{}).
@@ -224,6 +275,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		// dedup-by-value silently undercounted whenever two files shared a size.
 		// Subqueries are immune to both.
 		Select(`a.id, a.name, a.needs_review, a.created_at, a.thumbnail_object_key,
+			a.publisher, a.released_at,
 			COALESCE((SELECT COUNT(*) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS file_count,
 			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS size_bytes,
 			COALESCE(cv2.package_kind, '') AS package_kind,
@@ -231,7 +283,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		Joins("LEFT JOIN asset_versions cv2 ON cv2.id = a.current_version_id").
 		Joins("LEFT JOIN licences l2 ON l2.id = a.licence_id").
 		Group("a.id, cv2.package_kind, l2.detected_type").
-		Order("a.created_at DESC").
+		Order(assetOrderClause(f.Sort)).
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows).Error
@@ -256,6 +308,8 @@ func (h *Handler) getAssets(c *gin.Context) {
 			PackageKind:        r.PackageKind,
 			LicenceSPDX:        r.LicenceSPDX,
 			LicenceStatus:      status,
+			Publisher:          derefString(r.Publisher),
+			ReleasedAt:         r.ReleasedAt,
 		})
 	}
 

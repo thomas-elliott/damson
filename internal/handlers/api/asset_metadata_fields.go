@@ -2,9 +2,12 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/thomas-elliott/damson/internal/models"
 )
@@ -64,14 +67,6 @@ type assetMetadataFieldsPatch struct {
 	PriceCurrency      *string `json:"price_currency,omitempty"`
 	Rating             *string `json:"rating,omitempty"`
 	RatingCount        *string `json:"rating_count,omitempty"`
-}
-
-// assetMetadataColumns lists the columns this patch owns, in response order.
-var assetMetadataColumns = []string{
-	"publisher", "publisher_url", "store", "store_product_id",
-	"released_at", "store_updated_at", "latest_store_version",
-	"engine", "min_engine_version", "price", "price_currency",
-	"rating", "rating_count",
 }
 
 // apply validates the patch and writes its set fields into updates/before,
@@ -204,4 +199,64 @@ func derefString(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// assetFacet is one distinct value of a filterable metadata column, with the
+// number of assets carrying it, so the sidebar can show counts the way the tag
+// and project facets already do.
+type assetFacet struct {
+	Value string `json:"value"`
+	Count int64  `json:"count"`
+}
+
+type assetFacetsResponse struct {
+	Publishers []assetFacet `json:"publishers"`
+	Stores     []assetFacet `json:"stores"`
+	Engines    []assetFacet `json:"engines"`
+}
+
+// assetFacetLimit caps each facet list. A library can accumulate a long tail of
+// one-asset publishers; the sidebar shows the ones worth clicking and search
+// covers the rest (publisher is in the search vector).
+const assetFacetLimit = 50
+
+// getAssetFacets returns the distinct publisher, store and engine values in the
+// current library. Read-only and library-scoped.
+func (h *Handler) getAssetFacets(c *gin.Context) {
+	lib := getLibrary(c)
+	if lib == nil {
+		respond500(c, errRequestContextIncomplete)
+		return
+	}
+	out := assetFacetsResponse{
+		Publishers: []assetFacet{},
+		Stores:     []assetFacet{},
+		Engines:    []assetFacet{},
+	}
+	for _, f := range []struct {
+		column string
+		into   *[]assetFacet
+	}{
+		{"publisher", &out.Publishers},
+		{"store", &out.Stores},
+		{"engine", &out.Engines},
+	} {
+		var rows []assetFacet
+		err := h.db.WithContext(c.Request.Context()).
+			Table("assets").
+			Select(f.column+" AS value, COUNT(*) AS count").
+			Where("library_id = ? AND "+f.column+" IS NOT NULL AND "+f.column+" <> ''", lib.ID).
+			Group(f.column).
+			Order("count DESC, value ASC").
+			Limit(assetFacetLimit).
+			Scan(&rows).Error
+		if err != nil {
+			respond500(c, err)
+			return
+		}
+		if rows != nil {
+			*f.into = rows
+		}
+	}
+	c.JSON(http.StatusOK, out)
 }

@@ -34,6 +34,21 @@ export function usePatchAsset() {
       name?: string;
       description?: string;
       source_url?: string;
+      // Storefront fields are all sent as strings: an empty string clears the
+      // column, which a typed nullable field cannot express over JSON.
+      publisher?: string;
+      publisher_url?: string;
+      store?: string;
+      store_product_id?: string;
+      released_at?: string;
+      store_updated_at?: string;
+      latest_store_version?: string;
+      engine?: string;
+      min_engine_version?: string;
+      price?: string;
+      price_currency?: string;
+      rating?: string;
+      rating_count?: string;
     }) => {
       const { id, ...body } = input;
       return fetchJson<{ id: number; name: string }>(`/api/assets/${id}`, {
@@ -44,6 +59,8 @@ export function usePatchAsset() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: queryKeys.asset(v.id) });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      // Editing a publisher or store changes what the sidebar facets offer.
+      qc.invalidateQueries({ queryKey: queryKeys.assetFacets });
     },
   });
 }
