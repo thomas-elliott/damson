@@ -63,6 +63,7 @@ import {
   useReviewLicence,
 } from "@/hooks/useMutations";
 
+import { DetailsSection } from "./DetailsSection";
 import { LicenceEditor } from "./LicenceEditor";
 import { MergeDialog } from "./MergeDialog";
 import { EnrichmentReview, MetadataActions } from "./MetadataActions";
@@ -279,6 +280,8 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       <AssetGallery images={asset.images} />
 
       <OverviewSection asset={asset} />
+
+      <DetailsSection asset={asset} />
 
       {/* Tags */}
       <Section title="Tags" accessory={`${asset.tags.length}`} defaultOpen>

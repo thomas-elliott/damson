@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
@@ -506,5 +507,132 @@ func assertContains(t *testing.T, got []string, want ...string) {
 		if !set[w] {
 			t.Errorf("expected applied to contain %q; got %v", w, got)
 		}
+	}
+}
+
+func TestMetadataFetch_FillsAndConflictsOnStorefrontFields(t *testing.T) {
+	released := time.Date(2020, 2, 11, 9, 47, 13, 0, time.UTC)
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{
+		Store:        metadata.StoreUnity,
+		Title:        "tree",
+		Publisher:    "JustCreate",
+		PublisherURL: "https://justcreate3d.studio/",
+		StoreID:      "162153",
+		Engine:       "unity",
+		ReleasedAt:   &released,
+		Rating:       4.85,
+		RatingCount:  126,
+		CategoryPath: "3d/environments/landscapes",
+		ListingURL:   "https://assetstore.unity.com/packages/package/162153",
+	}}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "tree")
+
+	// A hand-set publisher must not be silently replaced.
+	handEdited := "Hand Edited Studio"
+	if err := db.Model(asset).Update("publisher", &handEdited).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch",
+		map[string]any{"url": "https://assetstore.unity.com/packages/package/162153"})
+	requireStatus(t, w, http.StatusOK)
+	resp := jsonResponse[metadataFetchResponse](t, w)
+
+	assertContains(t, resp.Applied, "store", "store_product_id", "engine", "released_at", "rating", "rating_count", "tags")
+	var publisherConflict *metadataConflict
+	for i := range resp.Conflicts {
+		if resp.Conflicts[i].Field == "publisher" {
+			publisherConflict = &resp.Conflicts[i]
+		}
+	}
+	if publisherConflict == nil {
+		t.Fatalf("no publisher conflict reported: %+v", resp.Conflicts)
+	}
+	if publisherConflict.Current != handEdited || publisherConflict.Proposed != "JustCreate" {
+		t.Fatalf("publisher conflict = %+v", *publisherConflict)
+	}
+
+	var refreshed models.Asset
+	if err := db.First(&refreshed, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Publisher == nil || *refreshed.Publisher != handEdited {
+		t.Fatalf("publisher = %v, want the hand-edited value kept", refreshed.Publisher)
+	}
+	if refreshed.Store == nil || *refreshed.Store != metadata.StoreUnity {
+		t.Fatalf("store = %v", refreshed.Store)
+	}
+	if refreshed.Rating == nil || *refreshed.Rating != 4.85 {
+		t.Fatalf("rating = %v", refreshed.Rating)
+	}
+	if refreshed.ReleasedAt == nil || !refreshed.ReleasedAt.Equal(released) {
+		t.Fatalf("released_at = %v", refreshed.ReleasedAt)
+	}
+
+	// The category arrives as one hierarchical tag path, not three flat tags.
+	var paths []string
+	if err := db.Table("tags t").
+		Joins("JOIN asset_tags at ON at.tag_id = t.id").
+		Where("at.asset_id = ?", asset.ID).
+		Pluck("t.path", &paths).Error; err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range paths {
+		if p == "3d/environments/landscapes" {
+			found = true
+		}
+		if strings.Contains(p, ">") {
+			t.Errorf("tag path %q carries category arrow separators", p)
+		}
+	}
+	if !found {
+		t.Fatalf("category path not attached as a tag: %v", paths)
+	}
+}
+
+// Confirming a conflicted storefront field overwrites it and audits the change.
+func TestMetadataApply_ConfirmsStorefrontField(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{
+		Store:      metadata.StoreUnity,
+		Title:      "tree",
+		Publisher:  "JustCreate",
+		ListingURL: "https://assetstore.unity.com/packages/package/162153",
+	}}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "tree")
+	handEdited := "Hand Edited Studio"
+	if err := db.Model(asset).Update("publisher", &handEdited).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch",
+		map[string]any{"url": "https://assetstore.unity.com/packages/package/162153"}), http.StatusOK)
+
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/apply",
+		map[string]any{"fields": []string{"publisher"}})
+	requireStatus(t, w, http.StatusOK)
+
+	var refreshed models.Asset
+	if err := db.First(&refreshed, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Publisher == nil || *refreshed.Publisher != "JustCreate" {
+		t.Fatalf("publisher = %v, want the confirmed overwrite", refreshed.Publisher)
+	}
+	var entry models.AuditLog
+	if err := db.Where("action_type = ?", "asset.metadata.apply").
+		Order("id DESC").First(&entry).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(entry.DiffJSON), handEdited) {
+		t.Fatalf("audit diff does not record the previous publisher: %s", entry.DiffJSON)
 	}
 }

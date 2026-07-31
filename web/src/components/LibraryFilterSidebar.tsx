@@ -3,12 +3,14 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { FilterSidebar, Section, StatusDot } from "@/design-system";
 import {
+  useAssetFacets,
   useProjects,
   useTags,
   type AssetFilters,
   type LicenceStatus,
   type TagView,
 } from "@/hooks/useDataQueries";
+import { storeLabel } from "@/lib/stores";
 
 const LICENCE_STATUSES: { value: LicenceStatus; label: string }[] = [
   { value: "ok", label: "Compliant" },
@@ -23,10 +25,25 @@ const PACKAGE_KINDS: { value: string; label: string }[] = [
   { value: "zip", label: "Zip archive" },
 ];
 
+// Boundaries resolve when clicked, so a long-lived session never pins a stale
+// date.
+const RELEASED_AFTER_PRESETS: { years: number; label: string }[] = [
+  { years: 1, label: "Last year" },
+  { years: 2, label: "Last 2 years" },
+  { years: 5, label: "Last 5 years" },
+];
+
+function yearsAgoISODate(years: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  return d.toISOString().slice(0, 10);
+}
+
 export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
   const [search, setSearch] = useSearchParams();
   const { data: tags } = useTags();
   const { data: projects } = useProjects();
+  const { data: facets } = useAssetFacets();
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(search);
@@ -87,6 +104,78 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
             </li>
           ))}
         </ul>
+      </Section>
+
+      <Section title="Publisher" defaultOpen={false}>
+        {facets.publishers.length === 0 ? (
+          <div className="text-small text-text-4">
+            No publishers yet — fetch storefront metadata for an asset
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-0.5">
+            {facets.publishers.map((p) => (
+              <li key={p.value}>
+                <FilterRow
+                  label={p.value}
+                  count={p.count}
+                  active={filters.publisher === p.value}
+                  onClick={() =>
+                    setParam("publisher", filters.publisher === p.value ? null : p.value)
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section title="Store" defaultOpen={false}>
+        {facets.stores.length === 0 ? (
+          <div className="text-small text-text-4">No stores yet</div>
+        ) : (
+          <ul className="flex flex-col gap-0.5">
+            {facets.stores.map((st) => (
+              <li key={st.value}>
+                <FilterRow
+                  label={storeLabel(st.value)}
+                  count={st.count}
+                  active={filters.store === st.value}
+                  onClick={() => setParam("store", filters.store === st.value ? null : st.value)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section title="Released" defaultOpen={false}>
+        <ul className="flex flex-col gap-0.5">
+          {RELEASED_AFTER_PRESETS.map((p) => {
+            const boundary = yearsAgoISODate(p.years);
+            return (
+              <li key={p.years}>
+                <FilterRow
+                  label={p.label}
+                  active={filters.released_after === boundary}
+                  onClick={() =>
+                    setParam(
+                      "released_after",
+                      filters.released_after === boundary ? null : boundary,
+                    )
+                  }
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
+
+      <Section title="Updates" defaultOpen={false}>
+        <FilterRow
+          label="Updates available"
+          active={!!filters.updates_available}
+          onClick={() => setParam("updates_available", filters.updates_available ? null : "true")}
+        />
       </Section>
 
       <Section title="Needs review" defaultOpen={false}>
