@@ -1,4 +1,12 @@
-import type { AssetFilters, LicenceStatus } from "@/hooks/useDataQueries";
+import type { AssetFilters, AssetSort, LicenceStatus } from "@/hooks/useDataQueries";
+
+const ASSET_SORTS: AssetSort[] = [
+  "created_desc",
+  "created_asc",
+  "released_desc",
+  "released_asc",
+  "name_asc",
+];
 
 export const FILTERS_OPEN_KEY = "damson.library.filters";
 
@@ -18,14 +26,23 @@ export function parseAssetFilters(search: URLSearchParams): AssetFilters {
   if (Number.isInteger(project) && project > 0) f.project_id = project;
   const needsReview = search.get("needs_review");
   if (needsReview === "true") f.needs_review = true;
+  const publisher = search.get("publisher");
+  if (publisher) f.publisher = publisher;
+  const store = search.get("store");
+  if (store) f.store = store;
+  const releasedAfter = search.get("released_after");
+  if (releasedAfter) f.released_after = releasedAfter;
+  const sort = search.get("sort");
+  if (sort && (ASSET_SORTS as string[]).includes(sort)) f.sort = sort as AssetSort;
   return f;
 }
 
 // Counts the sidebar filters only: the search term has its own visible input,
 // so badging it would flag something already on screen.
 export function activeFilterCount(filters: AssetFilters): number {
-  return Object.entries(filters).filter(([key, value]) => key !== "q" && value !== undefined)
-    .length;
+  return Object.entries(filters).filter(
+    ([key, value]) => key !== "q" && key !== "sort" && value !== undefined,
+  ).length;
 }
 
 export function readFiltersOpen(): boolean {

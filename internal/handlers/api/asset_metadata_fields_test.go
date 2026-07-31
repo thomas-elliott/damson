@@ -3,8 +3,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
 )
@@ -255,5 +258,170 @@ func TestSearchMatchesPublisher(t *testing.T) {
 	}
 	if body.Assets[0].ID == other.ID {
 		t.Fatal("search matched the unrelated asset")
+	}
+}
+
+// seedAssetWithFields creates an asset carrying storefront metadata.
+func seedAssetWithFields(t *testing.T, db *gorm.DB, libID uint, name string, fields map[string]any) *models.Asset {
+	t.Helper()
+	a := seedAsset(t, db, libID, name)
+	if len(fields) > 0 {
+		if err := db.Model(a).Updates(fields).Error; err != nil {
+			t.Fatalf("seed fields: %v", err)
+		}
+	}
+	return a
+}
+
+func listAssetIDs(t *testing.T, r http.Handler, query string) []uint {
+	t.Helper()
+	w := performGET(r, query)
+	requireStatus(t, w, http.StatusOK)
+	var body struct {
+		Assets []struct {
+			ID uint `json:"id"`
+		} `json:"assets"`
+		Total int64 `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	out := make([]uint, 0, len(body.Assets))
+	for _, a := range body.Assets {
+		out = append(out, a.ID)
+	}
+	if int64(len(out)) > body.Total {
+		t.Fatalf("total %d is less than the %d returned rows", body.Total, len(out))
+	}
+	return out
+}
+
+func TestAssetFilters_PublisherStoreAndReleasedAfter(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	old := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	recent := time.Date(2023, 6, 1, 0, 0, 0, 0, time.UTC)
+	unity := seedAssetWithFields(t, db, lib.ID, "unity thing", map[string]any{
+		"publisher": "JustCreate", "store": "unity", "released_at": &recent,
+	})
+	sketch := seedAssetWithFields(t, db, lib.ID, "sketch thing", map[string]any{
+		"publisher": "TreeMaker", "store": "sketchfab", "released_at": &old,
+	})
+	bare := seedAssetWithFields(t, db, lib.ID, "bare thing", nil)
+
+	r := setupRouter(h, u)
+
+	if got := listAssetIDs(t, r, "/api/assets?publisher=JustCreate"); len(got) != 1 || got[0] != unity.ID {
+		t.Fatalf("publisher filter = %v, want [%d]", got, unity.ID)
+	}
+	if got := listAssetIDs(t, r, "/api/assets?store=sketchfab"); len(got) != 1 || got[0] != sketch.ID {
+		t.Fatalf("store filter = %v, want [%d]", got, sketch.ID)
+	}
+	// released_after excludes both the older asset and the one with no date.
+	got := listAssetIDs(t, r, "/api/assets?released_after=2020-01-01")
+	if len(got) != 1 || got[0] != unity.ID {
+		t.Fatalf("released_after = %v, want [%d]", got, unity.ID)
+	}
+	// Filters compose.
+	if got := listAssetIDs(t, r, "/api/assets?store=unity&publisher=TreeMaker"); len(got) != 0 {
+		t.Fatalf("composed contradictory filters returned %v, want none", got)
+	}
+	// An unfiltered list still returns everything, including the bare asset.
+	if got := listAssetIDs(t, r, "/api/assets"); len(got) != 3 {
+		t.Fatalf("unfiltered list = %v, want all 3 including asset %d", got, bare.ID)
+	}
+	// An unparseable date is ignored rather than filtering everything out.
+	if got := listAssetIDs(t, r, "/api/assets?released_after=not-a-date"); len(got) != 3 {
+		t.Fatalf("bad released_after = %v, want the filter ignored", got)
+	}
+}
+
+func TestAssetSort_ByReleaseDate(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	oldDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	newDate := time.Date(2023, 6, 1, 0, 0, 0, 0, time.UTC)
+	older := seedAssetWithFields(t, db, lib.ID, "older", map[string]any{"released_at": &oldDate})
+	newer := seedAssetWithFields(t, db, lib.ID, "newer", map[string]any{"released_at": &newDate})
+	undated := seedAssetWithFields(t, db, lib.ID, "undated", nil)
+
+	r := setupRouter(h, u)
+
+	// Assets with no release date sort last in both directions, so they never
+	// crowd out the dated ones the sort is for.
+	desc := listAssetIDs(t, r, "/api/assets?sort=released_desc")
+	if len(desc) != 3 || desc[0] != newer.ID || desc[1] != older.ID || desc[2] != undated.ID {
+		t.Fatalf("released_desc = %v, want [%d %d %d]", desc, newer.ID, older.ID, undated.ID)
+	}
+	asc := listAssetIDs(t, r, "/api/assets?sort=released_asc")
+	if len(asc) != 3 || asc[0] != older.ID || asc[1] != newer.ID || asc[2] != undated.ID {
+		t.Fatalf("released_asc = %v, want [%d %d %d]", asc, older.ID, newer.ID, undated.ID)
+	}
+	// An unknown sort falls back to the default rather than erroring or
+	// interpolating the value into the ORDER BY.
+	fallback := listAssetIDs(t, r, "/api/assets?sort=a.name;DROP+TABLE+assets")
+	if len(fallback) != 3 {
+		t.Fatalf("unknown sort = %v, want the default ordering over all 3", fallback)
+	}
+	if def := listAssetIDs(t, r, "/api/assets"); len(def) != len(fallback) || def[0] != fallback[0] {
+		t.Fatalf("unknown sort %v did not match the default %v", fallback, def)
+	}
+}
+
+func TestGetAssetFacets(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	other := seedLibrary(t, db, "Other")
+
+	seedAssetWithFields(t, db, lib.ID, "a", map[string]any{"publisher": "JustCreate", "store": "unity", "engine": "unity"})
+	seedAssetWithFields(t, db, lib.ID, "b", map[string]any{"publisher": "JustCreate", "store": "unity"})
+	seedAssetWithFields(t, db, lib.ID, "c", map[string]any{"publisher": "TreeMaker", "store": "sketchfab"})
+	seedAssetWithFields(t, db, lib.ID, "d", nil)
+	// Another library's values must not leak into this library's facets.
+	seedAssetWithFields(t, db, other.ID, "e", map[string]any{"publisher": "Leaked Studio", "store": "itch"})
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/assets/facets")
+	requireStatus(t, w, http.StatusOK)
+	got := jsonResponse[assetFacetsResponse](t, w)
+
+	if len(got.Publishers) != 2 {
+		t.Fatalf("publishers = %+v, want 2", got.Publishers)
+	}
+	// Ordered by count descending.
+	if got.Publishers[0].Value != "JustCreate" || got.Publishers[0].Count != 2 {
+		t.Fatalf("publishers[0] = %+v, want JustCreate x2 first", got.Publishers[0])
+	}
+	if got.Publishers[1].Value != "TreeMaker" || got.Publishers[1].Count != 1 {
+		t.Fatalf("publishers[1] = %+v", got.Publishers[1])
+	}
+	for _, p := range got.Publishers {
+		if p.Value == "Leaked Studio" {
+			t.Fatal("another library's publisher leaked into the facets")
+		}
+	}
+	if len(got.Stores) != 2 {
+		t.Fatalf("stores = %+v, want unity and sketchfab", got.Stores)
+	}
+	if len(got.Engines) != 1 || got.Engines[0].Value != "unity" {
+		t.Fatalf("engines = %+v", got.Engines)
+	}
+}
+
+// The facets route must not be swallowed by /assets/:id.
+func TestGetAssetFacets_RouteDoesNotCollideWithAssetID(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/assets/facets")
+	requireStatus(t, w, http.StatusOK)
+	if body := w.Body.String(); !strings.Contains(body, "publishers") {
+		t.Fatalf("facets route returned %q — likely matched /assets/:id instead", body)
 	}
 }
