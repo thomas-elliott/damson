@@ -222,18 +222,34 @@ export interface CollectionRef {
   collection_name: string;
 }
 
+export interface MetadataAttribute {
+  key: string;
+  label: string;
+  value: string;
+}
+
 export interface MetadataView {
   title?: string;
   description?: string;
   publisher?: string;
+  publisher_url?: string;
   price?: string;
   currency?: string;
   licence_hint?: string;
   cover_url?: string;
   image_urls?: string[];
   tags?: string[];
+  category_path?: string;
   store?: string;
   listing_url?: string;
+  released_at?: string;
+  store_updated_at?: string;
+  latest_store_version?: string;
+  engine?: string;
+  min_engine_version?: string;
+  rating?: number;
+  rating_count?: number;
+  attributes?: MetadataAttribute[];
 }
 
 export interface MetadataCandidate {
@@ -286,6 +302,19 @@ export interface AssetDetailView {
   thumbnail_content_type?: string;
   created_at: string;
   updated_at: string;
+  publisher?: string;
+  publisher_url?: string;
+  store?: string;
+  store_product_id?: string;
+  released_at?: string;
+  store_updated_at?: string;
+  latest_store_version?: string;
+  engine?: string;
+  min_engine_version?: string;
+  price?: string;
+  price_currency?: string;
+  rating?: number;
+  rating_count?: number;
   licence?: LicenceView;
   source_metadata?: SourceMetadataView;
   tags: AssetTagView[];

@@ -34,17 +34,27 @@ type metadataService interface {
 // metadataView is the client-facing shape of fetched metadata — the normalised
 // fields minus the raw payload.
 type metadataView struct {
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Publisher   string   `json:"publisher,omitempty"`
-	Price       string   `json:"price,omitempty"`
-	Currency    string   `json:"currency,omitempty"`
-	LicenceHint string   `json:"licence_hint,omitempty"`
-	CoverURL    string   `json:"cover_url,omitempty"`
-	ImageURLs   []string `json:"image_urls,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Store       string   `json:"store,omitempty"`
-	ListingURL  string   `json:"listing_url,omitempty"`
+	Title              string               `json:"title,omitempty"`
+	Description        string               `json:"description,omitempty"`
+	Publisher          string               `json:"publisher,omitempty"`
+	PublisherURL       string               `json:"publisher_url,omitempty"`
+	Price              string               `json:"price,omitempty"`
+	Currency           string               `json:"currency,omitempty"`
+	LicenceHint        string               `json:"licence_hint,omitempty"`
+	CoverURL           string               `json:"cover_url,omitempty"`
+	ImageURLs          []string             `json:"image_urls,omitempty"`
+	Tags               []string             `json:"tags,omitempty"`
+	CategoryPath       string               `json:"category_path,omitempty"`
+	Store              string               `json:"store,omitempty"`
+	ListingURL         string               `json:"listing_url,omitempty"`
+	ReleasedAt         *time.Time           `json:"released_at,omitempty"`
+	StoreUpdatedAt     *time.Time           `json:"store_updated_at,omitempty"`
+	LatestStoreVersion string               `json:"latest_store_version,omitempty"`
+	Engine             string               `json:"engine,omitempty"`
+	MinEngineVersion   string               `json:"min_engine_version,omitempty"`
+	Rating             float64              `json:"rating,omitempty"`
+	RatingCount        int                  `json:"rating_count,omitempty"`
+	Attributes         []metadata.Attribute `json:"attributes,omitempty"`
 }
 
 func metadataViewFrom(m *metadata.Metadata) *metadataView {
@@ -56,17 +66,27 @@ func metadataViewFrom(m *metadata.Metadata) *metadataView {
 		hint = "custom"
 	}
 	return &metadataView{
-		Title:       m.Title,
-		Description: m.Description,
-		Publisher:   m.Publisher,
-		Price:       m.Price,
-		Currency:    m.Currency,
-		LicenceHint: hint,
-		CoverURL:    m.CoverURL,
-		ImageURLs:   m.ImageURLs,
-		Tags:        m.Tags,
-		Store:       m.Store,
-		ListingURL:  m.ListingURL,
+		Title:              m.Title,
+		Description:        m.Description,
+		Publisher:          m.Publisher,
+		PublisherURL:       m.PublisherURL,
+		Price:              m.Price,
+		Currency:           m.Currency,
+		LicenceHint:        hint,
+		CoverURL:           m.CoverURL,
+		ImageURLs:          m.ImageURLs,
+		Tags:               m.Tags,
+		CategoryPath:       m.CategoryPath,
+		Store:              m.Store,
+		ListingURL:         m.ListingURL,
+		ReleasedAt:         m.ReleasedAt,
+		StoreUpdatedAt:     m.StoreUpdatedAt,
+		LatestStoreVersion: m.LatestStoreVersion,
+		Engine:             m.Engine,
+		MinEngineVersion:   m.MinEngineVersion,
+		Rating:             m.Rating,
+		RatingCount:        m.RatingCount,
+		Attributes:         m.Attributes,
 	}
 }
 
