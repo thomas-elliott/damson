@@ -1,0 +1,221 @@
+{
+ "animationCount": 0,
+ "categories": [
+  {
+   "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/876106eddb2a54aa1391eb2f4db0acb2-v2.svg",
+   "name": "Art & Abstract",
+   "slug": "art-abstract",
+   "thumbnails": [
+    {
+     "height": "288",
+     "url": "https://static.sketchfab.com/categories/e56c5de1e9344241909de76c5886f551/512x288.png",
+     "width": "512"
+    },
+    {
+     "height": "450",
+     "url": "https://static.sketchfab.com/categories/e56c5de1e9344241909de76c5886f551/800x450.png",
+     "width": "800"
+    }
+   ],
+   "uid": "e56c5de1e9344241909de76c5886f551",
+   "uri": "https://api.sketchfab.com/v3/categories/e56c5de1e9344241909de76c5886f551"
+  },
+  {
+   "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/98a605cec9718b6f02f1a5759039a5ad-v2.svg",
+   "name": "Nature & Plants",
+   "slug": "nature-plants",
+   "thumbnails": [
+    {
+     "height": "288",
+     "url": "https://static.sketchfab.com/categories/1a99e2b67fc84de0b3ea0d3925208a04/512x288.png",
+     "width": "512"
+    },
+    {
+     "height": "450",
+     "url": "https://static.sketchfab.com/categories/1a99e2b67fc84de0b3ea0d3925208a04/800x450.png",
+     "width": "800"
+    }
+   ],
+   "uid": "1a99e2b67fc84de0b3ea0d3925208a04",
+   "uri": "https://api.sketchfab.com/v3/categories/1a99e2b67fc84de0b3ea0d3925208a04"
+  }
+ ],
+ "commentCount": 91,
+ "createdAt": "2023-04-21T17:18:42.216444",
+ "description": "# Low Poly Trees Scene Free",
+ "downloadCount": 112335,
+ "editorUrl": "https://sketchfab.com/models/89daa5e21f0d4f08a59dba0d566e88bd/edit",
+ "embedUrl": "https://sketchfab.com/models/89daa5e21f0d4f08a59dba0d566e88bd/embed",
+ "faceCount": 256652,
+ "hasCommentsDisabled": false,
+ "isAgeRestricted": false,
+ "isDownloadable": true,
+ "isProtected": false,
+ "license": {
+  "fullName": "Creative Commons Attribution",
+  "label": "CC Attribution",
+  "requirements": "Author must be credited. Commercial use is allowed.",
+  "slug": "by",
+  "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+  "url": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ "likeCount": 3815,
+ "materialCount": 5,
+ "name": "Low Poly Tree Scene Free",
+ "pbrType": null,
+ "price": null,
+ "publishedAt": "2023-04-21T19:03:26.645871",
+ "soundCount": 0,
+ "source": "website",
+ "staffpickedAt": "2023-04-26T09:05:31.305721",
+ "status": {
+  "processing": "SUCCEEDED",
+  "warning": {}
+ },
+ "tags": [
+  {
+   "name": "tree",
+   "slug": "tree",
+   "uri": "https://api.sketchfab.com/v3/tags/tree"
+  },
+  {
+   "name": "grass",
+   "slug": "grass",
+   "uri": "https://api.sketchfab.com/v3/tags/grass"
+  },
+  {
+   "name": "lake",
+   "slug": "lake",
+   "uri": "https://api.sketchfab.com/v3/tags/lake"
+  },
+  {
+   "name": "vegetation",
+   "slug": "vegetation",
+   "uri": "https://api.sketchfab.com/v3/tags/vegetation"
+  },
+  {
+   "name": "nature",
+   "slug": "nature",
+   "uri": "https://api.sketchfab.com/v3/tags/nature"
+  },
+  {
+   "name": "treemodel",
+   "slug": "treemodel",
+   "uri": "https://api.sketchfab.com/v3/tags/treemodel"
+  },
+  {
+   "name": "freeasset",
+   "slug": "freeasset",
+   "uri": "https://api.sketchfab.com/v3/tags/freeasset"
+  },
+  {
+   "name": "nature-plants",
+   "slug": "nature-plants",
+   "uri": "https://api.sketchfab.com/v3/tags/nature-plants"
+  },
+  {
+   "name": "lowpoly",
+   "slug": "lowpoly",
+   "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+  },
+  {
+   "name": "gameready",
+   "slug": "gameready",
+   "uri": "https://api.sketchfab.com/v3/tags/gameready"
+  },
+  {
+   "name": "natureasset",
+   "slug": "natureasset",
+   "uri": "https://api.sketchfab.com/v3/tags/natureasset"
+  },
+  {
+   "name": "noai",
+   "slug": "noai",
+   "uri": "https://api.sketchfab.com/v3/tags/noai"
+  }
+ ],
+ "textureCount": 13,
+ "thumbnails": {
+  "images": [
+   {
+    "height": 1080,
+    "size": 738446,
+    "uid": "d90e96c63e164d3aa24b5d16ac369fe8",
+    "url": "https://media.sketchfab.com/models/89daa5e21f0d4f08a59dba0d566e88bd/thumbnails/f5e114ddb6d14491adbf41bcc79f4454/9db566a43b2a478f8f3e56fc5c2b5b24.jpeg",
+    "width": 1920
+   },
+   {
+    "height": 576,
+    "size": 197189,
+    "uid": "074d59194d3845d9b2dfb7a5c058144c",
+    "url": "https://media.sketchfab.com/models/89daa5e21f0d4f08a59dba0d566e88bd/thumbnails/f5e114ddb6d14491adbf41bcc79f4454/004b5d089f6c4b688ab921c9431da93a.jpeg",
+    "width": 1024
+   },
+   {
+    "height": 405,
+    "size": 105035,
+    "uid": "1112aa5c41664609858b84c288cf3f37",
+    "url": "https://media.sketchfab.com/models/89daa5e21f0d4f08a59dba0d566e88bd/thumbnails/f5e114ddb6d14491adbf41bcc79f4454/708338a00d404be7963490e9d2b4d2a2.jpeg",
+    "width": 720
+   },
+   {
+    "height": 144,
+    "size": 15252,
+    "uid": "be28f4b977db4c5581113c76291ab842",
+    "url": "https://media.sketchfab.com/models/89daa5e21f0d4f08a59dba0d566e88bd/thumbnails/f5e114ddb6d14491adbf41bcc79f4454/4b2f3115b4b04af0b2a9860d7af9971f.jpeg",
+    "width": 256
+   },
+   {
+    "height": 36,
+    "size": 1852,
+    "uid": "82f53fbf666d4a46ac69e168c380922d",
+    "url": "https://media.sketchfab.com/models/89daa5e21f0d4f08a59dba0d566e88bd/thumbnails/f5e114ddb6d14491adbf41bcc79f4454/d370f055d0244786893257e5a0e0bb3c.jpeg",
+    "width": 64
+   }
+  ]
+ },
+ "uid": "89daa5e21f0d4f08a59dba0d566e88bd",
+ "updatedAt": "2023-11-21T18:54:09.443810",
+ "uri": "https://api.sketchfab.com/v3/models/89daa5e21f0d4f08a59dba0d566e88bd",
+ "user": {
+  "account": "pro",
+  "avatar": {
+   "images": [
+    {
+     "height": 32,
+     "size": 1071,
+     "url": "https://media.sketchfab.com/avatars/ce7a9c252cf14a3789bed024ce738257/5286db4482f244d989814f89143dc85b.jpeg",
+     "width": 32
+    },
+    {
+     "height": 48,
+     "size": 1365,
+     "url": "https://media.sketchfab.com/avatars/ce7a9c252cf14a3789bed024ce738257/4523e1bb7d644af398cb70fd56d774ea.jpeg",
+     "width": 48
+    },
+    {
+     "height": 90,
+     "size": 2635,
+     "url": "https://media.sketchfab.com/avatars/ce7a9c252cf14a3789bed024ce738257/5a446a16e8b54ddb822a853ec2d562b8.jpeg",
+     "width": 90
+    },
+    {
+     "height": 100,
+     "size": 3008,
+     "url": "https://media.sketchfab.com/avatars/ce7a9c252cf14a3789bed024ce738257/adf9e5da4e1948de9028825d7a274222.jpeg",
+     "width": 100
+    }
+   ],
+   "uid": "ce7a9c252cf14a3789bed024ce738257",
+   "uri": "https://api.sketchfab.com/v3/avatars/ce7a9c252cf14a3789bed024ce738257"
+  },
+  "displayName": "Nicholas-3D",
+  "profileUrl": "https://sketchfab.com/Nicholas01",
+  "uid": "271e3a3627fb44dfac201988fc97c0df",
+  "uri": "https://api.sketchfab.com/v3/users/271e3a3627fb44dfac201988fc97c0df",
+  "username": "Nicholas01"
+ },
+ "vertexCount": 377757,
+ "viewCount": 322877,
+ "viewerUrl": "https://sketchfab.com/3d-models/low-poly-tree-scene-free-89daa5e21f0d4f08a59dba0d566e88bd"
+}

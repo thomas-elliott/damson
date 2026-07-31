@@ -51,6 +51,70 @@ func TestParseSketchfabModel(t *testing.T) {
 	}
 }
 
+func TestParseSketchfabModelNewFields(t *testing.T) {
+	m, err := parseSketchfabModel(readFixture(t, "sketchfab_model_full.json"),
+		"https://sketchfab.com/3d-models/low-poly-tree-scene-free-89daa5e21f0d4f08a59dba0d566e88bd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.PublisherURL != "https://sketchfab.com/Nicholas01" {
+		t.Errorf("publisher url: got %q", m.PublisherURL)
+	}
+	// Sketchfab returns naive local timestamps with fractional seconds.
+	wantReleased := time.Date(2023, 4, 21, 19, 3, 26, 0, time.UTC)
+	if m.ReleasedAt == nil || m.ReleasedAt.Truncate(time.Second) != wantReleased {
+		t.Errorf("released at: got %v, want %v", m.ReleasedAt, wantReleased)
+	}
+	if m.StoreUpdatedAt == nil || m.StoreUpdatedAt.Year() != 2023 {
+		t.Errorf("store updated at: got %v", m.StoreUpdatedAt)
+	}
+	if m.CategoryPath != "Art & Abstract" {
+		t.Errorf("category path: got %q", m.CategoryPath)
+	}
+
+	got := map[string]string{}
+	var order []string
+	for _, a := range m.Attributes {
+		got[a.Key] = a.Value
+		order = append(order, a.Key)
+	}
+	for key, want := range map[string]string{
+		"vertex_count":   "377,757",
+		"face_count":     "256,652",
+		"material_count": "5",
+		"texture_count":  "13",
+		"downloadable":   "Yes",
+		"view_count":     "322,877",
+		"like_count":     "3,815",
+		"download_count": "112,335",
+	} {
+		if got[key] != want {
+			t.Errorf("attribute %q = %q, want %q", key, got[key], want)
+		}
+	}
+	// animationCount and soundCount are 0 on this model and must be omitted
+	// rather than rendered as "0".
+	for _, key := range []string{"animation_count", "sound_count"} {
+		if _, present := got[key]; present {
+			t.Errorf("attribute %q present for a zero count", key)
+		}
+	}
+	if len(order) == 0 || order[0] != "vertex_count" {
+		t.Errorf("attribute order = %v, want geometry counts first", order)
+	}
+}
+
+func TestFormatCount(t *testing.T) {
+	for in, want := range map[float64]string{
+		0: "0", 5: "5", 999: "999", 1000: "1,000",
+		12345: "12,345", 377757: "377,757", 1234567: "1,234,567",
+	} {
+		if got := formatCount(in); got != want {
+			t.Errorf("formatCount(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestUnityProductID(t *testing.T) {
 	cases := map[string]string{
 		"https://assetstore.unity.com/packages/3d/props/fantasy-environment-pack-12345":  "12345",

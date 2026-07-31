@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // unityRenderCall marks the inline script that boots the package page's React
@@ -246,7 +245,7 @@ func unityApplyListing(md *Metadata, l *unityListing, pageURL string) {
 
 	md.Engine = "unity"
 	if md.ReleasedAt == nil {
-		md.ReleasedAt = unityParseTime(p.FirstPublishedDate)
+		md.ReleasedAt = parseTimestamp(p.FirstPublishedDate)
 	}
 	if md.MinEngineVersion == "" && len(p.SupportedUnityVersions) > 0 {
 		md.MinEngineVersion = unityShortVersion(p.SupportedUnityVersions[0])
@@ -254,7 +253,7 @@ func unityApplyListing(md *Metadata, l *unityListing, pageURL string) {
 	if l.version != nil {
 		md.LatestStoreVersion = strings.TrimSpace(l.version.Name)
 		if md.StoreUpdatedAt == nil {
-			md.StoreUpdatedAt = unityParseTime(l.version.PublishedDate)
+			md.StoreUpdatedAt = parseTimestamp(l.version.PublishedDate)
 		}
 	}
 	if l.publisher != nil {
@@ -355,22 +354,6 @@ func unityEntitlementLabel(t string) string {
 	default:
 		return t
 	}
-}
-
-// unityParseTime reads the payload's ISO-8601 timestamps. Returns nil for a
-// blank or unparseable value so an absent date stays absent.
-func unityParseTime(s string) *time.Time {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
-	}
-	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			utc := t.UTC()
-			return &utc
-		}
-	}
-	return nil
 }
 
 // unityShortVersion trims a Unity build version to its release form:
