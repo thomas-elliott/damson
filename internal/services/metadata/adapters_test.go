@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSketchfabUID(t *testing.T) {
@@ -47,6 +48,70 @@ func TestParseSketchfabModel(t *testing.T) {
 	// tags then categories, by name.
 	if got := strings.Join(m.Tags, ","); got != "tree,low-poly,Nature" {
 		t.Errorf("tags: got %q want %q", got, "tree,low-poly,Nature")
+	}
+}
+
+func TestParseSketchfabModelNewFields(t *testing.T) {
+	m, err := parseSketchfabModel(readFixture(t, "sketchfab_model_full.json"),
+		"https://sketchfab.com/3d-models/low-poly-tree-scene-free-89daa5e21f0d4f08a59dba0d566e88bd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.PublisherURL != "https://sketchfab.com/Nicholas01" {
+		t.Errorf("publisher url: got %q", m.PublisherURL)
+	}
+	// Sketchfab returns naive local timestamps with fractional seconds.
+	wantReleased := time.Date(2023, 4, 21, 19, 3, 26, 0, time.UTC)
+	if m.ReleasedAt == nil || m.ReleasedAt.Truncate(time.Second) != wantReleased {
+		t.Errorf("released at: got %v, want %v", m.ReleasedAt, wantReleased)
+	}
+	if m.StoreUpdatedAt == nil || m.StoreUpdatedAt.Year() != 2023 {
+		t.Errorf("store updated at: got %v", m.StoreUpdatedAt)
+	}
+	if m.CategoryPath != "Art & Abstract" {
+		t.Errorf("category path: got %q", m.CategoryPath)
+	}
+
+	got := map[string]string{}
+	var order []string
+	for _, a := range m.Attributes {
+		got[a.Key] = a.Value
+		order = append(order, a.Key)
+	}
+	for key, want := range map[string]string{
+		"vertex_count":   "377,757",
+		"face_count":     "256,652",
+		"material_count": "5",
+		"texture_count":  "13",
+		"downloadable":   "Yes",
+		"view_count":     "322,877",
+		"like_count":     "3,815",
+		"download_count": "112,335",
+	} {
+		if got[key] != want {
+			t.Errorf("attribute %q = %q, want %q", key, got[key], want)
+		}
+	}
+	// animationCount and soundCount are 0 on this model and must be omitted
+	// rather than rendered as "0".
+	for _, key := range []string{"animation_count", "sound_count"} {
+		if _, present := got[key]; present {
+			t.Errorf("attribute %q present for a zero count", key)
+		}
+	}
+	if len(order) == 0 || order[0] != "vertex_count" {
+		t.Errorf("attribute order = %v, want geometry counts first", order)
+	}
+}
+
+func TestFormatCount(t *testing.T) {
+	for in, want := range map[float64]string{
+		0: "0", 5: "5", 999: "999", 1000: "1,000",
+		12345: "12,345", 377757: "377,757", 1234567: "1,234,567",
+	} {
+		if got := formatCount(in); got != want {
+			t.Errorf("formatCount(%v) = %q, want %q", in, got, want)
+		}
 	}
 }
 
@@ -107,9 +172,87 @@ func TestCoveoMetadata(t *testing.T) {
 	if len(m.Raw) == 0 {
 		t.Error("raw payload must be persisted")
 	}
-	// ec_category then keywords, deduped case-insensitively.
-	if got := strings.Join(m.Tags, ","); got != "Environments,Nature,Low Poly" {
-		t.Errorf("tags: got %q want %q", got, "Environments,Nature,Low Poly")
+	// ec_keywords, deduped case-insensitively. The live index field is
+	// ec_keywords, not keywords — asking for the wrong name silently yielded no
+	// keyword tags at all.
+	if got := strings.Join(m.Tags, ","); got != "Landscape,Terrain,lowpoly" {
+		t.Errorf("tags: got %q want %q", got, "Landscape,Terrain,lowpoly")
+	}
+	// The category must arrive as one hierarchical path, not as ec_category's
+	// three arrow-separated, leading-space entries.
+	if m.CategoryPath != "3d/environments/landscapes" {
+		t.Errorf("category path: got %q", m.CategoryPath)
+	}
+	for _, tag := range m.Tags {
+		if strings.Contains(tag, ">") || tag != strings.TrimSpace(tag) {
+			t.Errorf("tag %q carries category separators or padding", tag)
+		}
+	}
+	if m.Engine != "unity" {
+		t.Errorf("engine: got %q", m.Engine)
+	}
+	if m.MinEngineVersion != "2020.3" {
+		t.Errorf("min engine version: got %q, want the packed 202003 unpacked", m.MinEngineVersion)
+	}
+	if m.ReleasedAt == nil || !m.ReleasedAt.Equal(time.Date(2020, 2, 11, 9, 47, 13, 0, time.UTC)) {
+		t.Errorf("released at: got %v", m.ReleasedAt)
+	}
+	if m.StoreUpdatedAt == nil || !m.StoreUpdatedAt.Equal(time.Date(2023, 5, 6, 19, 35, 15, 0, time.UTC)) {
+		t.Errorf("store updated at: got %v", m.StoreUpdatedAt)
+	}
+	if m.Rating != 4.85 || m.RatingCount != 126 {
+		t.Errorf("rating: got %v (%d)", m.Rating, m.RatingCount)
+	}
+	if m.PublisherURL != "https://assetstore.unity.com/publishers/44390" {
+		t.Errorf("publisher url: got %q", m.PublisherURL)
+	}
+}
+
+func TestCoveoCategoryPathFallsBackThroughLevels(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  map[string]any
+		want string
+	}{
+		{"level3", map[string]any{"ec_category_level3": "3d > environments > landscapes"}, "3d/environments/landscapes"},
+		{"level2 only", map[string]any{"ec_category_level2": "3d > environments"}, "3d/environments"},
+		{"level1 only", map[string]any{"ec_category_level1": "3d"}, "3d"},
+		{"array shape", map[string]any{"ec_category_level3": []any{"2d > gui > icons"}}, "2d/gui/icons"},
+		{"none", map[string]any{}, ""},
+		{"blank", map[string]any{"ec_category_level3": "  >  > "}, ""},
+	}
+	for _, c := range cases {
+		if got := coveoCategoryPath(c.raw); got != c.want {
+			t.Errorf("%s: coveoCategoryPath = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestUnityMinVersionLabel(t *testing.T) {
+	cases := map[any]string{
+		202003.0: "2020.3",
+		201904.0: "2019.4",
+		"202003": "2020.3",
+		202010.0: "2020.10",
+		600000.0: "6000.0",
+		"":       "",
+		"6":      "6",
+	}
+	for in, want := range cases {
+		if got := unityMinVersionLabel(in); got != want {
+			t.Errorf("unityMinVersionLabel(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCoveoEpochTime(t *testing.T) {
+	if got := coveoEpochTime(1581414433000.0); got == nil || !got.Equal(time.Date(2020, 2, 11, 9, 47, 13, 0, time.UTC)) {
+		t.Errorf("coveoEpochTime = %v", got)
+	}
+	for _, in := range []any{nil, 0.0, -1.0, "", "not a number", map[string]any{}} {
+		if got := coveoEpochTime(in); got != nil {
+			t.Errorf("coveoEpochTime(%v) = %v, want nil", in, got)
+		}
 	}
 }
 

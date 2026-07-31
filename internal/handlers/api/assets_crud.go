@@ -21,24 +21,25 @@ import (
 // data the detail panel renders from. Lists of versions, files, tags,
 // licence summary.
 type assetDetailView struct {
-	ID                   uint                `json:"id"`
-	Name                 string              `json:"name"`
-	Description          string              `json:"description"`
-	SourceURL            string              `json:"source_url"`
-	NeedsReview          bool                `json:"needs_review"`
-	CurrentVersionID     *uint               `json:"current_version_id,omitempty"`
-	ThumbnailObjectKey   string              `json:"thumbnail_object_key,omitempty"`
-	ThumbnailContentType string              `json:"thumbnail_content_type,omitempty"`
-	CreatedAt            time.Time           `json:"created_at"`
-	UpdatedAt            time.Time           `json:"updated_at"`
-	Licence              *licenceView        `json:"licence,omitempty"`
-	SourceMetadata       *sourceMetadataView `json:"source_metadata,omitempty"`
-	Tags                 []tagView           `json:"tags"`
-	Versions             []assetVersionView  `json:"versions"`
-	Files                []assetFileView     `json:"files"` // current version's files
-	Images               []assetImageView    `json:"images"`
-	Projects             []projectPinView    `json:"projects"`
-	Collections          []collectionRefView `json:"collections"`
+	ID                   uint      `json:"id"`
+	Name                 string    `json:"name"`
+	Description          string    `json:"description"`
+	SourceURL            string    `json:"source_url"`
+	NeedsReview          bool      `json:"needs_review"`
+	CurrentVersionID     *uint     `json:"current_version_id,omitempty"`
+	ThumbnailObjectKey   string    `json:"thumbnail_object_key,omitempty"`
+	ThumbnailContentType string    `json:"thumbnail_content_type,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+	assetMetadataFieldsView
+	Licence        *licenceView        `json:"licence,omitempty"`
+	SourceMetadata *sourceMetadataView `json:"source_metadata,omitempty"`
+	Tags           []tagView           `json:"tags"`
+	Versions       []assetVersionView  `json:"versions"`
+	Files          []assetFileView     `json:"files"` // current version's files
+	Images         []assetImageView    `json:"images"`
+	Projects       []projectPinView    `json:"projects"`
+	Collections    []collectionRefView `json:"collections"`
 }
 
 type assetImageView struct {
@@ -106,23 +107,24 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	}
 
 	view := assetDetailView{
-		ID:                   asset.ID,
-		Name:                 asset.Name,
-		Description:          asset.Description,
-		SourceURL:            asset.SourceURL,
-		NeedsReview:          asset.NeedsReview,
-		CurrentVersionID:     asset.CurrentVersionID,
-		ThumbnailObjectKey:   asset.ThumbnailObjectKey,
-		ThumbnailContentType: asset.ThumbnailContentType,
-		CreatedAt:            asset.CreatedAt,
-		UpdatedAt:            asset.UpdatedAt,
-		SourceMetadata:       sourceMetadataViewFrom(asset.SourceMetadataJSON),
-		Tags:                 []tagView{},
-		Versions:             []assetVersionView{},
-		Files:                []assetFileView{},
-		Images:               []assetImageView{},
-		Projects:             []projectPinView{},
-		Collections:          []collectionRefView{},
+		ID:                      asset.ID,
+		Name:                    asset.Name,
+		Description:             asset.Description,
+		SourceURL:               asset.SourceURL,
+		NeedsReview:             asset.NeedsReview,
+		CurrentVersionID:        asset.CurrentVersionID,
+		ThumbnailObjectKey:      asset.ThumbnailObjectKey,
+		ThumbnailContentType:    asset.ThumbnailContentType,
+		CreatedAt:               asset.CreatedAt,
+		UpdatedAt:               asset.UpdatedAt,
+		assetMetadataFieldsView: assetMetadataFieldsViewFrom(&asset),
+		SourceMetadata:          sourceMetadataViewFrom(asset.SourceMetadataJSON),
+		Tags:                    []tagView{},
+		Versions:                []assetVersionView{},
+		Files:                   []assetFileView{},
+		Images:                  []assetImageView{},
+		Projects:                []projectPinView{},
+		Collections:             []collectionRefView{},
 	}
 
 	// Versions with per-version file_count + size.
@@ -188,6 +190,15 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 			IsCurrent:                asset.CurrentVersionID != nil && *asset.CurrentVersionID == v.ID,
 		})
 	}
+
+	heldStoreVersions := make([]string, 0, len(view.Versions))
+	for _, v := range view.Versions {
+		if v.StoreVersion != "" {
+			heldStoreVersions = append(heldStoreVersions, v.StoreVersion)
+		}
+	}
+	view.UpdateAvailable, _ = imports.StoreUpdateAvailable(
+		derefString(asset.LatestStoreVersion), heldStoreVersions)
 
 	// Files for the current version only — the detail panel scopes to the
 	// current version, and the version selector triggers a separate request
@@ -317,6 +328,7 @@ type assetPatchRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	SourceURL   *string `json:"source_url,omitempty"`
+	assetMetadataFieldsPatch
 }
 
 // patchAsset updates editable fields on an asset. Writes an audit row in
@@ -371,6 +383,9 @@ func (h *Handler) patchAsset(c *gin.Context) {
 			asset.SourceURL = strings.TrimSpace(*req.SourceURL)
 			updates["source_url"] = asset.SourceURL
 		}
+		if err := req.assetMetadataFieldsPatch.apply(&asset, before, updates); err != nil {
+			return errBadRequestf("%s", err)
+		}
 		if len(updates) > 0 {
 			if err := tx.Model(&asset).Updates(updates).Error; err != nil {
 				return err
@@ -393,12 +408,22 @@ func (h *Handler) patchAsset(c *gin.Context) {
 		respondGORM(c, err, "asset not found")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"id":          out.ID,
-		"name":        out.Name,
-		"description": out.Description,
-		"source_url":  out.SourceURL,
+	c.JSON(http.StatusOK, assetPatchResponse{
+		ID:                      out.ID,
+		Name:                    out.Name,
+		Description:             out.Description,
+		SourceURL:               out.SourceURL,
+		assetMetadataFieldsView: assetMetadataFieldsViewFrom(&out),
 	})
+}
+
+// assetPatchResponse echoes the asset's editable fields after a PATCH.
+type assetPatchResponse struct {
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	SourceURL   string `json:"source_url"`
+	assetMetadataFieldsView
 }
 
 func (h *Handler) deleteAssetVersion(c *gin.Context) {

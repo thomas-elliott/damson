@@ -79,3 +79,39 @@ describe("filter panel persistence", () => {
     expect(readFiltersOpen()).toBe(false);
   });
 });
+
+describe("parseAssetFilters — storefront metadata filters", () => {
+  it("reads the publisher, store and released-after filters", () => {
+    expect(parse("publisher=JustCreate&store=unity&released_after=2020-01-01")).toEqual({
+      publisher: "JustCreate",
+      store: "unity",
+      released_after: "2020-01-01",
+    });
+  });
+
+  it("accepts only known sort values", () => {
+    expect(parse("sort=released_desc").sort).toBe("released_desc");
+    expect(parse("sort=name_asc").sort).toBe("name_asc");
+    // An unknown value is dropped rather than forwarded to the API, which
+    // would have to reject it.
+    for (const qs of ["sort=bogus", "sort=a.name;DROP TABLE assets", "sort="]) {
+      expect(parse(qs).sort, qs).toBeUndefined();
+    }
+  });
+
+  it("reads the updates-available filter only when explicitly true", () => {
+    expect(parse("updates_available=true").updates_available).toBe(true);
+    expect(parse("updates_available=false").updates_available).toBeUndefined();
+    expect(parse("").updates_available).toBeUndefined();
+  });
+
+  it("counts the new filters in the badge but not the sort", () => {
+    expect(activeFilterCount(parse("publisher=JustCreate"))).toBe(1);
+    expect(
+      activeFilterCount(parse("publisher=JustCreate&store=unity&released_after=2020-01-01")),
+    ).toBe(3);
+    // The sort is a visible toolbar control, like the search box.
+    expect(activeFilterCount(parse("sort=released_desc"))).toBe(0);
+    expect(activeFilterCount(parse("sort=released_desc&store=unity"))).toBe(1);
+  });
+});

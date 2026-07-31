@@ -8,6 +8,7 @@ export const queryKeys = {
   asset: (id: number) => ["asset", id] as const,
   assetLicence: (id: number) => ["asset", id, "licence"] as const,
   assetAudit: (id: number) => ["asset", id, "audit"] as const,
+  assetFacets: ["assetFacets"] as const,
   tags: ["tags"] as const,
   projects: ["projects"] as const,
   project: (id: number) => ["project", id] as const,

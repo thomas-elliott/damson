@@ -98,6 +98,9 @@ export interface AssetRow {
   licence_spdx?: string;
   licence_status?: LicenceStatus;
   package_kind?: string;
+  publisher?: string;
+  released_at?: string;
+  update_available?: boolean;
 }
 
 interface AssetListResponse {
@@ -116,6 +119,25 @@ export interface AssetFilters {
   source_host?: string;
   needs_review?: boolean;
   package_kind?: string;
+  publisher?: string;
+  store?: string;
+  released_after?: string;
+  updates_available?: boolean;
+  sort?: AssetSort;
+}
+
+export type AssetSort =
+  "created_desc" | "created_asc" | "released_desc" | "released_asc" | "name_asc";
+
+export interface AssetFacet {
+  value: string;
+  count: number;
+}
+
+export interface AssetFacetsView {
+  publishers: AssetFacet[];
+  stores: AssetFacet[];
+  engines: AssetFacet[];
 }
 
 function filtersToQuery(f: AssetFilters | undefined): string {
@@ -222,18 +244,34 @@ export interface CollectionRef {
   collection_name: string;
 }
 
+export interface MetadataAttribute {
+  key: string;
+  label: string;
+  value: string;
+}
+
 export interface MetadataView {
   title?: string;
   description?: string;
   publisher?: string;
+  publisher_url?: string;
   price?: string;
   currency?: string;
   licence_hint?: string;
   cover_url?: string;
   image_urls?: string[];
   tags?: string[];
+  category_path?: string;
   store?: string;
   listing_url?: string;
+  released_at?: string;
+  store_updated_at?: string;
+  latest_store_version?: string;
+  engine?: string;
+  min_engine_version?: string;
+  rating?: number;
+  rating_count?: number;
+  attributes?: MetadataAttribute[];
 }
 
 export interface MetadataCandidate {
@@ -286,6 +324,20 @@ export interface AssetDetailView {
   thumbnail_content_type?: string;
   created_at: string;
   updated_at: string;
+  publisher?: string;
+  publisher_url?: string;
+  store?: string;
+  store_product_id?: string;
+  released_at?: string;
+  store_updated_at?: string;
+  latest_store_version?: string;
+  engine?: string;
+  min_engine_version?: string;
+  price?: string;
+  price_currency?: string;
+  rating?: number;
+  rating_count?: number;
+  update_available?: boolean;
   licence?: LicenceView;
   source_metadata?: SourceMetadataView;
   tags: AssetTagView[];
@@ -325,6 +377,22 @@ export interface TagView {
   path: string;
   parent_id?: number;
   asset_count: number;
+}
+
+export function useAssetFacets(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.assetFacets,
+    queryFn: () => fetchJson<AssetFacetsView>("/api/assets/facets"),
+    staleTime: 5 * MINUTE,
+    gcTime: 1 * HOUR,
+    enabled,
+  });
+  return {
+    data: q.data ?? { publishers: [], stores: [], engines: [] },
+    loading: q.isPending,
+    error: q.error,
+    reload: q.refetch,
+  };
 }
 
 export function useTags(enabled: boolean = true) {

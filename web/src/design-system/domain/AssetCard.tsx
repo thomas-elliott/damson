@@ -21,6 +21,7 @@ export interface AssetCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, 
   trailing?: ReactNode;
   /** Flag for the review dot in the thumb's top-right corner. */
   needsReview?: boolean;
+  updateAvailable?: boolean;
   selected?: boolean;
   onSelect?: () => void;
 }
@@ -40,6 +41,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
     sub,
     trailing,
     needsReview,
+    updateAvailable,
     selected,
     onSelect,
     onClick,
@@ -86,6 +88,15 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
             aria-label="Needs review"
             className="absolute right-1.5 top-1.5 block h-1.5 w-1.5 rounded-full bg-accent ring-2 ring-panel"
           />
+        )}
+        {updateAvailable && (
+          <span
+            aria-label="Update available"
+            title="A newer version is available from the store"
+            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-[3px] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-accent-fg"
+          >
+            Update
+          </span>
         )}
       </div>
       <div className="min-w-0 px-0.5">
