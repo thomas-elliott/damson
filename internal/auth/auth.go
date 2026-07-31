@@ -42,10 +42,28 @@ const (
 	ModeLocal Mode = "local"
 )
 
-const userContextKey = "damson.user"
+const (
+	userContextKey      = "damson.user"
+	principalContextKey = "damson.principal"
+)
 
 func setUser(c *gin.Context, u *models.User) {
 	c.Set(userContextKey, u)
+}
+
+func setPrincipal(c *gin.Context, p *Principal) {
+	c.Set(principalContextKey, p)
+}
+
+// GetPrincipal returns the personal access token principal when the request
+// authenticated with one, and nil otherwise (an interactive session).
+func GetPrincipal(c *gin.Context) *Principal {
+	v, ok := c.Get(principalContextKey)
+	if !ok {
+		return nil
+	}
+	p, _ := v.(*Principal)
+	return p
 }
 
 // GetUser returns the authenticated user attached by Middleware. Returns nil

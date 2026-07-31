@@ -180,7 +180,7 @@ func main() {
 		OIDCAuthority: cfg.OIDCIssuerURL,
 		OIDCClientID:  cfg.OIDCClientID,
 	})
-	api.AddRoutes(apiGroup, auth.Middleware(authenticator), h)
+	api.AddRoutes(apiGroup, auth.Middleware(authenticator, auth.NewTokenAuthenticator(gormDB)), h)
 
 	if err := damsonweb.Mount(r); err != nil {
 		slog.Error("mount spa", "err", err)
