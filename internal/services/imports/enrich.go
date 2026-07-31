@@ -103,8 +103,16 @@ func enrichFillBlanks(ctx context.Context, deps Deps, asset *models.Asset, meta 
 	if asset.ThumbnailObjectKey == "" && meta.CoverURL != "" {
 		enrichSetThumbnail(ctx, deps, asset, meta.CoverURL)
 	}
+	// Auto-enrichment has no confirm path, so a nil confirm map makes every
+	// would-be overwrite a no-op — blanks only, same rule as the fields above.
+	if _, updates, _ := MetadataFieldUpdates(asset, meta, nil); len(updates) > 0 {
+		if err := deps.DB.WithContext(ctx).Model(asset).Where("id = ?", asset.ID).
+			Updates(updates).Error; err != nil {
+			slog.Warn("enrich: set metadata fields", "err", err, "asset_id", asset.ID)
+		}
+	}
 	StoreGalleryImages(ctx, deps.DB, deps.Storage, deps.Metadata, asset.ID, meta.ImageURLs)
-	enrichAttachTags(ctx, deps, asset, meta.Tags)
+	enrichAttachTags(ctx, deps, asset, MetadataTagList(meta))
 }
 
 // enrichAttachTags adds fetched storefront tags to the asset. Additive and
