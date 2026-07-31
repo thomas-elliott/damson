@@ -71,6 +71,14 @@ func itchInfoRows(body []byte) []itchRow {
 	if err != nil {
 		return nil
 	}
+	// Scope to the info panel. A whole-document walk also harvests the
+	// "More information" disclosure wrapper — whose two child divs make it look
+	// like a row with the entire table as its value — and the community
+	// discussion list, whose post entries use the same two-div shape.
+	root := itchInfoPanel(doc)
+	if root == nil {
+		root = doc
+	}
 	var rows []itchRow
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
@@ -93,8 +101,33 @@ func itchInfoRows(body []byte) []itchRow {
 			walk(c)
 		}
 	}
-	walk(doc)
+	walk(root)
 	return rows
+}
+
+// itchInfoPanelClass marks the "More information" table itch renders on every
+// listing page.
+const itchInfoPanelClass = "game_info_panel_widget"
+
+// itchInfoPanel finds the info-table container, or nil when the page has none.
+func itchInfoPanel(n *html.Node) *html.Node {
+	if n.Type == html.ElementNode {
+		for _, a := range n.Attr {
+			if a.Key == "class" {
+				for _, cls := range strings.Fields(a.Val) {
+					if cls == itchInfoPanelClass {
+						return n
+					}
+				}
+			}
+		}
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if found := itchInfoPanel(c); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 // itchMaxLabelLen keeps prose blocks that happen to sit in a two-div layout from
