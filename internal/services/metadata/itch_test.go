@@ -136,3 +136,37 @@ func TestItchRowTimePrefersAbbrTitle(t *testing.T) {
 		t.Fatal("an absolute cell value should still parse")
 	}
 }
+
+// A whole-page walk harvests the "More information" disclosure wrapper — whose
+// two child divs look like a row carrying the entire table as its value — and
+// the community post list, which uses the same two-div shape. Both were found
+// on a real listing, not in a hand-built fixture, so this uses the real page.
+func TestItchInfoRowsIgnoresEverythingOutsideTheInfoPanel(t *testing.T) {
+	body := readFixture(t, "itch_listing_page.html")
+	page := "https://kenney.itch.io/kenney-game-assets"
+	m := ParseHTML(body, page)
+	rows := itchInfoRows(body)
+	itchApplyRows(m, rows, page)
+
+	got := map[string]string{}
+	for _, a := range m.Attributes {
+		got[a.Key] = a.Value
+	}
+	// The wrapper's label is short enough to pass the length guard, so only
+	// scoping to the info panel excludes it.
+	if v, present := got["more_information"]; present {
+		t.Errorf("harvested the disclosure wrapper as an attribute: %q", v)
+	}
+	for key, value := range got {
+		if strings.Contains(value, "total ratings") || strings.Contains(value, "posts") {
+			t.Errorf("attribute %q carries content from outside the info panel: %q", key, value)
+		}
+	}
+	// The real rows still land.
+	if got["status"] != "In development" {
+		t.Errorf("status = %q", got["status"])
+	}
+	if len(m.Attributes) > 5 {
+		t.Errorf("harvested %d attributes, expected only the info panel's few: %v", len(m.Attributes), got)
+	}
+}
