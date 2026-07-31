@@ -281,8 +281,6 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
 
       <OverviewSection asset={asset} />
 
-      {/* Details sits between Overview and Licence: storefront facts, then the
-          store's own spec sheet. */}
       <DetailsSection asset={asset} />
 
       {/* Tags */}

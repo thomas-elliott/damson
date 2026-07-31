@@ -12,8 +12,7 @@ type Asset struct {
 	Description        string
 	SourceURL          string
 	SourceMetadataJSON json.RawMessage `gorm:"type:jsonb"`
-	// Storefront metadata promoted to first-class columns. All nullable so
-	// "unset" stays distinguishable from "zero", and all hand-editable.
+	// Storefront metadata promoted to first-class columns (migration 019).
 	Publisher            *string
 	PublisherURL         *string
 	Store                *string

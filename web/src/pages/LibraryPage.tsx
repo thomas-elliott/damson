@@ -20,7 +20,7 @@ import {
   isBrowsable,
 } from "@/design-system";
 import { FolderOpen, Library as LibraryIcon } from "lucide-react";
-import { AssetSortMenu } from "@/components/AssetSortMenu";
+import { AssetSortMenu, DEFAULT_ASSET_SORT } from "@/components/AssetSortMenu";
 import { useAssets, useMe, type AssetFilters, type AssetRow } from "@/hooks/useDataQueries";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import {
@@ -221,7 +221,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 value={filters.sort}
                 onChange={(sort) => {
                   const next = new URLSearchParams(search);
-                  if (sort === "created_desc") next.delete("sort");
+                  if (sort === DEFAULT_ASSET_SORT) next.delete("sort");
                   else next.set("sort", sort);
                   setSearch(next, { replace: true });
                 }}

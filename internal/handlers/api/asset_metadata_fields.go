@@ -219,9 +219,8 @@ type assetFacetsResponse struct {
 	Engines    []assetFacet `json:"engines"`
 }
 
-// assetFacetLimit caps each facet list. A library can accumulate a long tail of
-// one-asset publishers; the sidebar shows the ones worth clicking and search
-// covers the rest (publisher is in the search vector).
+// assetFacetLimit caps each facet list. Publisher is in the search vector, so a
+// value past the cap is still findable by search.
 const assetFacetLimit = 50
 
 // getAssetFacets returns the distinct publisher, store and engine values in the

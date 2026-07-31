@@ -367,8 +367,8 @@ func unityShortVersion(s string) string {
 	return parts[0] + "." + parts[1]
 }
 
-// unityHumanSize formats the payload's byte-count string for display. A
-// non-numeric value is passed through unchanged.
+// unityHumanSize formats the payload's byte-count string for display. An
+// unparseable or non-positive value yields "", so the attribute is skipped.
 func unityHumanSize(raw string) string {
 	raw = strings.TrimSpace(raw)
 	n, err := strconv.ParseFloat(raw, 64)

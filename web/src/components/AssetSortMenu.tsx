@@ -18,7 +18,7 @@ const SORTS: { value: AssetSort; label: string }[] = [
   { value: "name_asc", label: "Name" },
 ];
 
-const DEFAULT_SORT: AssetSort = "created_desc";
+export const DEFAULT_ASSET_SORT: AssetSort = "created_desc";
 
 export function AssetSortMenu({
   value,
@@ -27,7 +27,7 @@ export function AssetSortMenu({
   value?: AssetSort;
   onChange: (sort: AssetSort) => void;
 }) {
-  const active = value ?? DEFAULT_SORT;
+  const active = value ?? DEFAULT_ASSET_SORT;
   const label = SORTS.find((s) => s.value === active)?.label ?? SORTS[0].label;
   return (
     <DropdownMenu>

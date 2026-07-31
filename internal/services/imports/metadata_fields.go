@@ -23,8 +23,7 @@ type FieldConflict struct {
 // it is overwritten. asset is mutated for every applied field so the caller's
 // response reflects the new state.
 //
-// Both apply paths — the manual fetch handler and auto-enrichment — go through
-// this so their semantics can't drift.
+// Both apply paths go through this so their semantics can't drift.
 func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (before, updates map[string]any, conflicts []FieldConflict) {
 	before = map[string]any{}
 	updates = map[string]any{}
@@ -49,7 +48,7 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 		if proposed == "" {
 			continue
 		}
-		current := strings.TrimSpace(derefStr(*f.current))
+		current := strings.TrimSpace(derefString(*f.current))
 		if current == proposed {
 			continue
 		}
@@ -149,7 +148,7 @@ func MetadataTagList(meta *metadata.Metadata) []string {
 	return out
 }
 
-func derefStr(p *string) string {
+func derefString(p *string) string {
 	if p == nil {
 		return ""
 	}
