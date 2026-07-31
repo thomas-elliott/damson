@@ -62,9 +62,8 @@ func (UnityAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*
 		return nil, fmt.Errorf("unity: no product %s in coveo", id)
 	}
 	md := coveoMetadata(resp.Results[0], rawURL)
-	if len(md.ImageURLs) == 0 {
-		md.ImageURLs = unityListingGallery(ctx, client, firstNonEmpty(md.ListingURL, rawURL))
-	}
+	listing, pageURL := unityFetchListing(ctx, client, firstNonEmpty(md.ListingURL, rawURL), id)
+	unityApplyListing(md, listing, firstNonEmpty(pageURL, md.ListingURL, rawURL))
 	return md, nil
 }
 
@@ -76,50 +75,6 @@ type unityProductImage struct {
 	Type         string `json:"type"`
 	ImageURL     string `json:"imageUrl"`
 	ThumbnailURL string `json:"thumbnailUrl"`
-}
-
-// unityListingGallery reads the package page and returns its screenshot URLs.
-// Coveo carries only the key image (ec_images is null for every product), but
-// the client-rendered page ships its GraphQL result inline, and that payload
-// holds the gallery. Best-effort: any failure yields no gallery, not an error,
-// since the Coveo metadata on its own is still worth keeping.
-func unityListingGallery(ctx context.Context, client *Client, listingURL string) []string {
-	if listingURL == "" {
-		return nil
-	}
-	resp, err := client.Get(ctx, listingURL, nil)
-	if err != nil || resp.StatusCode >= 400 {
-		return nil
-	}
-	return unityGalleryFromPage(resp.Body, firstNonEmpty(resp.FinalURL, listingURL))
-}
-
-// unityImagesKey is the JSON key holding the product image array in the page's
-// inlined GraphQL payload.
-const unityImagesKey = `"images":`
-
-// unityGalleryFromPage extracts still-image gallery URLs from an inlined
-// product payload. Each `"images":` array is decoded until one yields usable
-// image URLs, so unrelated arrays of the same name are skipped rather than
-// mistaken for the gallery.
-func unityGalleryFromPage(body []byte, pageURL string) []string {
-	s := string(body)
-	for off := 0; ; {
-		i := strings.Index(s[off:], unityImagesKey)
-		if i < 0 {
-			return nil
-		}
-		start := off + i + len(unityImagesKey)
-		off = start
-		dec := json.NewDecoder(strings.NewReader(s[start:]))
-		var imgs []unityProductImage
-		if err := dec.Decode(&imgs); err != nil {
-			continue
-		}
-		if urls := unityGalleryURLs(imgs, pageURL); len(urls) > 0 {
-			return urls
-		}
-	}
 }
 
 // unityGalleryURLs resolves, filters and dedupes product image entries. Video
