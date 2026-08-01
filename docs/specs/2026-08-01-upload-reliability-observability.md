@@ -334,6 +334,17 @@ overlay and died on page-cache pressure. Nothing here blocks the work.
   either a bad body from the client (transport) or a storage-layer fault
   (not). It is what lets one classifier serve both the body-read site and the
   storage-put site.
+- `localfs_multipart.go` (ResumeMultipart reads meta.json) — the metadata is
+  fixed when the upload opens, which is how S3 works too (it goes on
+  CreateMultipartUpload). Complete almost always runs on a resumed handle
+  because it is a separate HTTP request, so without restoring it the sidecar
+  would always be empty.
+- `localfs_multipart.go` (part number ceiling) — 10,000 is an S3 limit, not a
+  filesystem one. LocalFS enforces it anyway so a part-numbering bug fails the
+  same way on the dev backend as in production.
+- `localfs_multipart.go` (UploadPart size check) — S3 rejects a body that
+  doesn't match ContentLength; LocalFS would happily write a short part and
+  the corruption would only surface as a hash mismatch at complete.
 - `upload_errors.go` (io.EOF vs io.ErrUnexpectedEOF) — deliberately two cases
   with the same status and body. From a body read both mean truncation; from a
   storage backend a bare io.EOF is far more likely an internal bug, so only

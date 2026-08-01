@@ -31,7 +31,7 @@ func NewLocalFS(root, baseURL string) (*LocalFS, error) {
 	if root == "" {
 		return nil, errors.New("local storage: root path required")
 	}
-	for _, sub := range []string{"blobs", "thumbs", "originals"} {
+	for _, sub := range []string{"blobs", "thumbs", "originals", uploadsDir} {
 		if err := os.MkdirAll(filepath.Join(root, sub), 0o755); err != nil {
 			return nil, fmt.Errorf("mkdir %s: %w", sub, err)
 		}

@@ -188,6 +188,8 @@ const (
 	// multipart part-copies.
 	maxSingleCopyBytes = 5 << 30
 	copyPartBytes      = 1 << 30
+
+	s3MaxParts = 10000
 )
 
 // putHashed writes r to its content-addressed key without spooling to local
