@@ -11,13 +11,13 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, isUploadAbortedError, uploadFile } from "@/api";
+import { useDeleteAsset } from "@/hooks/useMutations";
 import {
   CHUNKED_UPLOAD_THRESHOLD,
   cancelChunkedUpload,
   uploadFileChunked,
   type UploadPhase,
 } from "@/lib/chunkedUpload";
-import { useDeleteAsset } from "@/hooks/useMutations";
 import { setNotifier } from "@/lib/notificationBridge";
 import { queryKeys } from "@/lib/queryKeys";
 

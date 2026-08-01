@@ -93,7 +93,8 @@ type item struct {
 	// caller knows something the item itself does not.
 	note string
 	// resumeKey identifies this payload across runs. Empty for a zipped
-	// directory.
+	// directory: the archive is rebuilt each time and zip output is not
+	// guaranteed byte-identical, so a recorded session would not match it.
 	resumeKey string
 }
 

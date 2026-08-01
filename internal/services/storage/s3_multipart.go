@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -59,6 +58,12 @@ func (m *s3Multipart) UploadPart(ctx context.Context, n int, size int64, r io.Re
 		ContentLength: aws.Int64(size),
 		Body:          r,
 	}, func(o *s3.Options) {
+		// r is the HTTP request body and cannot be rewound, but both the SigV4
+		// payload hash and the default checksum want to read it before sending.
+		// Over TLS the SDK already switches to UNSIGNED-PAYLOAD; this makes it
+		// unconditional. The object's SHA-256 is verified server-side before
+		// anything is published, and buffering the part instead would put back
+		// the memory pressure the chunked path exists to avoid.
 		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		o.APIOptions = append(o.APIOptions, v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware)
 	})
@@ -72,9 +77,7 @@ func (m *s3Multipart) Complete(ctx context.Context, parts []Part) (string, error
 	if len(parts) == 0 {
 		return "", errors.New("s3 multipart: no parts to complete")
 	}
-	ordered := make([]Part, len(parts))
-	copy(ordered, parts)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Number < ordered[j].Number })
+	ordered := sortedParts(parts)
 
 	completed := make([]types.CompletedPart, 0, len(ordered))
 	for _, p := range ordered {

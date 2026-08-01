@@ -14,7 +14,8 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
-// Janitor expires abandoned upload sessions.
+// Janitor expires abandoned upload sessions. Their backing multipart uploads
+// accrue storage that no bucket listing reveals, so nothing else reclaims them.
 type Janitor struct {
 	DB       *gorm.DB
 	Storage  storage.Service
@@ -51,6 +52,10 @@ func (j *Janitor) Run(ctx context.Context) {
 
 // SweepOnce aborts the backing multipart upload of every open session past
 // its expiry and marks it expired. Returns how many sessions were swept.
+//
+// A session whose multipart will not abort is still marked expired: the status
+// is what stops the client resuming, and the leftover objects belong to the
+// orphan sweep.
 func SweepOnce(ctx context.Context, db *gorm.DB, store storage.Service, now time.Time) (int, error) {
 	var stale []models.UploadSession
 	if err := db.WithContext(ctx).

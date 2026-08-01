@@ -88,7 +88,9 @@ func (s importSpec) storagePrefix() string {
 }
 
 // checkImportConflict answers "would this upload be rejected?" without
-// creating anything.
+// creating anything, so a chunked session can fail before the bytes move.
+// createImportRows re-checks inside its transaction, since a multi-hour
+// upload gives the answer plenty of time to change.
 func (h *Handler) checkImportConflict(ctx context.Context, s importSpec) error {
 	if s.targetAssetID == 0 {
 		return nil
@@ -101,12 +103,12 @@ func (h *Handler) checkImportConflict(ctx context.Context, s importSpec) error {
 	return conflictingStoreVersion(db, asset.ID, s.storeVersion())
 }
 
-func conflictingStoreVersion(tx *gorm.DB, assetID uint, storeVersion string) error {
+func conflictingStoreVersion(db *gorm.DB, assetID uint, storeVersion string) error {
 	if storeVersion == "" {
 		return nil
 	}
 	var dupes int64
-	if err := tx.Model(&models.AssetVersion{}).
+	if err := db.Model(&models.AssetVersion{}).
 		Where("asset_id = ? AND store_version = ?", assetID, storeVersion).
 		Count(&dupes).Error; err != nil {
 		return err

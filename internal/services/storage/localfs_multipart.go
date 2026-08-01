@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 )
 
@@ -54,6 +53,9 @@ func (l *LocalFS) ResumeMultipart(_ context.Context, prefix, objectKey, uploadID
 	if _, err := os.Stat(m.dir()); err != nil {
 		return nil, fmt.Errorf("upload %s: %w", uploadID, err)
 	}
+	// S3 fixes the metadata at CreateMultipartUpload; this is the equivalent.
+	// Complete almost always runs on a resumed handle — it is a separate HTTP
+	// request — so without restoring it the sidecar would always be empty.
 	data, err := os.ReadFile(filepath.Join(m.dir(), uploadMetaFile))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
@@ -83,6 +85,8 @@ func (m *localMultipart) partPath(n int) string {
 }
 
 func (m *localMultipart) UploadPart(_ context.Context, n int, size int64, r io.Reader) (string, error) {
+	// 10,000 is an S3 limit, not a filesystem one. Enforced here too so a
+	// part-numbering bug fails the same way on the dev backend.
 	if n < 1 || n > s3MaxParts {
 		return "", fmt.Errorf("localfs multipart: part number %d out of range", n)
 	}
@@ -102,9 +106,7 @@ func (m *localMultipart) Complete(_ context.Context, parts []Part) (string, erro
 	if len(parts) == 0 {
 		return "", errors.New("localfs multipart: no parts to complete")
 	}
-	ordered := make([]Part, len(parts))
-	copy(ordered, parts)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Number < ordered[j].Number })
+	ordered := sortedParts(parts)
 
 	final, err := m.l.pathFor(m.prefix, m.key)
 	if err != nil {
@@ -118,24 +120,7 @@ func (m *localMultipart) Complete(_ context.Context, parts []Part) (string, erro
 	}
 
 	assembled := filepath.Join(m.dir(), "assembled")
-	out, err := os.Create(assembled)
-	if err != nil {
-		return "", err
-	}
-	for _, p := range ordered {
-		in, err := os.Open(m.partPath(p.Number))
-		if err != nil {
-			_ = out.Close()
-			return "", fmt.Errorf("localfs multipart: part %d: %w", p.Number, err)
-		}
-		_, err = io.Copy(out, in)
-		_ = in.Close()
-		if err != nil {
-			_ = out.Close()
-			return "", err
-		}
-	}
-	if err := out.Close(); err != nil {
+	if err := m.concat(assembled, ordered); err != nil {
 		return "", err
 	}
 	if err := os.Rename(assembled, final); err != nil {
@@ -143,6 +128,27 @@ func (m *localMultipart) Complete(_ context.Context, parts []Part) (string, erro
 	}
 	writeSidecar(final, m.meta)
 	return m.key, m.discard()
+}
+
+// concat writes the parts end to end into dst.
+func (m *localMultipart) concat(dst string, ordered []Part) error {
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	for _, p := range ordered {
+		in, err := os.Open(m.partPath(p.Number))
+		if err != nil {
+			return fmt.Errorf("localfs multipart: part %d: %w", p.Number, err)
+		}
+		_, err = io.Copy(out, in)
+		_ = in.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return out.Close()
 }
 
 func (m *localMultipart) Abort(_ context.Context) error { return m.discard() }

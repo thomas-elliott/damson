@@ -7,6 +7,7 @@ package storage
 import (
 	"context"
 	"io"
+	"sort"
 	"time"
 )
 
@@ -52,6 +53,15 @@ type MultipartUpload interface {
 
 	// Abort discards the upload and everything written to it.
 	Abort(ctx context.Context) error
+}
+
+// sortedParts copies parts into part-number order. Callers may list them in
+// any order; the object is always the concatenation by number.
+func sortedParts(parts []Part) []Part {
+	ordered := make([]Part, len(parts))
+	copy(ordered, parts)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Number < ordered[j].Number })
+	return ordered
 }
 
 // Service reads and writes blobs (content-addressed by SHA-256) and
