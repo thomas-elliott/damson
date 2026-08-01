@@ -403,3 +403,8 @@ Scratch for `/implement`; `/cleanup` consumes this section and removes it.
 - `database/migrations/022_max_upload_default.sql` — the value-matched UPDATE
   treats a stored 2147483648 as "nobody chose a cap" rather than a deliberate
   2 GiB; see the deviation note in Resolved questions.
+- `internal/services/storage/s3.go` (`abortStagingUpload`) — the uploader
+  already attempts its own abort, but on the request context, which in the
+  client-abort case is the context that has just been cancelled; so the abort
+  never reaches the bucket. Found by aborting a real upload against MinIO and
+  seeing the incomplete multipart survive.
