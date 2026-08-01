@@ -480,9 +480,8 @@ func zipDirectory(dir string, w io.Writer) error {
 }
 
 // archiveError classifies a write failure while building the temp archive.
-// Running out of scratch space is the failure worth naming: it is common with
-// a multi-gigabyte folder, and the fix (free space, or point TMPDIR at a
-// bigger volume) is nothing like the fix for a generic IO error.
+// A full scratch volume gets its own code: the remedy is TMPDIR, not the
+// upload.
 func archiveError(err error, format string, args ...any) error {
 	if errors.Is(err, syscall.ENOSPC) {
 		e := axi.Wrap(axi.CodeNoSpace, err, "%s: out of space in %s", fmt.Sprintf(format, args...), os.TempDir())
@@ -553,10 +552,7 @@ func (e *Env) reportOutcomes(ctx context.Context, client *Client, outcomes []upl
 		return err
 	}
 	if counts["failed"] > 0 {
-		// The report is the result, so it is printed first; the exit code
-		// still has to say the run did not fully succeed.
-		// The table above is the result; this only sets the exit code and
-		// states the tally in one line.
+		// The table above is the result; this only sets the exit code.
 		return axi.Errorf(axi.CodeIO, "%s failed", axi.Count(counts["failed"], "upload"))
 	}
 	return nil

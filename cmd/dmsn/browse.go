@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -252,7 +253,7 @@ func runImports(ctx context.Context, e *Env, page *pageFlags, stage *string) err
 		return err
 	}
 	if s := strings.TrimSpace(*stage); s != "" {
-		if s != "all" && !contains(importStages, s) {
+		if s != "all" && !slices.Contains(importStages, s) {
 			return axi.Usagef(
 				[]string{"stages: " + strings.Join(importStages, ",") + ",all"},
 				"unknown stage %q", s)

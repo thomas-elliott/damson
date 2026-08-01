@@ -20,9 +20,7 @@ var homeCommand = &command{
 	run:     runHome,
 }
 
-// overviewResponse mirrors GET /api/overview. Decoded into the CLI's own
-// struct rather than importing internal/handlers/api, which would drag gin
-// into the client binary.
+// overviewResponse mirrors GET /api/overview.
 type overviewResponse struct {
 	Library struct {
 		ID   uint   `json:"id"`

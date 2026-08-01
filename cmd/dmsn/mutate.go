@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,7 +30,6 @@ func bodyKey(flagName string) string { return strings.ReplaceAll(flagName, "-", 
 type editFlags struct {
 	values map[string]*string
 	clear  string
-	yes    bool
 }
 
 func newEditFlags() *editFlags {
@@ -62,7 +62,7 @@ func (f *editFlags) body(e *Env) (map[string]any, error) {
 	}
 	for _, raw := range axi.ParseFields(f.clear) {
 		name := strings.TrimSpace(raw)
-		if !contains(editableFields, name) {
+		if !slices.Contains(editableFields, name) {
 			return nil, axi.Usagef(
 				[]string{"clearable fields: " + strings.Join(editableFields, ",")},
 				"cannot clear unknown field %q", name)
@@ -425,90 +425,104 @@ func runCollectionVerb(ctx context.Context, e *Env, name, desc, assets *string, 
 
 	switch verb {
 	case "new":
-		if len(rest) != 1 {
-			return axi.Usagef([]string{`dmsn collection new "Name"`}, "collection new takes one name")
-		}
-		var out collectionRow
-		body := map[string]any{"name": rest[0]}
-		if *desc != "" {
-			body["description"] = *desc
-		}
-		if err := client.PostJSON(ctx, "/api/collections", body, &out); err != nil {
-			return err
-		}
-		return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
-			{Key: "id", Value: out.ID}, {Key: "name", Value: out.Name},
-		}}}, []string{fmt.Sprintf("dmsn collection add %d --assets <ids>", out.ID)})
-
+		return runCollectionNew(ctx, e, client, rest, *desc)
 	case "edit":
-		if len(rest) != 1 {
-			return axi.Usagef([]string{"dmsn collection edit <id> --name <name>"}, "collection edit takes one id")
-		}
-		id, idErr := parsePositiveID(rest[0], "collection id")
-		if idErr != nil {
-			return idErr
-		}
-		body := map[string]any{}
-		if e.flagWasSet("name") {
-			body["name"] = *name
-		}
-		if e.flagWasSet("description") {
-			body["description"] = *desc
-		}
-		if len(body) == 0 {
-			return axi.Usagef(
-				[]string{"dmsn collection edit <id> --name <name>", "dmsn collection edit <id> --description <text>"},
-				"nothing to change: set --name or --description")
-		}
-		var out collectionRow
-		if err := client.PatchJSON(ctx, "/api/collections/"+id, body, &out); err != nil {
-			return err
-		}
-		return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
-			{Key: "id", Value: out.ID}, {Key: "name", Value: out.Name},
-			{Key: "changed", Value: len(body)},
-		}}}, []string{fmt.Sprintf("dmsn collection %d", out.ID)})
-
+		return runCollectionEdit(ctx, e, client, rest, name, desc)
 	case "rm":
-		if len(rest) != 1 {
-			return axi.Usagef([]string{"dmsn collection rm <id> --yes"}, "collection rm takes one id")
-		}
-		id, idErr := parsePositiveID(rest[0], "collection id")
-		if idErr != nil {
-			return idErr
-		}
-		if !*yes {
-			return confirmRequired(fmt.Sprintf("dmsn collection rm %s --yes", id),
-				"deleting collection %s removes the grouping; the assets themselves stay", id)
-		}
-		if err := client.Delete(ctx, "/api/collections/"+id); err != nil {
-			return err
-		}
-		return e.Records([]Block{{Key: "deleted", Fields: []toon.KV{
-			{Key: "collection_id", Value: mustUint(id)},
-		}}}, []string{"dmsn collections"})
-
+		return runCollectionRemove(ctx, e, client, rest, *yes)
 	case "add", "remove":
-		if len(rest) != 1 {
-			return axi.Usagef(
-				[]string{"dmsn collection " + verb + " <id> --assets 1,2,3"},
-				"collection %s takes one collection id", verb)
-		}
-		id, idErr := parsePositiveID(rest[0], "collection id")
-		if idErr != nil {
-			return idErr
-		}
-		ids, idsErr := parseIDList(*assets)
-		if idsErr != nil {
-			return idsErr
-		}
-		return e.collectionMembership(ctx, client, verb, id, ids)
-
+		return runCollectionMembers(ctx, e, client, verb, rest, *assets)
 	default:
 		return axi.Usagef(
 			[]string{"dmsn collection <id>", "dmsn collection new <name>", "dmsn collections"},
 			"unknown collection verb %q", verb)
 	}
+}
+
+func runCollectionNew(ctx context.Context, e *Env, client *Client, args []string, desc string) error {
+	if len(args) != 1 {
+		return axi.Usagef([]string{`dmsn collection new "Name"`}, "collection new takes one name")
+	}
+	body := map[string]any{"name": args[0]}
+	if desc != "" {
+		body["description"] = desc
+	}
+	var out collectionRow
+	if err := client.PostJSON(ctx, "/api/collections", body, &out); err != nil {
+		return err
+	}
+	return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
+		{Key: "id", Value: out.ID}, {Key: "name", Value: out.Name},
+	}}}, []string{fmt.Sprintf("dmsn collection add %d --assets <ids>", out.ID)})
+}
+
+func runCollectionEdit(ctx context.Context, e *Env, client *Client, args []string, name, desc *string) error {
+	if len(args) != 1 {
+		return axi.Usagef([]string{"dmsn collection edit <id> --name <name>"}, "collection edit takes one id")
+	}
+	id, err := parsePositiveID(args[0], "collection id")
+	if err != nil {
+		return err
+	}
+	// An unset flag is absent from the body, so the API leaves that column
+	// alone; a flag set to "" is a deliberate clear.
+	body := map[string]any{}
+	if e.flagWasSet("name") {
+		body["name"] = *name
+	}
+	if e.flagWasSet("description") {
+		body["description"] = *desc
+	}
+	if len(body) == 0 {
+		return axi.Usagef(
+			[]string{"dmsn collection edit <id> --name <name>", "dmsn collection edit <id> --description <text>"},
+			"nothing to change: set --name or --description")
+	}
+	var out collectionRow
+	if err := client.PatchJSON(ctx, "/api/collections/"+id, body, &out); err != nil {
+		return err
+	}
+	return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
+		{Key: "id", Value: out.ID}, {Key: "name", Value: out.Name},
+		{Key: "changed", Value: len(body)},
+	}}}, []string{fmt.Sprintf("dmsn collection %d", out.ID)})
+}
+
+func runCollectionRemove(ctx context.Context, e *Env, client *Client, args []string, yes bool) error {
+	if len(args) != 1 {
+		return axi.Usagef([]string{"dmsn collection rm <id> --yes"}, "collection rm takes one id")
+	}
+	id, err := parsePositiveID(args[0], "collection id")
+	if err != nil {
+		return err
+	}
+	if !yes {
+		return confirmRequired(fmt.Sprintf("dmsn collection rm %s --yes", id),
+			"deleting collection %s removes the grouping; the assets themselves stay", id)
+	}
+	if err := client.Delete(ctx, "/api/collections/"+id); err != nil {
+		return err
+	}
+	return e.Records([]Block{{Key: "deleted", Fields: []toon.KV{
+		{Key: "collection_id", Value: mustUint(id)},
+	}}}, []string{"dmsn collections"})
+}
+
+func runCollectionMembers(ctx context.Context, e *Env, client *Client, verb string, args []string, assets string) error {
+	if len(args) != 1 {
+		return axi.Usagef(
+			[]string{"dmsn collection " + verb + " <id> --assets 1,2,3"},
+			"collection %s takes one collection id", verb)
+	}
+	id, err := parsePositiveID(args[0], "collection id")
+	if err != nil {
+		return err
+	}
+	ids, err := parseIDList(assets)
+	if err != nil {
+		return err
+	}
+	return e.collectionMembership(ctx, client, verb, id, ids)
 }
 
 // collectionMembership adds or removes assets. Adding goes through the bulk
