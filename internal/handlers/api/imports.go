@@ -85,6 +85,16 @@ func (r importScanRow) toRow() importRow {
 	}
 }
 
+// libraryImports is the tenancy-scoped base for every import query: imports
+// are reached through their asset, so the library filter is a join condition
+// rather than a column on the row. One definition, so the five call sites
+// cannot drift apart on the one join that must not.
+func libraryImports(db *gorm.DB, libraryID uint) *gorm.DB {
+	return db.Table("asset_imports AS i").
+		Joins("JOIN assets a ON a.id = i.asset_id").
+		Where("a.library_id = ?", libraryID)
+}
+
 // getImports returns imports for the current library. The default (queue) view
 // is the *review backlog*: anything still in flight, failed, or whose asset
 // still needs review — regardless of import stage, so a completed import whose
@@ -101,10 +111,7 @@ func (h *Handler) getImports(c *gin.Context) {
 	limit, offset := parsePagination(c)
 	stageFilter := strings.TrimSpace(c.Query("stage"))
 
-	q := h.db.WithContext(c.Request.Context()).
-		Table("asset_imports AS i").
-		Joins("JOIN assets a ON a.id = i.asset_id").
-		Where("a.library_id = ?", lib.ID)
+	q := libraryImports(h.db.WithContext(c.Request.Context()), lib.ID)
 
 	switch stageFilter {
 	case "":
@@ -156,11 +163,9 @@ func (h *Handler) getImports(c *gin.Context) {
 // window, newest first, capped.
 func (h *Handler) finishedImports(c *gin.Context, libraryID uint) ([]importRow, error) {
 	var rows []importScanRow
-	err := h.db.WithContext(c.Request.Context()).
-		Table("asset_imports AS i").
-		Joins("JOIN assets a ON a.id = i.asset_id").
-		Where("a.library_id = ? AND i.stage = ? AND NOT a.needs_review AND i.updated_at >= ?",
-			libraryID, "done", time.Now().Add(-queueFinishedWindow)).
+	err := libraryImports(h.db.WithContext(c.Request.Context()), libraryID).
+		Where("i.stage = ? AND NOT a.needs_review AND i.updated_at >= ?",
+			"done", time.Now().Add(-queueFinishedWindow)).
 		Select(importRowSelect).
 		Order("i.updated_at DESC").
 		Limit(queueFinishedLimit).
@@ -188,10 +193,8 @@ func (h *Handler) getImport(c *gin.Context) {
 	}
 
 	var r importScanRow
-	err := h.db.WithContext(c.Request.Context()).
-		Table("asset_imports AS i").
-		Joins("JOIN assets a ON a.id = i.asset_id").
-		Where("i.id = ? AND a.library_id = ?", id, lib.ID).
+	err := libraryImports(h.db.WithContext(c.Request.Context()), lib.ID).
+		Where("i.id = ?", id).
 		Select(importRowSelect).
 		Scan(&r).Error
 	if err != nil {

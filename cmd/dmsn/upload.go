@@ -3,7 +3,6 @@ package main
 import (
 	"archive/zip"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	"time"
 
 	"github.com/thomas-elliott/damson/internal/axi"
+	"github.com/thomas-elliott/damson/internal/importstage"
 	"github.com/thomas-elliott/damson/internal/toon"
 )
 
@@ -37,9 +37,6 @@ const (
 	waitPoll  = 2 * time.Second
 	waitLimit = 15 * time.Minute
 )
-
-// terminalStages end the import state machine; --wait stops at either.
-var terminalStages = map[string]bool{"done": true, "failed": true}
 
 type uploadFlags struct {
 	as           string
@@ -290,7 +287,7 @@ func (e *Env) reportPlan(items []item, skip map[int]preflightMatch, maxBytes int
 			"a skip is a name match only — it cannot tell a duplicate from a newer version",
 			"drop --skip-existing to upload them anyway")
 	}
-	return axi.RenderComposite(e.Out, []Block{summary}, []axi.Table{table}, help, e.Globals.options())
+	return axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table}, help, e.Globals.options())
 }
 
 func plannedAction(i int, it item, skip map[int]preflightMatch, maxBytes int64, f *uploadFlags) (string, string) {
@@ -311,7 +308,6 @@ func plannedAction(i int, it item, skip map[int]preflightMatch, maxBytes int64, 
 }
 
 type uploadOutcome struct {
-	index    int
 	filename string
 	status   string
 	assetID  uint
@@ -322,25 +318,32 @@ type uploadOutcome struct {
 
 func (e *Env) performUpload(ctx context.Context, client *Client, items []item, skip map[int]preflightMatch, maxBytes int64, f *uploadFlags) error {
 	outcomes := make([]uploadOutcome, len(items))
-	sem := make(chan struct{}, f.concurrency)
-	var wg sync.WaitGroup
 
+	// A fixed pool rather than a goroutine per item: a folder of two thousand
+	// children would otherwise park two thousand stacks on the semaphore to do
+	// --concurrency things at a time.
+	queue := make(chan int)
+	var wg sync.WaitGroup
+	for range f.concurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range queue {
+				outcomes[i] = e.uploadOne(ctx, client, items[i], maxBytes, f)
+			}
+		}()
+	}
 	for i, it := range items {
 		if m, ok := skip[i]; ok && f.skipExisting {
 			outcomes[i] = uploadOutcome{
-				index: i, filename: it.filename, status: "skipped", assetID: m.AssetID,
+				filename: it.filename, status: "skipped", assetID: m.AssetID,
 				detail: fmt.Sprintf("already hold %q", m.AssetName),
 			}
 			continue
 		}
-		wg.Add(1)
-		go func(i int, it item) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			outcomes[i] = e.uploadOne(ctx, client, i, it, maxBytes, f)
-		}(i, it)
+		queue <- i
 	}
+	close(queue)
 	wg.Wait()
 
 	return e.reportOutcomes(ctx, client, outcomes, f)
@@ -349,8 +352,8 @@ func (e *Env) performUpload(ctx context.Context, client *Client, items []item, s
 // uploadOne sends a single item. A per-item failure is recorded and the run
 // continues: one bad file in a folder of two hundred should not abort the
 // other hundred and ninety-nine.
-func (e *Env) uploadOne(ctx context.Context, client *Client, i int, it item, maxBytes int64, f *uploadFlags) uploadOutcome {
-	out := uploadOutcome{index: i, filename: it.filename}
+func (e *Env) uploadOne(ctx context.Context, client *Client, it item, maxBytes int64, f *uploadFlags) uploadOutcome {
+	out := uploadOutcome{filename: it.filename}
 
 	body, size, cleanup, err := openPayload(it)
 	if cleanup != nil {
@@ -548,7 +551,7 @@ func (e *Env) reportOutcomes(ctx context.Context, client *Client, outcomes []upl
 		help = append(help, "dmsn imports", "dmsn upload <path> --wait  # block until each import settles")
 	}
 
-	if err := axi.RenderComposite(e.Out, []Block{summary}, []axi.Table{table}, help, e.Globals.options()); err != nil {
+	if err := axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table}, help, e.Globals.options()); err != nil {
 		return err
 	}
 	if counts["failed"] > 0 {
@@ -639,11 +642,8 @@ func (c *Client) PostImport(ctx context.Context, filename string, body io.Reader
 		return nil, networkError(err, c.BaseURL)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, axi.FromHTTP(resp.StatusCode, serverMessage(resp.Body))
-	}
 	var out importEnqueueResponse
-	if err := decodeJSON(resp.Body, &out); err != nil {
+	if err := finish(resp, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -679,8 +679,8 @@ func (c *Client) WaitForImport(ctx context.Context, importID uint) (string, erro
 		if err := c.GetJSON(ctx, path, nil, &row); err != nil {
 			return "", err
 		}
-		if terminalStages[row.Stage] {
-			if row.Stage == "failed" && row.Error != "" {
+		if importstage.IsTerminal(row.Stage) {
+			if row.Stage == importstage.Failed && row.Error != "" {
 				return row.Stage, axi.Errorf(axi.CodeServer, "%s", row.Error)
 			}
 			return row.Stage, nil
@@ -691,11 +691,4 @@ func (c *Client) WaitForImport(ctx context.Context, importID uint) (string, erro
 		case <-time.After(waitPoll):
 		}
 	}
-}
-
-func decodeJSON(r io.Reader, out any) error {
-	if err := json.NewDecoder(r).Decode(out); err != nil {
-		return axi.Wrap(axi.CodeServer, err, "the server returned a response %s could not read", binaryName)
-	}
-	return nil
 }
