@@ -569,12 +569,8 @@ func (h *Handler) postImport(c *gin.Context) {
 			"package_kind", packageKind,
 			"err", err)
 		abandonImport()
-		if isTransportFailure(err, c.Request.Context().Err()) {
-			respondUploadError(c, err,
-				"library_id", lib.ID, "asset_id", assetID, "import_id", importID, "filename", filename)
-			return
-		}
-		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+		respondUploadOrServerError(c, err, fmt.Errorf("storage put (library %d): %w", lib.ID, err),
+			"library_id", lib.ID, "asset_id", assetID, "import_id", importID, "filename", filename)
 		return
 	}
 	if err := form.checkNoTrailingFields(); err != nil {
