@@ -167,6 +167,9 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped := authed.Group("")
 	scoped.Use(h.requireLibrary())
 
+	// Home view — one round trip for the state a client needs on start.
+	scoped.GET("/overview", h.getOverview)
+
 	// Assets
 	scoped.GET("/assets", h.getAssets)
 	scoped.GET("/assets/facets", h.getAssetFacets)
