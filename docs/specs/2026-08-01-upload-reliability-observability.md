@@ -334,6 +334,35 @@ overlay and died on page-cache pressure. Nothing here blocks the work.
   either a bad body from the client (transport) or a storage-layer fault
   (not). It is what lets one classifier serve both the body-read site and the
   storage-put site.
+- `uploads.go` (postUploadSession) — the client declares the content hash, so
+  an object damson already holds is imported without transferring a byte and
+  everything else writes multipart straight to its final key. No staging.
+- `uploads.go` (completeDedupedUpload) — no session row is created because
+  there is nothing left to transfer; the response shape still matches an open
+  session so one client code path handles both.
+- `uploads.go` (putUploadChunk) — chunks are strictly sequential because the
+  SHA-256 is verified incrementally and its state travels through the database
+  between requests. Parallel chunks would need verification by re-reading.
+- `uploads.go` (the conditional UPDATE on next_chunk) — two requests racing the
+  same index must not both advance the running hash. The loser gets 409 and
+  retries against fresh state.
+- `uploads.go` (postUploadComplete ordering) — rows are created *before* the
+  multipart completes so a conflict (duplicate store version, deleted target
+  asset) doesn't publish an object that nothing references.
+- `uploads.go` / `discardSession` — best-effort on both halves: the janitor and
+  the orphan sweep are the backstop, and the caller is already responding to
+  some other failure.
+- `janitor.go` (Janitor) — without it a client that walks away leaves an S3
+  multipart upload accruing storage that no bucket listing shows.
+- `janitor.go` (SweepOnce) — a session whose multipart won't abort is still
+  marked expired: the status is what stops the client resuming, and the
+  storage-side leftovers belong to the orphan sweep.
+- `import_create.go` (createImportRows) — the version has no object key until
+  finishImport runs, so a crash in between leaves a keyless version that
+  ResumeInFlight fails rather than a live import.
+- `import_create.go` (checkImportConflict) — exists so a chunked session can
+  fail before the bytes move; the same check runs again inside the transaction
+  because the state can change during a multi-hour upload.
 - `localfs_multipart.go` (ResumeMultipart reads meta.json) — the metadata is
   fixed when the upload opens, which is how S3 works too (it goes on
   CreateMultipartUpload). Complete almost always runs on a resumed handle
