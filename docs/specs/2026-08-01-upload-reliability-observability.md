@@ -334,6 +334,30 @@ overlay and died on page-cache pressure. Nothing here blocks the work.
   either a bad body from the client (transport) or a storage-layer fault
   (not). It is what lets one classifier serve both the body-read site and the
   storage-put site.
+- `chunkedUpload.ts` (CHUNKED_UPLOAD_THRESHOLD) — below it the one-shot
+  endpoint is cheaper: no hashing pass and no session round-trips. 256 MiB is
+  the spec's resolved figure.
+- `chunkedUpload.ts` (fileKey) — name+size+lastModified is the only identity a
+  reload leaves behind. A collision is possible, but the server re-verifies the
+  hash, so the worst case is a resume that gets rejected.
+- `chunkedUpload.ts` (resumableSession) — a session that expired, completed or
+  vanished is forgotten rather than resumed, so a stale localStorage entry can
+  never wedge an upload permanently.
+- `chunkedUpload.ts` (uploadFileChunked) — every request is bounded by one
+  chunk, which is the whole point: no proxy timeout or body cap has to be sized
+  for the full transfer.
+- `chunkedUpload.ts` (isRetryableStatus) — only a transient failure is worth
+  resending. A chunk the server called malformed would be called malformed
+  again, so retrying just delays the error.
+- `chunkedUpload.ts` (sendChunk uses raw fetch) — deviates from the
+  "always fetchJson" rule for the same reason uploadFile does: a Blob body,
+  no JSON request, and per-attempt retry. The bearer still comes from
+  getAccessToken.
+- `sha256Worker.ts` — hashing runs in a worker because it is a full read of a
+  20 GB file; on the main thread it would freeze the tab. crypto.subtle cannot
+  stream, hence hash-wasm.
+- `NotificationCentre.tsx` (uploadStatusLine) — hashing a 20 GB file takes long
+  enough that a bare progress bar reads as a stalled upload.
 - `uploads.go` (postUploadSession) — the client declares the content hash, so
   an object damson already holds is imported without transferring a byte and
   everything else writes multipart straight to its final key. No staging.
