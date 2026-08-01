@@ -166,10 +166,12 @@ func filterByPublisher(entries []unitycache.Entry, publisher string) []unitycach
 func cacheItems(root string, entries []unitycache.Entry) []item {
 	items := make([]item, 0, len(entries))
 	for _, e := range entries {
+		path := filepath.Join(root, filepath.FromSlash(e.RelativePath))
 		items = append(items, item{
-			path:     filepath.Join(root, filepath.FromSlash(e.RelativePath)),
-			filename: filepath.Base(filepath.FromSlash(e.RelativePath)),
-			size:     e.SizeBytes,
+			path:      path,
+			filename:  filepath.Base(filepath.FromSlash(e.RelativePath)),
+			size:      e.SizeBytes,
+			resumeKey: uploadResumeKey(path, e.SizeBytes, e.ModTime),
 			opts: importOptions{
 				sourceKind:         importsource.KindUnityCache,
 				sourceRelativePath: e.RelativePath,

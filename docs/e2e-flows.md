@@ -237,3 +237,34 @@ work on this suite:
    navigation case is the highest-value of these: it's exactly the
    multi-system, hard-to-reproduce-by-hand class this suite exists for.
 3. **Runtime budget** — keep the full suite under 3 minutes in CI.
+
+---
+
+## Deliberately not covered: chunked uploads
+
+The resumable transport (`docs/architecture.md` section 8.0) has no
+Playwright flow, and that is a decision rather than a gap.
+
+Triggering it needs a file at or above the 256 MiB threshold. Generating
+one per run costs more than the whole suite's runtime budget, and
+lowering the threshold for tests would mean shipping a test-only code
+path through the exact logic the test is meant to prove.
+
+What covers it instead:
+
+- `web/src/lib/chunkedUpload.test.ts` — the browser half against a
+  recorded fetch: chunk boundaries and ordering, the dedupe
+  short-circuit, resume from stored state, retry on a transient failure,
+  no retry on a rejected chunk, abort.
+- `internal/handlers/api/uploads_test.go` — the server half end to end
+  against real Postgres and a real storage backend, with the chunk size
+  injected small so a few dozen bytes exercise the multi-chunk path.
+- `internal/services/storage/multipart_test.go` — one contract run
+  against both storage backends.
+- `cmd/dmsn/chunked_test.go` — the CLI half against a fake session
+  server.
+
+What that leaves genuinely unproven in a browser: the Web Worker hashing
+path (jsdom cannot run the WASM, so the unit test stubs the worker), and
+`Blob`-body streaming under a real network stack. Both are worth a manual
+pass against a real large file before trusting a release.
