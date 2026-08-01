@@ -158,18 +158,27 @@ func TestCheckScope(t *testing.T) {
 	}
 }
 
-func TestTokenPathDenied(t *testing.T) {
-	denied := []string{"/api/me/tokens", "/api/me/tokens/:id", "/api/admin/users", "/api/admin/storage/cleanup/scan"}
-	for _, p := range denied {
-		if !TokenPathDenied(p) {
-			t.Fatalf("%q must be denied to token auth", p)
-		}
+func TestRefuseTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	run := func(principal *Principal) int {
+		r := gin.New()
+		r.GET("/gated", func(c *gin.Context) {
+			if principal != nil {
+				setPrincipal(c, principal)
+			}
+			c.Next()
+		}, RefuseTokens(), func(c *gin.Context) { c.Status(http.StatusOK) })
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/gated", nil))
+		return w.Code
 	}
-	allowed := []string{"/api/me", "/api/assets", "/api/assets/:id", "/api/imports", "/api/libraries/:id/members"}
-	for _, p := range allowed {
-		if TokenPathDenied(p) {
-			t.Fatalf("%q must remain available to token auth", p)
-		}
+
+	if got := run(&Principal{Token: &models.APIToken{Scope: ScopeWrite}}); got != http.StatusForbidden {
+		t.Fatalf("a token principal must be refused, got %d", got)
+	}
+	if got := run(nil); got != http.StatusOK {
+		t.Fatalf("an interactive session must pass, got %d", got)
 	}
 }
 
@@ -336,9 +345,11 @@ func tokenRouter(t *testing.T, db *gorm.DB, stub Authenticator) (*gin.Engine, *b
 	}
 	g.GET("/assets", hit)
 	g.POST("/assets/bulk", hit)
-	g.GET("/me/tokens", hit)
-	g.POST("/me/tokens", hit)
-	g.GET("/admin/users", hit)
+	// Mirrors AddRoutes: the privileged routes carry RefuseTokens().
+	noTokens := RefuseTokens()
+	g.GET("/me/tokens", noTokens, hit)
+	g.POST("/me/tokens", noTokens, hit)
+	g.GET("/admin/users", noTokens, hit)
 	return r, &reached
 }
 

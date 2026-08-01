@@ -53,13 +53,12 @@ func (c *Client) GetJSON(ctx context.Context, path string, query url.Values, out
 
 // PostJSON performs a POST with a JSON body and decodes the response.
 func (c *Client) PostJSON(ctx context.Context, path string, body, out any) error {
-	var buf bytes.Buffer
-	if body != nil {
-		if err := json.NewEncoder(&buf).Encode(body); err != nil {
-			return axi.Wrap(axi.CodeIO, err, "encode request body")
-		}
-	}
-	return c.do(ctx, http.MethodPost, path, nil, &buf, "application/json", out)
+	return c.sendJSON(ctx, http.MethodPost, path, body, out)
+}
+
+// PatchJSON performs a PATCH with a JSON body and decodes the response.
+func (c *Client) PatchJSON(ctx context.Context, path string, body, out any) error {
+	return c.sendJSON(ctx, http.MethodPatch, path, body, out)
 }
 
 // Delete performs a DELETE, discarding any response body.
@@ -67,15 +66,14 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 	return c.do(ctx, http.MethodDelete, path, nil, nil, "", nil)
 }
 
-// PatchJSON performs a PATCH with a JSON body and decodes the response.
-func (c *Client) PatchJSON(ctx context.Context, path string, body, out any) error {
+func (c *Client) sendJSON(ctx context.Context, method, path string, body, out any) error {
 	var buf bytes.Buffer
 	if body != nil {
 		if err := json.NewEncoder(&buf).Encode(body); err != nil {
 			return axi.Wrap(axi.CodeIO, err, "encode request body")
 		}
 	}
-	return c.do(ctx, http.MethodPatch, path, nil, &buf, "application/json", out)
+	return c.do(ctx, method, path, nil, &buf, "application/json", out)
 }
 
 func (c *Client) do(ctx context.Context, method, path string, query url.Values, body io.Reader, contentType string, out any) error {
@@ -98,6 +96,13 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	}
 	defer resp.Body.Close()
 
+	return finish(resp, out)
+}
+
+// finish maps a response onto the error envelope and decodes the body. Every
+// request path ends here, including the multipart upload, so status handling
+// cannot drift between them.
+func finish(resp *http.Response, out any) error {
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return axi.FromHTTP(resp.StatusCode, serverMessage(resp.Body))
 	}
@@ -105,7 +110,11 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	return decodeJSON(resp.Body, out)
+}
+
+func decodeJSON(r io.Reader, out any) error {
+	if err := json.NewDecoder(r).Decode(out); err != nil {
 		return axi.Wrap(axi.CodeServer, err, "the server returned a response %s could not read", binaryName)
 	}
 	return nil

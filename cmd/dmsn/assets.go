@@ -79,6 +79,39 @@ type assetDetailResponse struct {
 	} `json:"collections"`
 }
 
+// assetColumns is the default projection for any asset listing, and
+// assetAllowed everything --fields may name. Both the flat list and a
+// collection's members render through them, so the shape cannot drift.
+var (
+	assetColumns = []string{"id", "name", "publisher", "needs_review"}
+	assetAllowed = []string{
+		"id", "name", "publisher", "needs_review", "file_count", "size_bytes",
+		"package_kind", "licence_spdx", "licence_status", "released_at",
+		"update_available", "created_at",
+	}
+)
+
+func assetRows(assets []assetRow) []map[string]any {
+	rows := make([]map[string]any, 0, len(assets))
+	for _, a := range assets {
+		rows = append(rows, map[string]any{
+			"id":               a.ID,
+			"name":             a.Name,
+			"publisher":        blankToNil(a.Publisher),
+			"needs_review":     a.NeedsReview,
+			"file_count":       a.FileCount,
+			"size_bytes":       a.SizeBytes,
+			"package_kind":     blankToNil(a.PackageKind),
+			"licence_spdx":     blankToNil(a.LicenceSPDX),
+			"licence_status":   blankToNil(a.LicenceStatus),
+			"released_at":      a.ReleasedAt,
+			"update_available": a.UpdateAvailable,
+			"created_at":       a.CreatedAt,
+		})
+	}
+	return rows
+}
+
 // assetFilters are the query-param filters `dmsn assets` exposes. Every one
 // maps onto a parameter GET /api/assets already accepts.
 type assetFilters struct {
@@ -204,23 +237,7 @@ func runAssets(ctx context.Context, e *Env, f *assetFilters) error {
 		return err
 	}
 
-	rows := make([]map[string]any, 0, len(resp.Assets))
-	for _, a := range resp.Assets {
-		rows = append(rows, map[string]any{
-			"id":               a.ID,
-			"name":             a.Name,
-			"publisher":        blankToNil(a.Publisher),
-			"needs_review":     a.NeedsReview,
-			"file_count":       a.FileCount,
-			"size_bytes":       a.SizeBytes,
-			"package_kind":     blankToNil(a.PackageKind),
-			"licence_spdx":     blankToNil(a.LicenceSPDX),
-			"licence_status":   blankToNil(a.LicenceStatus),
-			"released_at":      a.ReleasedAt,
-			"update_available": a.UpdateAvailable,
-			"created_at":       a.CreatedAt,
-		})
-	}
+	rows := assetRows(resp.Assets)
 
 	// The library-wide count is only needed to make an empty result
 	// unambiguous, so it costs a round trip only when there is nothing to show.
@@ -229,13 +246,9 @@ func runAssets(ctx context.Context, e *Env, f *assetFilters) error {
 		libraryTotal, _ = e.libraryAssetTotal(ctx, client)
 	}
 	table := axi.Table{
-		Key:     "assets",
-		Columns: []string{"id", "name", "publisher", "needs_review"},
-		Allowed: []string{
-			"id", "name", "publisher", "needs_review", "file_count", "size_bytes",
-			"package_kind", "licence_spdx", "licence_status", "released_at",
-			"update_available", "created_at",
-		},
+		Key:       "assets",
+		Columns:   assetColumns,
+		Allowed:   assetAllowed,
 		Rows:      rows,
 		Total:     int(resp.Total),
 		EmptyNote: emptyNote("asset", describeFilters(q), libraryTotal),
@@ -261,12 +274,7 @@ func (e *Env) libraryAssetTotal(ctx context.Context, client *Client) (int64, err
 }
 
 func runAsset(ctx context.Context, e *Env) error {
-	if len(e.Args) != 1 {
-		return axi.Usagef(
-			[]string{binaryName + " assets", binaryName + " asset <id>"},
-			"asset takes exactly one id")
-	}
-	id, err := parsePositiveID(e.Args[0], "asset id")
+	id, err := oneID(e.Args, "asset", "asset id", binaryName+" asset <id>")
 	if err != nil {
 		return err
 	}
@@ -311,8 +319,8 @@ func runAsset(ctx context.Context, e *Env) error {
 		{Key: "released_at", Value: a.ReleasedAt},
 		{Key: "store_updated_at", Value: a.StoreUpdatedAt},
 		{Key: "price", Value: blankToNil(joinPrice(a.Price, a.PriceCurrency))},
-		{Key: "rating", Value: derefFloat(a.Rating)},
-		{Key: "rating_count", Value: derefInt(a.RatingCount)},
+		{Key: "rating", Value: orNil(a.Rating)},
+		{Key: "rating_count", Value: orNil(a.RatingCount)},
 		{Key: "publisher_url", Value: blankToNil(a.PublisherURL)},
 		{Key: "store_product_id", Value: blankToNil(a.StoreProductID)},
 		{Key: "licence", Value: licenceValue(a)},
@@ -320,33 +328,24 @@ func runAsset(ctx context.Context, e *Env) error {
 		{Key: "updated_at", Value: a.UpdatedAt},
 	}
 
+	// Versions, tags and collections are arrays, so they ride alongside the
+	// object block rather than being flattened into it.
 	record := axi.Record{
 		Key:         "asset",
 		Fields:      fields,
 		Truncatable: []string{"description"},
-	}
-	for _, f := range fields {
-		record.Allowed = append(record.Allowed, f.Key)
-	}
-
-	// Versions, tags and collections are lists, so they ride alongside the
-	// object block rather than being flattened into it.
-	if err := axi.RenderRecord(e.Out, record, nil, e.Globals.options()); err != nil {
-		return err
-	}
-	if !e.Globals.json {
-		doc := &toon.Doc{}
-		doc.List("versions", versions)
-		doc.List("tags", tags)
-		doc.List("collections", collections)
-		fmt.Fprint(e.Out, doc.String())
+		Lists: []axi.List{
+			{Key: "versions", Items: versions},
+			{Key: "tags", Items: tags},
+			{Key: "collections", Items: collections},
+		},
 	}
 
-	return writeHelp(e, []string{
+	return axi.RenderRecord(e.Out, record, []string{
 		fmt.Sprintf("%s asset edit %d --name <name>", binaryName, a.ID),
 		fmt.Sprintf("%s asset tag %d <path>", binaryName, a.ID),
 		fmt.Sprintf("%s asset review %d", binaryName, a.ID),
-	})
+	}, e.Globals.options())
 }
 
 func licenceValue(a assetDetailResponse) any {
@@ -366,14 +365,9 @@ func joinPrice(price, currency string) string {
 	return price + " " + currency
 }
 
-func derefFloat(v *float64) any {
-	if v == nil {
-		return nil
-	}
-	return *v
-}
-
-func derefInt(v *int) any {
+// orNil renders a nullable value as itself or null, so an absent field is
+// explicit in the output rather than a zero value.
+func orNil[T any](v *T) any {
 	if v == nil {
 		return nil
 	}

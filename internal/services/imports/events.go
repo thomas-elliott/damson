@@ -4,23 +4,25 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/thomas-elliott/damson/internal/importstage"
 )
 
-// Stage values match the asset_imports.stage enum.
+// Stage values match the asset_imports.stage enum. Defined in
+// internal/importstage so the CLI can share them; aliased here because this is
+// where the pipeline reads them.
 const (
-	StageUploaded     = "uploaded"
-	StageExtracting   = "extracting"
-	StageDetecting    = "detecting"
-	StageThumbnailing = "thumbnailing"
-	StageEnriching    = "enriching"
-	StageDone         = "done"
-	StageFailed       = "failed"
+	StageUploaded     = importstage.Uploaded
+	StageExtracting   = importstage.Extracting
+	StageDetecting    = importstage.Detecting
+	StageThumbnailing = importstage.Thumbnailing
+	StageEnriching    = importstage.Enriching
+	StageDone         = importstage.Done
+	StageFailed       = importstage.Failed
 )
 
 // IsTerminal reports whether a stage represents the end of the pipeline.
-func IsTerminal(stage string) bool {
-	return stage == StageDone || stage == StageFailed
-}
+func IsTerminal(stage string) bool { return importstage.IsTerminal(stage) }
 
 // Event is the SSE wire shape — kept identical to api.importRow so the
 // frontend can use a single type for snapshot fetches and live updates.

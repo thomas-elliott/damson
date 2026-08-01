@@ -255,20 +255,15 @@ func exactMatchCandidate(assetName string, cands []metadata.Candidate) *metadata
 }
 
 // MatchAssetByName returns an existing asset in the library whose name equals
-// name under normalisation, excluding excludeID. It reuses the same
-// high-confidence title comparison as auto-enrichment. Returns nil when
-// nothing matches.
-func MatchAssetByName(db *gorm.DB, libraryID, excludeID uint, name string) (*models.Asset, error) {
-	var assets []models.Asset
-	if err := db.Where("library_id = ? AND id <> ?", libraryID, excludeID).Find(&assets).Error; err != nil {
+// name under normalisation, excluding excludeID. Returns nil when nothing
+// matches. A one-shot NameMatcher, so the single and batch paths cannot
+// disagree about the answer or the tie-break.
+func MatchAssetByName(db *gorm.DB, libraryID, excludeID uint, name string) (*NameMatch, error) {
+	m, err := newNameMatcher(db, libraryID, excludeID)
+	if err != nil {
 		return nil, err
 	}
-	for i := range assets {
-		if titlesMatch(name, assets[i].Name) {
-			return &assets[i], nil
-		}
-	}
-	return nil, nil
+	return m.Match(name), nil
 }
 
 func storeOrSource(store string) string {
@@ -287,12 +282,20 @@ func firstNonEmptyStr(vals ...string) string {
 	return ""
 }
 
+// NameMatch identifies an asset that matched by name. Only the id and name are
+// ever read from a match, and that is all the matcher loads — a storefront-
+// enriched asset carries a source_metadata_json payload that answering a name
+// question has no use for.
+type NameMatch struct {
+	ID   uint
+	Name string
+}
+
 // NameMatcher answers "do you already hold something by this name?" for a
-// whole batch against a single read of the library. MatchAssetByName loads
-// every asset per call, which is fine once per upload but quadratic across a
-// preflight of hundreds of entries.
+// whole batch against a single read of the library, rather than re-reading it
+// per entry across a preflight of hundreds.
 type NameMatcher struct {
-	byTitle map[string]*models.Asset
+	byTitle map[string]NameMatch
 	total   int
 }
 
@@ -300,18 +303,30 @@ type NameMatcher struct {
 // Where two assets normalise to the same title the lower id wins, so the
 // result does not depend on scan order.
 func NewNameMatcher(db *gorm.DB, libraryID uint) (*NameMatcher, error) {
-	var assets []models.Asset
-	if err := db.Where("library_id = ?", libraryID).Order("id ASC").Find(&assets).Error; err != nil {
+	return newNameMatcher(db, libraryID, 0)
+}
+
+// newNameMatcher builds the index, optionally excluding one asset — the
+// just-created row, when the caller is asking what its own name collides with.
+func newNameMatcher(db *gorm.DB, libraryID, excludeID uint) (*NameMatcher, error) {
+	q := db.Model(&models.Asset{}).
+		Select("id", "name").
+		Where("library_id = ?", libraryID)
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	var assets []NameMatch
+	if err := q.Order("id ASC").Find(&assets).Error; err != nil {
 		return nil, err
 	}
-	m := &NameMatcher{byTitle: make(map[string]*models.Asset, len(assets)), total: len(assets)}
-	for i := range assets {
-		key := normalisedTitleKey(assets[i].Name)
+	m := &NameMatcher{byTitle: make(map[string]NameMatch, len(assets)), total: len(assets)}
+	for _, a := range assets {
+		key := normalisedTitleKey(a.Name)
 		if key == "" {
 			continue
 		}
 		if _, seen := m.byTitle[key]; !seen {
-			m.byTitle[key] = &assets[i]
+			m.byTitle[key] = a
 		}
 	}
 	return m, nil
@@ -319,7 +334,7 @@ func NewNameMatcher(db *gorm.DB, libraryID uint) (*NameMatcher, error) {
 
 // Match returns the asset whose name equals name under the same normalisation
 // titlesMatch uses, or nil.
-func (m *NameMatcher) Match(name string) *models.Asset {
+func (m *NameMatcher) Match(name string) *NameMatch {
 	if m == nil {
 		return nil
 	}
@@ -327,7 +342,11 @@ func (m *NameMatcher) Match(name string) *models.Asset {
 	if key == "" {
 		return nil
 	}
-	return m.byTitle[key]
+	match, ok := m.byTitle[key]
+	if !ok {
+		return nil
+	}
+	return &match
 }
 
 // Total is the number of assets the matcher was built from.

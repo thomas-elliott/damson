@@ -122,25 +122,26 @@ func (t *TokenAuthenticator) Authenticate(ctx context.Context, raw string) (*Pri
 		return nil, ErrUnauthenticated
 	}
 
-	var user models.User
-	err = t.db.WithContext(ctx).Where("id = ?", tok.UserID).Take(&user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrUnauthenticated
+	// The user row and the membership check ride in one round trip: this runs on
+	// every request a CLI makes, and the membership answer is a scalar.
+	var row struct {
+		models.User
+		IsMember bool
 	}
+	err = t.db.WithContext(ctx).
+		Table("users AS u").
+		Select("u.*, EXISTS(SELECT 1 FROM library_memberships m WHERE m.library_id = ? AND m.user_id = u.id) AS is_member",
+			tok.LibraryID).
+		Where("u.id = ?", tok.UserID).
+		Limit(1).
+		Scan(&row).Error
 	if err != nil {
 		return nil, err
 	}
-
-	var count int64
-	if err := t.db.WithContext(ctx).
-		Model(&models.LibraryMembership{}).
-		Where("library_id = ? AND user_id = ?", tok.LibraryID, tok.UserID).
-		Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count == 0 {
+	if row.User.ID == 0 || !row.IsMember {
 		return nil, ErrUnauthenticated
 	}
+	user := row.User
 
 	libraryID := tok.LibraryID
 	user.CurrentLibraryID = &libraryID
@@ -170,11 +171,4 @@ func CheckScope(scope, method string) error {
 		return ErrTokenScope
 	}
 	return nil
-}
-
-// TokenPathDenied reports whether a route is off-limits to token auth: token
-// management and sysadmin surface.
-func TokenPathDenied(routePath string) bool {
-	return strings.Contains(routePath, "/me/tokens") ||
-		strings.Contains(routePath, "/admin/")
 }

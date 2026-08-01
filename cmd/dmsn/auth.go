@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -74,8 +73,7 @@ func runLogin(ctx context.Context, e *Env) error {
 	if err != nil {
 		return err
 	}
-	server := firstNonEmpty(e.Globals.server, envOr("DAMSON_SERVER"), cfg.Server)
-	token := firstNonEmpty(flagToken, envOr("DAMSON_TOKEN"), cfg.Token)
+	server, token := resolveCredentials(e.Globals.server, flagToken, cfg)
 
 	if server == "" {
 		return axi.Usagef(
@@ -272,16 +270,4 @@ func blankToNil(s string) any {
 		return nil
 	}
 	return s
-}
-
-func envOr(key string) string { return strings.TrimSpace(os.Getenv(key)) }
-
-// writeHelp emits the contextual help block, honouring --no-help / --quiet.
-// Suppressed under --json, where the block would corrupt the document.
-func writeHelp(e *Env, lines []string) error {
-	if len(lines) == 0 || e.Globals.noHelp || e.Globals.quiet || e.Globals.json {
-		return nil
-	}
-	fmt.Fprint(e.Out, (&toon.Doc{}).Lines("help", lines).String())
-	return nil
 }
