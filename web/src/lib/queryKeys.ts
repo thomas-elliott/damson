@@ -24,6 +24,7 @@ export const queryKeys = {
   previews: ["previews"] as const,
   libraries: ["libraries"] as const,
   libraryMembers: (libraryId: number) => ["libraries", libraryId, "members"] as const,
+  apiTokens: ["apiTokens"] as const,
   adminUsers: ["adminUsers"] as const,
   adminSettings: ["adminSettings"] as const,
 } as const;

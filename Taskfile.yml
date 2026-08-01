@@ -71,6 +71,12 @@ tasks:
     cmds:
       - CGO_ENABLED=0 go build -o damson ./cmd/server
 
+  build:cli:
+    desc: Build the dmsn CLI for this machine (no cross-compile matrix, no release artefacts)
+    cmds:
+      - CGO_ENABLED=0 go build -o dmsn ./cmd/dmsn
+      - 'echo "built ./dmsn — run ./dmsn setup to install the Claude Code skill"'
+
   build:web:
     desc: Build SPA into web/static
     deps: [install:web:deps]

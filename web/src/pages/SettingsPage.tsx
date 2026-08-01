@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Shell } from "@/components/Shell";
+import { ApiTokensSection } from "@/components/settings/ApiTokensSection";
 import { LibraryMembersSection } from "@/components/settings/LibraryMembersSection";
 import { LibraryProfileSection } from "@/components/settings/LibraryProfileSection";
 import { ServerAdminSection } from "@/components/settings/ServerAdminSection";
@@ -80,6 +81,8 @@ export function SettingsPage() {
                   library={me.current_library}
                   isAdmin={isAdmin}
                 />
+
+                <ApiTokensSection />
 
                 {isSysadmin && <ServerAdminSection />}
               </div>

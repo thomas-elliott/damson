@@ -127,7 +127,7 @@ func main() {
 		// limit will spuriously 429 inside a Playwright run. Disable it.
 		LoginThrottle: auth.NewLoginThrottle(1_000_000, time.Hour),
 	})
-	api.AddRoutes(apiGroup, auth.Middleware(la), h)
+	api.AddRoutes(apiGroup, auth.Middleware(la, auth.NewTokenAuthenticator(gormDB)), h)
 
 	// Test-only: drop every table and re-AutoMigrate. Lets each Playwright
 	// test start from a known-empty schema. Returns 204 on success.

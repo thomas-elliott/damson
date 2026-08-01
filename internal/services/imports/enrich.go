@@ -237,8 +237,8 @@ func normaliseTitle(s string) string {
 // candidate title must be exactly equal (after collapsing). Anything short of
 // that abstains, per the spec's conservative auto-enrich posture.
 func titlesMatch(assetName, candidateTitle string) bool {
-	a := strings.Join(strings.Fields(normaliseTitle(assetName)), " ")
-	b := strings.Join(strings.Fields(normaliseTitle(candidateTitle)), " ")
+	a := normalisedTitleKey(assetName)
+	b := normalisedTitleKey(candidateTitle)
 	return a != "" && a == b
 }
 
@@ -255,20 +255,15 @@ func exactMatchCandidate(assetName string, cands []metadata.Candidate) *metadata
 }
 
 // MatchAssetByName returns an existing asset in the library whose name equals
-// name under normalisation, excluding excludeID. It reuses the same
-// high-confidence title comparison as auto-enrichment. Returns nil when
-// nothing matches.
-func MatchAssetByName(db *gorm.DB, libraryID, excludeID uint, name string) (*models.Asset, error) {
-	var assets []models.Asset
-	if err := db.Where("library_id = ? AND id <> ?", libraryID, excludeID).Find(&assets).Error; err != nil {
+// name under normalisation, excluding excludeID. Returns nil when nothing
+// matches. A one-shot NameMatcher, so the single and batch paths cannot
+// disagree about the answer or the tie-break.
+func MatchAssetByName(db *gorm.DB, libraryID, excludeID uint, name string) (*NameMatch, error) {
+	m, err := newNameMatcher(db, libraryID, excludeID)
+	if err != nil {
 		return nil, err
 	}
-	for i := range assets {
-		if titlesMatch(name, assets[i].Name) {
-			return &assets[i], nil
-		}
-	}
-	return nil, nil
+	return m.Match(name), nil
 }
 
 func storeOrSource(store string) string {
@@ -285,4 +280,85 @@ func firstNonEmptyStr(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// NameMatch identifies an asset that matched by name. Only the id and name are
+// ever read from a match, and that is all the matcher loads — a storefront-
+// enriched asset carries a source_metadata_json payload that answering a name
+// question has no use for.
+type NameMatch struct {
+	ID   uint
+	Name string
+}
+
+// NameMatcher answers "do you already hold something by this name?" for a
+// whole batch against a single read of the library, rather than re-reading it
+// per entry across a preflight of hundreds.
+type NameMatcher struct {
+	byTitle map[string]NameMatch
+	total   int
+}
+
+// NewNameMatcher reads the library once and indexes it by normalised title.
+// Where two assets normalise to the same title the lower id wins, so the
+// result does not depend on scan order.
+func NewNameMatcher(db *gorm.DB, libraryID uint) (*NameMatcher, error) {
+	return newNameMatcher(db, libraryID, 0)
+}
+
+// newNameMatcher builds the index, optionally excluding one asset — the
+// just-created row, when the caller is asking what its own name collides with.
+func newNameMatcher(db *gorm.DB, libraryID, excludeID uint) (*NameMatcher, error) {
+	q := db.Model(&models.Asset{}).
+		Select("id", "name").
+		Where("library_id = ?", libraryID)
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	var assets []NameMatch
+	if err := q.Order("id ASC").Find(&assets).Error; err != nil {
+		return nil, err
+	}
+	m := &NameMatcher{byTitle: make(map[string]NameMatch, len(assets)), total: len(assets)}
+	for _, a := range assets {
+		key := normalisedTitleKey(a.Name)
+		if key == "" {
+			continue
+		}
+		if _, seen := m.byTitle[key]; !seen {
+			m.byTitle[key] = a
+		}
+	}
+	return m, nil
+}
+
+// Match returns the asset whose name equals name under the same normalisation
+// titlesMatch uses, or nil.
+func (m *NameMatcher) Match(name string) *NameMatch {
+	if m == nil {
+		return nil
+	}
+	key := normalisedTitleKey(name)
+	if key == "" {
+		return nil
+	}
+	match, ok := m.byTitle[key]
+	if !ok {
+		return nil
+	}
+	return &match
+}
+
+// Total is the number of assets the matcher was built from.
+func (m *NameMatcher) Total() int {
+	if m == nil {
+		return 0
+	}
+	return m.total
+}
+
+// normalisedTitleKey is titlesMatch's comparison key, extracted so the batch
+// index and the single-shot matcher cannot drift apart.
+func normalisedTitleKey(s string) string {
+	return strings.Join(strings.Fields(normaliseTitle(s)), " ")
 }
