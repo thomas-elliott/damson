@@ -1292,14 +1292,23 @@ change and a running sync is unaffected by the owner switching library in
 the SPA. `last_used_at` is written at most once a minute and never fails a
 request.
 
-Two rules are enforced in the middleware, not in handlers:
+Two rules are enforced outside the handlers:
 
-- `scope = 'read'` rejects every non-GET with 403. (Verified safe: no GET
-  handler on the authed surface performs a write.)
-- Token auth is refused outright on `/api/me/tokens` and `/api/admin/*`,
-  so a token can neither mint another token nor reach sysadmin surface.
-  The path check runs *after* authentication, so an invalid token still
-  gets 401 and cannot probe which routes are admin-gated.
+- `scope = 'read'` rejects every non-GET with 403, in `auth.Middleware`.
+  (Verified safe: no GET handler on the authed surface performs a write.
+  The converse does not hold — `POST /api/imports/preflight` is a pure read
+  that a read-scoped token is nonetheless refused.)
+- `auth.RefuseTokens()` closes a route to token auth, so a token can neither
+  mint another token nor reach sysadmin surface. It is applied at route
+  registration — on the three `/me/tokens` routes and on the `admin` group in
+  `AddRoutes` — rather than matched from the URL, so a new privileged route
+  inherits the gate from the group it is declared in instead of from the shape
+  of its path. It runs *after* authentication, so an invalid token still gets
+  401 and cannot probe which routes are gated.
+
+`POST /me/tokens` additionally carries `requireLibrary()`: minting pins the
+caller's current library, so it is library-scoped even though listing and
+revoking are not.
 
 **Output contract.** `internal/toon` is an emit-only TOON encoder — tabular
 arrays, primitive arrays, objects, the empty forms, and the quoting rules.
@@ -1312,8 +1321,18 @@ table-testable without a command.
 
 Two rules live in the render layer rather than in each command: an empty
 result always states *why* (a bare `key[]:` is not allowed through), and a
-multi-part result must render through `RenderComposite` — rendering the parts
-separately would emit concatenated JSON documents, which do not parse.
+multi-part result must render through one call — `RenderComposite` for
+blocks/lists/tables, or `axi.Record.Lists` for an entity whose arrays ride
+alongside its object block. Rendering the parts separately would emit
+concatenated JSON documents, which do not parse, and it is how `--json`
+quietly ends up lossier than TOON.
+
+**Leaf packages shared with the CLI.** `internal/toon` and `internal/axi`
+above, plus `internal/tagpath` (path normalisation), `internal/importstage`
+(the `asset_imports.stage` enum and `IsTerminal`, aliased back into
+`internal/services/imports`) and `internal/buildinfo` (the
+`debug.ReadBuildInfo` rule behind both `GET /api/health` and `dmsn version`).
+Each exists so the CLI can share a rule without importing gin, gorm or River.
 
 **Endpoints added for it.** `GET /api/overview` (the home view in one round
 trip), `POST /api/imports/preflight` (batch name matching, backing

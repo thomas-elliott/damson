@@ -76,7 +76,7 @@ func runSetup(_ context.Context, e *Env, project, noHook bool) error {
 			fmt.Sprintf("add %q to hooks.SessionStart in your Claude Code settings to run it automatically",
 				displayPath(filepath.Join(root, "hooks", hookFileName))))
 	}
-	return axi.RenderComposite(e.Out, []Block{summary}, []axi.Table{table}, help, e.Globals.options())
+	return axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table}, help, e.Globals.options())
 }
 
 func scopeName(project bool) string {

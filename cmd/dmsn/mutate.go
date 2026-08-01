@@ -49,14 +49,9 @@ func (f *editFlags) register(fs *flag.FlagSet) {
 // API treats an absent key as "leave alone" and an empty string as "clear",
 // so --clear is expressed as an explicit empty string.
 func (f *editFlags) body(e *Env) (map[string]any, error) {
-	set := map[string]bool{}
-	if e.FlagSet != nil {
-		e.FlagSet.Visit(func(fl *flag.Flag) { set[fl.Name] = true })
-	}
-
 	body := map[string]any{}
 	for _, name := range editableFields {
-		if set[name] {
+		if e.flagWasSet(name) {
 			body[bodyKey(name)] = *f.values[name]
 		}
 	}
@@ -67,7 +62,7 @@ func (f *editFlags) body(e *Env) (map[string]any, error) {
 				[]string{"clearable fields: " + strings.Join(editableFields, ",")},
 				"cannot clear unknown field %q", name)
 		}
-		if set[name] {
+		if e.flagWasSet(name) {
 			return nil, axi.Usagef(nil, "--%s and --clear %s contradict each other", name, name)
 		}
 		body[bodyKey(name)] = ""
@@ -99,7 +94,7 @@ func init() {
 			fs.BoolVar(&assetYes, "yes", false, "confirm a destructive action")
 		},
 		run: func(ctx context.Context, e *Env) error {
-			return runAssetVerb(ctx, e, edit, &assetYes)
+			return runAssetVerb(ctx, e, edit, assetYes)
 		},
 	})
 
@@ -111,7 +106,7 @@ func init() {
 			"       dmsn tag rm <path> --yes\n\n" +
 			"Paths are `/`-separated; missing ancestors are created.",
 		flags: func(fs *flag.FlagSet) { fs.BoolVar(&tagYes, "yes", false, "confirm deletion") },
-		run:   func(ctx context.Context, e *Env) error { return runTagVerb(ctx, e, &tagYes) },
+		run:   func(ctx context.Context, e *Env) error { return runTagVerb(ctx, e, tagYes) },
 	})
 
 	var collName, collDesc, collAssets string
@@ -131,7 +126,7 @@ func init() {
 			fs.BoolVar(&collYes, "yes", false, "confirm deletion")
 		},
 		run: func(ctx context.Context, e *Env) error {
-			return runCollectionVerb(ctx, e, &collName, &collDesc, &collAssets, &collYes)
+			return runCollectionVerb(ctx, e, collName, collDesc, collAssets, collYes)
 		},
 	})
 
@@ -150,7 +145,7 @@ func init() {
 			fs.BoolVar(&bulkYes, "yes", false, "confirm a destructive action")
 		},
 		run: func(ctx context.Context, e *Env) error {
-			return runBulk(ctx, e, &bulkAssets, &bulkTag, &bulkYes)
+			return runBulk(ctx, e, bulkAssets, bulkTag, bulkYes)
 		},
 	})
 
@@ -163,7 +158,7 @@ func init() {
 }
 
 // runAssetVerb dispatches `asset` — a bare id reads, a leading verb mutates.
-func runAssetVerb(ctx context.Context, e *Env, edit *editFlags, yes *bool) error {
+func runAssetVerb(ctx context.Context, e *Env, edit *editFlags, yes bool) error {
 	if len(e.Args) == 0 {
 		return axi.Usagef(
 			[]string{"dmsn asset <id>", "dmsn assets"},
@@ -180,17 +175,14 @@ func runAssetVerb(ctx context.Context, e *Env, edit *editFlags, yes *bool) error
 	case "tag", "untag":
 		return runAssetTag(ctx, e, verb, rest)
 	case "rm":
-		return runAssetRemove(ctx, e, rest, *yes)
+		return runAssetRemove(ctx, e, rest, yes)
 	default:
 		return runAsset(ctx, e)
 	}
 }
 
 func runAssetEdit(ctx context.Context, e *Env, edit *editFlags, args []string) error {
-	if len(args) != 1 {
-		return axi.Usagef([]string{"dmsn asset edit <id> --name <name>"}, "asset edit takes one id")
-	}
-	id, err := parsePositiveID(args[0], "asset id")
+	id, err := oneID(args, "asset edit", "asset id", "dmsn asset edit <id> --name <name>")
 	if err != nil {
 		return err
 	}
@@ -212,19 +204,16 @@ func runAssetEdit(ctx context.Context, e *Env, edit *editFlags, args []string) e
 		changed = append(changed, k)
 	}
 	sort.Strings(changed)
-	return e.Records([]Block{{Key: "asset", Fields: []toon.KV{
+	return e.Block("asset", []toon.KV{
 		{Key: "id", Value: out.ID},
 		{Key: "name", Value: out.Name},
 		{Key: "changed", Value: len(changed)},
 		{Key: "fields", Value: toon.Text(strings.Join(changed, ","))},
-	}}}, []string{fmt.Sprintf("dmsn asset %d", out.ID)})
+	}, []string{fmt.Sprintf("dmsn asset %d", out.ID)})
 }
 
 func runAssetReview(ctx context.Context, e *Env, verb string, args []string) error {
-	if len(args) != 1 {
-		return axi.Usagef([]string{"dmsn asset " + verb + " <id>"}, "asset %s takes one id", verb)
-	}
-	id, err := parsePositiveID(args[0], "asset id")
+	id, err := oneID(args, "asset "+verb, "asset id", "dmsn asset "+verb+" <id>")
 	if err != nil {
 		return err
 	}
@@ -247,11 +236,11 @@ func runAssetReview(ctx context.Context, e *Env, verb string, args []string) err
 			return err
 		}
 	}
-	return e.Records([]Block{{Key: verb, Fields: []toon.KV{
+	return e.Block(verb, []toon.KV{
 		{Key: "asset_id", Value: before.ID},
 		{Key: "name", Value: before.Name},
 		{Key: "changed", Value: !already},
-	}}}, []string{fmt.Sprintf("dmsn asset %s", id)})
+	}, []string{fmt.Sprintf("dmsn asset %s", id)})
 }
 
 func runAssetTag(ctx context.Context, e *Env, verb string, args []string) error {
@@ -311,15 +300,12 @@ func runAssetTag(ctx context.Context, e *Env, verb string, args []string) error 
 		{Key: "asset_id", Value: before.ID},
 		{Key: "changed", Value: changed},
 	}}
-	return axi.RenderComposite(e.Out, []Block{summary}, []axi.Table{table},
+	return axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table},
 		[]string{fmt.Sprintf("dmsn asset %s", id)}, e.Globals.options())
 }
 
 func runAssetRemove(ctx context.Context, e *Env, args []string, yes bool) error {
-	if len(args) != 1 {
-		return axi.Usagef([]string{"dmsn asset rm <id> --yes"}, "asset rm takes one id")
-	}
-	id, err := parsePositiveID(args[0], "asset id")
+	id, err := oneID(args, "asset rm", "asset id", "dmsn asset rm <id> --yes")
 	if err != nil {
 		return err
 	}
@@ -334,12 +320,12 @@ func runAssetRemove(ctx context.Context, e *Env, args []string, yes bool) error 
 	if err := client.Delete(ctx, "/api/assets/"+id); err != nil {
 		return err
 	}
-	return e.Records([]Block{{Key: "deleted", Fields: []toon.KV{
+	return e.Block("deleted", []toon.KV{
 		{Key: "asset_id", Value: mustUint(id)},
-	}}}, []string{"dmsn assets"})
+	}, []string{"dmsn assets"})
 }
 
-func runTagVerb(ctx context.Context, e *Env, yes *bool) error {
+func runTagVerb(ctx context.Context, e *Env, yes bool) error {
 	if len(e.Args) == 0 {
 		return axi.Usagef([]string{"dmsn tags", "dmsn tag new <path>"}, "tag needs a verb")
 	}
@@ -362,12 +348,12 @@ func runTagVerb(ctx context.Context, e *Env, yes *bool) error {
 		if err := client.PostJSON(ctx, "/api/tags", map[string]any{"path": path}, &out); err != nil {
 			return err
 		}
-		return e.Records([]Block{{Key: "tag", Fields: []toon.KV{
+		return e.Block("tag", []toon.KV{
 			{Key: "id", Value: out.ID},
 			{Key: "path", Value: out.Path},
-		}}}, []string{"dmsn tags", fmt.Sprintf("dmsn assets --tag %s", path)})
+		}, []string{"dmsn tags", fmt.Sprintf("dmsn assets --tag %s", path)})
 	case "rm":
-		if !*yes {
+		if !yes {
 			return confirmRequired(fmt.Sprintf("dmsn tag rm %s --yes", path),
 				"deleting tag %q detaches it from every asset that carries it", path)
 		}
@@ -378,10 +364,10 @@ func runTagVerb(ctx context.Context, e *Env, yes *bool) error {
 		if err := client.Delete(ctx, fmt.Sprintf("/api/tags/%d", id)); err != nil {
 			return err
 		}
-		return e.Records([]Block{{Key: "deleted", Fields: []toon.KV{
+		return e.Block("deleted", []toon.KV{
 			{Key: "tag", Value: path},
 			{Key: "id", Value: id},
-		}}}, []string{"dmsn tags"})
+		}, []string{"dmsn tags"})
 	default:
 		return axi.Usagef([]string{"dmsn tag new <path>", "dmsn tag rm <path> --yes"},
 			"unknown tag verb %q", verb)
@@ -410,7 +396,7 @@ func (e *Env) tagIDForPath(ctx context.Context, client *Client, path string) (ui
 	}
 }
 
-func runCollectionVerb(ctx context.Context, e *Env, name, desc, assets *string, yes *bool) error {
+func runCollectionVerb(ctx context.Context, e *Env, name, desc, assets string, yes bool) error {
 	if len(e.Args) == 0 {
 		return axi.Usagef([]string{"dmsn collections", "dmsn collection <id>"}, "collection needs an id or a verb")
 	}
@@ -425,13 +411,13 @@ func runCollectionVerb(ctx context.Context, e *Env, name, desc, assets *string, 
 
 	switch verb {
 	case "new":
-		return runCollectionNew(ctx, e, client, rest, *desc)
+		return runCollectionNew(ctx, e, client, rest, desc)
 	case "edit":
 		return runCollectionEdit(ctx, e, client, rest, name, desc)
 	case "rm":
-		return runCollectionRemove(ctx, e, client, rest, *yes)
+		return runCollectionRemove(ctx, e, client, rest, yes)
 	case "add", "remove":
-		return runCollectionMembers(ctx, e, client, verb, rest, *assets)
+		return runCollectionMembers(ctx, e, client, verb, rest, assets)
 	default:
 		return axi.Usagef(
 			[]string{"dmsn collection <id>", "dmsn collection new <name>", "dmsn collections"},
@@ -451,16 +437,13 @@ func runCollectionNew(ctx context.Context, e *Env, client *Client, args []string
 	if err := client.PostJSON(ctx, "/api/collections", body, &out); err != nil {
 		return err
 	}
-	return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
+	return e.Block("collection", []toon.KV{
 		{Key: "id", Value: out.ID}, {Key: "name", Value: out.Name},
-	}}}, []string{fmt.Sprintf("dmsn collection add %d --assets <ids>", out.ID)})
+	}, []string{fmt.Sprintf("dmsn collection add %d --assets <ids>", out.ID)})
 }
 
-func runCollectionEdit(ctx context.Context, e *Env, client *Client, args []string, name, desc *string) error {
-	if len(args) != 1 {
-		return axi.Usagef([]string{"dmsn collection edit <id> --name <name>"}, "collection edit takes one id")
-	}
-	id, err := parsePositiveID(args[0], "collection id")
+func runCollectionEdit(ctx context.Context, e *Env, client *Client, args []string, name, desc string) error {
+	id, err := oneID(args, "collection edit", "collection id", "dmsn collection edit <id> --name <name>")
 	if err != nil {
 		return err
 	}
@@ -468,10 +451,10 @@ func runCollectionEdit(ctx context.Context, e *Env, client *Client, args []strin
 	// alone; a flag set to "" is a deliberate clear.
 	body := map[string]any{}
 	if e.flagWasSet("name") {
-		body["name"] = *name
+		body["name"] = name
 	}
 	if e.flagWasSet("description") {
-		body["description"] = *desc
+		body["description"] = desc
 	}
 	if len(body) == 0 {
 		return axi.Usagef(
@@ -482,17 +465,14 @@ func runCollectionEdit(ctx context.Context, e *Env, client *Client, args []strin
 	if err := client.PatchJSON(ctx, "/api/collections/"+id, body, &out); err != nil {
 		return err
 	}
-	return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
+	return e.Block("collection", []toon.KV{
 		{Key: "id", Value: out.ID}, {Key: "name", Value: out.Name},
 		{Key: "changed", Value: len(body)},
-	}}}, []string{fmt.Sprintf("dmsn collection %d", out.ID)})
+	}, []string{fmt.Sprintf("dmsn collection %d", out.ID)})
 }
 
 func runCollectionRemove(ctx context.Context, e *Env, client *Client, args []string, yes bool) error {
-	if len(args) != 1 {
-		return axi.Usagef([]string{"dmsn collection rm <id> --yes"}, "collection rm takes one id")
-	}
-	id, err := parsePositiveID(args[0], "collection id")
+	id, err := oneID(args, "collection rm", "collection id", "dmsn collection rm <id> --yes")
 	if err != nil {
 		return err
 	}
@@ -503,18 +483,14 @@ func runCollectionRemove(ctx context.Context, e *Env, client *Client, args []str
 	if err := client.Delete(ctx, "/api/collections/"+id); err != nil {
 		return err
 	}
-	return e.Records([]Block{{Key: "deleted", Fields: []toon.KV{
+	return e.Block("deleted", []toon.KV{
 		{Key: "collection_id", Value: mustUint(id)},
-	}}}, []string{"dmsn collections"})
+	}, []string{"dmsn collections"})
 }
 
 func runCollectionMembers(ctx context.Context, e *Env, client *Client, verb string, args []string, assets string) error {
-	if len(args) != 1 {
-		return axi.Usagef(
-			[]string{"dmsn collection " + verb + " <id> --assets 1,2,3"},
-			"collection %s takes one collection id", verb)
-	}
-	id, err := parsePositiveID(args[0], "collection id")
+	id, err := oneID(args, "collection "+verb, "collection id",
+		"dmsn collection "+verb+" <id> --assets 1,2,3")
 	if err != nil {
 		return err
 	}
@@ -530,26 +506,22 @@ func runCollectionMembers(ctx context.Context, e *Env, client *Client, verb stri
 // it is a loop over the per-asset route.
 func (e *Env) collectionMembership(ctx context.Context, client *Client, verb, id string, assetIDs []uint) error {
 	if verb == "add" {
-		numeric, err := strconv.ParseUint(id, 10, 64)
-		if err != nil {
-			return axi.Usagef(nil, "collection id must be numeric")
-		}
 		var out struct {
 			Affected int `json:"affected"`
 		}
 		body := map[string]any{
 			"asset_ids":     assetIDs,
 			"action":        "add_to_collection",
-			"collection_id": numeric,
+			"collection_id": mustUint(id),
 		}
 		if err := client.PostJSON(ctx, "/api/assets/bulk", body, &out); err != nil {
 			return err
 		}
-		return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
-			{Key: "id", Value: numeric},
+		return e.Block("collection", []toon.KV{
+			{Key: "id", Value: mustUint(id)},
 			{Key: "requested", Value: len(assetIDs)},
 			{Key: "affected", Value: out.Affected},
-		}}}, []string{fmt.Sprintf("dmsn collection %s", id)})
+		}, []string{fmt.Sprintf("dmsn collection %s", id)})
 	}
 
 	removed := 0
@@ -564,11 +536,11 @@ func (e *Env) collectionMembership(ctx context.Context, client *Client, verb, id
 		}
 		removed++
 	}
-	return e.Records([]Block{{Key: "collection", Fields: []toon.KV{
+	return e.Block("collection", []toon.KV{
 		{Key: "id", Value: mustUint(id)},
 		{Key: "requested", Value: len(assetIDs)},
 		{Key: "affected", Value: removed},
-	}}}, []string{fmt.Sprintf("dmsn collection %s", id)})
+	}, []string{fmt.Sprintf("dmsn collection %s", id)})
 }
 
 // bulkActions maps a CLI verb to the API action, and says whether it is
@@ -585,7 +557,7 @@ var bulkActions = map[string]struct {
 	"rm":       {action: "delete", destructive: true},
 }
 
-func runBulk(ctx context.Context, e *Env, assets, tag *string, yes *bool) error {
+func runBulk(ctx context.Context, e *Env, assets, tag string, yes bool) error {
 	if len(e.Args) != 1 {
 		return axi.Usagef(
 			[]string{"dmsn bulk tag --assets 1,2,3 --tag <path>", "dmsn bulk review --assets 1,2,3"},
@@ -597,22 +569,22 @@ func runBulk(ctx context.Context, e *Env, assets, tag *string, yes *bool) error 
 			[]string{"verbs: " + strings.Join(sortedKeys(bulkActions), ",")},
 			"unknown bulk verb %q", e.Args[0])
 	}
-	ids, err := parseIDList(*assets)
+	ids, err := parseIDList(assets)
 	if err != nil {
 		return err
 	}
 	body := map[string]any{"asset_ids": ids, "action": spec.action}
 	if spec.needsTag {
-		if strings.TrimSpace(*tag) == "" {
+		if strings.TrimSpace(tag) == "" {
 			return axi.Usagef(
-				[]string{fmt.Sprintf("dmsn bulk %s --assets %s --tag <path>", e.Args[0], *assets)},
+				[]string{fmt.Sprintf("dmsn bulk %s --assets %s --tag <path>", e.Args[0], assets)},
 				"--tag is required for %s", e.Args[0])
 		}
-		body["path"] = strings.TrimSpace(*tag)
+		body["path"] = strings.TrimSpace(tag)
 	}
-	if spec.destructive && !*yes {
+	if spec.destructive && !yes {
 		return confirmRequired(
-			fmt.Sprintf("dmsn bulk %s --assets %s --yes", e.Args[0], *assets),
+			fmt.Sprintf("dmsn bulk %s --assets %s --yes", e.Args[0], assets),
 			"this deletes %s and every version and file they hold", axi.Count(len(ids), "asset"))
 	}
 
@@ -634,11 +606,11 @@ func runBulk(ctx context.Context, e *Env, assets, tag *string, yes *bool) error 
 		help = append([]string{fmt.Sprintf("%d of %d were already in that state or not in this library",
 			len(ids)-out.Affected, len(ids))}, help...)
 	}
-	return e.Records([]Block{{Key: "bulk", Fields: []toon.KV{
+	return e.Block("bulk", []toon.KV{
 		{Key: "action", Value: spec.action},
 		{Key: "requested", Value: len(ids)},
 		{Key: "affected", Value: out.Affected},
-	}}}, help)
+	}, help)
 }
 
 func runImportVerb(ctx context.Context, e *Env) error {
@@ -657,10 +629,10 @@ func runImportVerb(ctx context.Context, e *Env) error {
 	if err := client.PostJSON(ctx, "/api/imports/"+id+"/retry", nil, &out); err != nil {
 		return err
 	}
-	return e.Records([]Block{{Key: "retry", Fields: []toon.KV{
+	return e.Block("retry", []toon.KV{
 		{Key: "import_id", Value: out.ImportID},
 		{Key: "asset_id", Value: out.AssetID},
-	}}}, []string{"dmsn imports", fmt.Sprintf("dmsn asset %d", out.AssetID)})
+	}, []string{"dmsn imports", fmt.Sprintf("dmsn asset %d", out.AssetID)})
 }
 
 // confirmRequired is the refusal for a destructive verb without --yes. AXI
@@ -672,6 +644,15 @@ func confirmRequired(command, why string, args ...any) error {
 		Message: fmt.Sprintf(why, args...) + "; re-run with --yes to confirm",
 		Help:    []string{command},
 	}
+}
+
+// oneID validates the single positional id a verb takes, so a missing or
+// malformed id reads identically across every verb.
+func oneID(args []string, verb, noun, usage string) (string, error) {
+	if len(args) != 1 {
+		return "", axi.Usagef([]string{usage}, "%s takes one %s", verb, noun)
+	}
+	return parsePositiveID(args[0], noun)
 }
 
 // parseIDList decodes --assets. An empty list is a usage error rather than a

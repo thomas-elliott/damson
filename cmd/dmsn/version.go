@@ -2,9 +2,8 @@ package main
 
 import (
 	"context"
-	"runtime/debug"
-	"sync"
 
+	"github.com/thomas-elliott/damson/internal/buildinfo"
 	"github.com/thomas-elliott/damson/internal/toon"
 )
 
@@ -31,55 +30,34 @@ func runVersion(ctx context.Context, e *Env) error {
 	client, err := e.Client()
 	if err == nil {
 		var health struct {
-			Status  string `json:"status"`
 			Version string `json:"version"`
 		}
+		var serverVersion any
 		if hErr := client.GetJSON(ctx, "/api/health", nil, &health); hErr == nil {
-			fields = append(fields,
-				toon.KV{Key: "server", Value: client.BaseURL},
-				toon.KV{Key: "server_version", Value: health.Version})
-		} else {
-			fields = append(fields,
-				toon.KV{Key: "server", Value: client.BaseURL},
-				toon.KV{Key: "server_version", Value: nil})
+			serverVersion = health.Version
 		}
+		fields = append(fields,
+			toon.KV{Key: "server", Value: client.BaseURL},
+			toon.KV{Key: "server_version", Value: serverVersion})
 	}
 
 	return e.Record("version", fields, []string{"dmsn", "dmsn whoami"})
 }
 
-var buildInfo = sync.OnceValues(debug.ReadBuildInfo)
-
 func clientVersion() string {
-	info, ok := buildInfo()
-	if !ok {
-		return "dev"
-	}
-	if info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
+	if v := buildinfo.Version(); v != "" {
+		return v
 	}
 	return "dev"
 }
 
 func clientCommit() any {
-	info, ok := buildInfo()
-	if !ok {
-		return nil
-	}
-	for _, s := range info.Settings {
-		if s.Key == "vcs.revision" && s.Value != "" {
-			if len(s.Value) > 12 {
-				return s.Value[:12]
-			}
-			return s.Value
-		}
-	}
-	return nil
+	return blankToNil(buildinfo.Commit())
 }
 
 func goVersion() string {
-	if info, ok := buildInfo(); ok && info.GoVersion != "" {
-		return info.GoVersion
+	if g := buildinfo.GoVersion(); g != "" {
+		return g
 	}
 	return "unknown"
 }

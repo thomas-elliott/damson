@@ -119,6 +119,31 @@ func TestGetMe_OmitsTheTokenBlockForASession(t *testing.T) {
 	}
 }
 
+// The privileged surface is closed to personal access tokens by the route it is
+// declared on, so this drives the real route table: a sysadmin's token, which
+// would otherwise be allowed straight through, still gets 403.
+func TestTokenAuth_RefusedOnPrivilegedRoutes(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "gated@example.com")
+	if err := db.Model(u).Update("role", "sysadmin").Error; err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	lib := seedLibraryForUser(t, db, u, "Main")
+	secret := seedTokenFor(t, db, u.ID, lib.ID, auth.ScopeWrite, nil)
+	r := setupTokenRouter(h, db)
+
+	for _, path := range []string{"/api/me/tokens", "/api/admin/users", "/api/admin/settings", "/api/admin/audit"} {
+		if w := getWithBearer(r, path, secret); w.Code != http.StatusForbidden {
+			t.Fatalf("%s: got %d want 403 (%s)", path, w.Code, w.Body.String())
+		}
+	}
+	// A route that is not gated stays reachable, so the assertion above is not
+	// passing for some unrelated reason.
+	if w := getWithBearer(r, "/api/assets", secret); w.Code != http.StatusOK {
+		t.Fatalf("/api/assets: got %d want 200 (%s)", w.Code, w.Body.String())
+	}
+}
+
 func TestGetHealth_ReportsAVersion(t *testing.T) {
 	h, _ := newTestHandler(t)
 	w := performGET(setupRouter(h, nil), "/api/health")

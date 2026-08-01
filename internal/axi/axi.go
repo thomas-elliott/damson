@@ -25,10 +25,8 @@ const TruncateLimit = 400
 // Format selects the output encoding.
 type Format string
 
-const (
-	FormatTOON Format = "toon"
-	FormatJSON Format = "json"
-)
+// FormatJSON selects JSON. The zero Format is TOON, the default encoding.
+const FormatJSON Format = "json"
 
 // Exit codes. Anything the user could fix by retyping the command is 2; a
 // well-formed command that failed is 1.
@@ -51,12 +49,7 @@ type Options struct {
 	Quiet bool
 }
 
-func (o Options) format() Format {
-	if o.Format == FormatJSON {
-		return FormatJSON
-	}
-	return FormatTOON
-}
+func (o Options) json() bool { return o.Format == FormatJSON }
 
 func (o Options) helpSuppressed() bool { return o.NoHelp || o.Quiet }
 
@@ -97,6 +90,10 @@ type Record struct {
 	// was omitted — so commands with optional fields should set it.
 	Allowed     []string
 	Truncatable []string
+	// Lists ride alongside the object block: an entity's tags or versions are
+	// arrays, not fields, and rendering them with a second call would emit two
+	// JSON documents. They are not subject to --fields.
+	Lists []List
 }
 
 // RenderTable writes t in the requested encoding, applying field projection
@@ -109,7 +106,7 @@ func RenderTable(w io.Writer, t Table, help []string, o Options) error {
 
 	rows := projectRows(t, columns, o)
 
-	if o.format() == FormatJSON {
+	if o.json() {
 		payload := map[string]any{t.Key: rows}
 		if !o.Quiet {
 			payload["shown"] = len(rows)
@@ -165,12 +162,16 @@ func RenderRecord(w io.Writer, r Record, help []string, o Options) error {
 		})
 	}
 
-	if o.format() == FormatJSON {
+	if o.json() {
 		payload := make(map[string]any, len(fields))
 		for _, f := range fields {
 			payload[f.Key] = f.Value
 		}
-		out := map[string]any{r.Key: payload}
+		out := make(map[string]any, len(r.Lists)+2)
+		out[r.Key] = payload
+		for _, l := range r.Lists {
+			out[l.Key] = l.Items
+		}
 		if len(help) > 0 && !o.helpSuppressed() {
 			out["help"] = help
 		}
@@ -178,6 +179,9 @@ func RenderRecord(w io.Writer, r Record, help []string, o Options) error {
 	}
 
 	doc := (&toon.Doc{}).Object(r.Key, fields)
+	for _, l := range r.Lists {
+		doc.List(l.Key, l.Items)
+	}
 	appendHelp(doc, help, o)
 	_, err := io.WriteString(w, doc.String())
 	return err
@@ -189,9 +193,11 @@ type Block struct {
 	Fields []toon.KV
 }
 
-// RenderBlocks writes several named objects as one result.
-func RenderBlocks(w io.Writer, blocks []Block, help []string, o Options) error {
-	return RenderComposite(w, blocks, nil, help, o)
+// List is a named array of primitives inside a multi-part result — the shape a
+// record's tags or versions take when they are names rather than rows.
+type List struct {
+	Key   string
+	Items []any
 }
 
 // RenderComposite writes object blocks followed by tables as ONE result:
@@ -202,15 +208,18 @@ func RenderBlocks(w io.Writer, blocks []Block, help []string, o Options) error {
 // Field projection is deliberately not applied: --fields names a column of
 // one table, and a composite has several. Commands wanting projection should
 // render a single table instead.
-func RenderComposite(w io.Writer, blocks []Block, tables []Table, help []string, o Options) error {
-	if o.format() == FormatJSON {
-		payload := make(map[string]any, len(blocks)+len(tables)+1)
+func RenderComposite(w io.Writer, blocks []Block, lists []List, tables []Table, help []string, o Options) error {
+	if o.json() {
+		payload := make(map[string]any, len(blocks)+len(lists)+len(tables)+1)
 		for _, b := range blocks {
 			fields := make(map[string]any, len(b.Fields))
 			for _, f := range b.Fields {
 				fields[f.Key] = f.Value
 			}
 			payload[b.Key] = fields
+		}
+		for _, l := range lists {
+			payload[l.Key] = l.Items
 		}
 		for _, t := range tables {
 			payload[t.Key] = projectRows(t, t.Columns, o)
@@ -224,6 +233,9 @@ func RenderComposite(w io.Writer, blocks []Block, tables []Table, help []string,
 	doc := &toon.Doc{}
 	for _, b := range blocks {
 		doc.Object(b.Key, b.Fields)
+	}
+	for _, l := range lists {
+		doc.List(l.Key, l.Items)
 	}
 	for _, t := range tables {
 		rows := projectRows(t, t.Columns, o)
@@ -258,7 +270,7 @@ func projectRows(t Table, columns []string, o Options) []map[string]any {
 // as much a result as a table.
 func RenderError(w io.Writer, err error, o Options) int {
 	e := AsError(err)
-	if o.format() == FormatJSON {
+	if o.json() {
 		body := map[string]any{"code": string(e.Code), "message": e.Message}
 		if len(e.Help) > 0 && !o.NoHelp {
 			body["help"] = e.Help
@@ -330,8 +342,13 @@ func validateFields(requested, allowed []string) error {
 // Truncate clips s to limit characters, appending a note that states the full
 // length so the caller knows what they are missing and how to get it.
 func Truncate(s string, limit int) (string, bool) {
+	// A string no longer in bytes than the budget cannot exceed it in runes,
+	// so the common case never pays for the conversion.
+	if limit <= 0 || len(s) <= limit {
+		return s, false
+	}
 	runes := []rune(s)
-	if limit <= 0 || len(runes) <= limit {
+	if len(runes) <= limit {
 		return s, false
 	}
 	return string(runes[:limit]) + fmt.Sprintf("… (truncated, %d chars total — use --full)", len(runes)), true

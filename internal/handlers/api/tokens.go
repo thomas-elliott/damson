@@ -110,11 +110,12 @@ func (h *Handler) postAPIToken(c *gin.Context) {
 		respond400(c, asError("expires_at must be in the future"))
 		return
 	}
-	if u.CurrentLibraryID == nil {
-		respondForbidden(c, "no current library")
+	lib := getLibrary(c)
+	if lib == nil {
+		respond500(c, errRequestContextIncomplete)
 		return
 	}
-	libraryID := *u.CurrentLibraryID
+	libraryID := lib.ID
 
 	var active int64
 	if err := h.db.WithContext(c.Request.Context()).
@@ -126,22 +127,6 @@ func (h *Handler) postAPIToken(c *gin.Context) {
 	}
 	if active >= maxActiveTokensPerUser {
 		respond409(c, "token limit reached — revoke an existing token first")
-		return
-	}
-
-	var lib models.Library
-	err = h.db.WithContext(c.Request.Context()).
-		Table("library_memberships AS m").
-		Select("l.id, l.name").
-		Joins("JOIN libraries l ON l.id = m.library_id").
-		Where("m.library_id = ? AND m.user_id = ?", libraryID, u.ID).
-		Take(&lib).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		respondForbidden(c, "not a member of the current library")
-		return
-	}
-	if err != nil {
-		respond500(c, err)
 		return
 	}
 

@@ -164,23 +164,35 @@ func (e *Env) Record(key string, fields []toon.KV, help []string) error {
 	return axi.RenderRecord(e.Out, axi.Record{Key: key, Fields: fields}, help, e.Globals.options())
 }
 
+// Block renders one named object block. Distinct from Record only in that a
+// block carries no field projection, which mutations have no use for.
+func (e *Env) Block(key string, fields []toon.KV, help []string) error {
+	return e.Records([]Block{{Key: key, Fields: fields}}, help)
+}
+
 // Records renders several named object blocks as one result.
 func (e *Env) Records(blocks []Block, help []string) error {
-	return axi.RenderBlocks(e.Out, blocks, help, e.Globals.options())
+	return axi.RenderComposite(e.Out, blocks, nil, nil, help, e.Globals.options())
 }
 
 // Block is one named object inside a multi-block result.
 type Block = axi.Block
 
-// Client resolves credentials and returns a ready client. Resolution order is
-// flag, then environment, then the config file — most explicit wins.
+// resolveCredentials applies the precedence rule: flag, then environment, then
+// the config file — most explicit wins. `login` resolves through here too, so
+// the order cannot drift between it and the authenticated commands.
+func resolveCredentials(flagServer, flagToken string, cfg Config) (server, token string) {
+	return firstNonEmpty(flagServer, os.Getenv("DAMSON_SERVER"), cfg.Server),
+		firstNonEmpty(flagToken, os.Getenv("DAMSON_TOKEN"), cfg.Token)
+}
+
+// Client resolves credentials and returns a ready client.
 func (e *Env) Client() (*Client, error) {
 	cfg, err := LoadConfig()
 	if err != nil {
 		return nil, axi.Wrap(axi.CodeIO, err, "%v", err)
 	}
-	server := firstNonEmpty(e.Globals.server, os.Getenv("DAMSON_SERVER"), cfg.Server)
-	token := firstNonEmpty(e.Globals.token, os.Getenv("DAMSON_TOKEN"), cfg.Token)
+	server, token := resolveCredentials(e.Globals.server, e.Globals.token, cfg)
 	if token == "" {
 		return nil, &axi.Error{
 			Code:    axi.CodeAuth,

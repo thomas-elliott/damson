@@ -77,6 +77,18 @@ func AsError(err error) *Error {
 	return &Error{Code: CodeIO, Message: err.Error(), Err: err}
 }
 
+// statusCodes maps the statuses the API actually returns onto codes. Anything
+// absent — every 5xx included — reports as CodeServer.
+var statusCodes = map[int]Code{
+	http.StatusBadRequest:            CodeUsage,
+	http.StatusUnauthorized:          CodeAuth,
+	http.StatusForbidden:             CodeForbidden,
+	http.StatusNotFound:              CodeNotFound,
+	http.StatusConflict:              CodeConflict,
+	http.StatusRequestEntityTooLarge: CodeTooLarge,
+	http.StatusTooManyRequests:       CodeRateLimited,
+}
+
 // FromHTTP maps a server response onto a code. serverMsg is the API's
 // {"error": …} body, which carries the actionable detail for 4xx; 5xx bodies
 // are deliberately generic, so the status is all there is to report.
@@ -88,23 +100,8 @@ func FromHTTP(status int, serverMsg string) *Error {
 			msg = fmt.Sprintf("HTTP %d", status)
 		}
 	}
-	code := CodeServer
-	switch {
-	case status == http.StatusUnauthorized:
-		code = CodeAuth
-	case status == http.StatusForbidden:
-		code = CodeForbidden
-	case status == http.StatusNotFound:
-		code = CodeNotFound
-	case status == http.StatusConflict:
-		code = CodeConflict
-	case status == http.StatusRequestEntityTooLarge:
-		code = CodeTooLarge
-	case status == http.StatusTooManyRequests:
-		code = CodeRateLimited
-	case status == http.StatusBadRequest:
-		code = CodeUsage
-	case status >= 500:
+	code, ok := statusCodes[status]
+	if !ok {
 		code = CodeServer
 	}
 	e := &Error{Code: code, Message: msg}

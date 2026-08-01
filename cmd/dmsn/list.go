@@ -80,16 +80,10 @@ func setBoolIf(q url.Values, key string, value bool) {
 
 // describeFilters renders the active filters for an empty-state note, so the
 // reader can see exactly which constraints produced nothing.
-func describeFilters(q url.Values, skip ...string) string {
-	skipped := make(map[string]bool, len(skip)+2)
-	skipped["limit"] = true
-	skipped["offset"] = true
-	for _, s := range skip {
-		skipped[s] = true
-	}
+func describeFilters(q url.Values) string {
 	keys := make([]string, 0, len(q))
 	for k := range q {
-		if !skipped[k] {
+		if k != "limit" && k != "offset" {
 			keys = append(keys, k)
 		}
 	}

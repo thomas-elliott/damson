@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"os"
-	"time"
 
 	"github.com/thomas-elliott/damson/internal/axi"
 	"github.com/thomas-elliott/damson/internal/toon"
@@ -37,14 +36,7 @@ type overviewResponse struct {
 		ImportsInFlight  int `json:"imports_in_flight"`
 		ImportsFailed    int `json:"imports_failed"`
 	} `json:"counts"`
-	RecentImports []struct {
-		ID        uint      `json:"id"`
-		AssetID   uint      `json:"asset_id"`
-		AssetName string    `json:"asset_name"`
-		Stage     string    `json:"stage"`
-		Error     string    `json:"error"`
-		UpdatedAt time.Time `json:"updated_at"`
-	} `json:"recent_imports"`
+	RecentImports []importRow `json:"recent_imports"`
 }
 
 func runHome(ctx context.Context, e *Env) error {
@@ -104,7 +96,7 @@ func runHome(ctx context.Context, e *Env) error {
 		EmptyNote:   emptyImportsNote(ov),
 	}
 	// One call, so --json yields one parseable document rather than three.
-	return axi.RenderComposite(e.Out, []Block{self, library}, []axi.Table{table},
+	return axi.RenderComposite(e.Out, []Block{self, library}, nil, []axi.Table{table},
 		homeHelp(ov), e.Globals.options())
 }
 

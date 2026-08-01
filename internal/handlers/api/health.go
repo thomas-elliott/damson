@@ -2,10 +2,10 @@ package api
 
 import (
 	"net/http"
-	"runtime/debug"
-	"sync"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/thomas-elliott/damson/internal/buildinfo"
 )
 
 // getHealth is an unauthenticated liveness probe. It also reports the build
@@ -14,21 +14,12 @@ func (h *Handler) getHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "version": buildVersion()})
 }
 
-var buildVersion = sync.OnceValue(func() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "dev"
+func buildVersion() string {
+	if v := buildinfo.Version(); v != "" {
+		return v
 	}
-	if info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
-	}
-	for _, s := range info.Settings {
-		if s.Key == "vcs.revision" && s.Value != "" {
-			if len(s.Value) > 12 {
-				return s.Value[:12]
-			}
-			return s.Value
-		}
+	if commit := buildinfo.Commit(); commit != "" {
+		return commit
 	}
 	return "dev"
-})
+}

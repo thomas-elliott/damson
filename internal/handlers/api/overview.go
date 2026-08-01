@@ -5,9 +5,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
-
-	"github.com/thomas-elliott/damson/internal/models"
 )
 
 // overviewRecentImports caps the recent-import tail. Small on purpose: this
@@ -63,47 +60,57 @@ func (h *Handler) getOverview(c *gin.Context) {
 		RecentImports: []overviewImport{},
 	}
 
-	assets := func() *gorm.DB {
-		return db.Model(&models.Asset{}).Where("library_id = ?", lib.ID)
+	// Eight counts as eight round trips would be eight scans; aggregated with
+	// FILTER, each table is visited once. updates_available matters most — it
+	// cannot be indexed, so it rides on the scan assets already needs.
+	var assetCounts struct {
+		Assets           int64
+		NeedsReview      int64
+		UpdatesAvailable int64
+		Collections      int64
+		Tags             int64
+		Projects         int64
 	}
-	imports := func() *gorm.DB {
-		return db.Table("asset_imports AS i").
-			Joins("JOIN assets a ON a.id = i.asset_id").
-			Where("a.library_id = ?", lib.ID)
-	}
-
-	for _, count := range []struct {
-		into  *int64
-		query func() *gorm.DB
-	}{
-		{&resp.Counts.Assets, assets},
-		{&resp.Counts.NeedsReview, func() *gorm.DB { return assets().Where("needs_review") }},
-		{&resp.Counts.UpdatesAvailable, func() *gorm.DB {
-			return db.Table("assets AS a").Where("a.library_id = ?", lib.ID).Where(updatesAvailableSQL())
-		}},
-		{&resp.Counts.Collections, func() *gorm.DB {
-			return db.Model(&models.Collection{}).Where("library_id = ?", lib.ID)
-		}},
-		{&resp.Counts.Tags, func() *gorm.DB {
-			return db.Model(&models.Tag{}).Where("library_id = ?", lib.ID)
-		}},
-		{&resp.Counts.Projects, func() *gorm.DB {
-			return db.Model(&models.Project{}).Where("library_id = ?", lib.ID)
-		}},
-		{&resp.Counts.ImportsInFlight, func() *gorm.DB {
-			return imports().Where("i.stage NOT IN (?, ?)", "done", "failed")
-		}},
-		{&resp.Counts.ImportsFailed, func() *gorm.DB {
-			return imports().Where("i.stage = ?", "failed")
-		}},
-	} {
-		if err := count.query().Count(count.into).Error; err != nil {
-			respond500(c, err)
-			return
-		}
+	err := db.Table("assets AS a").
+		Select(`count(*) AS assets,
+			count(*) FILTER (WHERE a.needs_review) AS needs_review,
+			count(*) FILTER (WHERE `+updatesAvailableSQL()+`) AS updates_available,
+			(SELECT count(*) FROM collections WHERE library_id = ?) AS collections,
+			(SELECT count(*) FROM tags WHERE library_id = ?) AS tags,
+			(SELECT count(*) FROM projects WHERE library_id = ?) AS projects`,
+			lib.ID, lib.ID, lib.ID).
+		Where("a.library_id = ?", lib.ID).
+		Scan(&assetCounts).Error
+	if err != nil {
+		respond500(c, err)
+		return
 	}
 
-	if err := imports().
+	var importCounts struct {
+		ImportsInFlight int64
+		ImportsFailed   int64
+	}
+	err = libraryImports(db, lib.ID).
+		Select(`count(*) FILTER (WHERE i.stage NOT IN ('done', 'failed')) AS imports_in_flight,
+			count(*) FILTER (WHERE i.stage = 'failed') AS imports_failed`).
+		Scan(&importCounts).Error
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+
+	resp.Counts = overviewCounts{
+		Assets:           assetCounts.Assets,
+		NeedsReview:      assetCounts.NeedsReview,
+		UpdatesAvailable: assetCounts.UpdatesAvailable,
+		Collections:      assetCounts.Collections,
+		Tags:             assetCounts.Tags,
+		Projects:         assetCounts.Projects,
+		ImportsInFlight:  importCounts.ImportsInFlight,
+		ImportsFailed:    importCounts.ImportsFailed,
+	}
+
+	if err := libraryImports(db, lib.ID).
 		Select("i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at").
 		Order("i.updated_at DESC").
 		Limit(overviewRecentImports).

@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/thomas-elliott/damson/internal/axi"
+	"github.com/thomas-elliott/damson/internal/importstage"
 	"github.com/thomas-elliott/damson/internal/toon"
 )
 
@@ -40,12 +40,6 @@ type importRow struct {
 	NeedsReview bool      `json:"needs_review"`
 }
 
-// importStages is the durable stage machine from the import pipeline, plus
-// the two pseudo-values GET /api/imports accepts.
-var importStages = []string{
-	"uploaded", "extracting", "detecting", "thumbnailing", "enriching", "done", "failed",
-}
-
 func init() {
 	tagPage := &pageFlags{}
 	var tagPrefix string
@@ -58,7 +52,7 @@ func init() {
 			tagPage.register(fs)
 			fs.StringVar(&tagPrefix, "prefix", "", "only tags at or under this path")
 		},
-		run: func(ctx context.Context, e *Env) error { return runTags(ctx, e, tagPage, &tagPrefix) },
+		run: func(ctx context.Context, e *Env) error { return runTags(ctx, e, tagPage, tagPrefix) },
 	})
 
 	collPage := &pageFlags{}
@@ -78,16 +72,16 @@ func init() {
 		usage: "usage: dmsn imports [--stage STAGE] [--limit N] [--offset N]\n\n" +
 			"Without --stage this is the review backlog: anything in flight,\n" +
 			"failed, or done-but-unreviewed. --stage all shows everything.\n\n" +
-			"stages: " + strings.Join(importStages, ", "),
+			"stages: " + strings.Join(importstage.All(), ", "),
 		flags: func(fs *flag.FlagSet) {
 			importPage.register(fs)
 			fs.StringVar(&stage, "stage", "", "filter by stage, or `all`")
 		},
-		run: func(ctx context.Context, e *Env) error { return runImports(ctx, e, importPage, &stage) },
+		run: func(ctx context.Context, e *Env) error { return runImports(ctx, e, importPage, stage) },
 	})
 }
 
-func runTags(ctx context.Context, e *Env, page *pageFlags, prefixFlag *string) error {
+func runTags(ctx context.Context, e *Env, page *pageFlags, prefixFlag string) error {
 	if err := page.validate(); err != nil {
 		return err
 	}
@@ -104,7 +98,7 @@ func runTags(ctx context.Context, e *Env, page *pageFlags, prefixFlag *string) e
 
 	// GET /api/tags returns the whole tree in one shot, so the prefix filter
 	// and pagination are applied here rather than as query parameters.
-	prefix := strings.TrimSpace(*prefixFlag)
+	prefix := strings.TrimSpace(prefixFlag)
 	matched := make([]tagRow, 0, len(resp.Tags))
 	for _, t := range resp.Tags {
 		if prefix == "" || t.Path == prefix || strings.HasPrefix(t.Path, prefix+"/") {
@@ -118,7 +112,7 @@ func runTags(ctx context.Context, e *Env, page *pageFlags, prefixFlag *string) e
 	for _, t := range windowed {
 		rows = append(rows, map[string]any{
 			"id": t.ID, "path": t.Path, "asset_count": t.AssetCount,
-			"parent_id": derefUint(t.ParentID),
+			"parent_id": orNil(t.ParentID),
 		})
 	}
 
@@ -180,12 +174,7 @@ func runCollections(ctx context.Context, e *Env, page *pageFlags) error {
 }
 
 func runCollection(ctx context.Context, e *Env) error {
-	if len(e.Args) != 1 {
-		return axi.Usagef(
-			[]string{binaryName + " collections", binaryName + " collection <id>"},
-			"collection takes exactly one id")
-	}
-	id, err := parsePositiveID(e.Args[0], "collection id")
+	id, err := oneID(e.Args, "collection", "collection id", binaryName+" collection <id>")
 	if err != nil {
 		return err
 	}
@@ -209,13 +198,7 @@ func runCollection(ctx context.Context, e *Env) error {
 		return err
 	}
 
-	rows := make([]map[string]any, 0, len(assets.Assets))
-	for _, a := range assets.Assets {
-		rows = append(rows, map[string]any{
-			"id": a.ID, "name": a.Name,
-			"publisher": blankToNil(a.Publisher), "needs_review": a.NeedsReview,
-		})
-	}
+	rows := assetRows(assets.Assets)
 
 	block := Block{Key: "collection", Fields: []toon.KV{
 		{Key: "id", Value: c.ID},
@@ -227,7 +210,7 @@ func runCollection(ctx context.Context, e *Env) error {
 	}}
 	table := axi.Table{
 		Key:       "assets",
-		Columns:   []string{"id", "name", "publisher", "needs_review"},
+		Columns:   assetColumns,
 		Rows:      rows,
 		Total:     int(assets.Total),
 		EmptyNote: fmt.Sprintf("collection %q holds no assets", c.Name),
@@ -240,10 +223,10 @@ func runCollection(ctx context.Context, e *Env) error {
 	if assets.Total > int64(len(rows)) {
 		help = append([]string{fmt.Sprintf("%s assets --collection %d --limit %d", binaryName, c.ID, maxLimit)}, help...)
 	}
-	return axi.RenderComposite(e.Out, []Block{block}, []axi.Table{table}, help, e.Globals.options())
+	return axi.RenderComposite(e.Out, []Block{block}, nil, []axi.Table{table}, help, e.Globals.options())
 }
 
-func runImports(ctx context.Context, e *Env, page *pageFlags, stage *string) error {
+func runImports(ctx context.Context, e *Env, page *pageFlags, stage string) error {
 	client, err := e.Client()
 	if err != nil {
 		return err
@@ -252,10 +235,10 @@ func runImports(ctx context.Context, e *Env, page *pageFlags, stage *string) err
 	if err := page.apply(q); err != nil {
 		return err
 	}
-	if s := strings.TrimSpace(*stage); s != "" {
-		if s != "all" && !slices.Contains(importStages, s) {
+	if s := strings.TrimSpace(stage); s != "" {
+		if s != "all" && !importstage.Valid(s) {
 			return axi.Usagef(
-				[]string{"stages: " + strings.Join(importStages, ",") + ",all"},
+				[]string{"stages: " + strings.Join(importstage.All(), ",") + ",all"},
 				"unknown stage %q", s)
 		}
 		q.Set("stage", s)
@@ -290,7 +273,7 @@ func runImports(ctx context.Context, e *Env, page *pageFlags, stage *string) err
 		Truncatable: []string{"error"},
 		Rows:        rows,
 		Total:       int(resp.Total),
-		EmptyNote:   importsEmptyNote(strings.TrimSpace(*stage)),
+		EmptyNote:   importsEmptyNote(strings.TrimSpace(stage)),
 	}
 
 	var help []string
@@ -328,11 +311,4 @@ func window[T any](items []T, page *pageFlags) []T {
 		end = len(items)
 	}
 	return items[page.offset:end]
-}
-
-func derefUint(v *uint) any {
-	if v == nil {
-		return nil
-	}
-	return *v
 }

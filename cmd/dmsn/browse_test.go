@@ -249,6 +249,25 @@ func TestAsset_Detail(t *testing.T) {
 	if !strings.Contains(out, "engine: null") {
 		t.Fatalf("an unset field should be explicit:\n%s", out)
 	}
+
+	// --json must carry the same facts, in one parseable document: an agent
+	// reading JSON should never get a lossier answer than one reading TOON.
+	jout, code := exec(t, "asset", "511", "--json")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, jout)
+	}
+	var doc struct {
+		Asset       map[string]any `json:"asset"`
+		Versions    []string       `json:"versions"`
+		Tags        []string       `json:"tags"`
+		Collections []string       `json:"collections"`
+	}
+	if err := json.Unmarshal([]byte(jout), &doc); err != nil {
+		t.Fatalf("not one parseable document: %v\n%s", err, jout)
+	}
+	if len(doc.Versions) != 2 || len(doc.Tags) != 2 || len(doc.Collections) != 1 {
+		t.Fatalf("--json dropped the lists: %+v\n%s", doc, jout)
+	}
 }
 
 func TestTags_PrefixFilterAndPagination(t *testing.T) {

@@ -58,12 +58,6 @@ func authenticateToken(c *gin.Context, tokens *TokenAuthenticator, raw string) {
 		abort500(c, err)
 		return
 	}
-	// Denial checks run after authentication: hoisting them would let an
-	// invalid token distinguish a gated route (403) from any other (401).
-	if TokenPathDenied(routePath(c)) {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "not available to personal access tokens"})
-		return
-	}
 	if err := CheckScope(p.Token.Scope, c.Request.Method); err != nil {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "token is read-only"})
 		return
@@ -71,6 +65,23 @@ func authenticateToken(c *gin.Context, tokens *TokenAuthenticator, raw string) {
 	setUser(c, p.User)
 	setPrincipal(c, p)
 	c.Next()
+}
+
+// RefuseTokens closes a route to personal access tokens — token management and
+// the sysadmin surface. Registered on the route rather than matched from its
+// URL, so a new privileged route inherits the gate from the group it is
+// declared in instead of from the shape of its path.
+//
+// It runs after Middleware, which is what keeps an invalid token from
+// distinguishing a gated route (403) from any other (401).
+func RefuseTokens() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if GetPrincipal(c) != nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "not available to personal access tokens"})
+			return
+		}
+		c.Next()
+	}
 }
 
 // abort500 attaches the cause to c.Errors so requestLogger surfaces it. Safe
@@ -81,16 +92,6 @@ func abort500(c *gin.Context, err error) {
 		_ = c.Error(err)
 	}
 	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-}
-
-// routePath prefers the registered route pattern so a path parameter can't be
-// used to dodge TokenPathDenied, falling back to the raw path when no route
-// matched.
-func routePath(c *gin.Context) string {
-	if p := c.FullPath(); p != "" {
-		return p
-	}
-	return c.Request.URL.Path
 }
 
 func extractBearer(r *http.Request) (string, error) {
