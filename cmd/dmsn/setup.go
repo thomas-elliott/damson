@@ -169,6 +169,7 @@ alternatives in its help block.
     ` + binaryName + ` asset <id>                   one asset in full
     ` + binaryName + ` tags | collections | imports browse
     ` + binaryName + ` upload <path>... [--as ...]  import files or folders
+    ` + binaryName + ` sync scan|push               import the Unity Store cache
     ` + binaryName + ` asset edit|review|tag|rm     modify one asset
     ` + binaryName + ` bulk tag|review|rm --assets  modify many at once
     ` + binaryName + ` collection new|add|remove    curate
@@ -182,6 +183,10 @@ include ` + "`--q --tag --publisher --needs-review --updates-available --sort`" 
   an unknown name exits 2 and lists the valid ones.
 - **Directories are ambiguous.** ` + "`upload <dir>`" + ` requires ` + "`--as asset`" + ` (zip the
   folder into one asset) or ` + "`--as assets`" + ` (one asset per child).
+- **The Unity cache syncs, not uploads.** ` + "`sync scan`" + ` lists the local Asset
+  Store cache against the library; ` + "`sync push`" + ` uploads only what is missing or
+  changed, and is safe to re-run. A package the library already holds by name
+  but not by cache path is skipped until ` + "`--adopt-versions`" + `.
 - **Destructive verbs need ` + "`--yes`" + `.** ` + "`asset rm`, `tag rm`, `collection rm`, `bulk rm`" + `.
 - **Mutations are idempotent** where the API allows, and report ` + "`changed`" + ` or
   ` + "`affected`" + ` so you can tell a no-op from a real change.

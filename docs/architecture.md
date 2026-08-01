@@ -1330,9 +1330,14 @@ quietly ends up lossier than TOON.
 **Leaf packages shared with the CLI.** `internal/toon` and `internal/axi`
 above, plus `internal/tagpath` (path normalisation), `internal/importstage`
 (the `asset_imports.stage` enum and `IsTerminal`, aliased back into
-`internal/services/imports`) and `internal/buildinfo` (the
-`debug.ReadBuildInfo` rule behind both `GET /api/health` and `dmsn version`).
-Each exists so the CLI can share a rule without importing gin, gorm or River.
+`internal/services/imports`), `internal/importsource` (the
+`asset_versions.source_kind` values and the four preflight statuses, likewise
+aliased back), `internal/unitycache` (the Asset Store cache layout — see §18b)
+and `internal/buildinfo` (the `debug.ReadBuildInfo` rule behind both
+`GET /api/health` and `dmsn version`). Each exists so the CLI can share a rule
+without importing gin, gorm or River. The discipline is load-bearing rather
+than tidy: reaching into `internal/services/imports` for a single constant
+pulls GORM and the AWS S3 SDK into the client binary.
 
 **Endpoints added for it.** `GET /api/overview` (the home view in one round
 trip), `POST /api/imports/preflight` (batch name matching, backing
@@ -1348,6 +1353,54 @@ cost accepted: temp disk equal to the compressed folder, and a retained
 
 **Build.** `task build:cli`. There is deliberately no cross-compile matrix,
 no Woodpecker step and no release artefacts — see §19.13.
+
+## 18b. Importing the Unity Asset Store cache
+
+`dmsn sync` ingests Unity's local download cache, laid out as
+`<Publisher>/<CategoryPath>/<Name>.unitypackage` under
+`%APPDATA%\Unity\Asset Store-5.x` (macOS `~/Library/Unity/…`, Linux
+`~/.local/share/unity3d/…`), overridable by `ASSETSTORE_CACHE_PATH`. Scoped by
+[`specs/2026-08-01-unity-local-cache-import.md`](specs/2026-08-01-unity-local-cache-import.md).
+
+**The cache path is metadata.** Publisher and the store category tree are free
+from the directory layout and available nowhere else cheaply. Unity concatenates
+category segments with no separator (`3D ModelsCharactersHumanoids`), which
+splits cleanly on each lowercase→uppercase boundary — a bare `3D Models` stays
+whole because that boundary is uppercase-space-uppercase.
+
+**Provenance columns.** `asset_versions.source_kind`, `.source_relative_path`,
+`.source_size_bytes` (migration 021), all nullable so a hand-dragged upload
+stays distinguishable from a sourced one. `POST /api/imports` takes the first
+two as optional form fields; `source_size_bytes` is written from what storage
+returns, never from the client, so the client can pose the idempotency question
+but not answer it.
+
+**Idempotency is a JSON round trip, not a hash.** `POST /api/imports/preflight`
+answers `already_imported` (same path, same size), `updated` (same path,
+different size, naming the asset to add a version to), `name_match` or `new`.
+The lookup joins `asset_versions → assets` on `library_id` — versions carry no
+library of their own — and the newest version by `import_date` wins where an
+`updated` re-upload has left two on one path. Nobody hashes gigabytes.
+
+**Two placements worth knowing.**
+
+- **The server's parse is authoritative.** `internal/unitycache.ParseCachePath`
+  is a heuristic, so what gets persisted is derived server-side from the raw
+  path a client sends; a correction ships with the server and reaches every
+  already-installed binary. The CLI shares the package for display only.
+- **`store_version` stays blank.** The cache holds no version information at
+  all — not in the filename, not in the archive. `ParseImportFilename` would
+  nonetheless read `v2` out of `DOTween HOTween v2`, and because `store_version`
+  is a per-asset uniqueness key that phantom would block the real `2.1.0`
+  forever. So `source_kind = unity_cache` suppresses the filename version
+  parse; enrichment supplies the listing version afterwards.
+
+**`ApplySourceHints`** runs before the enrich stage, so category tags land
+whether or not `auto_enrich_enabled` is on. It writes `assets.publisher`
+blanks-only — a resumed import cannot clobber a correction — and that publisher
+then feeds `exactMatchCandidate`, breaking ties among title matches and
+unlocking a whole-word-prefix near match when the publisher agrees exactly. A
+near match records confidence `0.8` rather than claiming an exact `1.0`.
 
 ---
 

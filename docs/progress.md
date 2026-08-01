@@ -45,6 +45,49 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### Unity local Asset Store cache import — 2026-08-01
+
+Scoped by
+[`specs/2026-08-01-unity-local-cache-import.md`](specs/2026-08-01-unity-local-cache-import.md),
+built on the CLI slice below.
+
+- **`internal/unitycache`.** A leaf package, so the server and the CLI share one
+  implementation of the cache layout: `ParseCachePath` / `SplitCategory` (the
+  lowercase→uppercase category split, checked against the 40 samples in the spec) and
+  `Scan` (symlinks and dotfiles excluded, depth bounded, an over-full tree an error rather
+  than a truncated list). `NormaliseRelativePath` is the shared validator for what is, on
+  the server side, untrusted input that gets persisted.
+- **Source columns.** `asset_versions.source_kind` / `.source_relative_path` /
+  `.source_size_bytes` (migration 021), nullable throughout. `POST /api/imports` takes the
+  first two as form fields; the size is written from what storage returns, so a client can
+  ask the idempotency question but never answers it.
+- **`store_version` stays blank, and that took work.** The cache holds no version anywhere,
+  but `ParseImportFilename` reads `v2` out of `DOTween HOTween v2` — and `store_version` is
+  a per-asset uniqueness key, so that phantom would block the real `2.1.0` forever.
+  `source_kind = unity_cache` suppresses the filename version parse.
+- **Preflight gained precision.** `already_imported` and `updated` join the shipped
+  `name_match` / `new`, keyed on `(source_kind, source_relative_path)` + size, scoped through
+  `assets.library_id`, newest version winning on a repeated path. Additive: an entry with no
+  source hint answers exactly as before, which the pre-existing preflight tests confirm.
+- **`ApplySourceHints`** runs before enrich so category tags land whether or not
+  auto-enrich is on, and fills `assets.publisher` blanks-only. That publisher then
+  disambiguates `exactMatchCandidate` — breaking ties among title matches, and unlocking a
+  whole-word-prefix near match on an exact publisher agreement, recorded at confidence `0.8`
+  rather than a claimed `1.0`.
+- **`dmsn sync scan|push`**, with `--cache-root --publisher --dry-run --adopt-versions
+  --concurrency --wait`. Re-runnable by design. `--adopt-versions` governs `name_match`
+  only: off, skipped, because a name match cannot tell a duplicate from a newer version.
+- **`internal/importsource`** joins the leaf-package set, holding the source kinds and the
+  four preflight statuses. Reaching into `internal/services/imports` for the constant had
+  pulled GORM and the AWS S3 SDK into the CLI binary; `go list -deps ./cmd/dmsn` is the check.
+- The shipped upload path became per-item — `importOptions` on `item`, replacing the
+  positional `asset_id` / `store_version` on `PostImport` — because a cache sync targets a
+  different asset per package. The shipped `upload` tests pass unmodified across it.
+
+Out of scope and still open: any SPA import surface (a `webkitdirectory` picker is
+buildable against these same endpoints), UPM `.tgz` packages, resumable uploads, and
+deleting from damson when a package leaves the cache.
+
 ### `dmsn` CLI + personal access tokens — 2026-08-01
 
 Scoped by [`specs/2026-08-01-dmsn-cli.md`](specs/2026-08-01-dmsn-cli.md), split out of the
@@ -69,7 +112,7 @@ Unity cache-import spec because a local CLI is its own piece of work.
   existing list routes would be five requests, three of which discard their payloads.
 - **`POST /api/imports/preflight`.** The name-only half: "do you already hold something by this
   name?" for a whole batch, against one read of the library. Backs `upload --skip-existing`.
-  The Unity slice widens it with path-and-size precision.
+  The Unity slice above widened it with path-and-size precision.
 - **Folder upload with no server change.** `--as asset` zips a directory client-side and posts
   it as `.zip`, which is already a first-class package kind, so `extract.ZipExtractor` writes
   the files with relative paths preserved. `--as assets` applies the same rule per child. A
