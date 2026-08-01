@@ -44,8 +44,7 @@ func ValidateSource(kind, relativePath string) (string, error) {
 	return clean, nil
 }
 
-// SuppressesFilenameVersion reports whether a source's filenames carry no
-// version information, so a version token parsed out of one is a fiction.
+// SuppressesFilenameVersion is importsource.SuppressesFilenameVersion.
 func SuppressesFilenameVersion(kind string) bool {
 	return importsource.SuppressesFilenameVersion(kind)
 }
@@ -120,6 +119,7 @@ func SourceMatches(db *gorm.DB, libraryID uint, kind string, paths []string) (ma
 	if err != nil {
 		return nil, err
 	}
+	// Rows arrive oldest-first, so the last write per path is the newest version.
 	for _, r := range rows {
 		m := SourceMatch{AssetID: r.AssetID, AssetName: r.AssetName, VersionID: r.VersionID}
 		if r.SizeBytes != nil {

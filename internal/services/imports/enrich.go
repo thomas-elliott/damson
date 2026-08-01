@@ -276,8 +276,8 @@ func exactMatchCandidate(assetName, assetPublisher string, cands []metadata.Cand
 }
 
 // publishersMatch compares publishers under the same normalisation titles use.
-// A blank on either side never matches, so an asset with no publisher is
-// exactly as it was before the hint existed.
+// A blank on either side never matches, so an asset with no publisher falls
+// through to title-only matching.
 func publishersMatch(assetPublisher, candidatePublisher string) bool {
 	a := normalisedTitleKey(assetPublisher)
 	b := normalisedTitleKey(candidatePublisher)

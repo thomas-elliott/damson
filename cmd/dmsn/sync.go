@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -178,8 +179,8 @@ func cacheItems(root string, entries []unitycache.Entry) []item {
 	return items
 }
 
-// preflightCache asks the server about the whole manifest, chunked at the
-// server's per-request cap. Returns one status per item index.
+// preflightCache asks the server about the whole manifest, returning one
+// status per item index.
 func (e *Env) preflightCache(ctx context.Context, client *Client, items []item) ([]preflightStatus, error) {
 	out := make([]preflightStatus, len(items))
 	for start := 0; start < len(items); start += preflightChunk {
@@ -194,11 +195,10 @@ func (e *Env) preflightCache(ctx context.Context, client *Client, items []item) 
 }
 
 type preflightStatus struct {
-	Status       string
-	AssetID      uint
-	AssetName    string
-	VersionCount int
-	HeldBytes    int64
+	Status    string
+	AssetID   uint
+	AssetName string
+	HeldBytes int64
 }
 
 func (e *Env) preflightChunkRequest(ctx context.Context, client *Client, items []item) ([]preflightStatus, error) {
@@ -222,12 +222,11 @@ func (e *Env) preflightChunkRequest(ctx context.Context, client *Client, items [
 
 	var resp struct {
 		Results []struct {
-			Index        int    `json:"index"`
-			Status       string `json:"status"`
-			AssetID      uint   `json:"asset_id"`
-			AssetName    string `json:"asset_name"`
-			VersionCount int    `json:"version_count"`
-			HeldBytes    int64  `json:"held_bytes"`
+			Index     int    `json:"index"`
+			Status    string `json:"status"`
+			AssetID   uint   `json:"asset_id"`
+			AssetName string `json:"asset_name"`
+			HeldBytes int64  `json:"held_bytes"`
 		} `json:"results"`
 	}
 	if err := client.PostJSON(ctx, "/api/imports/preflight", req, &resp); err != nil {
@@ -243,8 +242,8 @@ func (e *Env) preflightChunkRequest(ctx context.Context, client *Client, items [
 			continue
 		}
 		out[r.Index] = preflightStatus{
-			Status: r.Status, AssetID: r.AssetID, AssetName: r.AssetName,
-			VersionCount: r.VersionCount, HeldBytes: r.HeldBytes,
+			Status: r.Status, AssetID: r.AssetID,
+			AssetName: r.AssetName, HeldBytes: r.HeldBytes,
 		}
 	}
 	return out, nil
@@ -383,7 +382,9 @@ func (e *Env) reportSyncNothingToDo(root string, skipped []skippedItem, f *syncF
 		{Key: "skip", Value: len(skipped)},
 	}}
 	help := []string{"dmsn sync scan" + cacheRootSuffix(f)}
-	if hasStatus(skipped, importsource.StatusNameMatch) {
+	if slices.ContainsFunc(skipped, func(s skippedItem) bool {
+		return s.status.Status == importsource.StatusNameMatch
+	}) {
 		help = append(help, "dmsn sync push --adopt-versions  # adopt the name-matched packages")
 	}
 	note := fmt.Sprintf("the library already holds every package in %s", root)
@@ -403,15 +404,6 @@ func (e *Env) reportEmptyCache(root string, f *syncFlags) error {
 	help := []string{"dmsn sync scan --cache-root <path>"}
 	return axi.RenderComposite(e.Out, []Block{summary},
 		[]axi.List{{Key: "note", Items: []any{note}}}, nil, help, e.Globals.options())
-}
-
-func hasStatus(skipped []skippedItem, status string) bool {
-	for _, s := range skipped {
-		if s.status.Status == status {
-			return true
-		}
-	}
-	return false
 }
 
 func cacheRootSuffix(f *syncFlags) string {
