@@ -45,6 +45,58 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### Large-upload reliability + upload observability — 2026-08-01/02
+
+Scoped by [`specs/2026-08-01-upload-reliability-observability.md`](specs/2026-08-01-upload-reliability-observability.md).
+
+Two problems, one slice: 20 GB uploads were OOM-killing the pod, and the
+failures were invisible.
+
+**The OOM.** `postImport` used `c.FormFile`, so Gin's `ParseMultipartForm`
+spooled the whole body to `os.TempDir()`, and `putHashed` then spooled it a
+second time while hashing. 40 GB of scratch and three passes for a 20 GB
+upload. There is no `TMPDIR` volume in the k8s deploy, so that went to the
+container overlay as dirty page cache charged to the pod's memory cgroup —
+`OOMKilled`, no application log, and a 502/503 from the proxy with nothing
+behind it. Both spools are gone: `r.MultipartReader()` hands the file part
+straight to storage, and the S3 backend hashes inline up to 16 MiB and
+otherwise stages to a random key and copies server-side. Measured flat:
++105 MB RSS for a 512 MiB upload, +103 MB for 2 GiB.
+
+**The invisibility.** `slog` emitted `msg`, VictoriaLogs wanted `_msg`, and
+the ingest URL did not remap it — so every line was dropped as
+`missing _msg field`. `ReplaceAttr` now renames `msg`/`time` at the handler,
+which is collector-independent. Request lines compose a real message
+(`POST /api/imports → 202 in 431ms`), upload routes log a start line, and
+completion carries `bytes_in` and `client_aborted`. Every upload abort site
+routes through one classifier, so a client disconnect (499), a full volume
+(507), a timeout (408) and a malformed body (400) stop reporting as the same
+`400 missing 'file' form field` with the cause discarded.
+
+**Chunked resumable transport.** New `upload_sessions` table plus five
+endpoints (open / chunk / poll / complete / abort). The client declares the
+SHA-256, so the target key is known before the first byte: content the
+library already holds imports without transferring anything, and everything
+else streams into a multipart write on its final key. The running digest is
+marshalled into the session row between chunks, which is what allows
+cross-request verification without a second full read — and is why chunks
+are strictly sequential. `storage.Service` gained
+`BeginMultipart`/`ResumeMultipart` for both backends. A janitor expires
+abandoned sessions and aborts the multipart uploads no bucket listing shows.
+
+The SPA and `dmsn` both chunk at or above 256 MiB; the SPA hashes in a Web
+Worker (hash-wasm — `crypto.subtle` cannot stream) behind a visible hashing
+phase, `dmsn` gains `--resume`. `postImport`'s row-creation moved to
+`import_create.go` and is shared verbatim with the session complete step.
+
+`max_upload_bytes` default raised 2 GiB → 64 GiB, and migration 022 lifts
+rows still holding the old default verbatim.
+
+Two wire-level consequences: multipart text fields must now be sent
+**before** the `file` part (a recognised field after it is a 400 naming it),
+and LocalFS chunked uploads are single-replica only, since parts live on the
+pod's filesystem.
+
 ### Unity local Asset Store cache import — 2026-08-01
 
 Scoped by
@@ -338,6 +390,10 @@ Deliberate, not forgotten.
 | No `useInfiniteQuery` | Lists are `limit`/`offset` server-side and the grid virtualises a single page. Add paging when a list actually needs it. |
 | Preview format coverage | Pure-Go raster only so far. PSD/EXR/TGA, SVG rasterisation and PDF posters are staged behind it — see the file-previews spec. |
 | e2e tiers 2 and 3 | Tier 1 is implemented; see [`e2e-flows.md`](e2e-flows.md). |
+| No e2e for chunked uploads | Triggering it needs a 256 MiB file; generating one per run blows the suite's runtime budget. Covered by unit and handler tests instead — see [`e2e-flows.md`](e2e-flows.md). |
+| Chunk size is a Go constant | Advertised per session so it can change without a client release, but changing it still needs a server release. `server_settings` is the natural home if it ever needs runtime tuning. |
+| Terminal upload sessions are never purged | `completed` / `aborted` / `expired` rows accumulate. Small and useful as history; add retention if it ever matters. |
+| Orphan sweep ignores incomplete multiparts | The janitor covers sessions damson knows about. A multipart orphaned some other way is invisible to `FindOrphans`, which lists objects only. |
 | No CLI distribution | `task build:cli` only — no cross-compile matrix, no release artefacts. `dmsn setup` does the discovery work with no install story behind it. Deliberate; revisit if the CLI gets external users. |
 | Name-only preflight | `--skip-existing` matches on normalised title alone, so it cannot tell a duplicate from a genuine new version and skips both. The Unity slice adds path-and-size precision. |
 | Local auth hardening | In-memory rate limiting only (no shared store across replicas), no MFA, minimum-length password floor only. Documented as dev / small-install only. |

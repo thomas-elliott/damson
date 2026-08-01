@@ -218,7 +218,7 @@ section sketches the shape and relationships.
 ### 4.4 Settings
 
 - **`server_settings`** — singleton row, sysadmin-managed:
-  `max_upload_bytes`, `licence_kb_auto_update`.
+  `max_upload_bytes` (default 64 GiB), `licence_kb_auto_update`.
 - **`library_settings`** — one row per library, library-admin-managed:
   `theme_default`, `grid_density_default`,
   `retain_original_packages`, `dedupe_enabled`,
@@ -229,13 +229,24 @@ section sketches the shape and relationships.
   `audit_retention_days` (nullable; consumed by the background purge
   worker in `internal/services/audit/purge.go` — see §14).
 
+### 4.5 Upload sessions
+
+- **`upload_sessions`** — one resumable upload in flight (§8.0):
+  declared `filename` / `size_bytes` / `sha256`, the advertised
+  `chunk_size`, the backend's `backend_upload_id`, per-part ETags in
+  `parts_json`, the marshalled digest in `hash_state`, and the
+  `received_bytes` / `next_chunk` resume point. Import hints
+  (`target_asset_id`, `store_version`, `source_kind`,
+  `source_relative_path`) are carried from the open call and applied at
+  complete. `status` is `open | completed | aborted | expired`.
+
 Library-scoped entities all carry `library_id` directly.
 `created_by_user_id` / `pinned_by_user_id` are **attribution, not
 ownership** — they do not affect access rules.
 
-### 4.5 Migrations
+### 4.6 Migrations
 
-SQL-only, in `database/migrations/NNN_*.sql` (001–018 at time of
+SQL-only, in `database/migrations/NNN_*.sql` (001–023 at time of
 writing). The runner (`internal/db/migrate.go`) reads them via
 `damson.MigrationsFS`, applies in lexicographic order inside a
 Postgres advisory lock, tracks applied files in `schema_migrations`.
@@ -492,17 +503,17 @@ alone does not appear in logs.
 
 ## 8. Import pipeline
 
-Asynchronous. `POST /api/imports` spools the upload, persists the
-blob, creates the rows, and returns `202` with an
-`asset_imports` row in the `uploaded` stage; a River job on the
-`import` queue does the rest (§12). `asset_imports.stage` is the
-durable source of truth for progress — SSE is a notification channel
-over the top of it, so a dropped event is recoverable by refetching.
+Asynchronous. Bytes arrive by one of two transports (§8.0), then the
+handler creates the rows and returns `202` with an `asset_imports` row
+in the `uploaded` stage; a River job on the `import` queue does the
+rest (§12). `asset_imports.stage` is the durable source of truth for
+progress — SSE is a notification channel over the top of it, so a
+dropped event is recoverable by refetching.
 
 ```
-HTTP (POST /api/imports)
-[1] Upload streamed to temp + SHA-256
-[2] PutBlob (skip if already present)
+HTTP (POST /api/imports, or a completed upload session)
+[1] Body streamed straight to storage while hashing
+[2] PutOriginal / PutBlob (skip if the content hash is already present)
 [3] Create asset (needs_review=true) + first version + import row
 [4] Enqueue an import job → 202
 
@@ -522,6 +533,68 @@ Worker (internal/services/imports.Run)
 [9] stage=done           audit entry: asset.import
     Preview work is enqueued onto the preview queue (§11, §12)
 ```
+
+### 8.0 Upload transports
+
+Two ways in. Both end at the same rows and the same queue: the shared
+half lives in `internal/handlers/api/import_create.go`
+(`checkImportConflict` → `createImportRows` → `finishImport`), so the
+transports differ only in how bytes reach storage.
+
+**One-shot — `POST /api/imports`, `multipart/form-data`.** The handler
+reads the body with `r.MultipartReader()` and hands the file part
+straight to the storage backend; nothing is spooled to local scratch.
+That imposes a wire constraint: every text field (`asset_id`,
+`store_version`, `source_kind`, `source_relative_path`) must be sent
+**before** the `file` part, because the server reads fields as it
+passes them and the file part is handed over unread. A recognised
+field arriving after the file is a `400` naming it.
+
+Because the key is the content hash, a body too large to hash in memory
+(over 16 MiB) lands at a random `staging/<random>` key first and is
+copied server-side to `originals/<hh>/<hash>` once the hash is known.
+`staging/` sits outside `cleanup.sweptPrefixes` — a staging key is not a
+content hash, so the orphan sweep would list it and then fail to delete
+it.
+
+**Chunked and resumable — the upload-session endpoints.** For archives
+where a single multi-hour request is a liability. The client declares
+the SHA-256 up front, so the final key is known before the first byte:
+there is no staging object, no copy-on-complete, and content the
+library already holds is imported without transferring anything.
+
+| Endpoint | Behaviour |
+| --- | --- |
+| `POST /api/imports/uploads` | Opens a session. `sha256` (64 hex) and a positive `size_bytes` are required. HEAD the content key first: present ⇒ `202 {"deduped": true}` with the import already enqueued and no session row. Otherwise `BeginMultipart` on the final key ⇒ `201` with `upload_id`, `chunk_size`, `expires_at`. Duplicate-store-version and target-asset checks run here so a conflict costs one round trip, not 20 GB. |
+| `PUT /api/imports/uploads/:id/chunks/:n` | Streams the raw octet-stream body into `UploadPart`. `n` is 0-based and strictly sequential — `n < next_chunk` is a no-op `200`, `n > next_chunk` a `409` naming the index to send. `Content-Length` must equal the expected chunk size. |
+| `GET /api/imports/uploads/:id` | The resume point: `received_bytes`, `next_chunk`, `status`, `expires_at`. |
+| `POST /api/imports/uploads/:id/complete` | Verifies the running hash against the declared one (mismatch ⇒ abort the multipart, `400`, nothing published), creates the rows, completes the multipart, enqueues ⇒ `202`. Idempotent once completed. |
+| `DELETE /api/imports/uploads/:id` | Aborts the multipart and marks the session aborted ⇒ `204`. |
+
+Sequential chunks are the price of verifying the hash without a second
+full read. `crypto/sha256`'s digest implements
+`encoding.BinaryMarshaler`, so the running state is marshalled into
+`upload_sessions.hash_state` after each chunk and restored before the
+next — chunks can therefore land on different pods. Advancing the state
+is a conditional `UPDATE … WHERE next_chunk = ?`, so two requests racing
+the same index cannot both apply.
+
+Clients pick the transport by size: the SPA and `dmsn` both chunk at or
+above 256 MiB (`dmsn --resume` forces it at any size). The one-shot
+endpoint stays for everything smaller — the full-file hashing pass would
+cost more than it saves.
+
+`upload_sessions` holds no asset, version or import rows while a session
+is open, so an abandoned upload costs an aborted multipart and nothing
+else. `internal/services/uploads.Janitor` sweeps sessions past
+`expires_at` (24h) every `DAMSON_UPLOAD_JANITOR_INTERVAL` (default 1h),
+aborting the backing multipart — which no bucket listing would otherwise
+reveal — and marking the row `expired`.
+
+**LocalFS caveat.** The LocalFS `MultipartUpload` keeps its parts under
+`<root>/uploads/<id>/`, on the pod's own filesystem. Chunked uploads
+therefore only work single-replica on that backend. Fine for the
+dev/small-deploy target; S3 keeps all state in the bucket and the DB.
 
 The `enriching` transition fires even when enrichment is disabled, so
 the SSE stage sequence stays stable for the SPA; `enrichAsset` itself
@@ -902,6 +975,7 @@ The only always-required value is `DAMSON_POSTGRES_DSN` (or its
 | `DAMSON_STORAGE_MODE` | `local` (or `s3`) |
 | `DAMSON_AUDIT_PURGE_INTERVAL` | `24h` (Go duration; non-positive falls back to default) |
 | `DAMSON_ORPHAN_MIN_AGE` | `168h` (7 days; minimum object age before orphan cleanup will delete it — §5.1) |
+| `DAMSON_UPLOAD_JANITOR_INTERVAL` | `1h` (how often abandoned upload sessions expire and their multipart uploads abort — §8.0) |
 
 Background queues (§12). Unset / unparseable / non-positive values
 fall back to the default in every case.
