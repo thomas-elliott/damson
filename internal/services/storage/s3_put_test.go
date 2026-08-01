@@ -79,6 +79,10 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeXML(w, fmt.Sprintf(
 			`<CompleteMultipartUploadResult><Bucket>bucket</Bucket><Key>%s</Key><ETag>"done"</ETag></CompleteMultipartUploadResult>`, key))
 
+	case r.Method == http.MethodDelete && q.Get("uploadId") != "":
+		delete(f.parts, q.Get("uploadId"))
+		w.WriteHeader(http.StatusNoContent)
+
 	case r.Method == http.MethodPut && r.Header.Get("x-amz-copy-source") != "":
 		src := strings.TrimPrefix(r.Header.Get("x-amz-copy-source"), "bucket/")
 		f.objects[key] = append([]byte(nil), f.objects[src]...)
@@ -301,4 +305,53 @@ func keysOf(m map[string][]byte) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestS3PutHashed_AbortedUploadLeavesNoIncompleteMultipart covers the leak a
+// real MinIO run exposed: the uploader's own abort runs on the request context,
+// which in the client-abort case has already been cancelled, so the parts stay
+// in the bucket forever.
+func TestS3PutHashed_AbortedUploadLeavesNoIncompleteMultipart(t *testing.T) {
+	s, fake := newTestS3(t)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// A body that cancels the request partway through, the way a client
+	// hanging up mid-transfer does.
+	body := bytes.Repeat([]byte("w"), inlinePutBytes*4)
+	r := &cancelAfterReader{b: body, after: inlinePutBytes + uploadPartBytes, cancel: cancel}
+
+	if _, _, err := s.PutOriginal(ctx, r, ObjectMeta{}); err == nil {
+		t.Fatal("want an error when the request is cancelled mid-upload")
+	}
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.parts) != 0 {
+		t.Errorf("want every multipart upload aborted, %d still open: %v", len(fake.parts), fake.parts)
+	}
+	for k := range fake.objects {
+		if strings.HasPrefix(k, stagingPrefix+"/") {
+			t.Errorf("staging object %s survived the abort", k)
+		}
+	}
+}
+
+type cancelAfterReader struct {
+	b      []byte
+	off    int
+	after  int
+	cancel context.CancelFunc
+}
+
+func (c *cancelAfterReader) Read(p []byte) (int, error) {
+	if c.off >= c.after && c.cancel != nil {
+		c.cancel()
+		c.cancel = nil
+	}
+	if c.off >= len(c.b) {
+		return 0, io.EOF
+	}
+	n := copy(p, c.b[c.off:])
+	c.off += n
+	return n, nil
 }

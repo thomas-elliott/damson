@@ -255,7 +255,9 @@ func (s *S3) putStaged(ctx context.Context, prefix string, r io.Reader, meta Obj
 		u.Concurrency = uploadConcurrency
 	})
 	if err != nil {
-		s.dropStaging(context.WithoutCancel(ctx), stagingKey)
+		cleanupCtx := context.WithoutCancel(ctx)
+		s.abortStagingUpload(cleanupCtx, stagingKey, err)
+		s.dropStaging(cleanupCtx, stagingKey)
 		return "", 0, err
 	}
 	// Cleanup runs on a context detached from the request so an abort after
@@ -369,6 +371,27 @@ func (s *S3) objectExists(ctx context.Context, objectKey string) (bool, error) {
 		return false, nil
 	}
 	return false, s.wrapS3("head", objectKey, err)
+}
+
+// abortStagingUpload retries the multipart abort on a live context. The
+// uploader already attempts one, but on the request's own context — which in
+// the client-abort case is the context that has just been cancelled, so its
+// abort never reaches the bucket and the parts are billed indefinitely.
+func (s *S3) abortStagingUpload(ctx context.Context, stagingKey string, cause error) {
+	var failure manager.MultiUploadFailure
+	if !errors.As(cause, &failure) || failure.UploadID() == "" {
+		return
+	}
+	uploadID := failure.UploadID()
+	_, err := s.client.AbortMultipartUpload(ctx, &s3.AbortMultipartUploadInput{
+		Bucket:   &s.bucket,
+		Key:      &stagingKey,
+		UploadId: &uploadID,
+	})
+	if err != nil {
+		slog.Error("storage: incomplete multipart upload left behind",
+			"object_key", stagingKey, "bucket", s.bucket, "upload_id", uploadID, "err", err)
+	}
 }
 
 func (s *S3) dropStaging(ctx context.Context, stagingKey string) {
