@@ -4,7 +4,7 @@ import "time"
 
 type ServerSettings struct {
 	ID                  uint  `gorm:"primarykey;default:1"`
-	MaxUploadBytes      int64 `gorm:"not null;default:2147483648"`
+	MaxUploadBytes      int64 `gorm:"not null;default:68719476736"`
 	LicenceKBAutoUpdate bool  `gorm:"not null;default:false"`
 	UpdatedAt           time.Time
 	UpdatedByUserID     *uint

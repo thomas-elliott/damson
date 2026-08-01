@@ -173,9 +173,11 @@ export function uploadFile(
     }
     void (async () => {
       const token = await getAccessToken();
+      // Order matters: the server streams the file part to storage as it
+      // reads, so text fields have to arrive before it.
       const form = new FormData();
-      form.append("file", file);
       if (assetId) form.append("asset_id", String(assetId));
+      form.append("file", file);
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url);

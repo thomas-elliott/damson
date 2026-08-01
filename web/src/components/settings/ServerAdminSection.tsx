@@ -88,7 +88,7 @@ function ServerSettingsFormBody({ settings }: { settings: ServerSettings }) {
     >
       <FieldRow
         label="Max upload bytes"
-        hint="Hard cap applied to all uploads. 2 GiB = 2147483648."
+        hint="Hard cap applied to all uploads. 64 GiB = 68719476736."
       >
         <Input
           type="number"
