@@ -1,7 +1,7 @@
 BEGIN;
 
 -- The 2 GiB default predates streaming uploads and rejects the 20 GB archives
--- damson is meant to hold. Raise it to 64 GiB.
+-- damson is meant to hold.
 ALTER TABLE server_settings
     ALTER COLUMN max_upload_bytes SET DEFAULT 68719476736;
 
