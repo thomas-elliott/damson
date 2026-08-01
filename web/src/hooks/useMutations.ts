@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { fetchJson, fetchMaybeJson } from "@/api";
 import type {
+  ApiToken,
   Me,
   MetadataFetchResponse,
   MetadataSearchResponse,
@@ -793,6 +794,33 @@ export function useApplyMetadata() {
       qc.invalidateQueries({ queryKey: queryKeys.asset(v.id) });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
       qc.invalidateQueries({ queryKey: queryKeys.imports });
+    },
+  });
+}
+
+export function useCreateApiToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { label: string; scope: "read" | "write"; expires_at?: string }) =>
+      fetchJson<ApiToken & { token: string }>("/api/me/tokens", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.apiTokens });
+    },
+  });
+}
+
+export function useRevokeApiToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: number }) => {
+      await fetchMaybeJson(`/api/me/tokens/${input.id}`, { method: "DELETE" });
+      return input;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.apiTokens });
     },
   });
 }

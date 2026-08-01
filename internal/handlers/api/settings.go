@@ -27,6 +27,19 @@ type librarySettingsView struct {
 	AuditRetentionDays      *int   `json:"audit_retention_days"`
 }
 
+// librarySettingsResponse is what the endpoints return: the library-owned
+// settings plus the server-level upload cap. Kept distinct from
+// librarySettingsView, which feeds the audit diff and must therefore contain
+// only fields this endpoint can change.
+type librarySettingsResponse struct {
+	librarySettingsView
+	// MaxUploadBytes is read-only here so a member can size an upload before
+	// transferring it. Writing it stays on the sysadmin route.
+	MaxUploadBytes int64 `json:"max_upload_bytes"`
+}
+
+// settingsViewFrom builds the library-owned view. It is what the audit diff
+// records, so it deliberately carries nothing the endpoint cannot change.
 func settingsViewFrom(s *models.LibrarySettings) librarySettingsView {
 	return librarySettingsView{
 		LibraryID:               s.LibraryID,
@@ -54,7 +67,25 @@ func (h *Handler) getLibrarySettings(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, settingsViewFrom(s))
+	view, err := h.withMaxUpload(c, settingsViewFrom(s))
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+// withMaxUpload layers the server-level upload cap onto a library settings
+// view. Exposed to members read-only so a client can size an upload before
+// transferring it; writing it stays on the sysadmin route.
+func (h *Handler) withMaxUpload(c *gin.Context, v librarySettingsView) (librarySettingsResponse, error) {
+	out := librarySettingsResponse{librarySettingsView: v}
+	server, err := loadOrCreateServerSettings(h.db.WithContext(c.Request.Context()))
+	if err != nil {
+		return out, err
+	}
+	out.MaxUploadBytes = server.MaxUploadBytes
+	return out, nil
 }
 
 type librarySettingsPatchRequest struct {
@@ -146,7 +177,12 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, settingsViewFrom(&out))
+	view, err := h.withMaxUpload(c, settingsViewFrom(&out))
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, view)
 }
 
 func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettings, error) {

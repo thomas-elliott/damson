@@ -45,6 +45,47 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### `dmsn` CLI + personal access tokens — 2026-08-01
+
+Scoped by [`specs/2026-08-01-dmsn-cli.md`](specs/2026-08-01-dmsn-cli.md), split out of the
+Unity cache-import spec because a local CLI is its own piece of work.
+
+- **Personal access tokens.** `api_tokens` (migration 020), secret
+  `damson_pat_<32 random bytes>` stored as a plain SHA-256 hex digest — not bcrypt, because
+  the secret is already high-entropy and a fast digest allows the indexed lookup every
+  request needs. `auth.Middleware` takes a nil-able `TokenAuthenticator` and branches on the
+  prefix ahead of the mode authenticator, so PATs behave identically in local and OIDC
+  deployments. Scope is `read` | `write`; `read` is confined to GET. Token auth is refused on
+  `/api/me/tokens` and `/api/admin/*` — a token can neither mint another nor reach sysadmin
+  surface. Managed from Settings → Access tokens in the SPA, which is the only way to create one.
+- **`cmd/dmsn`.** A single binary on stdlib `flag`, no new dependency, built to the
+  [AXI principles](https://axi.md/): TOON output by default (`internal/toon`), 3–4 default
+  columns widened by `--fields`, truncation with a length note, pre-computed aggregates,
+  definitive empty states, structured errors on *stdout* with exit codes 0/1/2, and a
+  content-first home view. The whole contract lives in `internal/axi` so no command
+  reimplements it.
+- **`GET /api/overview`.** One round trip for the home view — five counts, an updates-available
+  count reusing `updatesAvailableSQL()`, and a capped recent-import tail. Composing it from the
+  existing list routes would be five requests, three of which discard their payloads.
+- **`POST /api/imports/preflight`.** The name-only half: "do you already hold something by this
+  name?" for a whole batch, against one read of the library. Backs `upload --skip-existing`.
+  The Unity slice widens it with path-and-size precision.
+- **Folder upload with no server change.** `--as asset` zips a directory client-side and posts
+  it as `.zip`, which is already a first-class package kind, so `extract.ZipExtractor` writes
+  the files with relative paths preserved. `--as assets` applies the same rule per child. A
+  directory with no `--as` exits 2 carrying both concrete commands rather than guessing.
+- **`dmsn setup`** writes a Claude Code skill (and an optional SessionStart hook script)
+  describing the output contract and command surface, so an agent gets the tool's conventions
+  without being told them.
+- `max_upload_bytes` joined `GET /api/settings` read-only, so a client can size an upload
+  instead of learning the cap from a 413 after transferring it.
+- `GET /api/me` now describes the token a request authenticated with (prefix, label, scope,
+  expiry) so `dmsn whoami` can report its own scope without reaching `/api/me/tokens`.
+  `GET /api/health` reports the build identifier.
+
+Build with `task build:cli`. Deliberately **no** cross-compile matrix, Woodpecker step or
+release artefacts — the binary exists where someone builds it.
+
 ### Library top bar, rail account menu, file-manager browser — 2026-07-25
 
 Scoped by
@@ -254,6 +295,8 @@ Deliberate, not forgotten.
 | No `useInfiniteQuery` | Lists are `limit`/`offset` server-side and the grid virtualises a single page. Add paging when a list actually needs it. |
 | Preview format coverage | Pure-Go raster only so far. PSD/EXR/TGA, SVG rasterisation and PDF posters are staged behind it — see the file-previews spec. |
 | e2e tiers 2 and 3 | Tier 1 is implemented; see [`e2e-flows.md`](e2e-flows.md). |
+| No CLI distribution | `task build:cli` only — no cross-compile matrix, no release artefacts. `dmsn setup` does the discovery work with no install story behind it. Deliberate; revisit if the CLI gets external users. |
+| Name-only preflight | `--skip-existing` matches on normalised title alone, so it cannot tell a duplicate from a genuine new version and skips both. The Unity slice adds path-and-size precision. |
 | Local auth hardening | In-memory rate limiting only (no shared store across replicas), no MFA, minimum-length password floor only. Documented as dev / small-install only. |
 
 ---
