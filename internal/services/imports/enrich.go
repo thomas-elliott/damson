@@ -237,8 +237,8 @@ func normaliseTitle(s string) string {
 // candidate title must be exactly equal (after collapsing). Anything short of
 // that abstains, per the spec's conservative auto-enrich posture.
 func titlesMatch(assetName, candidateTitle string) bool {
-	a := strings.Join(strings.Fields(normaliseTitle(assetName)), " ")
-	b := strings.Join(strings.Fields(normaliseTitle(candidateTitle)), " ")
+	a := normalisedTitleKey(assetName)
+	b := normalisedTitleKey(candidateTitle)
 	return a != "" && a == b
 }
 
@@ -285,4 +285,61 @@ func firstNonEmptyStr(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// NameMatcher answers "do you already hold something by this name?" for a
+// whole batch against a single read of the library. MatchAssetByName loads
+// every asset per call, which is fine once per upload but quadratic across a
+// preflight of hundreds of entries.
+type NameMatcher struct {
+	byTitle map[string]*models.Asset
+	total   int
+}
+
+// NewNameMatcher reads the library once and indexes it by normalised title.
+// Where two assets normalise to the same title the lower id wins, so the
+// result does not depend on scan order.
+func NewNameMatcher(db *gorm.DB, libraryID uint) (*NameMatcher, error) {
+	var assets []models.Asset
+	if err := db.Where("library_id = ?", libraryID).Order("id ASC").Find(&assets).Error; err != nil {
+		return nil, err
+	}
+	m := &NameMatcher{byTitle: make(map[string]*models.Asset, len(assets)), total: len(assets)}
+	for i := range assets {
+		key := normalisedTitleKey(assets[i].Name)
+		if key == "" {
+			continue
+		}
+		if _, seen := m.byTitle[key]; !seen {
+			m.byTitle[key] = &assets[i]
+		}
+	}
+	return m, nil
+}
+
+// Match returns the asset whose name equals name under the same normalisation
+// titlesMatch uses, or nil.
+func (m *NameMatcher) Match(name string) *models.Asset {
+	if m == nil {
+		return nil
+	}
+	key := normalisedTitleKey(name)
+	if key == "" {
+		return nil
+	}
+	return m.byTitle[key]
+}
+
+// Total is the number of assets the matcher was built from.
+func (m *NameMatcher) Total() int {
+	if m == nil {
+		return 0
+	}
+	return m.total
+}
+
+// normalisedTitleKey is titlesMatch's comparison key, extracted so the batch
+// index and the single-shot matcher cannot drift apart.
+func normalisedTitleKey(s string) string {
+	return strings.Join(strings.Fields(normaliseTitle(s)), " ")
 }
