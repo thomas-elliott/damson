@@ -457,6 +457,15 @@ func (h *Handler) postImport(c *gin.Context) {
 	}
 	reqStoreVersion := strings.TrimLeft(strings.TrimSpace(c.PostForm("store_version")), "vV")
 
+	sourceKind := strings.TrimSpace(c.PostForm("source_kind"))
+	sourceRelativePath, err := imports.ValidateSource(sourceKind, c.PostForm("source_relative_path"))
+	if err != nil {
+		slog.Warn("import: invalid source hint",
+			"err", err, "library_id", lib.ID, "source_kind", sourceKind)
+		respond400(c, err)
+		return
+	}
+
 	// Create the rows before the upload so the object metadata can carry the
 	// asset/version IDs. The version's object key is set after the upload and
 	// the import is enqueued only once it is, so a crash in between leaves a
@@ -469,6 +478,9 @@ func (h *Handler) postImport(c *gin.Context) {
 	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		assetName, storeVersion := imports.ParseImportFilename(filename)
+		if imports.SuppressesFilenameVersion(sourceKind) {
+			storeVersion = ""
+		}
 		if reqStoreVersion != "" {
 			storeVersion = reqStoreVersion
 		}
@@ -505,6 +517,10 @@ func (h *Handler) postImport(c *gin.Context) {
 			ImportDate:      time.Now().UTC(),
 			CreatedByUserID: &u.ID,
 			PackageKind:     packageKind,
+		}
+		if sourceRelativePath != "" {
+			version.SourceKind = &sourceKind
+			version.SourceRelativePath = &sourceRelativePath
 		}
 		if err := tx.Create(&version).Error; err != nil {
 			return err
@@ -562,9 +578,13 @@ func (h *Handler) postImport(c *gin.Context) {
 	}
 
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		versionUpdates := map[string]any{"original_package_object_key": objectKey}
+		if sourceRelativePath != "" {
+			versionUpdates["source_size_bytes"] = size
+		}
 		if err := tx.Model(&models.AssetVersion{}).
 			Where("id = ?", versionID).
-			Update("original_package_object_key", objectKey).Error; err != nil {
+			Updates(versionUpdates).Error; err != nil {
 			return err
 		}
 		if !isArchive {
