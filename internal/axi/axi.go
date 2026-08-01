@@ -108,15 +108,7 @@ func RenderTable(w io.Writer, t Table, help []string, o Options) error {
 		return err
 	}
 
-	rows := make([]map[string]any, len(t.Rows))
-	truncatable := set(t.Truncatable)
-	for i, src := range t.Rows {
-		row := make(map[string]any, len(columns))
-		for _, c := range columns {
-			row[c] = maybeTruncate(src[c], truncatable[c], o.Full)
-		}
-		rows[i] = row
-	}
+	rows := projectRows(t, columns, o)
 
 	if o.format() == FormatJSON {
 		payload := map[string]any{t.Key: rows}
@@ -198,18 +190,31 @@ type Block struct {
 	Fields []toon.KV
 }
 
-// RenderBlocks writes several named objects as one result: consecutive blocks
-// in TOON, a single flat object in JSON. Concatenating independent JSON
-// documents would not parse, so the encodings differ in structure here.
+// RenderBlocks writes several named objects as one result.
 func RenderBlocks(w io.Writer, blocks []Block, help []string, o Options) error {
+	return RenderComposite(w, blocks, nil, help, o)
+}
+
+// RenderComposite writes object blocks followed by tables as ONE result:
+// consecutive blocks in TOON, a single flat object in JSON. Rendering the
+// parts with separate calls would emit concatenated JSON documents, which do
+// not parse — so a multi-part result has to go through here.
+//
+// Field projection is deliberately not applied: --fields names a column of
+// one table, and a composite has several. Commands wanting projection should
+// render a single table instead.
+func RenderComposite(w io.Writer, blocks []Block, tables []Table, help []string, o Options) error {
 	if o.format() == FormatJSON {
-		payload := make(map[string]any, len(blocks)+1)
+		payload := make(map[string]any, len(blocks)+len(tables)+1)
 		for _, b := range blocks {
 			fields := make(map[string]any, len(b.Fields))
 			for _, f := range b.Fields {
 				fields[f.Key] = f.Value
 			}
 			payload[b.Key] = fields
+		}
+		for _, t := range tables {
+			payload[t.Key] = projectRows(t, t.Columns, o)
 		}
 		if len(help) > 0 && !o.helpSuppressed() {
 			payload["help"] = help
@@ -221,9 +226,32 @@ func RenderBlocks(w io.Writer, blocks []Block, help []string, o Options) error {
 	for _, b := range blocks {
 		doc.Object(b.Key, b.Fields)
 	}
+	for _, t := range tables {
+		rows := projectRows(t, t.Columns, o)
+		if len(rows) == 0 {
+			doc.EmptyTable(t.Key, t.emptyNote())
+		} else {
+			doc.Table(t.Key, t.Columns, rows)
+		}
+	}
 	appendHelp(doc, help, o)
 	_, err := io.WriteString(w, doc.String())
 	return err
+}
+
+// projectRows narrows each row to columns, truncating the declared free-text
+// fields unless --full is set.
+func projectRows(t Table, columns []string, o Options) []map[string]any {
+	truncatable := set(t.Truncatable)
+	rows := make([]map[string]any, len(t.Rows))
+	for i, src := range t.Rows {
+		row := make(map[string]any, len(columns))
+		for _, c := range columns {
+			row[c] = maybeTruncate(src[c], truncatable[c], o.Full)
+		}
+		rows[i] = row
+	}
+	return rows
 }
 
 // RenderError writes the error envelope and returns the process exit code.
