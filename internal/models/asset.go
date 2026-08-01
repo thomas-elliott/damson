@@ -52,6 +52,11 @@ type AssetVersion struct {
 	OriginalPackagePurged    bool   `gorm:"not null;default:false"`
 	PackageKind              string // 'unitypackage' | 'zip' | 'loose' | ''
 	CreatedByUserID          *uint
+	// Provenance for versions ingested from a known external layout, e.g. the
+	// local Unity Asset Store cache. Nil on a hand-dragged upload.
+	SourceKind         *string
+	SourceRelativePath *string
+	SourceSizeBytes    *int64
 }
 
 func (AssetVersion) TableName() string { return "asset_versions" }
