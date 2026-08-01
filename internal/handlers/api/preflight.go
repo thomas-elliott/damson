@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/thomas-elliott/damson/internal/importsource"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
@@ -17,13 +18,13 @@ import (
 // is an error rather than a silent truncation.
 const maxPreflightEntries = 2000
 
-// Preflight statuses, most precise first. A path match answers exactly; a
-// name match only answers "something by this name exists".
+// Preflight statuses come from the leaf vocabulary the CLI shares, so the two
+// sides cannot drift.
 const (
-	preflightAlreadyImported = "already_imported"
-	preflightUpdated         = "updated"
-	preflightNameMatch       = "name_match"
-	preflightNew             = "new"
+	preflightAlreadyImported = importsource.StatusAlreadyImported
+	preflightUpdated         = importsource.StatusUpdated
+	preflightNameMatch       = importsource.StatusNameMatch
+	preflightNew             = importsource.StatusNew
 )
 
 type preflightEntry struct {

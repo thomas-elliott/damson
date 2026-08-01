@@ -22,10 +22,12 @@ import (
 
 // received is one upload the fake server saw.
 type received struct {
-	Filename     string
-	Body         []byte
-	AssetID      string
-	StoreVersion string
+	Filename           string
+	Body               []byte
+	AssetID            string
+	StoreVersion       string
+	SourceKind         string
+	SourceRelativePath string
 }
 
 type uploadRecorder struct {
@@ -77,6 +79,10 @@ func (r *uploadRecorder) handler(t *testing.T) http.HandlerFunc {
 				got.AssetID = string(b)
 			case "store_version":
 				got.StoreVersion = string(b)
+			case "source_kind":
+				got.SourceKind = string(b)
+			case "source_relative_path":
+				got.SourceRelativePath = string(b)
 			}
 		}
 

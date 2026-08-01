@@ -8,17 +8,19 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/importsource"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/tags"
 	"github.com/thomas-elliott/damson/internal/unitycache"
 )
 
 // SourceKindUnityCache marks a version ingested from the local Unity Asset
-// Store cache.
-const SourceKindUnityCache = "unity_cache"
+// Store cache. Aliased from importsource, the leaf package the CLI shares.
+const SourceKindUnityCache = importsource.KindUnityCache
 
 // ErrUnknownSourceKind is returned for a source_kind outside the closed set.
-var ErrUnknownSourceKind = fmt.Errorf("source_kind must be %q", SourceKindUnityCache)
+var ErrUnknownSourceKind = fmt.Errorf("source_kind must be one of %s",
+	strings.Join(importsource.Kinds(), ", "))
 
 // ValidateSource checks a client-supplied source_kind / source_relative_path
 // pair, returning the normalised path. Both blank is the ordinary upload case
@@ -29,7 +31,7 @@ func ValidateSource(kind, relativePath string) (string, error) {
 	if kind == "" && relativePath == "" {
 		return "", nil
 	}
-	if kind != SourceKindUnityCache {
+	if !importsource.ValidKind(kind) {
 		return "", ErrUnknownSourceKind
 	}
 	if relativePath == "" {
@@ -45,7 +47,7 @@ func ValidateSource(kind, relativePath string) (string, error) {
 // SuppressesFilenameVersion reports whether a source's filenames carry no
 // version information, so a version token parsed out of one is a fiction.
 func SuppressesFilenameVersion(kind string) bool {
-	return kind == SourceKindUnityCache
+	return importsource.SuppressesFilenameVersion(kind)
 }
 
 // ApplySourceHints fills asset fields derivable from the version's source
