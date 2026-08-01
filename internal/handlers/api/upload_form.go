@@ -8,16 +8,14 @@ import (
 	"net/http"
 )
 
-// uploadFileField is the part carrying the bytes; every other recognised part
-// is a small text field that must precede it.
+// uploadFileField carries the bytes. Every other recognised part is a text
+// field and must precede it, because the file part is handed back unread.
 const uploadFileField = "file"
 
-// maxUploadFieldBytes bounds one text field. Generous for a path or an id, far
-// below anything that could pressure memory.
+// maxUploadFieldBytes bounds one text field, which is read into memory.
 const maxUploadFieldBytes = 64 << 10
 
-// uploadFormFields is the set of text fields postImport reads. Anything else in
-// the body is skipped, matching the tolerance of the form parser this replaced.
+// Text fields postImport reads. Anything else in the body is skipped.
 var uploadFormFields = map[string]struct{}{
 	"asset_id":             {},
 	"store_version":        {},
@@ -35,9 +33,7 @@ type uploadForm struct {
 func (f uploadForm) get(name string) string { return f.values[name] }
 
 // readUploadForm walks a multipart body far enough to collect the text fields
-// and hand back the file part unread, so the bytes can be streamed straight to
-// storage instead of being spooled to local scratch first.
-//
+// and hand back the file part unread, so its bytes stream straight to storage.
 // The caller must Close the returned part.
 func readUploadForm(r *http.Request) (uploadForm, *multipart.Part, error) {
 	mr, err := r.MultipartReader()
@@ -74,8 +70,7 @@ func readUploadForm(r *http.Request) (uploadForm, *multipart.Part, error) {
 }
 
 // checkNoTrailingFields drains the parts after the file. A recognised field
-// there was silently ignored, which would change what the import does — so it
-// is reported rather than dropped.
+// there was skipped rather than applied, so it is an error, not a no-op.
 func (f uploadForm) checkNoTrailingFields() error {
 	if f.reader == nil {
 		return nil
