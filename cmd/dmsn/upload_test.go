@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -85,7 +86,7 @@ func (r *uploadRecorder) handler(t *testing.T) http.HandlerFunc {
 		r.mu.Unlock()
 
 		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(`{"asset_id":` + itoa(int(id)) + `,"import_id":` + itoa(int(id)) + `}`))
+		_, _ = w.Write([]byte(`{"asset_id":` + strconv.Itoa(int(id)) + `,"import_id":` + strconv.Itoa(int(id)) + `}`))
 	}
 }
 
@@ -95,18 +96,6 @@ func (r *uploadRecorder) sorted() []received {
 	out := append([]received(nil), r.items...)
 	sort.Slice(out, func(i, j int) bool { return out[i].Filename < out[j].Filename })
 	return out
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b []byte
-	for n > 0 {
-		b = append([]byte{byte('0' + n%10)}, b...)
-		n /= 10
-	}
-	return string(b)
 }
 
 // tree builds a directory layout from path→contents and returns its root.
@@ -309,7 +298,7 @@ func TestUpload_SkipExisting(t *testing.T) {
 					status = "name_match"
 					extra = `,"asset_id":511,"asset_name":"Held","version_count":2`
 				}
-				results = append(results, `{"index":`+itoa(i)+`,"status":"`+status+`"`+extra+`}`)
+				results = append(results, `{"index":`+strconv.Itoa(i)+`,"status":"`+status+`"`+extra+`}`)
 			}
 			_, _ = w.Write([]byte(`{"results":[` + strings.Join(results, ",") + `],"library_total":9}`))
 		},

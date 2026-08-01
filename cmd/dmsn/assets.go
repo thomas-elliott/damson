@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -159,7 +160,7 @@ func (f *assetFilters) buildQuery() (url.Values, error) {
 	// Reject it here instead: a caller who mistyped a sort should learn that
 	// rather than quietly receive a differently-ordered list.
 	if s := strings.TrimSpace(f.sort); s != "" {
-		if !contains(assetSorts, s) {
+		if !slices.Contains(assetSorts, s) {
 			return nil, axi.Usagef(
 				[]string{"valid sorts: " + strings.Join(assetSorts, ",")},
 				"unknown sort %q", s)
@@ -388,13 +389,4 @@ func parsePositiveID(raw, what string) (string, error) {
 		return "", axi.Usagef(nil, "%s must be a positive number, got %q", what, raw)
 	}
 	return s, nil
-}
-
-func contains(haystack []string, needle string) bool {
-	for _, h := range haystack {
-		if h == needle {
-			return true
-		}
-	}
-	return false
 }

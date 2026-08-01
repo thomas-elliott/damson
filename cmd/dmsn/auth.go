@@ -17,9 +17,9 @@ import (
 // into memory unbounded.
 const maxTokenBytes = 4 << 10
 
-// meResponse is the CLI's own view of GET /api/me. Decoded into a local
-// struct rather than importing internal/handlers/api, which would drag gin
-// into the client binary.
+// meResponse mirrors GET /api/me. Every wire shape in this package is a local
+// struct: importing internal/handlers/api would drag gin into the client
+// binary, so the mirrors are hand-kept and guarded by golden fixtures.
 type meResponse struct {
 	ID             uint   `json:"id"`
 	Email          string `json:"email"`

@@ -66,7 +66,9 @@ func GenerateToken() (secret, hash, prefix string, err error) {
 	return secret, hash, TokenPrefix + body, nil
 }
 
-// HashToken returns the lookup digest for a raw secret.
+// HashToken returns the lookup digest for a raw secret. SHA-256 rather than
+// bcrypt: the secret is 32 random bytes, so a work factor adds nothing, and a
+// fast digest is what allows the indexed lookup on every request.
 func HashToken(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
