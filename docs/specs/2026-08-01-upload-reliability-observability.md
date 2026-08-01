@@ -282,6 +282,19 @@ before 4–8 exist.
 - **`MaxUploadBytes`:** default raised from 2 GiB to 64 GiB. Existing
   deployments keep whatever is in their `server_settings` row; only the default
   changes.
+  - **Deviation taken during implementation.** Read literally this would leave
+    every existing deployment — including the one that prompted the spec — still
+    capped at 2 GiB, because its row holds the old default verbatim and nothing
+    distinguishes "never touched" from "deliberately set to 2 GiB". Migration
+    022 therefore also raises rows whose value is *exactly* 2147483648, and
+    leaves any other value alone. Anyone who deliberately chose a cap keeps it;
+    anyone who never chose one gets the new default.
+- **Multipart field ordering (new constraint).** Streaming the file part means
+  the server reads text fields as it passes them, so `asset_id`,
+  `store_version`, `source_kind` and `source_relative_path` must be sent
+  *before* the `file` part. The CLI and test helpers already did; the SPA was
+  changed. A recognised field arriving after the file is a 400 naming it,
+  rather than being silently dropped.
 
 ## Known risks
 
@@ -354,3 +367,39 @@ Scratch for `/implement`; `/cleanup` consumes this section and removes it.
 - `internal/handlers/api/assets.go` (`fh.Open` → `respond500`) — was a 400
   echoing `err.Error()`, which put a scratch temp-file path in the response
   body; it is a server-side fault, not a client error.
+- `internal/services/storage/s3.go` (`stagingPrefix`) — deliberately a
+  top-level prefix, not `originals/staging`: `cleanup.sweptPrefixes` covers
+  blobs/thumbs/originals and would list a staging object's random suffix as a
+  bogus content-hash orphan, then fail to delete it because `Delete` re-shards
+  the key.
+- `internal/services/storage/s3.go` (`putStaged`) — the content-addressed key
+  is the hash of the body, so for anything too big to hash in memory the bytes
+  must land somewhere before the destination is known. Staging + a server-side
+  copy is what buys that without local scratch.
+- `internal/services/storage/s3.go` (`countingReader` + `TeeReader`) — safe
+  against part retries because `manager.Uploader` buffers each part and replays
+  from its own buffer, never re-reading our reader.
+- `internal/services/storage/s3.go` (`context.WithoutCancel` in `dropStaging`
+  and the copy abort) — cleanup must still run when the request context was
+  cancelled, which is exactly the client-abort case.
+- `internal/services/storage/s3.go` (`copyObjectMultipart`) — `CopyObject` caps
+  at 5 GiB, so anything larger has to be copied as multipart part-copies.
+- `internal/services/storage/s3.go` (`uploadPartBytes`/`uploadConcurrency`) —
+  sized so peak buffering is ~64 MiB and 64 GiB still fits inside S3's
+  10,000-part ceiling.
+- `internal/handlers/api/upload_form.go` (whole file) — text fields must
+  precede the file part: the reader hands the file part back unread so the
+  bytes stream to storage, which means a field after it has already been
+  skipped.
+- `internal/handlers/api/upload_form.go` (`checkNoTrailingFields`) — turns what
+  would be silent loss of `asset_id` into a 400 naming the field.
+- `internal/handlers/api/assets.go` (`context.WithoutCancel` on the cleanup
+  calls) — the previous code passed the request context, which is already
+  cancelled in the client-abort case, so the orphan rows would have survived
+  exactly when they were most likely.
+- `internal/handlers/api/assets.go` (storage-put error switch) — streaming
+  means the cap now trips after the rows exist, so the branch has to preserve
+  413/499 rather than collapsing everything to 500.
+- `database/migrations/022_max_upload_default.sql` — the value-matched UPDATE
+  treats a stored 2147483648 as "nobody chose a cap" rather than a deliberate
+  2 GiB; see the deviation note in Resolved questions.

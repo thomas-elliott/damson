@@ -173,9 +173,12 @@ export function uploadFile(
     }
     void (async () => {
       const token = await getAccessToken();
+      // The server streams the file part straight to storage rather than
+      // spooling the whole body, so it reads the text fields on the way past:
+      // they must be appended before the file.
       const form = new FormData();
-      form.append("file", file);
       if (assetId) form.append("asset_id", String(assetId));
+      form.append("file", file);
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url);

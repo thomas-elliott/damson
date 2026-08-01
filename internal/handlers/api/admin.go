@@ -257,7 +257,7 @@ func loadOrCreateServerSettings(tx *gorm.DB) (*models.ServerSettings, error) {
 	}
 	s = models.ServerSettings{
 		ID:                  1,
-		MaxUploadBytes:      2147483648, // 2 GiB
+		MaxUploadBytes:      68719476736, // 64 GiB
 		LicenceKBAutoUpdate: false,
 	}
 	if err := tx.Create(&s).Error; err != nil {

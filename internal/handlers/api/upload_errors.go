@@ -93,3 +93,22 @@ func respondUploadError(c *gin.Context, err error, attrs ...any) {
 	}
 	c.AbortWithStatusJSON(f.status, gin.H{"error": f.body})
 }
+
+// isTransportFailure reports whether err is the transfer failing rather than
+// the server failing, so it keeps its classified status instead of collapsing
+// to a generic 500.
+func isTransportFailure(err error, ctxErr error) bool {
+	var tooLarge *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooLarge),
+		errors.Is(ctxErr, context.Canceled),
+		errors.Is(err, context.Canceled),
+		errors.Is(err, syscall.ECONNRESET),
+		errors.Is(err, syscall.EPIPE),
+		errors.Is(err, syscall.ENOSPC),
+		errors.Is(err, syscall.EDQUOT),
+		errors.Is(err, io.ErrUnexpectedEOF):
+		return true
+	}
+	return false
+}
