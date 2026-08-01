@@ -69,7 +69,7 @@ func dispatch(ctx context.Context, cmd *command, args []string, w io.Writer) int
 			"%v", err), g.options())
 	}
 
-	env := &Env{Out: w, In: os.Stdin, Globals: g, Args: fs.Args()}
+	env := &Env{Out: w, In: os.Stdin, Globals: g, Args: fs.Args(), FlagSet: fs}
 	if err := cmd.run(ctx, env); err != nil {
 		return axi.RenderError(w, err, g.options())
 	}
@@ -137,6 +137,24 @@ type Env struct {
 	In      io.Reader
 	Globals *globals
 	Args    []string
+	// FlagSet is the parsed set, so a command can distinguish "flag set to
+	// the empty string" from "flag not given" — the difference between
+	// clearing a field and leaving it alone.
+	FlagSet *flag.FlagSet
+}
+
+// flagWasSet reports whether the named flag appeared on the command line.
+func (e *Env) flagWasSet(name string) bool {
+	if e.FlagSet == nil {
+		return false
+	}
+	seen := false
+	e.FlagSet.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			seen = true
+		}
+	})
+	return seen
 }
 
 // Record renders a single-entity result through the shared AXI layer, so the

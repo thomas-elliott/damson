@@ -11,36 +11,19 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/tagpath"
 )
 
-// MaxPathLength caps the byte length of a normalised tag path. Generous enough
-// to fit any legitimate hierarchy; tight enough that a malicious caller can't
-// paste megabytes into the column.
-const MaxPathLength = 1024
+// MaxPathLength caps the byte length of a normalised tag path.
+const MaxPathLength = tagpath.MaxLength
 
 // NormalisePath trims whitespace, lowercases, collapses repeated slashes, and
 // strips leading/trailing slashes. Returns "" when the result is empty or
 // exceeds MaxPathLength so callers surface a 400.
-func NormalisePath(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = strings.ReplaceAll(s, "\\", "/")
-	for strings.Contains(s, "//") {
-		s = strings.ReplaceAll(s, "//", "/")
-	}
-	s = strings.Trim(s, "/")
-	parts := strings.Split(s, "/")
-	out := parts[:0]
-	for _, p := range parts {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	joined := strings.Join(out, "/")
-	if len(joined) > MaxPathLength {
-		return ""
-	}
-	return joined
-}
+//
+// The rule lives in internal/tagpath so the CLI can apply it without pulling
+// GORM into the client binary; two copies would drift.
+func NormalisePath(s string) string { return tagpath.Normalise(s) }
 
 // CreateOrReusePath resolves the leaf tag for a `/`-separated path, creating any
 // missing ancestor rows for the library. Returns tagID == 0 for a blank or

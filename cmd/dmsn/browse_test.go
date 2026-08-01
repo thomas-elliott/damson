@@ -143,9 +143,9 @@ func TestAssets_ValidationExitsTwo(t *testing.T) {
 		{[]string{"assets", "--project", "x"}, "numeric id"},
 		{[]string{"asset", "abc"}, "positive number"},
 		{[]string{"asset", "0"}, "positive number"},
-		{[]string{"asset"}, "exactly one id"},
+		{[]string{"asset"}, "an id or a verb"},
 		{[]string{"imports", "--stage", "nope"}, "unknown stage"},
-		{[]string{"collection", "abc"}, "positive number"},
+		{[]string{"collection", "abc"}, "unknown collection verb"},
 	} {
 		out, code := exec(t, tc.args...)
 		if code != axi.ExitUsage {

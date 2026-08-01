@@ -186,12 +186,6 @@ func init() {
 			return runAssets(ctx, e, filters)
 		},
 	})
-	register(&command{
-		name:    "asset",
-		summary: "show one asset",
-		usage:   "usage: dmsn asset <id>",
-		run:     runAsset,
-	})
 }
 
 func runAssets(ctx context.Context, e *Env, f *assetFilters) error {
