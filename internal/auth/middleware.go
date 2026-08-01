@@ -58,6 +58,8 @@ func authenticateToken(c *gin.Context, tokens *TokenAuthenticator, raw string) {
 		abort500(c, err)
 		return
 	}
+	// Denial checks run after authentication: hoisting them would let an
+	// invalid token distinguish a gated route (403) from any other (401).
 	if TokenPathDenied(routePath(c)) {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "not available to personal access tokens"})
 		return
@@ -71,9 +73,9 @@ func authenticateToken(c *gin.Context, tokens *TokenAuthenticator, raw string) {
 	c.Next()
 }
 
-// abort500 attaches the cause to c.Errors — requestLogger surfaces it — and
-// writes the canonical generic body. The cause is a wrapped GORM/JWT error;
-// bound query parameters (i.e. the token digest) are not part of it.
+// abort500 attaches the cause to c.Errors so requestLogger surfaces it. Safe
+// for token auth: the cause is a wrapped GORM/JWT error, and bound query
+// parameters — the token digest — are not part of its message.
 func abort500(c *gin.Context, err error) {
 	if err != nil {
 		_ = c.Error(err)

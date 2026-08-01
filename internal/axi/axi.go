@@ -79,9 +79,8 @@ type Table struct {
 	EmptyNote string
 }
 
-// emptyNote guarantees principle 5: an empty result always says something.
-// A command that supplies no note still gets a definitive statement rather
-// than a bare `key[]:` the reader has to interpret.
+// emptyNote falls back to a generic statement so a command that supplies no
+// note still cannot emit a bare `key[]:`.
 func (t Table) emptyNote() string {
 	if t.EmptyNote != "" {
 		return t.EmptyNote

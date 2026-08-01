@@ -1,5 +1,13 @@
 BEGIN;
 
+-- Long-lived credentials for unattended clients. A token is pinned to one
+-- library at creation, so a running sync is unaffected by its owner switching
+-- library in the SPA.
+--
+-- token_hash is a plain SHA-256 hex digest, not bcrypt: the secret is 32
+-- random bytes, so a work factor adds nothing, and a fast digest is what
+-- allows the indexed lookup on every authenticated request. prefix is for
+-- display only and is never enough to reconstruct the secret.
 CREATE TABLE IF NOT EXISTS api_tokens (
     id           bigserial PRIMARY KEY,
     user_id      bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,

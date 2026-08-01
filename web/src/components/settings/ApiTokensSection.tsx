@@ -59,7 +59,7 @@ export function ApiTokensSection() {
       {error ? (
         <EmptyState
           title="Couldn't load tokens"
-          description="The list is unavailable, so this is not a statement that you have none. Reload to try again."
+          description="Your tokens are still there — this list just failed to load. Reload to try again."
         />
       ) : loading ? (
         <div className="py-2 text-ui text-text-3">Loading…</div>
