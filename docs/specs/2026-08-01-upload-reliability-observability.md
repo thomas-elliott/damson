@@ -334,6 +334,20 @@ overlay and died on page-cache pressure. Nothing here blocks the work.
   either a bad body from the client (transport) or a storage-layer fault
   (not). It is what lets one classifier serve both the body-read site and the
   storage-put site.
+- `chunked.go` (seekableReaderAt) — an *os.File satisfies it and nothing else
+  the upload path produces would. Buffering a 20 GB payload to fake ranged
+  reads is not an option, so the type is the guard.
+- `chunked.go` (resume state beside the config) — a resume has to survive the
+  process, and the session id is not a secret, but it is machine-local state
+  that should never leave the box.
+- `chunked.go` (resumeStateMu) — uploads run --concurrency at a time and all
+  share one state file; without the lock a finishing upload can clobber a
+  starting one's record.
+- `chunked.go` (NextChunk <= index guard) — the loop advances on what the
+  server reports, so a server that never advances would spin forever.
+- `upload.go` (item.resumeKey empty for a zipped directory) — the archive is
+  rebuilt each run and zip output is not guaranteed byte-identical, so a
+  recorded session would not match what gets sent.
 - `chunkedUpload.ts` (CHUNKED_UPLOAD_THRESHOLD) — below it the one-shot
   endpoint is cheaper: no hashing pass and no session round-trips. 256 MiB is
   the spec's resolved figure.
