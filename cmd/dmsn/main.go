@@ -58,7 +58,7 @@ func dispatch(ctx context.Context, cmd *command, args []string, w io.Writer) int
 		cmd.flags(fs)
 	}
 
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(permute(fs, args)); err != nil {
 		// -h / --help is a request, not a failure: one screen, exit 0.
 		if err == flag.ErrHelp {
 			writeCommandHelp(w, cmd)
@@ -74,6 +74,48 @@ func dispatch(ctx context.Context, cmd *command, args []string, w io.Writer) int
 		return axi.RenderError(w, err, g.options())
 	}
 	return axi.ExitOK
+}
+
+// permute hoists flags ahead of positional arguments. stdlib flag stops
+// parsing at the first non-flag argument, which would make `dmsn asset 511
+// --json` treat --json as a second id — and putting the id last is the
+// natural way to type it. Everything after a bare `--` is left alone.
+func permute(fs *flag.FlagSet, args []string) []string {
+	var flags, positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			positional = append(positional, args[i+1:]...)
+			break
+		}
+		if len(a) < 2 || a[0] != '-' {
+			positional = append(positional, a)
+			continue
+		}
+		flags = append(flags, a)
+		// A flag with an inline value, or a boolean, is self-contained.
+		// Anything else consumes the argument that follows it.
+		if strings.Contains(a, "=") {
+			continue
+		}
+		if takesValue(fs, a) && i+1 < len(args) {
+			i++
+			flags = append(flags, args[i])
+		}
+	}
+	return append(flags, positional...)
+}
+
+// takesValue reports whether a flag consumes the next argument. Unknown flags
+// are treated as self-contained so flag.Parse reports them, rather than this
+// function swallowing an argument on their behalf.
+func takesValue(fs *flag.FlagSet, arg string) bool {
+	f := fs.Lookup(strings.TrimLeft(arg, "-"))
+	if f == nil {
+		return false
+	}
+	b, ok := f.Value.(interface{ IsBoolFlag() bool })
+	return !ok || !b.IsBoolFlag()
 }
 
 func split(args []string) (string, []string) {
