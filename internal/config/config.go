@@ -83,6 +83,11 @@ type Config struct {
 	// the default.
 	AuditPurgeInterval time.Duration
 
+	// UploadJanitorInterval is how often abandoned resumable upload sessions
+	// are expired and their backing multipart uploads aborted. Defaults to 1h;
+	// an unparseable or non-positive value falls back to the default.
+	UploadJanitorInterval time.Duration
+
 	// OrphanMinAge is the minimum age an object must reach before the manual
 	// storage-cleanup sweep will consider it orphaned. It guards against
 	// deleting in-flight uploads whose DB rows have not yet committed. Defaults
@@ -110,19 +115,20 @@ func Load() Config {
 	}
 
 	cfg := Config{
-		ListenAddr:          getenv("DAMSON_LISTEN_ADDR", ":8080"),
-		BaseURL:             getenv("DAMSON_BASE_URL", "http://localhost:8080"),
-		PostgresDSN:         mustGetSecret("DAMSON_POSTGRES_DSN"),
-		AuthMode:            authMode,
-		StorageMode:         storageMode,
-		LogLevel:            getenv("DAMSON_LOG_LEVEL", "info"),
-		GinMode:             os.Getenv("GIN_MODE"),
-		ImportQueueWorkers:  parseQueueWorkers(os.Getenv("DAMSON_IMPORT_QUEUE_WORKERS")),
-		PreviewQueueWorkers: parseQueueWorkers(os.Getenv("DAMSON_PREVIEW_QUEUE_WORKERS")),
-		ImportJobTimeout:    parseJobTimeout(os.Getenv("DAMSON_IMPORT_JOB_TIMEOUT")),
-		PreviewJobTimeout:   parseJobTimeout(os.Getenv("DAMSON_PREVIEW_JOB_TIMEOUT")),
-		AuditPurgeInterval:  parseAuditPurgeInterval(os.Getenv("DAMSON_AUDIT_PURGE_INTERVAL")),
-		OrphanMinAge:        parseOrphanMinAge(os.Getenv("DAMSON_ORPHAN_MIN_AGE")),
+		ListenAddr:            getenv("DAMSON_LISTEN_ADDR", ":8080"),
+		BaseURL:               getenv("DAMSON_BASE_URL", "http://localhost:8080"),
+		PostgresDSN:           mustGetSecret("DAMSON_POSTGRES_DSN"),
+		AuthMode:              authMode,
+		StorageMode:           storageMode,
+		LogLevel:              getenv("DAMSON_LOG_LEVEL", "info"),
+		GinMode:               os.Getenv("GIN_MODE"),
+		ImportQueueWorkers:    parseQueueWorkers(os.Getenv("DAMSON_IMPORT_QUEUE_WORKERS")),
+		PreviewQueueWorkers:   parseQueueWorkers(os.Getenv("DAMSON_PREVIEW_QUEUE_WORKERS")),
+		ImportJobTimeout:      parseJobTimeout(os.Getenv("DAMSON_IMPORT_JOB_TIMEOUT")),
+		PreviewJobTimeout:     parseJobTimeout(os.Getenv("DAMSON_PREVIEW_JOB_TIMEOUT")),
+		AuditPurgeInterval:    parseAuditPurgeInterval(os.Getenv("DAMSON_AUDIT_PURGE_INTERVAL")),
+		OrphanMinAge:          parseOrphanMinAge(os.Getenv("DAMSON_ORPHAN_MIN_AGE")),
+		UploadJanitorInterval: parseInterval(os.Getenv("DAMSON_UPLOAD_JANITOR_INTERVAL"), defaultUploadJanitorInterval),
 	}
 
 	switch authMode {
@@ -229,6 +235,21 @@ func parseJobTimeout(raw string) time.Duration {
 	d, err := time.ParseDuration(raw)
 	if err != nil || d <= 0 {
 		return 0
+	}
+	return d
+}
+
+const defaultUploadJanitorInterval = time.Hour
+
+// parseInterval reads a Go duration string ("1h", "30m"). Empty, unparseable
+// and non-positive values fall back to fallback.
+func parseInterval(raw string, fallback time.Duration) time.Duration {
+	if raw == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return fallback
 	}
 	return d
 }
