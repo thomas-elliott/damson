@@ -45,6 +45,7 @@ type uploadFlags struct {
 	skipExisting bool
 	dryRun       bool
 	wait         bool
+	resume       bool
 	concurrency  int
 }
 
@@ -55,6 +56,7 @@ func (f *uploadFlags) register(fs *flag.FlagSet) {
 	fs.BoolVar(&f.skipExisting, "skip-existing", false, "skip anything the library already holds by name")
 	fs.BoolVar(&f.dryRun, "dry-run", false, "report what would happen, upload nothing")
 	fs.BoolVar(&f.wait, "wait", false, "poll each import to a terminal stage")
+	fs.BoolVar(&f.resume, "resume", false, "send every package in resumable chunks, whatever its size")
 	fs.IntVar(&f.concurrency, "concurrency", defaultConcurrency, "parallel uploads")
 }
 
@@ -69,7 +71,7 @@ func init() {
 			"  --as asset    zip the directory and import it as a single asset\n" +
 			"  --as assets   import each direct child as its own asset\n\n" +
 			"flags: --skip-existing --asset-id --store-version\n" +
-			"       --concurrency --dry-run --wait",
+			"       --concurrency --dry-run --wait --resume",
 		flags: f.register,
 		run: func(ctx context.Context, e *Env) error {
 			return runUpload(ctx, e, f)
@@ -90,6 +92,9 @@ type item struct {
 	// note is a per-item explanation for the plan/report tables, set where the
 	// caller knows something the item itself does not.
 	note string
+	// resumeKey identifies this payload across runs. Empty for a zipped
+	// directory.
+	resumeKey string
 }
 
 // importOptions are the non-file form fields of POST /api/imports.
@@ -184,7 +189,12 @@ func planUpload(paths []string, as string) ([]item, error) {
 			return nil, axi.Wrap(axi.CodeIO, err, "cannot read %s: %v", p, err)
 		}
 		if !info.IsDir() {
-			items = append(items, item{path: p, filename: filepath.Base(p), size: info.Size()})
+			items = append(items, item{
+				path:      p,
+				filename:  filepath.Base(p),
+				size:      info.Size(),
+				resumeKey: uploadResumeKey(p, info.Size(), info.ModTime()),
+			})
 			continue
 		}
 		if as == "" {
@@ -216,7 +226,12 @@ func planUpload(paths []string, as string) ([]item, error) {
 			if err != nil {
 				return nil, axi.Wrap(axi.CodeIO, err, "cannot read %s: %v", full, err)
 			}
-			items = append(items, item{path: full, filename: ch.Name(), size: info.Size()})
+			items = append(items, item{
+				path:      full,
+				filename:  ch.Name(),
+				size:      info.Size(),
+				resumeKey: uploadResumeKey(full, info.Size(), info.ModTime()),
+			})
 		}
 	}
 	return items, nil
@@ -410,7 +425,7 @@ func (e *Env) uploadOne(ctx context.Context, client *Client, it item, maxBytes i
 		return out
 	}
 
-	resp, err := client.PostImport(ctx, it.filename, body, it.opts)
+	resp, err := e.send(ctx, client, it, body, size, f)
 	if err != nil {
 		out.status, out.detail = "failed", axi.AsError(err).Message
 		return out
@@ -434,6 +449,19 @@ func (e *Env) uploadOne(ctx context.Context, client *Client, it item, maxBytes i
 		}
 	}
 	return out
+}
+
+// send picks the transport: chunks above the threshold, or whenever --resume
+// asks for them.
+func (e *Env) send(ctx context.Context, client *Client, it item, body io.ReadCloser, size int64, f *uploadFlags) (*importEnqueueResponse, error) {
+	if !f.resume && size < chunkedUploadThreshold {
+		return client.PostImport(ctx, it.filename, body, it.opts)
+	}
+	ranged, ok := body.(seekableReaderAt)
+	if !ok {
+		return client.PostImport(ctx, it.filename, body, it.opts)
+	}
+	return client.UploadChunked(ctx, it.filename, ranged, size, it.opts, it.resumeKey, nil)
 }
 
 // openPayload returns the bytes to send. A directory is zipped to a temp file
