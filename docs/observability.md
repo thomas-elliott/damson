@@ -14,18 +14,63 @@ output.
 Every line carries `service=damson`, a `version` (module version or VCS
 revision), and `source` (file:line) via `AddSource`.
 
+### Field names: `_msg` and `_time`
+
+The JSON handler renames slog's two special keys — `msg` → `_msg` and `time` →
+`_time` — via `ReplaceAttr` (`victoriaLogsKeys` in `cmd/server/main.go`). Those
+are the field names VictoriaLogs treats as the native message and timestamp; a
+line without `_msg` is ingested but shows up empty in VL's default view and
+trips its `missing _msg field` warning.
+
+Doing the rename at the source makes it collector-independent: it does not
+depend on the cluster's ingest URL setting `_msg_field=msg`, which the shared
+`k8s-monitoring` chart does not do and which is not ours to change.
+
+The rename is skipped for the text handler (local dev reads better as plain
+`msg=`) and for attributes nested inside an `slog` group — a group attribute
+called `msg` is data, not the record's message.
+
 ## Request logging
 
-One line per HTTP request is emitted by `requestLogger`
-(`cmd/server/main.go`), keyed `msg="request"`:
+`requestLogger` (`cmd/server/main.go`) emits one line when any request
+finishes, plus a start line for requests carrying a file body.
+
+`_msg` is composed per request — `POST /api/imports → 202 in 431ms` — rather
+than a static `"request"`, so VL's message column is readable without adding
+`| fields`. Filter on the structured fields, not on `_msg`:
 
 - `method`, `path`, `status`, `duration_ms`, `remote_ip`, `bytes_out`
+- `bytes_in` — bytes actually **read from the request body**, not
+  `Content-Length`. Present only when non-zero, so a transfer that died at
+  19 GB is distinguishable from one that never delivered a byte.
+- `client_aborted` — `true` when the request context was cancelled, i.e. the
+  client went away rather than the server failing. Absent otherwise. It can
+  under-report (the cancel may land after the handler unwinds) but does not
+  false-positive.
 - `request_id` — correlation id; honoured from an inbound `X-Request-Id`
   header, otherwise generated, and echoed on the response.
 - `user_id`, `library_id` — when the request is authenticated / library-scoped.
 - `err` — **the actual cause** of any 4xx/5xx. Handlers attach it via
   `respond400` / `respond500` (which call `c.Error`), so a 500 is no longer a
   bare status with no explanation. 5xx logs at `error`, 4xx at `warn`.
+
+Query strings are never logged — only `URL.Path` — so a presigned or
+token-bearing URL cannot leak through the request line.
+
+### Upload start lines
+
+A request whose method is `POST`/`PUT` and whose `Content-Type` is
+`multipart/*` or `application/octet-stream` also logs on **entry**, with
+`phase=start`, `content_length`, and the same `request_id`:
+
+```
+POST /api/imports → upload started
+```
+
+Without it a multi-hour upload is invisible for its whole duration, and one
+that never returns — proxy timeout, pod OOM-kill, client hang-up — leaves no
+line at all. Pair the start line with the completion line by `request_id`; a
+start with no matching completion is a request the process did not survive.
 
 Panics are caught by `recoveryHandler`, which logs at `error` with a full
 `stack` and the `request_id`, then returns a generic 500.
@@ -53,10 +98,11 @@ is a *diagnostic*, not the record — to ask "what failed and why", query
 Damson runs on the k8s cluster, where the cluster-wide Alloy collector
 (the `k8s-monitoring` chart) already tails every pod's stdout and pushes it to
 VictoriaLogs — no per-app collector or config is needed. VictoriaLogs
-auto-parses the JSON line into queryable fields, and the cluster ingest URL's
-`_msg_field` list includes `msg`, so slog's message maps onto VL's native
-`_msg`. The remaining slog keys (`level`, `status`, `path`, `duration_ms`,
-`request_id`, `err`, …) become queryable fields as-is.
+auto-parses the JSON line into queryable fields. Damson emits `_msg` and
+`_time` itself (see "Field names" above), so the message and timestamp land on
+VL's native fields regardless of the chart's `_msg_field` configuration. The
+remaining slog keys (`level`, `status`, `path`, `duration_ms`, `request_id`,
+`err`, …) become queryable fields as-is.
 
 Logs are scoped by k8s namespace: `damson-prod` (prod) and `damson-test`
 (test).
@@ -74,11 +120,19 @@ namespace:="damson-prod" request_id:"<id from the X-Request-Id response header>"
 namespace:="damson-prod" path:"/api/imports" status:>=500 | fields _time, err, request_id
 
 # Async import pipeline failures
-namespace:="damson-prod" msg:"import pipeline failed" | fields _time, import_id, library_id, err
+namespace:="damson-prod" _msg:"import pipeline failed" | fields _time, import_id, library_id, err
 
 # Background job errors across both queues
-namespace:="damson-prod" level:"ERROR" msg:~"job|queue|preview" | fields _time, msg, err
+namespace:="damson-prod" level:"ERROR" _msg:~"job|queue|preview" | fields _time, _msg, err
 
 # Slowest requests in the last hour
 namespace:="damson-prod" _time:1h | sort by (duration_ms desc) | limit 20
+
+# Uploads that started and never finished — the OOM-kill / proxy-timeout shape.
+# Every start line should have a completion line with the same request_id.
+namespace:="damson-prod" phase:="start" | fields _time, request_id, path, content_length
+
+# How far a failed transfer actually got, and whether the client walked away
+namespace:="damson-prod" path:"/api/imports" status:>=400
+  | fields _time, status, bytes_in, client_aborted, err, request_id
 ```
