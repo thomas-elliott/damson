@@ -188,6 +188,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 
 	// Imports
 	scoped.POST("/imports", h.postImport)
+	scoped.POST("/imports/preflight", h.postImportPreflight)
 	scoped.GET("/imports", h.getImports)
 	scoped.GET("/imports/events", h.getImportEvents)
 	scoped.GET("/imports/:id", h.getImport)
