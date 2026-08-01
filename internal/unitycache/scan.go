@@ -1,7 +1,6 @@
 package unitycache
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -101,17 +100,14 @@ func Scan(root string) ([]Entry, error) {
 
 		parsed, perr := ParseCachePath(rel)
 		if perr != nil {
-			if errors.Is(perr, ErrInvalidRelativePath) {
-				return nil
-			}
-			return perr
+			return nil
+		}
+		if len(entries) >= maxScanEntries {
+			return ErrTooManyEntries
 		}
 		fi, ierr := d.Info()
 		if ierr != nil {
 			return ierr
-		}
-		if len(entries) >= maxScanEntries {
-			return ErrTooManyEntries
 		}
 		entries = append(entries, Entry{
 			Parsed:       parsed,

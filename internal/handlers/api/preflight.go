@@ -195,8 +195,8 @@ func preflightPaths(entries []preflightEntry) ([]string, error) {
 	return paths, nil
 }
 
-// distinctPaths collapses the per-entry paths into the lookup set, dropping
-// blanks and duplicates so one manifest is one query.
+// distinctPaths collapses the per-entry paths into the lookup set, so one
+// manifest costs one query however many entries repeat a path.
 func distinctPaths(paths []string) []string {
 	seen := make(map[string]struct{}, len(paths))
 	out := make([]string, 0, len(paths))

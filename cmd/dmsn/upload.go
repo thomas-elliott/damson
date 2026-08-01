@@ -78,9 +78,9 @@ func init() {
 }
 
 // item is one unit of work: a file to send as-is, or a directory to zip first.
-// The importOptions carry what varies per item — a cache sync targets a
-// different asset and a different source path for each one, where `upload`
-// applies the same flags to all of them.
+// Its importOptions carry what varies per package: a cache sync targets a
+// different asset and source path for each, where upload applies one set of
+// flags to all of them.
 type item struct {
 	path     string
 	filename string
