@@ -34,6 +34,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/services/uploads"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
 )
 
@@ -158,6 +159,8 @@ func main() {
 	defer cancelPurge()
 	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}
 	go purger.Run(purgeCtx)
+	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}
+	go janitor.Run(purgeCtx)
 
 	r := gin.New()
 	r.Use(requestID())
