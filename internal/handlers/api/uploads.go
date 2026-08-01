@@ -112,8 +112,7 @@ func (h *Handler) postUploadSession(c *gin.Context) {
 		return
 	}
 	if settings.MaxUploadBytes > 0 && req.SizeBytes > settings.MaxUploadBytes {
-		c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge,
-			gin.H{"error": "upload exceeds the maximum allowed size"})
+		c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": msgUploadTooLarge})
 		return
 	}
 
@@ -187,7 +186,7 @@ func (h *Handler) postUploadSession(c *gin.Context) {
 }
 
 // completeDedupedUpload runs the import against an object storage already
-// holds.
+// holds. No session row is created — there is nothing left to transfer.
 func (h *Handler) completeDedupedUpload(c *gin.Context, spec importSpec, objectKey string, size int64) {
 	ctx := c.Request.Context()
 	rows, err := h.createImportRows(ctx, spec)
@@ -204,13 +203,14 @@ func (h *Handler) completeDedupedUpload(c *gin.Context, spec importSpec, objectK
 		"library_id", spec.libraryID, "asset_id", rows.assetID,
 		"import_id", rows.importID, "object_key", objectKey, "size_bytes", size)
 
+	chunks := totalChunks(size, h.chunkSize)
 	c.JSON(http.StatusAccepted, uploadSessionResponse{
 		Status:         models.UploadCompleted,
 		ChunkSize:      h.chunkSize,
 		SizeBytes:      size,
 		ReceivedBytes:  size,
-		TotalChunks:    totalChunks(size, h.chunkSize),
-		NextChunk:      totalChunks(size, h.chunkSize),
+		TotalChunks:    chunks,
+		NextChunk:      chunks,
 		Deduped:        true,
 		AssetID:        rows.assetID,
 		ImportID:       rows.importID,
@@ -227,7 +227,8 @@ func (h *Handler) getUploadSession(c *gin.Context) {
 }
 
 // putUploadChunk streams one chunk straight into the backing multipart upload
-// and advances the running hash.
+// and advances the running hash. Chunks are strictly sequential: the hash
+// state travels through the database between requests.
 func (h *Handler) putUploadChunk(c *gin.Context) {
 	session, ok := h.loadUploadSession(c)
 	if !ok {
@@ -297,6 +298,8 @@ func (h *Handler) putUploadChunk(c *gin.Context) {
 		return
 	}
 
+	// Conditional on next_chunk: two requests racing the same index must not
+	// both advance the running hash. The loser gets 409 and re-reads the state.
 	res := h.db.WithContext(ctx).Model(&models.UploadSession{}).
 		Where("id = ? AND status = ? AND next_chunk = ?", session.ID, models.UploadOpen, index).
 		Updates(map[string]any{
@@ -361,6 +364,8 @@ func (h *Handler) postUploadComplete(c *gin.Context) {
 		return
 	}
 
+	// Rows first, then the multipart: a conflict here must not leave a
+	// completed object that nothing references.
 	spec := h.specForSession(session)
 	rows, err := h.createImportRows(ctx, spec)
 	if err != nil {
@@ -396,19 +401,12 @@ func (h *Handler) postUploadComplete(c *gin.Context) {
 		"asset_id", rows.assetID, "import_id", rows.importID,
 		"size_bytes", session.SizeBytes, "chunks", session.NextChunk)
 
-	c.JSON(http.StatusAccepted, uploadSessionResponse{
-		UploadID:       session.ID,
-		Status:         models.UploadCompleted,
-		ChunkSize:      session.ChunkSize,
-		SizeBytes:      session.SizeBytes,
-		ReceivedBytes:  session.ReceivedBytes,
-		NextChunk:      session.NextChunk,
-		TotalChunks:    totalChunks(session.SizeBytes, session.ChunkSize),
-		ExpiresAt:      session.ExpiresAt,
-		AssetID:        rows.assetID,
-		ImportID:       rows.importID,
-		SuggestedMatch: h.suggestMatch(ctx, spec, rows.assetID),
-	})
+	session.Status = models.UploadCompleted
+	resp := sessionResponse(session)
+	resp.AssetID = rows.assetID
+	resp.ImportID = rows.importID
+	resp.SuggestedMatch = h.suggestMatch(ctx, spec, rows.assetID)
+	c.JSON(http.StatusAccepted, resp)
 }
 
 func (h *Handler) deleteUploadSession(c *gin.Context) {

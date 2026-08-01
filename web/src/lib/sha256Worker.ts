@@ -1,4 +1,6 @@
 /// <reference lib="webworker" />
+// Hashing is a full read of the file — on the main thread a 20 GB package
+// freezes the tab. crypto.subtle cannot hash incrementally, hence hash-wasm.
 import { createSHA256 } from "hash-wasm";
 
 export interface HashRequest {
