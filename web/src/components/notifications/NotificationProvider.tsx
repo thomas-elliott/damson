@@ -11,6 +11,12 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, isUploadAbortedError, uploadFile } from "@/api";
+import {
+  CHUNKED_UPLOAD_THRESHOLD,
+  cancelChunkedUpload,
+  uploadFileChunked,
+  type UploadPhase,
+} from "@/lib/chunkedUpload";
 import { useDeleteAsset } from "@/hooks/useMutations";
 import { setNotifier } from "@/lib/notificationBridge";
 import { queryKeys } from "@/lib/queryKeys";
@@ -37,6 +43,7 @@ export interface Upload {
   size: number;
   progress: number;
   queued: boolean;
+  phase?: UploadPhase;
 }
 
 export interface NotifyInput {
@@ -149,15 +156,27 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         { id, filename: file.name, size: file.size, progress: 0, queued: true },
       ]);
 
+      const setProgress = (p: number) =>
+        setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, progress: p } : u)));
+      const chunked = file.size >= CHUNKED_UPLOAD_THRESHOLD;
+
       const start = () => {
-        setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, queued: false } : u)));
-        void uploadFile(
-          "/api/imports",
-          file,
-          (p) => setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, progress: p } : u))),
-          controller.signal,
-          assetId,
-        )
+        setUploads((prev) =>
+          prev.map((u) =>
+            u.id === id ? { ...u, queued: false, phase: chunked ? "hashing" : "uploading" } : u,
+          ),
+        );
+        const transfer = chunked
+          ? uploadFileChunked({
+              file,
+              assetId,
+              signal: controller.signal,
+              onPhase: (phase) =>
+                setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, phase } : u))),
+              onProgress: setProgress,
+            })
+          : uploadFile("/api/imports", file, setProgress, controller.signal, assetId);
+        void transfer
           .then((resp) => {
             setUploads((prev) => prev.filter((u) => u.id !== id));
             pushNotification({
@@ -191,7 +210,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           })
           .catch((err: unknown) => {
             setUploads((prev) => prev.filter((u) => u.id !== id));
-            if (isUploadAbortedError(err)) return;
+            if (isUploadAbortedError(err)) {
+              if (chunked) void cancelChunkedUpload(file);
+              return;
+            }
             const duplicate = err instanceof ApiError && err.status === 409;
             pushNotification({
               tone: duplicate ? "warn" : "error",
