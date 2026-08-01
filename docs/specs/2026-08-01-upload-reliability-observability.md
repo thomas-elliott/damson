@@ -335,3 +335,22 @@ Scratch for `/implement`; `/cleanup` consumes this section and removes it.
 - `cmd/server/main.go` (`requestLogger`, `client_aborted`) — can under-report
   when the context cancel lands after the handler unwinds; it cannot
   false-positive, which is the property that matters for blame.
+- `internal/handlers/api/upload_errors.go` (`statusClientClosedRequest`) — 499
+  is nginx's, not IANA's; used because the proxy in front of damson already
+  logs 499 for an abandoned request, so both sides agree.
+- `internal/handlers/api/upload_errors.go` (`classifyUploadError`, branch
+  order) — `*http.MaxBytesError` must be tested before the context, because
+  tripping the cap can also kill the connection and would otherwise be
+  misreported as a client abort.
+- `internal/handlers/api/upload_errors.go` (`ctxErr` parameter) — checked
+  separately from `err` because a client that walks away surfaces as a generic
+  read error, with the cancellation visible only on the request context.
+- `internal/handlers/api/upload_errors.go` (`ENOSPC` → 507) — a full scratch
+  volume is the server's fault and no client retry can fix it, so it must not
+  keep the old 400.
+- `internal/handlers/api/helpers.go` (`respond400Msg`) — exists so the
+  client-facing message can stay stable while the diagnostic detail (the
+  rejected value) still reaches the log.
+- `internal/handlers/api/assets.go` (`fh.Open` → `respond500`) — was a 400
+  echoing `err.Error()`, which put a scratch temp-file path in the response
+  body; it is a server-side fault, not a client error.

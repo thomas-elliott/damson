@@ -414,17 +414,14 @@ func (h *Handler) postImport(c *gin.Context) {
 
 	fh, err := c.FormFile("file")
 	if err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": "upload exceeds the maximum allowed size"})
-			return
-		}
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing 'file' form field"})
+		respondUploadError(c, err, "library_id", lib.ID, "user_id", u.ID)
 		return
 	}
 	src, err := fh.Open()
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		slog.Error("import: cannot open spooled upload",
+			"err", err, "library_id", lib.ID, "filename", fh.Filename, "size_bytes", fh.Size)
+		respond500(c, fmt.Errorf("open spooled upload (library %d): %w", lib.ID, err))
 		return
 	}
 	defer src.Close()
@@ -450,7 +447,10 @@ func (h *Handler) postImport(c *gin.Context) {
 	if s := strings.TrimSpace(c.PostForm("asset_id")); s != "" {
 		n, perr := strconv.ParseUint(s, 10, 64)
 		if perr != nil || n == 0 {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid asset_id"})
+			if perr == nil {
+				perr = errors.New("must be a positive integer")
+			}
+			respond400Msg(c, fmt.Errorf("invalid asset_id %q: %w", s, perr), "invalid asset_id")
 			return
 		}
 		targetAssetID = uint(n)
@@ -680,7 +680,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		Where("id = ? AND library_id = ?", assetID, lib.ID).
 		First(&asset).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		respond404(c, "asset not found")
 		return
 	}
 	if err != nil {
@@ -693,7 +693,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		Where("id = ? AND asset_id = ?", versionID, asset.ID).
 		First(&source).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "version not found"})
+		respond404(c, "version not found")
 		return
 	}
 	if err != nil {
@@ -701,7 +701,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage || source.OriginalPackagePurged {
-		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "source version has no retained package"})
+		respond409(c, "source version has no retained package")
 		return
 	}
 
@@ -722,7 +722,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 	result, err := ex.Extract(c.Request.Context(), blob)
 	if err != nil {
 		slog.Warn("unity re-extract failed", "err", err, "asset_id", asset.ID, "version_id", source.ID)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + err.Error()})
+		respond400Msg(c, fmt.Errorf("unity re-extract (asset %d, version %d): %w", asset.ID, source.ID, err), "extract: "+err.Error())
 		return
 	}
 
@@ -767,7 +767,10 @@ func parseIDParam(c *gin.Context, key string) (uint, bool) {
 	s := c.Param(key)
 	n, err := strconv.ParseUint(s, 10, 64)
 	if err != nil || n == 0 {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid " + key})
+		if err == nil {
+			err = errors.New("must be a positive integer")
+		}
+		respond400Msg(c, fmt.Errorf("invalid %s %q: %w", key, s, err), "invalid "+key)
 		return 0, false
 	}
 	return uint(n), true
