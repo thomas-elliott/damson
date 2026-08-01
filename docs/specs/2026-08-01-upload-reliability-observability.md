@@ -326,3 +326,15 @@ overlay and died on page-cache pressure. Nothing here blocks the work.
 - **Worth setting anyway:** a modest `ephemeral-storage` request/limit on the
   pod, so any future accidental spool is evicted with a clear reason rather
   than OOM-killed silently.
+
+## Deferred comments
+
+- `upload_errors.go` (uploadFailure.transport) — the flag means "the transfer
+  is what failed", which is a different question from the status: a 400 can be
+  either a bad body from the client (transport) or a storage-layer fault
+  (not). It is what lets one classifier serve both the body-read site and the
+  storage-put site.
+- `upload_errors.go` (io.EOF vs io.ErrUnexpectedEOF) — deliberately two cases
+  with the same status and body. From a body read both mean truncation; from a
+  storage backend a bare io.EOF is far more likely an internal bug, so only
+  ErrUnexpectedEOF is trusted as a transport failure.

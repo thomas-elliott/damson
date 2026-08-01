@@ -19,9 +19,10 @@ const statusClientClosedRequest = 499
 var errMissingFileField = errors.New("missing 'file' form field")
 
 type uploadFailure struct {
-	status int
-	body   string
-	cause  error
+	status    int
+	body      string
+	cause     error
+	transport bool
 }
 
 // classifyUploadError works out why reading an upload body failed, keeping the
@@ -36,9 +37,10 @@ func classifyUploadError(err error, ctxErr error) uploadFailure {
 	switch {
 	case errors.As(err, &tooLarge):
 		return uploadFailure{
-			status: http.StatusRequestEntityTooLarge,
-			body:   "upload exceeds the maximum allowed size",
-			cause:  fmt.Errorf("upload exceeds the %d byte limit: %w", tooLarge.Limit, err),
+			status:    http.StatusRequestEntityTooLarge,
+			body:      "upload exceeds the maximum allowed size",
+			cause:     fmt.Errorf("upload exceeds the %d byte limit: %w", tooLarge.Limit, err),
+			transport: true,
 		}
 
 	case errors.Is(ctxErr, context.Canceled),
@@ -46,23 +48,26 @@ func classifyUploadError(err error, ctxErr error) uploadFailure {
 		errors.Is(err, syscall.ECONNRESET),
 		errors.Is(err, syscall.EPIPE):
 		return uploadFailure{
-			status: statusClientClosedRequest,
-			body:   "upload aborted",
-			cause:  fmt.Errorf("client aborted upload: %w", err),
+			status:    statusClientClosedRequest,
+			body:      "upload aborted",
+			cause:     fmt.Errorf("client aborted upload: %w", err),
+			transport: true,
 		}
 
 	case errors.Is(ctxErr, context.DeadlineExceeded), errors.Is(err, context.DeadlineExceeded):
 		return uploadFailure{
-			status: http.StatusRequestTimeout,
-			body:   "upload timed out",
-			cause:  fmt.Errorf("upload deadline exceeded: %w", err),
+			status:    http.StatusRequestTimeout,
+			body:      "upload timed out",
+			cause:     fmt.Errorf("upload deadline exceeded: %w", err),
+			transport: true,
 		}
 
 	case errors.Is(err, syscall.ENOSPC), errors.Is(err, syscall.EDQUOT):
 		return uploadFailure{
-			status: http.StatusInsufficientStorage,
-			body:   "server storage exhausted",
-			cause:  fmt.Errorf("upload scratch space exhausted: %w", err),
+			status:    http.StatusInsufficientStorage,
+			body:      "server storage exhausted",
+			cause:     fmt.Errorf("upload scratch space exhausted: %w", err),
+			transport: true,
 		}
 
 	case errors.Is(err, http.ErrMissingFile):
@@ -72,7 +77,15 @@ func classifyUploadError(err error, ctxErr error) uploadFailure {
 			cause:  errMissingFileField,
 		}
 
-	case errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, io.EOF):
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return uploadFailure{
+			status:    http.StatusBadRequest,
+			body:      "upload ended before the file was complete",
+			cause:     fmt.Errorf("truncated upload body: %w", err),
+			transport: true,
+		}
+
+	case errors.Is(err, io.EOF):
 		return uploadFailure{
 			status: http.StatusBadRequest,
 			body:   "upload ended before the file was complete",
@@ -91,7 +104,21 @@ func classifyUploadError(err error, ctxErr error) uploadFailure {
 // respondUploadError classifies err and responds, attaching the cause to
 // c.Errors so it lands on the request log line.
 func respondUploadError(c *gin.Context, err error, attrs ...any) {
+	respondUploadFailure(c, classifyUploadError(err, c.Request.Context().Err()), attrs...)
+}
+
+// respondUploadOrServerError answers with the classified upload status when
+// the transfer is what failed, and 500 with serverErr when it isn't.
+func respondUploadOrServerError(c *gin.Context, err error, serverErr error, attrs ...any) {
 	f := classifyUploadError(err, c.Request.Context().Err())
+	if !f.transport {
+		respond500(c, serverErr)
+		return
+	}
+	respondUploadFailure(c, f, attrs...)
+}
+
+func respondUploadFailure(c *gin.Context, f uploadFailure, attrs ...any) {
 	if f.cause != nil {
 		_ = c.Error(f.cause)
 	}
@@ -99,23 +126,4 @@ func respondUploadError(c *gin.Context, err error, attrs ...any) {
 		slog.Error("import: upload failed", append([]any{"err", f.cause, "status", f.status}, attrs...)...)
 	}
 	c.AbortWithStatusJSON(f.status, gin.H{"error": f.body})
-}
-
-// isTransportFailure reports whether err is the transfer failing rather than
-// the server failing, so callers can keep its classified status instead of
-// answering 500.
-func isTransportFailure(err error, ctxErr error) bool {
-	var tooLarge *http.MaxBytesError
-	switch {
-	case errors.As(err, &tooLarge),
-		errors.Is(ctxErr, context.Canceled),
-		errors.Is(err, context.Canceled),
-		errors.Is(err, syscall.ECONNRESET),
-		errors.Is(err, syscall.EPIPE),
-		errors.Is(err, syscall.ENOSPC),
-		errors.Is(err, syscall.EDQUOT),
-		errors.Is(err, io.ErrUnexpectedEOF):
-		return true
-	}
-	return false
 }

@@ -26,36 +26,41 @@ func TestClassifyUploadError_DistinguishesCauses(t *testing.T) {
 		wantStatus int
 		wantBody   string
 		// wantCauseHas keeps the underlying error reachable in the log.
-		wantCauseHas string
+		wantCauseHas  string
+		wantTransport bool
 	}{
 		{
-			name:         "over the cap",
-			err:          &http.MaxBytesError{Limit: 2 << 20},
-			wantStatus:   http.StatusRequestEntityTooLarge,
-			wantBody:     "upload exceeds the maximum allowed size",
-			wantCauseHas: "2097152",
+			name:          "over the cap",
+			err:           &http.MaxBytesError{Limit: 2 << 20},
+			wantStatus:    http.StatusRequestEntityTooLarge,
+			wantBody:      "upload exceeds the maximum allowed size",
+			wantCauseHas:  "2097152",
+			wantTransport: true,
 		},
 		{
-			name:         "client walked away mid-transfer",
-			err:          io.ErrUnexpectedEOF,
-			ctxErr:       context.Canceled,
-			wantStatus:   statusClientClosedRequest,
-			wantBody:     "upload aborted",
-			wantCauseHas: "client aborted upload",
+			name:          "client walked away mid-transfer",
+			err:           io.ErrUnexpectedEOF,
+			ctxErr:        context.Canceled,
+			wantStatus:    statusClientClosedRequest,
+			wantBody:      "upload aborted",
+			wantCauseHas:  "client aborted upload",
+			wantTransport: true,
 		},
 		{
-			name:         "connection reset",
-			err:          fmt.Errorf("read tcp: %w", syscall.ECONNRESET),
-			wantStatus:   statusClientClosedRequest,
-			wantBody:     "upload aborted",
-			wantCauseHas: "connection reset",
+			name:          "connection reset",
+			err:           fmt.Errorf("read tcp: %w", syscall.ECONNRESET),
+			wantStatus:    statusClientClosedRequest,
+			wantBody:      "upload aborted",
+			wantCauseHas:  "connection reset",
+			wantTransport: true,
 		},
 		{
-			name:         "scratch volume full",
-			err:          fmt.Errorf("multipart: write /tmp/multipart-123: %w", syscall.ENOSPC),
-			wantStatus:   http.StatusInsufficientStorage,
-			wantBody:     "server storage exhausted",
-			wantCauseHas: "scratch space exhausted",
+			name:          "scratch volume full",
+			err:           fmt.Errorf("multipart: write /tmp/multipart-123: %w", syscall.ENOSPC),
+			wantStatus:    http.StatusInsufficientStorage,
+			wantBody:      "server storage exhausted",
+			wantCauseHas:  "scratch space exhausted",
+			wantTransport: true,
 		},
 		{
 			name:         "no file part at all",
@@ -65,8 +70,16 @@ func TestClassifyUploadError_DistinguishesCauses(t *testing.T) {
 			wantCauseHas: "missing 'file' form field",
 		},
 		{
-			name:         "body truncated",
-			err:          io.ErrUnexpectedEOF,
+			name:          "body truncated",
+			err:           io.ErrUnexpectedEOF,
+			wantStatus:    http.StatusBadRequest,
+			wantBody:      "upload ended before the file was complete",
+			wantCauseHas:  "truncated upload body",
+			wantTransport: true,
+		},
+		{
+			name:         "bare EOF",
+			err:          io.EOF,
 			wantStatus:   http.StatusBadRequest,
 			wantBody:     "upload ended before the file was complete",
 			wantCauseHas: "truncated upload body",
@@ -79,11 +92,12 @@ func TestClassifyUploadError_DistinguishesCauses(t *testing.T) {
 			wantCauseHas: "bufio: buffer full",
 		},
 		{
-			name:         "deadline exceeded",
-			err:          context.DeadlineExceeded,
-			wantStatus:   http.StatusRequestTimeout,
-			wantBody:     "upload timed out",
-			wantCauseHas: "deadline exceeded",
+			name:          "deadline exceeded",
+			err:           context.DeadlineExceeded,
+			wantStatus:    http.StatusRequestTimeout,
+			wantBody:      "upload timed out",
+			wantCauseHas:  "deadline exceeded",
+			wantTransport: true,
 		},
 	}
 
@@ -95,6 +109,9 @@ func TestClassifyUploadError_DistinguishesCauses(t *testing.T) {
 			}
 			if got.body != tc.wantBody {
 				t.Errorf("body = %q, want %q", got.body, tc.wantBody)
+			}
+			if got.transport != tc.wantTransport {
+				t.Errorf("transport = %v, want %v", got.transport, tc.wantTransport)
 			}
 			if got.cause == nil {
 				t.Fatal("cause is nil — the whole point is that the cause reaches the log")
@@ -142,6 +159,71 @@ func TestRespondUploadError_AttachesCauseToGinErrors(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), "connection reset") {
 		t.Errorf("the cause must stay out of the response body; got %s", w.Body.String())
+	}
+}
+
+// TestRespondUploadOrServerError_SplitsTransportFromServerFault is what the
+// single classifier buys: one list of error shapes decides both the status and
+// whether the status is trustworthy for a failure raised by storage rather
+// than by the transfer.
+func TestRespondUploadOrServerError_SplitsTransportFromServerFault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	serverErr := errors.New("s3 put (bucket damson): dial tcp: no route to host")
+
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "client abort keeps its classified status",
+			err:        fmt.Errorf("read tcp: %w", syscall.ECONNRESET),
+			wantStatus: statusClientClosedRequest,
+			wantBody:   "upload aborted",
+		},
+		{
+			name:       "deadline keeps its classified status",
+			err:        fmt.Errorf("upload part: %w", context.DeadlineExceeded),
+			wantStatus: http.StatusRequestTimeout,
+			wantBody:   "upload timed out",
+		},
+		{
+			name:       "an arbitrary backend error is the server's fault",
+			err:        errors.New("s3 put: InternalError"),
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   "internal error",
+		},
+		{
+			name:       "a bare EOF from storage is the server's fault",
+			err:        fmt.Errorf("s3 put: %w", io.EOF),
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   "internal error",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/imports", nil)
+
+			respondUploadOrServerError(c, tc.err, serverErr, "library_id", uint(3))
+
+			if w.Code != tc.wantStatus {
+				t.Errorf("status = %d, want %d", w.Code, tc.wantStatus)
+			}
+			if !strings.Contains(w.Body.String(), tc.wantBody) {
+				t.Errorf("body = %s, want it to contain %q", w.Body.String(), tc.wantBody)
+			}
+			if len(c.Errors) == 0 {
+				t.Fatal("no cause attached — the failure would reach the log as a bare status")
+			}
+			if strings.Contains(w.Body.String(), "no route to host") ||
+				strings.Contains(w.Body.String(), "InternalError") {
+				t.Errorf("the backend detail must stay out of the response body; got %s", w.Body.String())
+			}
+		})
 	}
 }
 
