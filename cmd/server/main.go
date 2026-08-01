@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -367,26 +369,85 @@ func recoveryHandler(c *gin.Context, recovered any) {
 	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 }
 
-// requestLogger emits one slog line per HTTP request. 5xx logs at error, 4xx
-// at warn, everything else info. On 4xx/5xx it surfaces the cause(s) that
-// handlers attached via respond400/respond500 (c.Errors), so an error is no
-// longer swallowed behind a bare status. No request bodies or headers (don't
-// leak tokens).
+type countingBody struct {
+	io.ReadCloser
+	n atomic.Int64
+}
+
+func (b *countingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if n > 0 {
+		b.n.Add(int64(n))
+	}
+	return n, err
+}
+
+func (b *countingBody) read() int64 { return b.n.Load() }
+
+func countBody(c *gin.Context) *countingBody {
+	if c.Request.Body == nil || c.Request.Body == http.NoBody {
+		return nil
+	}
+	b := &countingBody{ReadCloser: c.Request.Body}
+	c.Request.Body = b
+	return b
+}
+
+func isUploadStream(r *http.Request) bool {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		return false
+	}
+	ct := r.Header.Get("Content-Type")
+	return strings.HasPrefix(ct, "multipart/") || strings.HasPrefix(ct, "application/octet-stream")
+}
+
+func requestMessage(method, path string, status int, d time.Duration) string {
+	return fmt.Sprintf("%s %s → %d in %dms", method, path, status, d.Milliseconds())
+}
+
+// requestLogger emits an slog line when an upload request starts and one when
+// any request finishes. 5xx logs at error, 4xx at warn, everything else info.
+// On 4xx/5xx it surfaces the cause(s) that handlers attached via
+// respond400/respond500 (c.Errors), so an error is no longer swallowed behind a
+// bare status. No request bodies, headers or query strings (don't leak tokens).
 func requestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
+		body := countBody(c)
+
+		if isUploadStream(c.Request) {
+			slog.Info(fmt.Sprintf("%s %s → upload started", c.Request.Method, c.Request.URL.Path),
+				"method", c.Request.Method,
+				"path", c.Request.URL.Path,
+				"phase", "start",
+				"content_length", c.Request.ContentLength,
+				"remote_ip", c.ClientIP(),
+				"request_id", c.GetString(requestIDKey),
+			)
+		}
+
 		c.Next()
+
 		status := c.Writer.Status()
+		elapsed := time.Since(start)
 		attrs := []any{
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
 			"status", status,
-			"duration_ms", time.Since(start).Milliseconds(),
+			"duration_ms", elapsed.Milliseconds(),
 			"remote_ip", c.ClientIP(),
 			"request_id", c.GetString(requestIDKey),
 		}
 		if n := c.Writer.Size(); n >= 0 {
 			attrs = append(attrs, "bytes_out", n)
+		}
+		if body != nil {
+			if n := body.read(); n > 0 {
+				attrs = append(attrs, "bytes_in", n)
+			}
+		}
+		if errors.Is(c.Request.Context().Err(), context.Canceled) {
+			attrs = append(attrs, "client_aborted", true)
 		}
 		if u, ok := c.Get(userContextKey); ok {
 			if user, ok := u.(*models.User); ok && user != nil {
@@ -401,15 +462,35 @@ func requestLogger() gin.HandlerFunc {
 		if len(c.Errors) > 0 {
 			attrs = append(attrs, "err", strings.Join(c.Errors.Errors(), "; "))
 		}
+
+		msg := requestMessage(c.Request.Method, c.Request.URL.Path, status, elapsed)
 		switch {
 		case status >= 500:
-			slog.Error("request", attrs...)
+			slog.Error(msg, attrs...)
 		case status >= 400:
-			slog.Warn("request", attrs...)
+			slog.Warn(msg, attrs...)
 		default:
-			slog.Info("request", attrs...)
+			slog.Info(msg, attrs...)
 		}
 	}
+}
+
+const (
+	vlMessageKey = "_msg"
+	vlTimeKey    = "_time"
+)
+
+func victoriaLogsKeys(groups []string, a slog.Attr) slog.Attr {
+	if len(groups) > 0 {
+		return a
+	}
+	switch a.Key {
+	case slog.MessageKey:
+		a.Key = vlMessageKey
+	case slog.TimeKey:
+		a.Key = vlTimeKey
+	}
+	return a
 }
 
 func newLogger() *slog.Logger {
@@ -427,6 +508,7 @@ func newLogger() *slog.Logger {
 	if os.Getenv("DAMSON_LOG_FORMAT") == "text" {
 		h = slog.NewTextHandler(os.Stdout, opts)
 	} else {
+		opts.ReplaceAttr = victoriaLogsKeys
 		h = slog.NewJSONHandler(os.Stdout, opts)
 	}
 	return slog.New(h).With("service", "damson", "version", readVersion())
