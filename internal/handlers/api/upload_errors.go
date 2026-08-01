@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Not an IANA status. nginx logs 499 for an abandoned request, so damson
+// and the proxy in front of it agree on what an abort looks like.
 const statusClientClosedRequest = 499
 
 var errMissingFileField = errors.New("missing 'file' form field")
@@ -23,7 +25,12 @@ type uploadFailure struct {
 }
 
 // classifyUploadError works out why reading an upload body failed, keeping the
-// real error as the cause in every branch.
+// real error as the cause in every branch. A client that walks away surfaces as
+// a generic read error, so ctxErr — the request context's error — is consulted
+// separately; only it distinguishes an abort from a malformed body.
+//
+// Branch order is load-bearing: tripping the size cap can also kill the
+// connection, so MaxBytesError has to be tested before the context.
 func classifyUploadError(err error, ctxErr error) uploadFailure {
 	var tooLarge *http.MaxBytesError
 	switch {
@@ -95,8 +102,8 @@ func respondUploadError(c *gin.Context, err error, attrs ...any) {
 }
 
 // isTransportFailure reports whether err is the transfer failing rather than
-// the server failing, so it keeps its classified status instead of collapsing
-// to a generic 500.
+// the server failing, so callers can keep its classified status instead of
+// answering 500.
 func isTransportFailure(err error, ctxErr error) bool {
 	var tooLarge *http.MaxBytesError
 	switch {

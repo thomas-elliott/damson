@@ -438,15 +438,12 @@ func (h *Handler) postImport(c *gin.Context) {
 
 	var targetAssetID uint
 	if s := strings.TrimSpace(form.get("asset_id")); s != "" {
-		n, perr := strconv.ParseUint(s, 10, 64)
-		if perr != nil || n == 0 {
-			if perr == nil {
-				perr = errors.New("must be a positive integer")
-			}
+		n, perr := parsePositiveID(s)
+		if perr != nil {
 			respond400Msg(c, fmt.Errorf("invalid asset_id %q: %w", s, perr), "invalid asset_id")
 			return
 		}
-		targetAssetID = uint(n)
+		targetAssetID = n
 	}
 	reqStoreVersion := strings.TrimLeft(strings.TrimSpace(form.get("store_version")), "vV")
 
@@ -552,8 +549,15 @@ func (h *Handler) postImport(c *gin.Context) {
 	} else {
 		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
 	}
-	if err == nil {
-		err = form.checkNoTrailingFields()
+	// The rows exist by now, so any failure past this point has to undo them.
+	// Detached from the request context, which a client abort has cancelled.
+	abandonImport := func() {
+		ctx := context.WithoutCancel(c.Request.Context())
+		if targetAssetID != 0 {
+			h.cleanupFailedVersionUpload(ctx, versionID, importID)
+		} else {
+			h.cleanupFailedUpload(ctx, assetID)
+		}
 	}
 	if err != nil {
 		slog.Error("import: storage put failed",
@@ -564,20 +568,20 @@ func (h *Handler) postImport(c *gin.Context) {
 			"filename", filename,
 			"package_kind", packageKind,
 			"err", err)
-		if targetAssetID != 0 {
-			h.cleanupFailedVersionUpload(context.WithoutCancel(c.Request.Context()), versionID, importID)
-		} else {
-			h.cleanupFailedUpload(context.WithoutCancel(c.Request.Context()), assetID)
-		}
-		switch {
-		case errors.Is(err, errFieldAfterFile):
-			respond400(c, err)
-		case isTransportFailure(err, c.Request.Context().Err()):
+		abandonImport()
+		if isTransportFailure(err, c.Request.Context().Err()) {
 			respondUploadError(c, err,
 				"library_id", lib.ID, "asset_id", assetID, "import_id", importID, "filename", filename)
-		default:
-			respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+			return
 		}
+		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+		return
+	}
+	if err := form.checkNoTrailingFields(); err != nil {
+		slog.Warn("import: form field sent after the file part",
+			"err", err, "library_id", lib.ID, "asset_id", assetID, "import_id", importID)
+		abandonImport()
+		respond400(c, err)
 		return
 	}
 
@@ -726,7 +730,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 	result, err := ex.Extract(c.Request.Context(), blob)
 	if err != nil {
 		slog.Warn("unity re-extract failed", "err", err, "asset_id", asset.ID, "version_id", source.ID)
-		respond400Msg(c, fmt.Errorf("unity re-extract (asset %d, version %d): %w", asset.ID, source.ID, err), "extract: "+err.Error())
+		respond400Msg(c, err, "extract: "+err.Error())
 		return
 	}
 
@@ -769,15 +773,23 @@ func (h *Handler) postReExtract(c *gin.Context) {
 
 func parseIDParam(c *gin.Context, key string) (uint, bool) {
 	s := c.Param(key)
-	n, err := strconv.ParseUint(s, 10, 64)
-	if err != nil || n == 0 {
-		if err == nil {
-			err = errors.New("must be a positive integer")
-		}
+	n, err := parsePositiveID(s)
+	if err != nil {
 		respond400Msg(c, fmt.Errorf("invalid %s %q: %w", key, s, err), "invalid "+key)
 		return 0, false
 	}
-	return uint(n), true
+	return n, true
+}
+
+func parsePositiveID(s string) (uint, error) {
+	n, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, errors.New("must be a positive integer")
+	}
+	return uint(n), nil
 }
 
 func parsePagination(c *gin.Context) (limit, offset int) {

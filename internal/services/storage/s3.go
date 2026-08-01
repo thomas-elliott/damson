@@ -171,35 +171,29 @@ func (s *S3) PresignGet(ctx context.Context, key string, ttl time.Duration) (str
 }
 
 const (
-	// stagingPrefix is deliberately outside the swept prefixes in
-	// services/storage/cleanup, so a staging object is never mistaken for an
-	// orphaned blob (its key is random, not a content hash).
+	// Outside cleanup.sweptPrefixes: a staging key is random, not a content
+	// hash, so the orphan sweep would list it and then fail to delete it.
 	stagingPrefix = "staging"
 
-	// inlinePutBytes bounds the body size hashed in memory. Below it the
-	// content-addressed key is known before anything is written, so the object
-	// goes straight to its final key with no staging copy.
+	// Bodies up to this size are hashed in memory, so their key is known
+	// before anything is written and they skip staging entirely.
 	inlinePutBytes = 16 << 20
 
-	// Peak upload buffering is roughly uploadPartBytes × uploadConcurrency.
-	// 64 GiB / 16 MiB = 4096 parts, inside S3's 10,000-part ceiling.
+	// Peak buffering is uploadPartBytes × uploadConcurrency. At 16 MiB a
+	// 64 GiB object is 4096 parts, inside S3's 10,000-part ceiling.
 	uploadPartBytes   = 16 << 20
 	uploadConcurrency = 4
 
-	// maxSingleCopyBytes is S3's limit for a one-shot CopyObject; above it the
-	// copy has to be done as a multipart part-copy.
+	// S3 caps a one-shot CopyObject at 5 GiB; past that the copy runs as
+	// multipart part-copies.
 	maxSingleCopyBytes = 5 << 30
 	copyPartBytes      = 1 << 30
 )
 
-// putHashed writes r to its content-addressed key without ever spooling the
-// body to local scratch.
-//
-// The key is the SHA-256 of the content, so for anything too large to hash in
-// memory the bytes must be written somewhere before the destination is known.
-// They go to a random staging key in the bucket and are copied server-side to
-// the final key once the hash is complete — the copy never crosses this
-// process. Peak memory is bounded by the uploader's part buffers.
+// putHashed writes r to its content-addressed key without spooling to local
+// scratch. The key is the hash of the content, so a body too large to hash in
+// memory lands at a random staging key first and is copied server-side to its
+// final key once the hash is known; that copy never crosses this process.
 func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	head := make([]byte, inlinePutBytes)
 	n, err := io.ReadFull(r, head)
@@ -243,7 +237,14 @@ func (s *S3) putStaged(ctx context.Context, prefix string, r io.Reader, meta Obj
 		return "", 0, err
 	}
 
+	// Detached from the request: a client abort must still clear the staging
+	// object, and the request context is already cancelled by then.
+	cleanupCtx := context.WithoutCancel(ctx)
+	defer s.dropStaging(cleanupCtx, stagingKey)
+
 	h := sha256.New()
+	// Uploader buffers each part and replays from that buffer on retry, so it
+	// never re-reads this reader — the running hash stays correct.
 	counted := &countingReader{r: io.TeeReader(r, h)}
 
 	_, err = s.uploader.Upload(ctx, &s3.PutObjectInput{
@@ -255,14 +256,9 @@ func (s *S3) putStaged(ctx context.Context, prefix string, r io.Reader, meta Obj
 		u.Concurrency = uploadConcurrency
 	})
 	if err != nil {
-		cleanupCtx := context.WithoutCancel(ctx)
 		s.abortStagingUpload(cleanupCtx, stagingKey, err)
-		s.dropStaging(cleanupCtx, stagingKey)
 		return "", 0, err
 	}
-	// Cleanup runs on a context detached from the request so an abort after
-	// the bytes landed still removes the staging object.
-	defer s.dropStaging(context.WithoutCancel(ctx), stagingKey)
 
 	size := counted.count()
 	key := hex.EncodeToString(h.Sum(nil))
@@ -322,10 +318,7 @@ func (s *S3) copyObjectMultipart(ctx context.Context, srcKey, dstKey string, siz
 
 	var parts []types.CompletedPart
 	for offset, n := int64(0), int32(1); offset < size; offset, n = offset+copyPartBytes, n+1 {
-		last := offset + copyPartBytes - 1
-		if last > size-1 {
-			last = size - 1
-		}
+		last := min(offset+copyPartBytes-1, size-1)
 		out, err := s.client.UploadPartCopy(ctx, &s3.UploadPartCopyInput{
 			Bucket:          &s.bucket,
 			Key:             &dstKey,
@@ -373,10 +366,9 @@ func (s *S3) objectExists(ctx context.Context, objectKey string) (bool, error) {
 	return false, s.wrapS3("head", objectKey, err)
 }
 
-// abortStagingUpload retries the multipart abort on a live context. The
-// uploader already attempts one, but on the request's own context — which in
-// the client-abort case is the context that has just been cancelled, so its
-// abort never reaches the bucket and the parts are billed indefinitely.
+// abortStagingUpload re-sends the abort the uploader already attempted. The
+// uploader uses the request context, which in a client abort is the context
+// that just died, so its own abort never reaches the bucket.
 func (s *S3) abortStagingUpload(ctx context.Context, stagingKey string, cause error) {
 	var failure manager.MultiUploadFailure
 	if !errors.As(cause, &failure) || failure.UploadID() == "" {

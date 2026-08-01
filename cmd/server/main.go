@@ -369,6 +369,8 @@ func recoveryHandler(c *gin.Context, recovered any) {
 	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 }
 
+// countingBody records how many bytes were read off the socket. Atomic
+// because the server can still be draining the body as the chain unwinds.
 type countingBody struct {
 	io.ReadCloser
 	n atomic.Int64
@@ -384,6 +386,8 @@ func (b *countingBody) Read(p []byte) (int, error) {
 
 func (b *countingBody) read() int64 { return b.n.Load() }
 
+// countBody must wrap the body before jsonBodyCap does, so the counter sits
+// under MaxBytesReader and measures bytes read rather than bytes allowed.
 func countBody(c *gin.Context) *countingBody {
 	if c.Request.Body == nil || c.Request.Body == http.NoBody {
 		return nil
@@ -408,8 +412,8 @@ func requestMessage(method, path string, status int, d time.Duration) string {
 // requestLogger emits an slog line when an upload request starts and one when
 // any request finishes. 5xx logs at error, 4xx at warn, everything else info.
 // On 4xx/5xx it surfaces the cause(s) that handlers attached via
-// respond400/respond500 (c.Errors), so an error is no longer swallowed behind a
-// bare status. No request bodies, headers or query strings (don't leak tokens).
+// respond400/respond500 (c.Errors). No request bodies, headers or query
+// strings (don't leak tokens).
 func requestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -481,6 +485,8 @@ const (
 )
 
 func victoriaLogsKeys(groups []string, a slog.Attr) slog.Attr {
+	// A group attribute called "msg" is data; renaming it would collide with
+	// the record's own message.
 	if len(groups) > 0 {
 		return a
 	}
