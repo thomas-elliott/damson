@@ -9,6 +9,8 @@ import { getAccessToken } from "@/lib/token";
 
 import type { HashMessage } from "./sha256Worker";
 
+// Below this the one-shot endpoint is cheaper: no full-file hashing pass and
+// no session round-trips.
 export const CHUNKED_UPLOAD_THRESHOLD = 256 * 1024 * 1024;
 
 const HASH_READ_BYTES = 8 * 1024 * 1024;
@@ -40,7 +42,19 @@ interface SessionState {
   suggested_match?: { asset_id: number; name: string };
 }
 
+// importResponse narrows a session to what the caller actually needs back:
+// the rows the completed import produced.
+function importResponse(s: SessionState): UploadResponse {
+  return {
+    asset_id: s.asset_id,
+    import_id: s.import_id,
+    suggested_match: s.suggested_match,
+  };
+}
+
 // fileKey identifies a file across reloads, where no File handle survives.
+// A collision is possible; the server re-verifies the hash, so the worst case
+// is a resume it rejects.
 function fileKey(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
@@ -56,27 +70,31 @@ function readResumeMap(): Record<string, number> {
   }
 }
 
-function rememberSession(file: File, uploadId: number) {
+function updateResumeMap(mutate: (map: Record<string, number>) => void) {
   try {
     const map = readResumeMap();
-    map[fileKey(file)] = uploadId;
+    mutate(map);
     window.localStorage.setItem(RESUME_KEY, JSON.stringify(map));
   } catch {
-    // storage unavailable — resume across reloads is simply not offered
+    // storage unavailable — resume across reloads is not offered
   }
+}
+
+function rememberSession(file: File, uploadId: number) {
+  updateResumeMap((map) => {
+    map[fileKey(file)] = uploadId;
+  });
 }
 
 function forgetSession(file: File) {
-  try {
-    const map = readResumeMap();
+  updateResumeMap((map) => {
     delete map[fileKey(file)];
-    window.localStorage.setItem(RESUME_KEY, JSON.stringify(map));
-  } catch {
-    // storage unavailable — nothing to clean up
-  }
+  });
 }
 
 // resumableSession returns a still-open session for this exact file, or null.
+// Anything else — expired, completed, gone — is forgotten rather than resumed,
+// so a stale entry cannot wedge a file permanently.
 async function resumableSession(file: File): Promise<SessionState | null> {
   const uploadId = readResumeMap()[fileKey(file)];
   if (!uploadId) return null;
@@ -151,11 +169,7 @@ export async function uploadFileChunked({
     });
     if (session.deduped) {
       onProgress?.(1);
-      return {
-        asset_id: session.asset_id,
-        import_id: session.import_id,
-        suggested_match: session.suggested_match,
-      };
+      return importResponse(session);
     }
     rememberSession(file, session.upload_id);
   }
@@ -178,11 +192,7 @@ export async function uploadFileChunked({
   });
   forgetSession(file);
   onProgress?.(1);
-  return {
-    asset_id: done.asset_id,
-    import_id: done.import_id,
-    suggested_match: done.suggested_match,
-  };
+  return importResponse(done);
 }
 
 // cancelChunkedUpload releases the server-side session.
@@ -197,6 +207,9 @@ export async function cancelChunkedUpload(file: File): Promise<void> {
   }
 }
 
+// sendChunk goes through fetch rather than fetchJson for the same reason
+// uploadFile skips it: a Blob body, no JSON request, and its own retry loop.
+// The bearer still comes from getAccessToken.
 async function sendChunk(
   uploadId: number,
   index: number,
@@ -228,7 +241,9 @@ async function sendChunk(
       if (signal?.aborted) throw new UploadAbortedError();
       lastError = err;
     }
-    await delay(RETRY_BASE_MS * 2 ** (attempt - 1), signal);
+    if (attempt < MAX_CHUNK_ATTEMPTS) {
+      await delay(RETRY_BASE_MS * 2 ** (attempt - 1), signal);
+    }
   }
   throw lastError instanceof Error ? lastError : new Error(`chunk ${index} failed`);
 }

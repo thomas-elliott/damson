@@ -141,15 +141,14 @@ func (c *Client) openSession(ctx context.Context, filename string, size int64, d
 		"sha256":     digest,
 	}
 	for k, v := range opts.fields() {
-		if k == "asset_id" {
-			n, err := strconv.ParseUint(v, 10, 64)
-			if err != nil {
-				return nil, axi.Wrap(axi.CodeUsage, err, "invalid --asset-id %q", v)
-			}
-			req[k] = n
-			continue
-		}
 		req[k] = v
+	}
+	if opts.assetID != "" {
+		n, err := strconv.ParseUint(opts.assetID, 10, 64)
+		if err != nil {
+			return nil, axi.Wrap(axi.CodeUsage, err, "invalid --asset-id %q", opts.assetID)
+		}
+		req["asset_id"] = n
 	}
 	var out uploadSession
 	if err := c.PostJSON(ctx, "/api/imports/uploads", req, &out); err != nil {
@@ -211,6 +210,9 @@ func (c *Client) sendChunk(ctx context.Context, uploadID uint, index int, body i
 			}
 			lastErr = ferr
 		}
+		if attempt == maxChunkAttempts {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -230,6 +232,8 @@ type resumeState struct {
 	Sessions map[string]uint `json:"sessions"`
 }
 
+// resumeStateMu serialises the read-modify-write of the shared state file:
+// uploads run --concurrency at a time.
 var resumeStateMu sync.Mutex
 
 func resumeStatePath() (string, error) {

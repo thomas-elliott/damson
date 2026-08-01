@@ -18,10 +18,17 @@ const statusClientClosedRequest = 499
 
 var errMissingFileField = errors.New("missing 'file' form field")
 
+// msgUploadTooLarge is shared with the session endpoint, which rejects an
+// oversized upload before a byte moves rather than by tripping the cap.
+const msgUploadTooLarge = "upload exceeds the maximum allowed size"
+
 type uploadFailure struct {
-	status    int
-	body      string
-	cause     error
+	status int
+	body   string
+	cause  error
+	// transport is a different question from the status: a 400 can be a bad
+	// body from the client or a fault in the storage layer. Only the former
+	// keeps its status when the failure came from a storage put.
 	transport bool
 }
 
@@ -38,7 +45,7 @@ func classifyUploadError(err error, ctxErr error) uploadFailure {
 	case errors.As(err, &tooLarge):
 		return uploadFailure{
 			status:    http.StatusRequestEntityTooLarge,
-			body:      "upload exceeds the maximum allowed size",
+			body:      msgUploadTooLarge,
 			cause:     fmt.Errorf("upload exceeds the %d byte limit: %w", tooLarge.Limit, err),
 			transport: true,
 		}
@@ -85,6 +92,9 @@ func classifyUploadError(err error, ctxErr error) uploadFailure {
 			transport: true,
 		}
 
+	// Same answer, deliberately not the same case. From a body read a bare EOF
+	// means truncation; from a storage backend it is far more likely an
+	// internal bug, so it is not trusted as a transport failure.
 	case errors.Is(err, io.EOF):
 		return uploadFailure{
 			status: http.StatusBadRequest,
