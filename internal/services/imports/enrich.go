@@ -52,7 +52,7 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 	}
 	metadata.SortByPreferredStore(cands, settings.PreferredStore)
 
-	match := exactMatchCandidate(asset.Name, cands)
+	match, exact := exactMatchCandidate(asset.Name, derefString(asset.Publisher), cands)
 	rec := metadata.SourceRecord{
 		FetchedAt:  time.Now().UTC(),
 		Candidates: cands,
@@ -67,7 +67,10 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 			enrichFillBlanks(ctx, deps, &asset, meta)
 			rec.Store = meta.Store
 			rec.ListingURL = firstNonEmptyStr(meta.ListingURL, match.ListingURL)
-			rec.Confidence = 1.0
+			rec.Confidence = nearMatchConfidence
+			if exact {
+				rec.Confidence = 1.0
+			}
 			rec.Matched = true
 			rec.Metadata = meta
 		}
@@ -242,17 +245,75 @@ func titlesMatch(assetName, candidateTitle string) bool {
 	return a != "" && a == b
 }
 
-// exactMatchCandidate returns the first candidate whose title equals the asset
-// name under normalisation. The merged list has no meaningful cross-store
-// order, so every candidate is checked, not just the head.
-func exactMatchCandidate(assetName string, cands []metadata.Candidate) *metadata.Candidate {
+// exactMatchCandidate returns the best candidate for the asset. A title match
+// alone still qualifies, but a known publisher both breaks ties among title
+// matches and lets a near-title match qualify when the publisher agrees
+// exactly. The merged list has no meaningful cross-store order, so every
+// candidate is checked, not just the head.
+func exactMatchCandidate(assetName, assetPublisher string, cands []metadata.Candidate) (*metadata.Candidate, bool) {
+	var titleOnly *metadata.Candidate
+	var publisherNear *metadata.Candidate
 	for i := range cands {
-		if titlesMatch(assetName, cands[i].Title) {
-			return &cands[i]
+		title := titlesMatch(assetName, cands[i].Title)
+		publisher := publishersMatch(assetPublisher, cands[i].Publisher)
+		switch {
+		case title && publisher:
+			return &cands[i], true
+		case title:
+			if titleOnly == nil {
+				titleOnly = &cands[i]
+			}
+		case publisher && titlesNear(assetName, cands[i].Title):
+			if publisherNear == nil {
+				publisherNear = &cands[i]
+			}
 		}
 	}
-	return nil
+	if titleOnly != nil {
+		return titleOnly, true
+	}
+	return publisherNear, false
 }
+
+// publishersMatch compares publishers under the same normalisation titles use.
+// A blank on either side never matches, so an asset with no publisher is
+// exactly as it was before the hint existed.
+func publishersMatch(assetPublisher, candidatePublisher string) bool {
+	a := normalisedTitleKey(assetPublisher)
+	b := normalisedTitleKey(candidatePublisher)
+	return a != "" && a == b
+}
+
+// titlesNear is the weaker gate the publisher hint unlocks: the shorter
+// normalised title is a whole-word prefix of the longer, catching a listing
+// that carries a subtitle or edition suffix the cached filename dropped.
+// Bounded at minNearTitleKey characters so a short generic name cannot reach
+// half a publisher's catalogue.
+func titlesNear(assetName, candidateTitle string) bool {
+	a := normalisedTitleKey(assetName)
+	b := normalisedTitleKey(candidateTitle)
+	if a == "" || b == "" || a == b {
+		return false
+	}
+	if len(a) > len(b) {
+		a, b = b, a
+	}
+	if len(a) < minNearTitleKey {
+		return false
+	}
+	return strings.HasPrefix(b, a+" ")
+}
+
+const (
+	// minNearTitleKey is the shortest normalised title that may qualify on the
+	// weaker titlesNear gate.
+	minNearTitleKey = 8
+
+	// nearMatchConfidence is recorded for a match that only cleared the weaker
+	// gate, so the provenance record never claims an exact title match it
+	// did not make.
+	nearMatchConfidence = 0.8
+)
 
 // MatchAssetByName returns an existing asset in the library whose name equals
 // name under normalisation, excluding excludeID. Returns nil when nothing
