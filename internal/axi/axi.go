@@ -192,6 +192,40 @@ func RenderRecord(w io.Writer, r Record, help []string, o Options) error {
 	return err
 }
 
+// Block is one named object inside a multi-block result.
+type Block struct {
+	Key    string
+	Fields []toon.KV
+}
+
+// RenderBlocks writes several named objects as one result: consecutive blocks
+// in TOON, a single flat object in JSON. Concatenating independent JSON
+// documents would not parse, so the encodings differ in structure here.
+func RenderBlocks(w io.Writer, blocks []Block, help []string, o Options) error {
+	if o.format() == FormatJSON {
+		payload := make(map[string]any, len(blocks)+1)
+		for _, b := range blocks {
+			fields := make(map[string]any, len(b.Fields))
+			for _, f := range b.Fields {
+				fields[f.Key] = f.Value
+			}
+			payload[b.Key] = fields
+		}
+		if len(help) > 0 && !o.helpSuppressed() {
+			payload["help"] = help
+		}
+		return writeJSON(w, payload)
+	}
+
+	doc := &toon.Doc{}
+	for _, b := range blocks {
+		doc.Object(b.Key, b.Fields)
+	}
+	appendHelp(doc, help, o)
+	_, err := io.WriteString(w, doc.String())
+	return err
+}
+
 // RenderError writes the error envelope and returns the process exit code.
 // Errors go to stdout, not stderr: an agent reads one stream, and an error is
 // as much a result as a table.
