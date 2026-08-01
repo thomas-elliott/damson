@@ -45,6 +45,7 @@ type Handler struct {
 	previewBroadcaster *preview.Broadcaster
 	metadata           metadataService // nil in tests that don't exercise enrichment
 	orphanMinAge       time.Duration
+	chunkSize          int64
 	// oidcAuthority / oidcClientID are the non-secret OIDC client config
 	// echoed to the SPA via /api/auth/mode in OIDC mode, so the browser
 	// configures oidc-client-ts at runtime instead of baking VITE_OIDC_* at
@@ -80,6 +81,9 @@ type Deps struct {
 	// OrphanMinAge is the minimum object age the storage-cleanup sweep respects.
 	// Zero means "use the built-in default" so tests need not set it.
 	OrphanMinAge time.Duration
+	// UploadChunkBytes is the chunk size advertised to clients opening a
+	// resumable upload. Zero means the built-in default.
+	UploadChunkBytes int64
 	// OIDCAuthority / OIDCClientID are the issuer URL + client_id echoed to
 	// the SPA on /api/auth/mode in OIDC mode (the values the browser needs to
 	// start the auth-code+PKCE flow). Ignored in local mode.
@@ -96,6 +100,10 @@ func New(d Deps) *Handler {
 	if minAge <= 0 {
 		minAge = 7 * 24 * time.Hour
 	}
+	chunk := d.UploadChunkBytes
+	if chunk <= 0 {
+		chunk = uploadChunkBytes
+	}
 	return &Handler{
 		db:                 d.DB,
 		authMode:           d.AuthMode,
@@ -108,6 +116,7 @@ func New(d Deps) *Handler {
 		previewBroadcaster: d.PreviewBroadcaster,
 		metadata:           d.Metadata,
 		orphanMinAge:       minAge,
+		chunkSize:          chunk,
 
 		oidcAuthority: d.OIDCAuthority,
 		oidcClientID:  d.OIDCClientID,
@@ -199,6 +208,15 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	// Imports
 	scoped.POST("/imports", h.postImport)
 	scoped.POST("/imports/preflight", h.postImportPreflight)
+
+	// Resumable chunked uploads — the transport for archives too large to
+	// survive one request.
+	scoped.POST("/imports/uploads", h.postUploadSession)
+	scoped.GET("/imports/uploads/:id", h.getUploadSession)
+	scoped.PUT("/imports/uploads/:id/chunks/:n", h.putUploadChunk)
+	scoped.POST("/imports/uploads/:id/complete", h.postUploadComplete)
+	scoped.DELETE("/imports/uploads/:id", h.deleteUploadSession)
+
 	scoped.GET("/imports", h.getImports)
 	scoped.GET("/imports/events", h.getImportEvents)
 	scoped.GET("/imports/:id", h.getImport)

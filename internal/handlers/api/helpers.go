@@ -38,6 +38,15 @@ func respond400(c *gin.Context, err error) {
 	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 }
 
+// respond400Msg is respond400 for the cases where the client-facing message
+// must stay stable but the diagnostic detail belongs in the log.
+func respond400Msg(c *gin.Context, cause error, msg string) {
+	if cause != nil {
+		_ = c.Error(cause)
+	}
+	c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": msg})
+}
+
 func respond404(c *gin.Context, msg string) {
 	c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": msg})
 }

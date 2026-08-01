@@ -19,9 +19,16 @@ import {
   useNotifications,
   type AppNotification,
   type NotificationTone,
+  type Upload,
 } from "./NotificationProvider";
 
 type TabKey = "uploads" | "notifications" | "read";
+
+function uploadStatusLine(u: Upload): string {
+  if (u.queued) return `Queued · ${formatBytes(u.size)}`;
+  if (u.phase === "hashing") return `Hashing · ${formatBytes(u.size)}`;
+  return formatBytes(u.size);
+}
 
 export function NotificationCentre() {
   const {
@@ -89,11 +96,7 @@ export function NotificationCentre() {
                   <QueueItem
                     name={u.filename}
                     thumb={<UploadCloud size={20} className="text-text-3" />}
-                    sub={
-                      <span className="text-mono text-text-3">
-                        {u.queued ? `Queued · ${formatBytes(u.size)}` : formatBytes(u.size)}
-                      </span>
-                    }
+                    sub={<span className="text-mono text-text-3">{uploadStatusLine(u)}</span>}
                     progress={u.progress * 100}
                     actions={
                       <Button size="sm" variant="ghost" onClick={() => cancelUpload(u.id)}>

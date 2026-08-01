@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -412,211 +411,92 @@ func (h *Handler) postImport(c *gin.Context) {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, settings.MaxUploadBytes+multipartOverheadBytes)
 	}
 
-	fh, err := c.FormFile("file")
+	form, src, err := readUploadForm(c.Request)
 	if err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": "upload exceeds the maximum allowed size"})
-			return
-		}
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing 'file' form field"})
-		return
-	}
-	src, err := fh.Open()
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondUploadError(c, err, "library_id", lib.ID, "user_id", u.ID)
 		return
 	}
 	defer src.Close()
 
-	filename := filepath.Base(fh.Filename)
-	if filename == "" || filename == "." || filename == "/" {
-		filename = "upload"
-	}
-	ext := strings.ToLower(filepath.Ext(filename))
-	isUnity := ext == ".unitypackage"
-	isZip := ext == ".zip"
-	isArchive := isUnity || isZip
-	contentType := fh.Header.Get("Content-Type")
-	packageKind := packageKindLoose
-	switch {
-	case isUnity:
-		packageKind = packageKindUnityPackage
-	case isZip:
-		packageKind = packageKindZip
-	}
+	spec := newImportSpec(lib.ID, u.ID, src.FileName(), src.Header.Get("Content-Type"))
 
-	var targetAssetID uint
-	if s := strings.TrimSpace(c.PostForm("asset_id")); s != "" {
-		n, perr := strconv.ParseUint(s, 10, 64)
-		if perr != nil || n == 0 {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid asset_id"})
+	if s := strings.TrimSpace(form.get("asset_id")); s != "" {
+		n, perr := parsePositiveID(s)
+		if perr != nil {
+			respond400Msg(c, fmt.Errorf("invalid asset_id %q: %w", s, perr), "invalid asset_id")
 			return
 		}
-		targetAssetID = uint(n)
+		spec.targetAssetID = n
 	}
-	reqStoreVersion := strings.TrimLeft(strings.TrimSpace(c.PostForm("store_version")), "vV")
+	spec.reqStoreVersion = strings.TrimLeft(strings.TrimSpace(form.get("store_version")), "vV")
+	spec.sourceKind = strings.TrimSpace(form.get("source_kind"))
 
-	sourceKind := strings.TrimSpace(c.PostForm("source_kind"))
-	sourceRelativePath, err := imports.ValidateSource(sourceKind, c.PostForm("source_relative_path"))
+	sourceRelativePath, err := imports.ValidateSource(spec.sourceKind, form.get("source_relative_path"))
 	if err != nil {
 		slog.Warn("import: invalid source hint",
-			"err", err, "library_id", lib.ID, "source_kind", sourceKind)
+			"err", err, "library_id", lib.ID, "source_kind", spec.sourceKind)
 		respond400(c, err)
 		return
 	}
+	spec.sourceRelativePath = sourceRelativePath
 
 	// Create the rows before the upload so the object metadata can carry the
 	// asset/version IDs. The version's object key is set after the upload and
 	// the import is enqueued only once it is, so a crash in between leaves a
 	// keyless version that ResumeInFlight fails rather than a live import.
-	var (
-		assetID   uint
-		versionID uint
-		importID  uint
-		libID     = lib.ID
-	)
-	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		assetName, storeVersion := imports.ParseImportFilename(filename)
-		if imports.SuppressesFilenameVersion(sourceKind) {
-			storeVersion = ""
-		}
-		if reqStoreVersion != "" {
-			storeVersion = reqStoreVersion
-		}
-		var asset models.Asset
-		if targetAssetID != 0 {
-			if err := tx.Where("id = ? AND library_id = ?", targetAssetID, libID).First(&asset).Error; err != nil {
-				return err
-			}
-			if storeVersion != "" {
-				var dupes int64
-				if err := tx.Model(&models.AssetVersion{}).
-					Where("asset_id = ? AND store_version = ?", asset.ID, storeVersion).
-					Count(&dupes).Error; err != nil {
-					return err
-				}
-				if dupes > 0 {
-					return errConflictf("this asset already has store version %s; delete or replace that version first", storeVersion)
-				}
-			}
-		} else {
-			asset = models.Asset{
-				LibraryID:       libID,
-				Name:            assetName,
-				NeedsReview:     true,
-				CreatedByUserID: &u.ID,
-			}
-			if err := tx.Create(&asset).Error; err != nil {
-				return err
-			}
-		}
-		version := models.AssetVersion{
-			AssetID:         asset.ID,
-			StoreVersion:    storeVersion,
-			ImportDate:      time.Now().UTC(),
-			CreatedByUserID: &u.ID,
-			PackageKind:     packageKind,
-		}
-		if sourceRelativePath != "" {
-			version.SourceKind = &sourceKind
-			version.SourceRelativePath = &sourceRelativePath
-		}
-		if err := tx.Create(&version).Error; err != nil {
-			return err
-		}
-		imp := models.AssetImport{
-			AssetID:   asset.ID,
-			Stage:     imports.StageUploaded,
-			UpdatedAt: time.Now().UTC(),
-		}
-		if err := tx.Create(&imp).Error; err != nil {
-			return err
-		}
-		assetID = asset.ID
-		versionID = version.ID
-		importID = imp.ID
-		return nil
-	})
+	rows, err := h.createImportRows(c.Request.Context(), spec)
 	if err != nil {
 		respondGORM(c, err, "target asset not found")
 		return
 	}
 
-	meta := storage.ObjectMeta{
-		Filename:  filename,
-		LibraryID: libID,
-		AssetID:   assetID,
-		VersionID: versionID,
-		Kind:      packageKind,
-	}
+	meta := spec.objectMeta(rows.assetID, rows.versionID)
 	var (
 		objectKey string
 		size      int64
 	)
-	if isArchive {
+	if spec.isArchive {
 		objectKey, size, err = h.storage.PutOriginal(c.Request.Context(), src, meta)
 	} else {
 		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
 	}
+	// The rows exist by now, so any failure past this point has to undo them.
+	// Detached from the request context, which a client abort has cancelled.
+	abandon := func() {
+		h.abandonImport(context.WithoutCancel(c.Request.Context()), spec, rows)
+	}
 	if err != nil {
 		slog.Error("import: storage put failed",
 			"library_id", lib.ID,
-			"asset_id", assetID,
-			"version_id", versionID,
-			"import_id", importID,
-			"filename", filename,
-			"package_kind", packageKind,
+			"asset_id", rows.assetID,
+			"version_id", rows.versionID,
+			"import_id", rows.importID,
+			"filename", spec.filename,
+			"package_kind", spec.packageKind,
 			"err", err)
-		if targetAssetID != 0 {
-			h.cleanupFailedVersionUpload(c.Request.Context(), versionID, importID)
-		} else {
-			h.cleanupFailedUpload(c.Request.Context(), assetID)
-		}
-		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+		abandon()
+		respondUploadOrServerError(c, err, fmt.Errorf("storage put (library %d): %w", lib.ID, err),
+			"library_id", lib.ID, "asset_id", rows.assetID, "import_id", rows.importID, "filename", spec.filename)
+		return
+	}
+	if err := form.checkNoTrailingFields(); err != nil {
+		slog.Warn("import: form field sent after the file part",
+			"err", err, "library_id", lib.ID, "asset_id", rows.assetID, "import_id", rows.importID)
+		abandon()
+		respond400(c, err)
 		return
 	}
 
-	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		versionUpdates := map[string]any{"original_package_object_key": objectKey}
-		if sourceRelativePath != "" {
-			versionUpdates["source_size_bytes"] = size
-		}
-		if err := tx.Model(&models.AssetVersion{}).
-			Where("id = ?", versionID).
-			Updates(versionUpdates).Error; err != nil {
-			return err
-		}
-		if !isArchive {
-			f := models.AssetFile{
-				AssetVersionID: versionID,
-				RelativePath:   filename,
-				SizeBytes:      size,
-				ContentHash:    objectKey,
-				ObjectKey:      objectKey,
-				DetectedType:   contentType,
-			}
-			if err := tx.Create(&f).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	if err := h.finishImport(c.Request.Context(), spec, rows, objectKey, size); err != nil {
 		respond500(c, err)
 		return
 	}
 
-	h.importPool.Enqueue(imports.Job{ImportID: importID, LibraryID: libID})
-
-	resp := importEnqueueResponse{AssetID: assetID, ImportID: importID}
-	if targetAssetID == 0 {
-		name, _ := imports.ParseImportFilename(filename)
-		if m, merr := imports.MatchAssetByName(h.db.WithContext(c.Request.Context()), libID, assetID, name); merr == nil && m != nil {
-			resp.SuggestedMatch = &matchSuggestion{AssetID: m.ID, Name: m.Name}
-		}
-	}
-	c.JSON(http.StatusAccepted, resp)
+	c.JSON(http.StatusAccepted, importEnqueueResponse{
+		AssetID:        rows.assetID,
+		ImportID:       rows.importID,
+		SuggestedMatch: h.suggestMatch(c.Request.Context(), spec, rows.assetID),
+	})
 }
 
 // cleanupFailedUpload removes the asset/version/import rows created for an
@@ -680,7 +560,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		Where("id = ? AND library_id = ?", assetID, lib.ID).
 		First(&asset).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		respond404(c, "asset not found")
 		return
 	}
 	if err != nil {
@@ -693,7 +573,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		Where("id = ? AND asset_id = ?", versionID, asset.ID).
 		First(&source).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "version not found"})
+		respond404(c, "version not found")
 		return
 	}
 	if err != nil {
@@ -701,7 +581,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		return
 	}
 	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage || source.OriginalPackagePurged {
-		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "source version has no retained package"})
+		respond409(c, "source version has no retained package")
 		return
 	}
 
@@ -722,7 +602,7 @@ func (h *Handler) postReExtract(c *gin.Context) {
 	result, err := ex.Extract(c.Request.Context(), blob)
 	if err != nil {
 		slog.Warn("unity re-extract failed", "err", err, "asset_id", asset.ID, "version_id", source.ID)
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "extract: " + err.Error()})
+		respond400Msg(c, err, "extract: "+err.Error())
 		return
 	}
 
@@ -765,12 +645,23 @@ func (h *Handler) postReExtract(c *gin.Context) {
 
 func parseIDParam(c *gin.Context, key string) (uint, bool) {
 	s := c.Param(key)
-	n, err := strconv.ParseUint(s, 10, 64)
-	if err != nil || n == 0 {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid " + key})
+	n, err := parsePositiveID(s)
+	if err != nil {
+		respond400Msg(c, fmt.Errorf("invalid %s %q: %w", key, s, err), "invalid "+key)
 		return 0, false
 	}
-	return uint(n), true
+	return n, true
+}
+
+func parsePositiveID(s string) (uint, error) {
+	n, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, errors.New("must be a positive integer")
+	}
+	return uint(n), nil
 }
 
 func parsePagination(c *gin.Context) (limit, offset int) {

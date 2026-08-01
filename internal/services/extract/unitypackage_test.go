@@ -7,7 +7,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +23,7 @@ type fakeStorage struct {
 	thumbs    map[string][]byte
 	originals map[string][]byte
 	meta      map[string]storage.ObjectMeta
+	uploads   map[string]*fakeMultipart
 }
 
 func newFakeStorage() *fakeStorage {
@@ -29,6 +32,7 @@ func newFakeStorage() *fakeStorage {
 		thumbs:    map[string][]byte{},
 		originals: map[string][]byte{},
 		meta:      map[string]storage.ObjectMeta{},
+		uploads:   map[string]*fakeMultipart{},
 	}
 }
 
@@ -122,6 +126,63 @@ func (f *fakeStorage) GetThumb(_ context.Context, key string) (io.ReadCloser, er
 
 func (f *fakeStorage) PresignGet(_ context.Context, key string, _ time.Duration) (string, error) {
 	return "http://fake/" + key, nil
+}
+
+func (f *fakeStorage) BeginMultipart(_ context.Context, prefix, key string, meta storage.ObjectMeta) (storage.MultipartUpload, error) {
+	id := fmt.Sprintf("mpu-%d", len(f.uploads)+1)
+	u := &fakeMultipart{s: f, id: id, prefix: prefix, key: key, meta: meta, parts: map[int][]byte{}}
+	f.uploads[id] = u
+	return u, nil
+}
+
+func (f *fakeStorage) ResumeMultipart(_ context.Context, _, _, uploadID string) (storage.MultipartUpload, error) {
+	u, ok := f.uploads[uploadID]
+	if !ok {
+		return nil, fmt.Errorf("no such upload %q", uploadID)
+	}
+	return u, nil
+}
+
+type fakeMultipart struct {
+	s      *fakeStorage
+	id     string
+	prefix string
+	key    string
+	meta   storage.ObjectMeta
+	parts  map[int][]byte
+}
+
+func (m *fakeMultipart) ID() string { return m.id }
+
+func (m *fakeMultipart) UploadPart(_ context.Context, n int, size int64, r io.Reader) (string, error) {
+	data, err := io.ReadAll(io.LimitReader(r, size))
+	if err != nil {
+		return "", err
+	}
+	m.parts[n] = data
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func (m *fakeMultipart) Complete(_ context.Context, parts []storage.Part) (string, error) {
+	numbers := make([]int, 0, len(parts))
+	for _, p := range parts {
+		numbers = append(numbers, p.Number)
+	}
+	sort.Ints(numbers)
+	var body []byte
+	for _, n := range numbers {
+		body = append(body, m.parts[n]...)
+	}
+	m.s.bucket(m.prefix)[m.key] = body
+	m.s.meta[m.key] = m.meta
+	delete(m.s.uploads, m.id)
+	return m.key, nil
+}
+
+func (m *fakeMultipart) Abort(_ context.Context) error {
+	delete(m.s.uploads, m.id)
+	return nil
 }
 
 // buildPackage assembles a .unitypackage-shaped tar.gz from a set of entries.

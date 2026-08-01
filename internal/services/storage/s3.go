@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -10,9 +11,9 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
-	"os"
 	"path"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -20,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 )
 
@@ -168,56 +170,257 @@ func (s *S3) PresignGet(ctx context.Context, key string, ttl time.Duration) (str
 	return req.URL, nil
 }
 
-// putHashed streams r to a temp file (in os.TempDir()) while hashing, then
-// multipart-uploads the seekable file. Memory stays bounded regardless of
-// upload size.
+const (
+	// Outside cleanup.sweptPrefixes: a staging key is random, not a content
+	// hash, so the orphan sweep would list it and then fail to delete it.
+	stagingPrefix = "staging"
+
+	// Bodies up to this size are hashed in memory, so their key is known
+	// before anything is written and they skip staging entirely.
+	inlinePutBytes = 16 << 20
+
+	// Peak buffering is uploadPartBytes × uploadConcurrency. At 16 MiB a
+	// 64 GiB object is 4096 parts, inside S3's 10,000-part ceiling.
+	uploadPartBytes   = 16 << 20
+	uploadConcurrency = 4
+
+	// S3 caps a one-shot CopyObject at 5 GiB; past that the copy runs as
+	// multipart part-copies.
+	maxSingleCopyBytes = 5 << 30
+	copyPartBytes      = 1 << 30
+
+	s3MaxParts = 10000
+)
+
+// putHashed writes r to its content-addressed key without spooling to local
+// scratch. The key is the hash of the content, so a body too large to hash in
+// memory lands at a random staging key first and is copied server-side to its
+// final key once the hash is known; that copy never crosses this process.
 func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	tmp, err := os.CreateTemp("", "damson-upload-*")
+	head := make([]byte, inlinePutBytes)
+	n, err := io.ReadFull(r, head)
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return s.putInline(ctx, prefix, head[:n], meta)
+	case err != nil:
+		return "", 0, err
+	}
+	return s.putStaged(ctx, prefix, io.MultiReader(bytes.NewReader(head), r), meta)
+}
+
+func (s *S3) putInline(ctx context.Context, prefix string, body []byte, meta ObjectMeta) (string, int64, error) {
+	sum := sha256.Sum256(body)
+	key := hex.EncodeToString(sum[:])
+	objectKey := prefix + "/" + shardedKey(key)
+
+	present, err := s.objectExists(ctx, objectKey)
 	if err != nil {
 		return "", 0, err
 	}
-	tmpPath := tmp.Name()
-	defer func() {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-	}()
+	if present {
+		return key, int64(len(body)), nil
+	}
+
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:   &s.bucket,
+		Key:      &objectKey,
+		Body:     bytes.NewReader(body),
+		Metadata: metaToS3(meta),
+	})
+	if err != nil {
+		return "", 0, s.wrapS3("put", objectKey, err)
+	}
+	return key, int64(len(body)), nil
+}
+
+func (s *S3) putStaged(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	stagingKey, err := newStagingKey()
+	if err != nil {
+		return "", 0, err
+	}
+
+	// Detached from the request: a client abort must still clear the staging
+	// object, and the request context is already cancelled by then.
+	cleanupCtx := context.WithoutCancel(ctx)
+	defer s.dropStaging(cleanupCtx, stagingKey)
 
 	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, h), r)
+	// Uploader buffers each part and replays from that buffer on retry, so it
+	// never re-reads this reader — the running hash stays correct.
+	counted := &countingReader{r: io.TeeReader(r, h)}
+
+	_, err = s.uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket: &s.bucket,
+		Key:    &stagingKey,
+		Body:   counted,
+	}, func(u *manager.Uploader) {
+		u.PartSize = uploadPartBytes
+		u.Concurrency = uploadConcurrency
+	})
 	if err != nil {
-		return "", 0, s.wrapS3("spool", prefix, err)
+		s.abortStagingUpload(cleanupCtx, stagingKey, err)
+		return "", 0, err
 	}
+
+	size := counted.count()
 	key := hex.EncodeToString(h.Sum(nil))
 	objectKey := prefix + "/" + shardedKey(key)
 
-	// HEAD first — skip upload if the blob is already there.
-	_, err = s.client.HeadObject(ctx, &s3.HeadObjectInput{
+	present, err := s.objectExists(ctx, objectKey)
+	if err != nil {
+		return "", 0, err
+	}
+	if present {
+		return key, size, nil
+	}
+	if err := s.copyObject(ctx, stagingKey, objectKey, size, meta); err != nil {
+		return "", 0, err
+	}
+	return key, size, nil
+}
+
+func (s *S3) copyObject(ctx context.Context, srcKey, dstKey string, size int64, meta ObjectMeta) error {
+	if size > maxSingleCopyBytes {
+		return s.copyObjectMultipart(ctx, srcKey, dstKey, size, meta)
+	}
+	_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:            &s.bucket,
+		Key:               &dstKey,
+		CopySource:        aws.String(s.bucket + "/" + srcKey),
+		Metadata:          metaToS3(meta),
+		MetadataDirective: types.MetadataDirectiveReplace,
+	})
+	if err != nil {
+		return s.wrapS3("copy", dstKey, err)
+	}
+	return nil
+}
+
+func (s *S3) copyObjectMultipart(ctx context.Context, srcKey, dstKey string, size int64, meta ObjectMeta) error {
+	create, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
+		Bucket:   &s.bucket,
+		Key:      &dstKey,
+		Metadata: metaToS3(meta),
+	})
+	if err != nil {
+		return s.wrapS3("copy-create", dstKey, err)
+	}
+
+	abort := func() {
+		_, aerr := s.client.AbortMultipartUpload(context.WithoutCancel(ctx), &s3.AbortMultipartUploadInput{
+			Bucket:   &s.bucket,
+			Key:      &dstKey,
+			UploadId: create.UploadId,
+		})
+		if aerr != nil {
+			slog.Error("storage: abandoned multipart copy",
+				"object_key", dstKey, "bucket", s.bucket, "upload_id", aws.ToString(create.UploadId), "err", aerr)
+		}
+	}
+
+	var parts []types.CompletedPart
+	for offset, n := int64(0), int32(1); offset < size; offset, n = offset+copyPartBytes, n+1 {
+		last := min(offset+copyPartBytes-1, size-1)
+		out, err := s.client.UploadPartCopy(ctx, &s3.UploadPartCopyInput{
+			Bucket:          &s.bucket,
+			Key:             &dstKey,
+			UploadId:        create.UploadId,
+			PartNumber:      aws.Int32(n),
+			CopySource:      aws.String(s.bucket + "/" + srcKey),
+			CopySourceRange: aws.String(fmt.Sprintf("bytes=%d-%d", offset, last)),
+		})
+		if err != nil {
+			abort()
+			return s.wrapS3("copy-part", dstKey, err)
+		}
+		var etag *string
+		if out.CopyPartResult != nil {
+			etag = out.CopyPartResult.ETag
+		}
+		parts = append(parts, types.CompletedPart{ETag: etag, PartNumber: aws.Int32(n)})
+	}
+
+	_, err = s.client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+		Bucket:          &s.bucket,
+		Key:             &dstKey,
+		UploadId:        create.UploadId,
+		MultipartUpload: &types.CompletedMultipartUpload{Parts: parts},
+	})
+	if err != nil {
+		abort()
+		return s.wrapS3("copy-complete", dstKey, err)
+	}
+	return nil
+}
+
+func (s *S3) objectExists(ctx context.Context, objectKey string) (bool, error) {
+	_, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: &s.bucket,
 		Key:    &objectKey,
 	})
 	if err == nil {
-		return key, n, nil
+		return true, nil
 	}
 	var apiErr smithy.APIError
-	if !errors.As(err, &apiErr) || apiErr.ErrorCode() != "NotFound" {
-		return "", 0, s.wrapS3("head", objectKey, err)
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
+		return false, nil
 	}
+	return false, s.wrapS3("head", objectKey, err)
+}
 
-	// The hashing io.Copy left the offset at EOF; rewind before the upload.
-	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-		return "", 0, s.wrapS3("rewind", objectKey, err)
+// abortStagingUpload re-sends the abort the uploader already attempted. The
+// uploader uses the request context, which in a client abort is the context
+// that just died, so its own abort never reaches the bucket.
+func (s *S3) abortStagingUpload(ctx context.Context, stagingKey string, cause error) {
+	var failure manager.MultiUploadFailure
+	if !errors.As(cause, &failure) || failure.UploadID() == "" {
+		return
 	}
-	_, err = s.uploader.Upload(ctx, &s3.PutObjectInput{
+	uploadID := failure.UploadID()
+	_, err := s.client.AbortMultipartUpload(ctx, &s3.AbortMultipartUploadInput{
 		Bucket:   &s.bucket,
-		Key:      &objectKey,
-		Body:     tmp,
-		Metadata: metaToS3(meta),
+		Key:      &stagingKey,
+		UploadId: &uploadID,
 	})
 	if err != nil {
-		return "", 0, s.wrapS3("upload", objectKey, err)
+		slog.Error("storage: incomplete multipart upload left behind",
+			"object_key", stagingKey, "bucket", s.bucket, "upload_id", uploadID, "err", err)
 	}
-	return key, n, nil
 }
+
+func (s *S3) dropStaging(ctx context.Context, stagingKey string) {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &s.bucket,
+		Key:    &stagingKey,
+	})
+	if err != nil {
+		slog.Error("storage: staging object left behind",
+			"object_key", stagingKey, "bucket", s.bucket, "err", err)
+	}
+}
+
+func newStagingKey() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("staging key: %w", err)
+	}
+	return stagingPrefix + "/" + hex.EncodeToString(b[:]), nil
+}
+
+type countingReader struct {
+	r io.Reader
+	n atomic.Int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	if n > 0 {
+		c.n.Add(int64(n))
+	}
+	return n, err
+}
+
+func (c *countingReader) count() int64 { return c.n.Load() }
 
 func (s *S3) wrapS3(op, objectKey string, err error) error {
 	if err == nil {
