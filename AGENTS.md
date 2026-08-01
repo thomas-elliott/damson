@@ -27,6 +27,13 @@ DAMSON_TEST_POSTGRES_DSN=postgres://postgres:postgres@localhost:5432/damson_test
 go test ./internal/handlers/api -run '^TestName$/SubtestName$'
 ```
 
+Build the CLI (`dmsn`) and install its Claude Code skill:
+
+```
+task build:cli
+./dmsn setup
+```
+
 Vitest single-file:
 
 ```

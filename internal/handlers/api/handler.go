@@ -135,6 +135,16 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	authed.GET("/libraries", h.getLibraries)
 	authed.POST("/libraries", h.postLibrary)
 	authed.POST("/me/current-library", h.postCurrentLibrary)
+
+	// Token management is closed to tokens themselves: a leaked token must not
+	// be able to mint its own replacements. noTokens is applied per route
+	// rather than inferred from the path.
+	noTokens := auth.RefuseTokens()
+	authed.GET("/me/tokens", noTokens, h.getAPITokens)
+	// Minting pins the caller's current library, so this one is library-scoped
+	// even though listing and revoking are not.
+	authed.POST("/me/tokens", noTokens, h.requireLibrary(), h.postAPIToken)
+	authed.DELETE("/me/tokens/:id", noTokens, h.deleteAPIToken)
 	if h.authMode == config.AuthModeLocal {
 		// Local-mode session refresh. OIDC sessions silent-renew via the
 		// IdP, so this is local-only.
@@ -151,18 +161,24 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	authed.PATCH("/libraries/:id/members/:userId", h.patchLibraryMember)
 	authed.DELETE("/libraries/:id/members/:userId", h.deleteLibraryMember)
 
-	// Server admin (sysadmin only — gated inside each handler)
-	authed.GET("/admin/users", h.getAdminUsers)
-	authed.PATCH("/admin/users/:id", h.patchAdminUser)
-	authed.GET("/admin/settings", h.getServerSettings)
-	authed.PATCH("/admin/settings", h.patchServerSettings)
-	authed.GET("/admin/audit", h.getAdminAudit)
-	authed.POST("/admin/storage/cleanup/scan", h.postStorageCleanupScan)
-	authed.POST("/admin/storage/cleanup/delete", h.postStorageCleanupDelete)
+	// Server admin (sysadmin only — gated inside each handler). Grouped so the
+	// token refusal is inherited by construction: a privileged route added here
+	// is closed to tokens without anyone remembering to say so.
+	admin := authed.Group("", noTokens)
+	admin.GET("/admin/users", h.getAdminUsers)
+	admin.PATCH("/admin/users/:id", h.patchAdminUser)
+	admin.GET("/admin/settings", h.getServerSettings)
+	admin.PATCH("/admin/settings", h.patchServerSettings)
+	admin.GET("/admin/audit", h.getAdminAudit)
+	admin.POST("/admin/storage/cleanup/scan", h.postStorageCleanupScan)
+	admin.POST("/admin/storage/cleanup/delete", h.postStorageCleanupDelete)
 
 	// Authenticated + library-scoped
 	scoped := authed.Group("")
 	scoped.Use(h.requireLibrary())
+
+	// Home view — one round trip for the state a client needs on start.
+	scoped.GET("/overview", h.getOverview)
 
 	// Assets
 	scoped.GET("/assets", h.getAssets)
@@ -182,6 +198,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 
 	// Imports
 	scoped.POST("/imports", h.postImport)
+	scoped.POST("/imports/preflight", h.postImportPreflight)
 	scoped.GET("/imports", h.getImports)
 	scoped.GET("/imports/events", h.getImportEvents)
 	scoped.GET("/imports/:id", h.getImport)
