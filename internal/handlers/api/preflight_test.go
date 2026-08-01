@@ -17,6 +17,7 @@ type preflightPayload struct {
 		AssetID      uint   `json:"asset_id"`
 		AssetName    string `json:"asset_name"`
 		VersionCount int    `json:"version_count"`
+		HeldBytes    int64  `json:"held_bytes"`
 	} `json:"results"`
 	LibraryTotal int `json:"library_total"`
 }

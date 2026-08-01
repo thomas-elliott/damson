@@ -241,6 +241,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	if err := transition(StageEnriching); err != nil {
 		return err
 	}
+	ApplySourceHints(ctx, deps, jc)
 	enrichAsset(ctx, deps, jc)
 
 	// Previewing is decoupled: once asset_files are committed, hand the version
