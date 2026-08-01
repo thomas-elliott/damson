@@ -1,6 +1,7 @@
 # Go
 /tmp/
 /damson
+/dmsn
 /coverage.out
 /coverage.html
 *.test

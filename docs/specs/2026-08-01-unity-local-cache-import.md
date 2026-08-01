@@ -1,8 +1,11 @@
 # Import assets from the local Unity Asset Store cache
 
-**Status:** signed off (2026-08-01) — ready for `implement`.
-**Depends on:** a new personal-access-token mechanism, specified here as stage 1 because
-nothing else in the tree can authenticate an unattended client.
+**Status:** signed off (2026-08-01) — ready for `implement` **once
+[`2026-08-01-dmsn-cli.md`](2026-08-01-dmsn-cli.md) has landed on main**.
+**Depends on:** the `dmsn` CLI slice, which took this spec's original stage 1 (personal access
+tokens) and stage 4 (the CLI binary) wholesale and has already shipped them. What remains here is
+the Unity-specific half: the cache-path parsing, the source columns, and the precision that turns
+preflight from a name check into a real idempotency check.
 
 ## Problem
 
@@ -53,11 +56,10 @@ Verified against the reference machine, not from documentation alone.
 
 ## Chosen approach
 
-**A companion CLI, `damson-sync`, as the only import surface**, driven by a new
-personal-access-token credential, with all path parsing and all idempotency decisions owned by
-the server.
+**The `dmsn` CLI grows a cache-aware sync**, driven by the personal-access-token credential that
+slice already added, with all path parsing and all idempotency decisions owned by the server.
 
-The CLI scans the cache, sends a manifest of `(relative_path, size)` to a new preflight
+The CLI scans the cache, sends a manifest of `(relative_path, size)` to the existing preflight
 endpoint, and uploads only the entries the server says it needs — as ordinary multipart
 `POST /api/imports` requests carrying two extra form fields. Nothing about the import pipeline
 changes: extraction, thumbnailing, enrichment and the `asset_imports.stage` state machine are
@@ -117,34 +119,24 @@ something that is not a store version into the field the UI and enrichment both 
 
 ## Task breakdown
 
-Ordered stages, roughly one commit each. Stage 1 is a prerequisite.
+Ordered stages, roughly one commit each.
 
-### Stage 1 — Personal access tokens
+**Already delivered by the `dmsn` CLI slice** — these were this spec's stages 1 and 4:
 
-Local mode issues 1h JWTs (`auth.LocalTokenTTL`); OIDC mode validates IdP bearers. Neither
-suits an unattended client, so this is new mechanism rather than a tweak.
+- Personal access tokens: migration `020_api_tokens.sql`, `models.APIToken`,
+  `auth.TokenAuthenticator` branched on the `damson_pat_` prefix, `read`/`write` scopes,
+  `GET`/`POST`/`DELETE /api/me/tokens`, and `ApiTokensSection.tsx` in the SPA.
+- The CLI itself: `cmd/dmsn`, with `login` / `whoami` / `assets` / `upload` and the AXI output
+  contract in `internal/toon` + `internal/axi`.
+- `POST /api/imports/preflight` in its **name-only** form, returning `new` / `name_match`.
+  This spec widens it rather than creating it.
 
-- Migration `019_api_tokens.sql` — `api_tokens`: `user_id` (not null, index), `library_id`
-  (not null), `label`, `token_hash` (not null, unique), `prefix`, `created_at`,
-  `last_used_at`, `expires_at`, `revoked_at`. Matching `models.APIToken` with GORM tags.
-- Secret format `damson_pat_<32 random bytes, base64url>`, stored as a plain SHA-256 hex
-  digest — **not** bcrypt. The secret is high-entropy, so a slow KDF buys nothing and a fast
-  digest allows a direct indexed lookup.
-- `auth.Middleware` gains a `TokenAuthenticator` parameter (nil disables). The branch sits
-  ahead of `a.Authenticate`, keyed on the `damson_pat_` prefix, so it behaves identically in
-  both auth modes. On success it sets `CurrentLibraryID` to the token's library **on the
-  request-scoped user copy only** — so `requireLibrary()` needs no change, and a token stays
-  pinned to its library even if the user switches library in the SPA mid-sync.
-  `last_used_at` updates best-effort and never fails a request.
-- `GET`/`POST /api/me/tokens`, `DELETE /api/me/tokens/:id` on the `authed` group (token
-  management is user-level, not library-scoped). Secret returned once, on create. Create and
-  revoke are audited. The secret and its hash are never logged.
-- `web/src/components/settings/ApiTokensSection.tsx`, mirroring `LibraryMembersSection`.
+### Stage 1 — Import source fields
 
-### Stage 2 — Import source fields and preflight
-
-- Migration `020_import_source.sql` — `asset_versions.source_kind`,
-  `.source_relative_path` (indexed), `.source_size_bytes`; `assets.publisher`.
+- Migration `021_import_source.sql` — `asset_versions.source_kind`,
+  `.source_relative_path` (indexed), `.source_size_bytes`. (`assets.publisher` already exists:
+  migration `019_asset_metadata_fields.sql` added it, along with its index and its weight-C
+  entry in the search vector.)
 - `POST /api/imports` accepts optional `source_kind` and `source_relative_path` form fields.
 - `internal/services/imports/source.go` — `ParseUnityCachePath` and `SplitUnityCategory`.
 - `imports.ApplySourceHints`, called from the import pipeline before the enrich stage so
@@ -155,16 +147,22 @@ suits an unattended client, so this is new mechanism rather than a tweak.
 - `exactMatchCandidate` takes the asset's publisher as a hint: prefer candidates whose
   normalised publisher agrees, and let a near-title match qualify on an exact publisher
   match. This is the payoff that turns the cache path from trivia into a disambiguator.
-- `POST /api/imports/preflight` — `{entries: [{relative_path, size_bytes}]}` in,
-  `{results: [{relative_path, status, asset_id?, version_id?}]}` out, with entry count
-  capped:
+### Stage 2 — Widen preflight to path and size
 
-  | status | Meaning | Client behaviour |
-  |---|---|---|
-  | `already_imported` | path + size match an existing version | skip |
-  | `updated` | path matches, size differs | upload as a new version of `asset_id` |
-  | `name_match` | no path match, but `MatchAssetByName` hits | skip unless `--adopt-versions` |
-  | `new` | nothing matches | upload as a new asset |
+`POST /api/imports/preflight` already exists and already answers the name-only question. This
+stage adds the precision the cache needs: the request gains an optional `relative_path` per
+entry, and two statuses join the two that ship today. Same route, same request shape, additive
+response — a client that only understands the existing two keeps working.
+
+| status | Meaning | Client behaviour | Owned by |
+|---|---|---|---|
+| `already_imported` | path + size match an existing version | skip | this spec |
+| `updated` | path matches, size differs | upload as a new version of `asset_id` | this spec |
+| `name_match` | no path match, but the name matcher hits | skip unless `--adopt-versions` | shipped |
+| `new` | nothing matches | upload as a new asset | shipped |
+
+The batch matcher (`imports.NewNameMatcher`) already reads the library once per request; the
+path lookup must join the same way rather than querying per entry.
 
 ### Stage 3 — `internal/unitycache`
 
@@ -177,31 +175,29 @@ reusable if a browser or server-side path is ever added.
   paths shallower than publisher/file; tolerates extra depth by joining the middle segments.
   Symlink- and traversal-safe, mirroring the caps in `extract/unitypackage.go`.
 
-### Stage 4 — `cmd/damson-sync`
+### Stage 4 — `dmsn sync`
+
+Two subcommands on the existing binary, not a second one:
 
 ```
-damson-sync login  --server URL --token damson_pat_…
-damson-sync scan   [--cache-root PATH]
-damson-sync push   [--cache-root PATH] [--dry-run] [--publisher NAME]
-                   [--concurrency N] [--adopt-versions]
-damson-sync status
+dmsn sync scan [--cache-root PATH]
+dmsn sync push [--cache-root PATH] [--dry-run] [--publisher NAME]
+               [--concurrency N] [--adopt-versions]
 ```
 
-- Config at `os.UserConfigDir()/damson/config.json`, mode `0600`. `--token` / `DAMSON_TOKEN`
-  override. `login` verifies against `GET /api/me` before writing, and never echoes the token.
+- Credentials, the HTTP client, the AXI render layer, `--dry-run`, `--concurrency`, the
+  per-item failure handling and the upload path all come from the CLI slice unchanged.
 - `scan` prints publisher / package / size / preflight status, so it doubles as a diff view.
-- `push` = scan → one preflight round trip → upload only what needs it. Default
-  `--concurrency 2`. Per-file failures are logged and skipped rather than fatal; a summary
-  prints at the end and the exit code is non-zero if anything failed. Single-shot POST per
-  file with retry-whole-file; `MaxUploadBytes` still applies and a 413 is reported as such.
+- `push` = scan → one preflight round trip → upload only what needs it, passing `source_kind`
+  and `source_relative_path` on each `POST /api/imports`.
 - No new Go dependency, keeping `task mod:tidy:check` quiet.
-- `task build:sync` and `task build:sync:all` (GOOS/GOARCH matrix into `dist/`), plus a
-  Woodpecker step on release tags. Without distribution a CLI-only feature has no way to
-  reach a user.
+- No distribution plumbing: `task build:cli` builds it, as it does the rest of the CLI.
 
 ## Out of scope
 
 - Any SPA import surface, including the `webkitdirectory` picker described above.
+- Personal access tokens and the CLI itself — both shipped in
+  [`2026-08-01-dmsn-cli.md`](2026-08-01-dmsn-cli.md).
 - UPM `.tgz` packages.
 - Resumable uploads.
 - Two-way sync, or deleting from damson when a package leaves the cache. This is import only.

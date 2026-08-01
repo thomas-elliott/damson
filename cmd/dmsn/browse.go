@@ -68,12 +68,6 @@ func init() {
 		flags:   collPage.register,
 		run:     func(ctx context.Context, e *Env) error { return runCollections(ctx, e, collPage) },
 	})
-	register(&command{
-		name:    "collection",
-		summary: "show one collection and its assets",
-		usage:   "usage: dmsn collection <id>",
-		run:     runCollection,
-	})
 
 	importPage := &pageFlags{}
 	var stage string

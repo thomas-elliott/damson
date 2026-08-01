@@ -94,9 +94,12 @@ damson/
 ├── damson.go                 # //go:embed for migrations + SPA (see below)
 ├── cmd/
 │   ├── server/main.go        # entry point: HTTP server, middleware, wiring
+│   ├── dmsn/                 # the CLI (see §18a); stdlib flag, no new deps
 │   └── e2e-server/main.go    # test-only binary for Playwright (Postgres + /api/test/*)
 ├── internal/
-│   ├── auth/                 # Authenticator interface + local + oidc impls
+│   ├── auth/                 # Authenticator interface + local + oidc + PAT impls
+│   ├── axi/                  # CLI output contract: encoding, projection, errors
+│   ├── toon/                 # emit-only TOON encoder (CLI output format)
 │   ├── config/               # env loading, panic-on-missing
 │   ├── db/                   # gorm.Open, migration runner
 │   ├── handlers/api/         # one file per feature; receivers on *Handler
@@ -1268,6 +1271,67 @@ Alternatives:
 
 ---
 
+## 18a. The `dmsn` CLI
+
+`cmd/dmsn` is a companion binary for scripting a library and for handing
+to an agent. Scoped by
+[`specs/2026-08-01-dmsn-cli.md`](specs/2026-08-01-dmsn-cli.md).
+
+**Credential.** Personal access tokens, `api_tokens` (migration 020). The
+secret is `damson_pat_` + 32 random bytes, base64url, stored as a plain
+SHA-256 hex digest — deliberately *not* bcrypt: the secret is already
+high-entropy, so a slow KDF buys nothing, while a fast digest allows the
+direct indexed lookup every authenticated request performs.
+
+`auth.Middleware(authenticator, tokens)` takes a nil-able
+`*TokenAuthenticator` and branches on the `damson_pat_` prefix *ahead of*
+the mode authenticator, so PATs work identically in local and OIDC
+deployments. On success it pins `CurrentLibraryID` to the token's library
+**on the request-scoped user copy only**, so `requireLibrary()` needs no
+change and a running sync is unaffected by the owner switching library in
+the SPA. `last_used_at` is written at most once a minute and never fails a
+request.
+
+Two rules are enforced in the middleware, not in handlers:
+
+- `scope = 'read'` rejects every non-GET with 403. (Verified safe: no GET
+  handler on the authed surface performs a write.)
+- Token auth is refused outright on `/api/me/tokens` and `/api/admin/*`,
+  so a token can neither mint another token nor reach sysadmin surface.
+  The path check runs *after* authentication, so an invalid token still
+  gets 401 and cannot probe which routes are admin-gated.
+
+**Output contract.** `internal/toon` is an emit-only TOON encoder — tabular
+arrays, primitive arrays, objects, the empty forms, and the quoting rules.
+There is no decoder; nothing in damson reads TOON. `internal/axi` layers the
+[AXI](https://axi.md/) contract on top: the TOON/JSON switch, `--fields`
+projection and validation, truncation with a total-length note, `help[]`
+emission, and the error envelope with its 0/1/2 exit-code mapping. Both are
+pure Go with no I/O beyond a supplied `io.Writer`, so the whole contract is
+table-testable without a command.
+
+Two rules live in the render layer rather than in each command: an empty
+result always states *why* (a bare `key[]:` is not allowed through), and a
+multi-part result must render through `RenderComposite` — rendering the parts
+separately would emit concatenated JSON documents, which do not parse.
+
+**Endpoints added for it.** `GET /api/overview` (the home view in one round
+trip), `POST /api/imports/preflight` (batch name matching, backing
+`--skip-existing`), `max_upload_bytes` read-only on `GET /api/settings`, a
+`token` block on `GET /api/me` describing the authenticating token, and a
+build identifier on `GET /api/health`.
+
+**Folder upload needs no server change.** `.zip` is already a first-class
+package kind, so `upload --as asset` zips a directory client-side and the
+existing `extract.ZipExtractor` unpacks it with relative paths preserved. The
+cost accepted: temp disk equal to the compressed folder, and a retained
+"original package" that is a CLI-synthesised archive.
+
+**Build.** `task build:cli`. There is deliberately no cross-compile matrix,
+no Woodpecker step and no release artefacts — see §19.13.
+
+---
+
 ## 19. Confirmed decisions
 
 Reproduced from the archived tech design §22 and updated where
@@ -1305,3 +1369,9 @@ the code diverges:
 12. Storefront metadata is fetched server-side through one
     SSRF-guarded client, and listing imagery is re-hosted as local
     blobs rather than widening the CSP to store CDNs.
+13. The CLI is named `dmsn`, not `damsonctl`: an agent types it on
+    every call, and the server binary keeps `damson` so the Dockerfile
+    and manifests are untouched. It ships with **no distribution
+    plumbing** — `task build:cli` and `dmsn setup`, nothing else. The
+    accepted consequence is that the binary exists only where someone
+    builds it.
