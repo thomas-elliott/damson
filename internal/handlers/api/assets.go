@@ -412,21 +412,14 @@ func (h *Handler) postImport(c *gin.Context) {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, settings.MaxUploadBytes+multipartOverheadBytes)
 	}
 
-	fh, err := c.FormFile("file")
+	form, src, err := readUploadForm(c.Request)
 	if err != nil {
 		respondUploadError(c, err, "library_id", lib.ID, "user_id", u.ID)
 		return
 	}
-	src, err := fh.Open()
-	if err != nil {
-		slog.Error("import: cannot open spooled upload",
-			"err", err, "library_id", lib.ID, "filename", fh.Filename, "size_bytes", fh.Size)
-		respond500(c, fmt.Errorf("open spooled upload (library %d): %w", lib.ID, err))
-		return
-	}
 	defer src.Close()
 
-	filename := filepath.Base(fh.Filename)
+	filename := filepath.Base(src.FileName())
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "upload"
 	}
@@ -434,7 +427,7 @@ func (h *Handler) postImport(c *gin.Context) {
 	isUnity := ext == ".unitypackage"
 	isZip := ext == ".zip"
 	isArchive := isUnity || isZip
-	contentType := fh.Header.Get("Content-Type")
+	contentType := src.Header.Get("Content-Type")
 	packageKind := packageKindLoose
 	switch {
 	case isUnity:
@@ -444,7 +437,7 @@ func (h *Handler) postImport(c *gin.Context) {
 	}
 
 	var targetAssetID uint
-	if s := strings.TrimSpace(c.PostForm("asset_id")); s != "" {
+	if s := strings.TrimSpace(form.get("asset_id")); s != "" {
 		n, perr := strconv.ParseUint(s, 10, 64)
 		if perr != nil || n == 0 {
 			if perr == nil {
@@ -455,10 +448,10 @@ func (h *Handler) postImport(c *gin.Context) {
 		}
 		targetAssetID = uint(n)
 	}
-	reqStoreVersion := strings.TrimLeft(strings.TrimSpace(c.PostForm("store_version")), "vV")
+	reqStoreVersion := strings.TrimLeft(strings.TrimSpace(form.get("store_version")), "vV")
 
-	sourceKind := strings.TrimSpace(c.PostForm("source_kind"))
-	sourceRelativePath, err := imports.ValidateSource(sourceKind, c.PostForm("source_relative_path"))
+	sourceKind := strings.TrimSpace(form.get("source_kind"))
+	sourceRelativePath, err := imports.ValidateSource(sourceKind, form.get("source_relative_path"))
 	if err != nil {
 		slog.Warn("import: invalid source hint",
 			"err", err, "library_id", lib.ID, "source_kind", sourceKind)
@@ -559,6 +552,9 @@ func (h *Handler) postImport(c *gin.Context) {
 	} else {
 		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
 	}
+	if err == nil {
+		err = form.checkNoTrailingFields()
+	}
 	if err != nil {
 		slog.Error("import: storage put failed",
 			"library_id", lib.ID,
@@ -569,11 +565,19 @@ func (h *Handler) postImport(c *gin.Context) {
 			"package_kind", packageKind,
 			"err", err)
 		if targetAssetID != 0 {
-			h.cleanupFailedVersionUpload(c.Request.Context(), versionID, importID)
+			h.cleanupFailedVersionUpload(context.WithoutCancel(c.Request.Context()), versionID, importID)
 		} else {
-			h.cleanupFailedUpload(c.Request.Context(), assetID)
+			h.cleanupFailedUpload(context.WithoutCancel(c.Request.Context()), assetID)
 		}
-		respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+		switch {
+		case errors.Is(err, errFieldAfterFile):
+			respond400(c, err)
+		case isTransportFailure(err, c.Request.Context().Err()):
+			respondUploadError(c, err,
+				"library_id", lib.ID, "asset_id", assetID, "import_id", importID, "filename", filename)
+		default:
+			respond500(c, fmt.Errorf("storage put (library %d): %w", lib.ID, err))
+		}
 		return
 	}
 
