@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -57,6 +58,9 @@ func (m *s3Multipart) UploadPart(ctx context.Context, n int, size int64, r io.Re
 		PartNumber:    aws.Int32(int32(n)),
 		ContentLength: aws.Int64(size),
 		Body:          r,
+	}, func(o *s3.Options) {
+		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		o.APIOptions = append(o.APIOptions, v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware)
 	})
 	if err != nil {
 		return "", m.s.wrapS3("multipart-part", m.key, err)

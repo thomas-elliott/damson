@@ -372,6 +372,12 @@ overlay and died on page-cache pressure. Nothing here blocks the work.
   stream, hence hash-wasm.
 - `NotificationCentre.tsx` (uploadStatusLine) — hashing a 20 GB file takes long
   enough that a bare progress bar reads as a stalled upload.
+- `s3_multipart.go` (UploadPart signing options) — the chunk body is the HTTP
+  request body, which is not seekable, and SigV4 wants to hash the payload
+  before sending. Over TLS the SDK already switches to UNSIGNED-PAYLOAD; this
+  makes it unconditional so plain-HTTP MinIO works too. Safe because the whole
+  object's SHA-256 is verified server-side before anything is published, and
+  a buffered chunk would put the memory pressure back.
 - `uploads.go` (postUploadSession) — the client declares the content hash, so
   an object damson already holds is imported without transferring a byte and
   everything else writes multipart straight to its final key. No staging.
