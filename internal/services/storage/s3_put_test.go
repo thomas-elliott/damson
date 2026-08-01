@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,10 +70,16 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	case r.Method == http.MethodPost && q.Get("uploadId") != "":
 		id := q.Get("uploadId")
-		_, _ = io.Copy(io.Discard, r.Body)
+		body, _ := io.ReadAll(r.Body)
+		var manifest struct {
+			Parts []struct {
+				PartNumber int `xml:"PartNumber"`
+			} `xml:"Part"`
+		}
+		_ = xml.Unmarshal(body, &manifest)
 		var assembled []byte
-		for i := 1; i <= len(f.parts[id]); i++ {
-			assembled = append(assembled, f.parts[id][i]...)
+		for _, p := range manifest.Parts {
+			assembled = append(assembled, f.parts[id][p.PartNumber]...)
 		}
 		f.objects[key] = assembled
 		delete(f.parts, id)
