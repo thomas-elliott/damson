@@ -78,11 +78,43 @@ func init() {
 }
 
 // item is one unit of work: a file to send as-is, or a directory to zip first.
+// Its importOptions carry what varies per package: a cache sync targets a
+// different asset and source path for each, where upload applies one set of
+// flags to all of them.
 type item struct {
 	path     string
 	filename string
 	zipDir   bool
 	size     int64
+	opts     importOptions
+	// note is a per-item explanation for the plan/report tables, set where the
+	// caller knows something the item itself does not.
+	note string
+}
+
+// importOptions are the non-file form fields of POST /api/imports.
+type importOptions struct {
+	assetID            string
+	storeVersion       string
+	sourceKind         string
+	sourceRelativePath string
+}
+
+func (o importOptions) fields() map[string]string {
+	out := map[string]string{}
+	if o.assetID != "" {
+		out["asset_id"] = o.assetID
+	}
+	if o.storeVersion != "" {
+		out["store_version"] = o.storeVersion
+	}
+	if o.sourceKind != "" {
+		out["source_kind"] = o.sourceKind
+	}
+	if o.sourceRelativePath != "" {
+		out["source_relative_path"] = o.sourceRelativePath
+	}
+	return out
 }
 
 func runUpload(ctx context.Context, e *Env, f *uploadFlags) error {
@@ -115,6 +147,10 @@ func runUpload(ctx context.Context, e *Env, f *uploadFlags) error {
 			return axi.Usagef(nil,
 				"--asset-id applies to a single upload, but %d were resolved", len(items))
 		}
+	}
+	for i := range items {
+		items[i].opts.assetID = f.assetID
+		items[i].opts.storeVersion = f.storeVersion
 	}
 
 	client, err := e.Client()
@@ -330,6 +366,9 @@ func (e *Env) performUpload(ctx context.Context, client *Client, items []item, s
 			defer wg.Done()
 			for i := range queue {
 				outcomes[i] = e.uploadOne(ctx, client, items[i], maxBytes, f)
+				if outcomes[i].detail == "" {
+					outcomes[i].detail = items[i].note
+				}
 			}
 		}()
 	}
@@ -371,7 +410,7 @@ func (e *Env) uploadOne(ctx context.Context, client *Client, it item, maxBytes i
 		return out
 	}
 
-	resp, err := client.PostImport(ctx, it.filename, body, f.assetID, f.storeVersion)
+	resp, err := client.PostImport(ctx, it.filename, body, it.opts)
 	if err != nil {
 		out.status, out.detail = "failed", axi.AsError(err).Message
 		return out
@@ -603,20 +642,21 @@ func quoteAll(args []string) []string {
 
 // PostImport sends one multipart upload. The body is streamed through a pipe
 // so a multi-gigabyte package never lands in memory.
-func (c *Client) PostImport(ctx context.Context, filename string, body io.Reader, assetID, storeVersion string) (*importEnqueueResponse, error) {
+func (c *Client) PostImport(ctx context.Context, filename string, body io.Reader, opts importOptions) (*importEnqueueResponse, error) {
 	pr, pw := io.Pipe()
 	mw := multipart.NewWriter(pw)
+	fields := opts.fields()
+	names := make([]string, 0, len(fields))
+	for k := range fields {
+		names = append(names, k)
+	}
+	sort.Strings(names)
 
 	go func() {
 		var err error
 		defer func() { pw.CloseWithError(err) }()
-		if assetID != "" {
-			if err = mw.WriteField("asset_id", assetID); err != nil {
-				return
-			}
-		}
-		if storeVersion != "" {
-			if err = mw.WriteField("store_version", storeVersion); err != nil {
+		for _, k := range names {
+			if err = mw.WriteField(k, fields[k]); err != nil {
 				return
 			}
 		}
