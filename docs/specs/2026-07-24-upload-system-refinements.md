@@ -1,5 +1,8 @@
 # Upload system refinements
 
+**Status:** implemented — signed off 2026-07-24, merged 2026-07-25 (PR #33, `dca99b2`,
+alongside the versioning refinements).
+
 ## Problem
 
 Four related problems in the upload path:

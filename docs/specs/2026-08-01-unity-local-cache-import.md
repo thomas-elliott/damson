@@ -1,6 +1,7 @@
 # Import assets from the local Unity Asset Store cache
 
-**Status:** signed off (2026-08-01), reconciled against main (2026-08-01) — ready for `implement`.
+**Status:** implemented — signed off and reconciled against main 2026-08-01, merged 2026-08-01
+(PR #38, `531ea5b`).
 **Depends on:** the `dmsn` CLI slice, which took this spec's original stage 1 (personal access
 tokens) and stage 4 (the CLI binary) wholesale and **has shipped** — merged as
 [`2026-08-01-dmsn-cli.md`](2026-08-01-dmsn-cli.md). What remains here is the Unity-specific half:

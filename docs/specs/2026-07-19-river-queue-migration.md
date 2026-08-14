@@ -1,6 +1,6 @@
 # Migrate the self-rolled queues to River
 
-**Status:** signed off (2026-07-19) — ready for `implement`.
+**Status:** implemented — signed off and merged 2026-07-19 (PR #32, `c7a618e`).
 **Alignment artifact:** `.lavish/river-migration-plan.html`.
 **Supersedes the queue mechanism in:** `docs/specs/2026-06-18-preview-processing-queue.md`
 (the per-file `preview_status` state model is *kept*; only the transport changes).
