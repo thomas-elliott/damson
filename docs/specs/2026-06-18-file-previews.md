@@ -1,6 +1,8 @@
 # File Previews for the Scoped File Browser
 
-**Status:** signed off (lavish alignment, 2026-06-18). Ready for `implement`.
+**Status:** implemented — signed off 2026-06-18 (lavish alignment), merged 2026-06-19
+(PR #24, `3fca0ae`). Format coverage is the staged remainder: see the *Preview format
+coverage* gap in [`../progress.md`](../progress.md).
 **Source research:** `docs/archive/preview-research.md` · **Scoping brief:** `docs/archive/preview-feasibility-brief.md`
 
 ## Problem

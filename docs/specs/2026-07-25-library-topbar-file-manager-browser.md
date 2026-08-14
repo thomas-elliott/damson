@@ -1,6 +1,7 @@
 # Library top bar, rail account menu, and a file-manager file browser
 
-Signed off 2026-07-25. Front-end only — no API, schema, or handler changes.
+**Status:** implemented — signed off and merged 2026-07-25 (PR #34, `d2453f8`).
+Front-end only — no API, schema, or handler changes.
 
 ## Problem
 

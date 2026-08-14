@@ -1,6 +1,9 @@
 # Preview Processing Queue & Requeue
 
-**Status:** signed off (2026-06-18) — ready for `implement`.
+**Status:** implemented — signed off 2026-06-18, merged 2026-06-19 (PR #24, `3fca0ae`).
+The `preview_status` state model is still live; the goroutine-pool transport it specified
+was replaced by River — see
+[`2026-07-19-river-queue-migration.md`](2026-07-19-river-queue-migration.md).
 **Origin brief:** `docs/archive/preview-processing-queue-brief.md`.
 **Builds on:** `docs/specs/2026-06-18-file-previews.md` (the previewing feature whose
 validation surfaced these gaps).

@@ -1,5 +1,7 @@
 # Notification Centre (upload queue → persistent notifications)
 
+**Status:** implemented — signed off 2026-07-04, merged 2026-07-05 (PR #25, `ce150ca`).
+
 ## Problem
 
 Three issues surfaced while dogfooding uploads:

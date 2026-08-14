@@ -1,7 +1,8 @@
 # Richer asset metadata fields from storefronts
 
 Date: 2026-07-31
-Status: signed off (lavish alignment session, 2026-07-31)
+**Status:** implemented — signed off 2026-07-31 (lavish alignment session), merged 2026-08-01
+(PR #36, `ab8db02`).
 
 Extends `2026-07-13-storefront-metadata-enrichment.md` and
 `2026-07-24-versioning-and-storefront-metadata-refinements.md`. Same subsystem,

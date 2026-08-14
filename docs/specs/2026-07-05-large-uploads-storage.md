@@ -1,6 +1,9 @@
 # Large uploads & storage overhaul (S3/Garage backend)
 
-Status: signed off 2026-07-05. Ready for `implement`.
+**Status:** implemented — signed off and merged 2026-07-05 (PR #26, `c1114ef`). Superseded on
+the transport side by
+[`2026-08-01-upload-reliability-observability.md`](2026-08-01-upload-reliability-observability.md),
+which removed the double spool and added the chunked resumable path.
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # Large-upload reliability & upload observability
 
-Status: signed off 2026-08-01. Ready for `implement`.
+**Status:** implemented — signed off 2026-08-01, merged 2026-08-02 (PR #39, `510b9ff`).
 
 ## Problem
 

@@ -3,7 +3,8 @@
 What is **actually in the tree**, so a new slice doesn't assume a foundation
 that isn't there.
 
-**Last audited: 2026-07-25** (against `b1cbcec`).
+**Last audited: 2026-08-08** (against `510b9ff`). Every spec in `docs/specs/`
+has shipped; there is no unbuilt spec waiting.
 
 Two eras, and they're tracked differently:
 
@@ -180,6 +181,61 @@ Unity cache-import spec because a local CLI is its own piece of work.
 
 Build with `task build:cli`. Deliberately **no** cross-compile matrix, Woodpecker step or
 release artefacts — the binary exists where someone builds it.
+
+### Richer storefront metadata fields — 2026-07-31 → 08-01
+
+Scoped by
+[`specs/2026-07-31-asset-metadata-fields.md`](specs/2026-07-31-asset-metadata-fields.md).
+Enrichment promoted five fields to asset state and dropped everything else into
+`source_metadata_json`, never to be read again. This is the spec's option C:
+curated typed columns for what's worth querying, an ordered attribute list for
+the store-specific long tail.
+
+- **Thirteen nullable columns on `assets`** (migration 019) — `publisher`,
+  `publisher_url`, `store`, `store_product_id`, `released_at`,
+  `store_updated_at`, `latest_store_version`, `engine`, `min_engine_version`,
+  `price`, `price_currency`, `rating`, `rating_count`. All hand-editable via
+  `PATCH /api/assets/:id`, all fill-blank-only on enrichment. `publisher` joins
+  the search vector at weight C — and the trigger's `UPDATE OF` column list grew
+  with it, which is the half-job gotcha migration 007 documents.
+- **The Unity listing page was already being downloaded and mostly thrown away.**
+  `unityListingGallery` scanned it for the first `"images":` array;
+  `metadata/unity_listing.go` now parses the inlined
+  `ReactDOMrender(…)` → `data.ENTITY` store properly (`Product`,
+  `ProductVersion`, `ProductPublisher`, `ProductTag`, `Category`). No extra
+  request, and it recovers the `entitlementType` / `customLicense` /
+  `licenseText` licence fidelity the 07-13 spec had written off as unobtainable.
+  A parse failure degrades to Coveo-only, never an error.
+- **Two Unity tag defects, fixed forward.** Coveo was asked for `keywords` when
+  the live index field is `ec_keywords`, so Unity keyword tags had *never* been
+  imported; and `ec_category` landed as three malformed flat tags
+  (`" 3d > environments"`). Now one hierarchical path from `ec_category_level3`
+  via `tags.NormalisePath`. Deliberately no backfill — existing malformed tags
+  stay until a re-fetch overwrites them.
+- Sketchfab (geometry + engagement counts, archive formats), itch.io and generic
+  JSON-LD widened to match. itch's `label → value` walker generalised into a
+  full info-table harvest, scoped to the info panel so unrelated page markup
+  can't inject rows.
+- **Attributes are an ordered list, not a map**, persisted inside the existing
+  `source_metadata_json` envelope — no new column, no new table. Read-only:
+  they're re-derivable from a re-fetch, so there's nothing to lose and no merge
+  semantics to design.
+- **`DetailsSection`** in the detail panel — typed fields behind the Overview
+  section's edit-flip, then a "From the store listing" spec sheet.
+  `GET /api/assets/facets` (publisher / store / engine, counted, capped at 50)
+  backs the new sidebar filters, alongside `released_after` and a release-date
+  sort.
+- **Update-available detection.** `updatesAvailableSQL()` compares
+  `latest_store_version` against the asset's `asset_versions.store_version` rows
+  in SQL, badging the grid card and the panel and backing an `updates_available`
+  filter. No polling — it reads whatever the last user-triggered fetch stored.
+  The `dmsn` slice above reuses the same SQL for `GET /api/overview`.
+
+One unrelated pre-existing bug fixed in passing: `WriteAssetFiles` wrote every
+row in a single multi-row `INSERT`, which blew Postgres' 65535 bind-parameter
+cap past roughly five thousand files and aborted the import at finalize.
+`CreateInBatches` inside the caller's transaction, so finalize keeps its
+all-or-nothing behaviour.
 
 ### Library top bar, rail account menu, file-manager browser — 2026-07-25
 
@@ -395,7 +451,7 @@ Deliberate, not forgotten.
 | Terminal upload sessions are never purged | `completed` / `aborted` / `expired` rows accumulate. Small and useful as history; add retention if it ever matters. |
 | Orphan sweep ignores incomplete multiparts | The janitor covers sessions damson knows about. A multipart orphaned some other way is invisible to `FindOrphans`, which lists objects only. |
 | No CLI distribution | `task build:cli` only — no cross-compile matrix, no release artefacts. `dmsn setup` does the discovery work with no install story behind it. Deliberate; revisit if the CLI gets external users. |
-| Name-only preflight | `--skip-existing` matches on normalised title alone, so it cannot tell a duplicate from a genuine new version and skips both. The Unity slice adds path-and-size precision. |
+| Name-only preflight without a source hint | The Unity slice closed this for cache imports: `(source_kind, source_relative_path)` + size answers `already_imported` / `updated` precisely. An entry carrying no source hint still falls back to `name_match` on normalised title alone, which cannot tell a duplicate from a genuine new version — so `--skip-existing` skips both, and `--adopt-versions` (off by default) is what opts into treating a name match as a new version. |
 | Local auth hardening | In-memory rate limiting only (no shared store across replicas), no MFA, minimum-length password floor only. Documented as dev / small-install only. |
 
 ---

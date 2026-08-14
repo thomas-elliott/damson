@@ -2,6 +2,8 @@
 
 `CLAUDE.md` is a symlink to this file — edit `AGENTS.md`.
 
+/implement commits per stage in this repo
+
 ## Project documents
 
 Before making non-trivial changes, read the docs in `docs/`. They describe the code as it stands today.
@@ -10,7 +12,7 @@ Before making non-trivial changes, read the docs in `docs/`. They describe the c
 - `docs/CONVENTIONS.md` — stack, formatting rules, handler patterns, test helpers
 - `docs/design-system.md` — frontend design system spec
 - `docs/progress.md` — what's actually in the tree: the MVP ladder in summary, then post-MVP work slice by slice. Read this before starting a new slice so you know what foundations do (and don't) already exist
-- `docs/specs/` — signed-off specs, `YYYY-MM-DD-slug.md`. Post-MVP work is spec-driven: each file is the agreed scope for one slice, written before implementation and left in place afterwards as the record of *why* it was built that way
+- `docs/specs/` — signed-off specs, `YYYY-MM-DD-slug.md`. Post-MVP work is spec-driven: each file is the agreed scope for one slice, written before implementation and left in place afterwards as the record of *why* it was built that way. Every spec opens with a `**Status:**` line; flip it from `signed off … ready for implement` to `implemented — … merged <date> (PR #N, <sha>)` when the slice lands, and add the slice to `progress.md`, so an unbuilt spec stays visible at a glance
 - `docs/observability.md` — logging shape, request correlation, LogsQL queries
 - `docs/e2e-flows.md` — Playwright coverage: what's tested, what's deliberately not
 - `docs/archive/` — historical inputs, kept verbatim: the original product / technical / UI design docs (Draft v1/v2) that drove M0–M7, plus point-in-time research artefacts (preview feasibility, dependency audit). Section numbers and API shapes have drifted — prefer `architecture.md` for the live shape and consult the archive only for the *why*

@@ -1,7 +1,8 @@
 # Versioning rework + storefront-metadata refinements
 
 Date: 2026-07-24
-Status: signed off (lavish alignment session, 2026-07-24)
+**Status:** implemented — signed off 2026-07-24 (lavish alignment session), merged 2026-07-25
+(PR #33, `dca99b2`).
 
 One PR bundling four areas surfaced by dogfooding. Sizes vary from a
 one-function fix to a versioning-model rework with a schema migration.
