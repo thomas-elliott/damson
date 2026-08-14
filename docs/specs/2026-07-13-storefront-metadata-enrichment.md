@@ -1,7 +1,10 @@
 # Storefront metadata enrichment
 
 Date: 2026-07-13
-Status: signed off (lavish alignment session, 2026-07-13)
+**Status:** implemented — signed off 2026-07-13 (lavish alignment session), merged 2026-07-13/14
+(PRs #27 and #28). Extended by
+[`2026-07-31-asset-metadata-fields.md`](2026-07-31-asset-metadata-fields.md), which corrected
+the Unity field mapping and widened the promoted field set.
 
 ## Problem
 

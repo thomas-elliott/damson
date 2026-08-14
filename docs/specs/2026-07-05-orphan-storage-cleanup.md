@@ -1,6 +1,7 @@
 # Manual orphan storage cleanup
 
-Status: signed off 2026-07-05. Ready for `implement`. Branch: `feat/large-uploads-storage`.
+**Status:** implemented — signed off and merged 2026-07-05 (PR #26, `c1114ef`, branch
+`feat/large-uploads-storage`).
 
 ## Problem
 
