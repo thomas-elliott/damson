@@ -50,7 +50,7 @@ const preview: Preview = {
     theme: {
       name: "Theme",
       description: "Damson theme (dark default, light opt-in)",
-      defaultValue: "dark",
+      defaultValue: (import.meta.env?.STORYBOOK_THEME as "dark" | "light") ?? "dark",
       toolbar: {
         icon: "circlehollow",
         items: [
