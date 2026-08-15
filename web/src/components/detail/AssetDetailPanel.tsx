@@ -268,7 +268,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           <button
             type="button"
             onClick={() => review.mutate(asset.id)}
-            className="inline-flex items-center gap-1 rounded-pill border border-warn-tint bg-warn-tint px-2 py-0.5 text-mono text-warn"
+            className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-soft px-2 py-0.5 text-mono text-warning"
           >
             <StatusDot tone="warn" /> Needs review
             <Check size={11} />
@@ -293,7 +293,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
               onClick={() => removeTag.mutate({ assetId: asset.id, tagId: t.id })}
             >
               {t.path}
-              <span aria-hidden className="ml-1 text-text-3">
+              <span aria-hidden className="ml-1 text-subtle-foreground">
                 ×
               </span>
             </Tag>
@@ -369,7 +369,9 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         >
           {rescan.isPending ? "Rescanning…" : "Rescan package"}
         </Button>
-        {rescanNote && <div className="mb-2 px-1 text-small text-text-3">{rescanNote}</div>}
+        {rescanNote && (
+          <div className="mb-2 px-1 text-small text-subtle-foreground">{rescanNote}</div>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -380,11 +382,11 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         >
           Regenerate previews only
         </Button>
-        <div className="flex items-center justify-between rounded-sm border border-line bg-surface px-2.5 py-2 text-small text-text-2">
+        <div className="flex items-center justify-between rounded-sm border border-border bg-muted px-2.5 py-2 text-small text-muted-foreground">
           <span>
             {asset.files.length} {asset.files.length === 1 ? "file" : "files"}
           </span>
-          <span className="text-mono tabular-nums text-text-3">
+          <span className="text-mono tabular-nums text-subtle-foreground">
             {formatBytes(asset.files.reduce((sum, f) => sum + f.size_bytes, 0))}
           </span>
         </div>
@@ -407,12 +409,12 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       {/* Projects using this asset */}
       <Section title="Projects" accessory={`${asset.projects.length}`} defaultOpen={false}>
         {asset.projects.length === 0 ? (
-          <div className="text-small text-text-4">Not pinned to any project yet</div>
+          <div className="text-small text-faint-foreground">Not pinned to any project yet</div>
         ) : (
           <KeyValueList
             entries={asset.projects.map((p) => ({
               key: p.project_name,
-              value: <span className="font-mono text-text-2">{p.version_label}</span>,
+              value: <span className="font-mono text-muted-foreground">{p.version_label}</span>,
               mono: false,
             }))}
           />
@@ -422,9 +424,9 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       {/* Collections */}
       <Section title="Collections" accessory={`${asset.collections.length}`} defaultOpen={false}>
         {asset.collections.length === 0 ? (
-          <div className="text-small text-text-4">Not in any collections</div>
+          <div className="text-small text-faint-foreground">Not in any collections</div>
         ) : (
-          <ul className="flex flex-col gap-0.5 text-small text-text-2">
+          <ul className="flex flex-col gap-0.5 text-small text-muted-foreground">
             {asset.collections.map((c) => (
               <li key={c.collection_id}>{c.collection_name}</li>
             ))}
@@ -438,7 +440,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       </Section>
 
       {/* Footer actions */}
-      <div className="mt-2 flex items-center justify-between border-t border-line pt-3">
+      <div className="mt-2 flex items-center justify-between border-t border-border pt-3">
         <div className="flex items-center gap-2">
           <Button
             variant="danger"
@@ -532,7 +534,7 @@ function OverviewSection({ asset }: { asset: AssetDetailView }) {
 // scan for doesn't need the section opened. Expanded, LicenceEditor shows the
 // same pill, so the accessory drops away.
 function LicenceSummary({ licence }: { licence: LicenceView | null }) {
-  if (!licence) return <span className="text-small text-text-4">Not set</span>;
+  if (!licence) return <span className="text-small text-faint-foreground">Not set</span>;
   return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} noDot />;
 }
 
@@ -543,7 +545,7 @@ function OverviewRead({ asset }: { asset: AssetDetailView }) {
       {asset.description.trim() ? (
         <ClampedDescription>{asset.description}</ClampedDescription>
       ) : (
-        <p className="text-small text-text-4">No description yet.</p>
+        <p className="text-small text-faint-foreground">No description yet.</p>
       )}
       {/* Source link and the fetch actions share one line — they're all about
           where this asset's metadata comes from. */}
@@ -554,13 +556,13 @@ function OverviewRead({ asset }: { asset: AssetDetailView }) {
             target="_blank"
             rel="noreferrer noopener"
             title={source}
-            className="inline-flex min-w-0 items-center gap-1 pt-1 text-small text-accent hover:underline"
+            className="inline-flex min-w-0 items-center gap-1 pt-1 text-small text-primary hover:underline"
           >
             <span className="truncate">{sourceLabel(source)}</span>
             <ExternalLink size={11} className="shrink-0" />
           </a>
         ) : (
-          <span className="pt-1 text-small text-text-4">No source URL</span>
+          <span className="pt-1 text-small text-faint-foreground">No source URL</span>
         )}
         <MetadataActions asset={asset} />
       </div>
@@ -603,14 +605,14 @@ function ClampedDescription({ children }: { children: string }) {
       >
         <Markdown ref={content}>{children}</Markdown>
         {!expanded && overflows && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-panel to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-card to-transparent" />
         )}
       </div>
       {overflows && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="self-start text-small text-accent hover:underline"
+          className="self-start text-small text-primary hover:underline"
         >
           {expanded ? "Show less" : "Read more"}
         </button>
@@ -719,7 +721,7 @@ function AssetGallery({ images }: { images: AssetImageView[] }) {
   const step = (delta: number) => setIndex(wrapIndex(current + delta, images.length));
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-md border border-line bg-surface">
+    <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border bg-muted">
       <div
         className="flex h-full w-full transition-transform duration-std ease"
         style={{ transform: `translateX(-${current * 100}%)` }}
@@ -760,7 +762,7 @@ function AssetGallery({ images }: { images: AssetImageView[] }) {
 }
 
 function GalleryFrame({ url, className }: { url?: string; className?: string }) {
-  if (!url) return <div className="h-full w-full animate-pulse bg-surface-2" />;
+  if (!url) return <div className="h-full w-full animate-pulse bg-muted" />;
   return <img src={url} alt="" className={cn("h-full w-full", className)} />;
 }
 
@@ -773,7 +775,7 @@ function GalleryArrow({ side, onClick }: { side: "left" | "right"; onClick: () =
       className={cn(
         "absolute top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full",
         "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         side === "left" ? "left-1.5" : "right-1.5",
       )}
     >
@@ -784,7 +786,7 @@ function GalleryArrow({ side, onClick }: { side: "left" | "right"; onClick: () =
 
 function GalleryCount({ current, total }: { current: number; total: number }) {
   return (
-    <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-pill bg-black/60 px-1.5 py-0.5 text-mono tabular-nums text-white">
+    <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-mono tabular-nums text-white">
       {current + 1} / {total}
     </span>
   );
@@ -849,7 +851,7 @@ function GalleryLightbox({
         <div onClick={(e) => e.stopPropagation()}>
           <LightboxArrow side="left" onClick={() => step(-1)} />
           <LightboxArrow side="right" onClick={() => step(1)} />
-          <span className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-pill bg-black/60 px-2 py-0.5 text-mono tabular-nums text-white">
+          <span className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2 py-0.5 text-mono tabular-nums text-white">
             {index + 1} / {images.length}
           </span>
         </div>
@@ -867,7 +869,7 @@ function LightboxArrow({ side, onClick }: { side: "left" | "right"; onClick: () 
       className={cn(
         "absolute top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full",
         "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         side === "left" ? "left-4" : "right-4",
       )}
     >
@@ -976,7 +978,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
 function AssetAuditSection({ assetId }: { assetId: number }) {
   const { data: entries, loading } = useAssetAudit(assetId);
   if (loading) {
-    return <div className="text-small text-text-4">Loading…</div>;
+    return <div className="text-small text-faint-foreground">Loading…</div>;
   }
   return (
     <AuditList

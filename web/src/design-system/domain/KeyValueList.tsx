@@ -33,8 +33,8 @@ export function KeyValueList({
     >
       {entries.map((entry, i) => (
         <div key={i} className="contents">
-          <dt className="text-text-3">{entry.key}</dt>
-          <dd className={cn("m-0 break-words text-text-2", entry.mono && "font-mono")}>
+          <dt className="text-subtle-foreground">{entry.key}</dt>
+          <dd className={cn("m-0 break-words text-muted-foreground", entry.mono && "font-mono")}>
             {entry.value}
           </dd>
         </div>

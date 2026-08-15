@@ -65,13 +65,13 @@ export function useUploadIntent() {
           <DialogTitle>How should we handle this upload?</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-ui text-text-2">
+          <p className="text-ui text-muted-foreground">
             You dropped {info.fileCount} files
             {info.folderName ? ` from “${info.folderName}”` : ""} ({formatBytes(info.totalBytes)}).
             Bundle them into a single asset, or upload each file as its own asset?
           </p>
           {large && (
-            <p className="mt-2 text-small text-warn">
+            <p className="mt-2 text-small text-warning">
               This is a large bundle — zipping it in the browser may take a while and use a lot of
               memory. You can still proceed.
             </p>

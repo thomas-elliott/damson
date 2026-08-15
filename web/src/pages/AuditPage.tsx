@@ -70,17 +70,17 @@ export function AuditPage() {
               />
             </div>
           </Toolbar>
-          <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
             {ACTION_FILTERS.map((f) => (
               <button
                 key={f.value}
                 type="button"
                 onClick={() => setParam("action", f.value)}
                 className={cn(
-                  "h-[22px] rounded-pill border px-2.5 text-small transition-colors duration-std ease",
+                  "h-[22px] rounded-full border px-2.5 text-small transition-colors duration-std ease",
                   action === f.value
-                    ? "border-accent bg-accent-tint text-text"
-                    : "border-line bg-panel text-text-2 hover:text-text",
+                    ? "border-primary bg-primary-soft text-foreground"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground",
                 )}
               >
                 {f.label}
@@ -89,7 +89,7 @@ export function AuditPage() {
           </div>
           <div className="mx-auto w-full max-w-[960px] p-3">
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+              <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
                 Loading…
               </div>
             ) : (

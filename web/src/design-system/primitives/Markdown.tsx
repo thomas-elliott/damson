@@ -28,7 +28,7 @@ export const Markdown = forwardRef<HTMLDivElement, MarkdownProps>(function Markd
 ) {
   const tree = parser.parse(children);
   return (
-    <div ref={ref} className={cn("flex flex-col gap-2 text-ui text-text-2", className)}>
+    <div ref={ref} className={cn("flex flex-col gap-2 text-ui text-muted-foreground", className)}>
       {renderChildren(tree.topNode, children, "inline")}
     </div>
   );
@@ -56,9 +56,9 @@ const SKIPPED = new Set([
 ]);
 
 const HEADING_CLASS: Record<number, string> = {
-  1: "text-subhead-semibold text-text",
-  2: "text-ui font-semibold text-text",
-  3: "text-ui font-medium text-text",
+  1: "text-subhead-semibold text-foreground",
+  2: "text-ui font-semibold text-foreground",
+  3: "text-ui font-medium text-foreground",
 };
 
 function renderChildren(node: SyntaxNode, src: string, mode: Mode): ReactNode[] {
@@ -129,7 +129,7 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
     const done = /^\[[xX]\]/.test(src.slice(node.from, node.to));
     return (
       <Fragment key={key}>
-        <span aria-hidden className="mr-1 text-mono text-text-3">
+        <span aria-hidden className="mr-1 text-mono text-subtle-foreground">
           {done ? "[x]" : "[ ]"}
         </span>
         <span className="sr-only">{done ? "Done: " : "To do: "}</span>
@@ -139,7 +139,10 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
   }
   if (name === "Blockquote") {
     return (
-      <blockquote key={key} className="flex flex-col gap-2 border-l-2 border-line-2 pl-2.5 italic">
+      <blockquote
+        key={key}
+        className="flex flex-col gap-2 border-l-2 border-border-strong pl-2.5 italic"
+      >
         {renderChildren(node, src, "block")}
       </blockquote>
     );
@@ -148,7 +151,7 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
     return (
       <pre
         key={key}
-        className="overflow-x-auto rounded-sm border border-line bg-surface p-2 text-mono text-text-2"
+        className="overflow-x-auto rounded-sm border border-border bg-muted p-2 text-mono text-muted-foreground"
       >
         <code>{codeText(node, src)}</code>
       </pre>
@@ -156,7 +159,7 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
   }
   if (name === "InlineCode") {
     return (
-      <code key={key} className="rounded-sm bg-surface px-1 py-0.5 text-mono text-text">
+      <code key={key} className="rounded-sm bg-muted px-1 py-0.5 text-mono text-foreground">
         {stripMarks(node, src)}
       </code>
     );
@@ -164,14 +167,14 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
   if (name === "Emphasis") return <em key={key}>{inline()}</em>;
   if (name === "StrongEmphasis") {
     return (
-      <strong key={key} className="font-semibold text-text">
+      <strong key={key} className="font-semibold text-foreground">
         {inline()}
       </strong>
     );
   }
   if (name === "Strikethrough") {
     return (
-      <del key={key} className="text-text-3">
+      <del key={key} className="text-subtle-foreground">
         {inline()}
       </del>
     );
@@ -187,7 +190,7 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
         href={href}
         target="_blank"
         rel="noreferrer noopener"
-        className="break-words text-accent hover:underline"
+        className="break-words text-primary hover:underline"
       >
         {label}
       </a>
@@ -206,13 +209,13 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
         href={href}
         target="_blank"
         rel="noreferrer noopener"
-        className="text-accent hover:underline"
+        className="text-primary hover:underline"
       >
         {alt}
       </a>
     );
   }
-  if (name === "HorizontalRule") return <hr key={key} className="border-line" />;
+  if (name === "HorizontalRule") return <hr key={key} className="border-border" />;
   if (name === "HardBreak") return <br key={key} />;
   if (name === "Escape") return <Fragment key={key}>{src.slice(node.from + 1, node.to)}</Fragment>;
   if (name === "Entity") return <Fragment key={key}>{src.slice(node.from, node.to)}</Fragment>;
@@ -251,11 +254,11 @@ function cellNodes(row: SyntaxNode, src: string, header: boolean): ReactNode[] {
     const content = renderChildren(child, src, "inline");
     out.push(
       header ? (
-        <th key={key++} className="border-b border-line px-2 py-1 text-left text-text">
+        <th key={key++} className="border-b border-border px-2 py-1 text-left text-foreground">
           {content}
         </th>
       ) : (
-        <td key={key++} className="border-b border-line px-2 py-1">
+        <td key={key++} className="border-b border-border px-2 py-1">
           {content}
         </td>
       ),

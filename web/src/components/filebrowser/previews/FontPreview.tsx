@@ -46,31 +46,34 @@ export default function FontPreview({ node }: { node: FileNode }) {
 
   if (failed) {
     return (
-      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-text-3">
+      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-subtle-foreground">
         Couldn’t load this font.
       </div>
     );
   }
 
   return (
-    <div className="flex h-full w-full flex-col gap-3 overflow-auto bg-surface p-4">
+    <div className="flex h-full w-full flex-col gap-3 overflow-auto bg-muted p-4">
       <input
         aria-label="Specimen text"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="w-full rounded-md border border-line bg-bg px-2.5 py-1.5 text-ui text-text outline-none focus:border-accent-2"
+        className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-ui text-foreground outline-none focus:border-primary-hover"
       />
       <div style={{ fontFamily: loaded ? family : undefined }} className="flex flex-col gap-2">
         {SIZES.map((size) => (
           <div key={size} className="flex items-baseline gap-3">
-            <span className="w-9 shrink-0 font-mono text-[10px] text-text-4">{size}</span>
-            <span style={{ fontSize: size, lineHeight: 1.2 }} className="break-words text-text">
+            <span className="w-9 shrink-0 font-mono text-[10px] text-faint-foreground">{size}</span>
+            <span
+              style={{ fontSize: size, lineHeight: 1.2 }}
+              className="break-words text-foreground"
+            >
               {text || DEFAULT_SPECIMEN}
             </span>
           </div>
         ))}
       </div>
-      {!loaded && <div className="text-small text-text-4">Loading font…</div>}
+      {!loaded && <div className="text-small text-faint-foreground">Loading font…</div>}
     </div>
   );
 }

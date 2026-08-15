@@ -116,10 +116,10 @@ export function LicenceEditor({
         </div>
         <AttributeGrid attrs={existing.attributes} />
         <details className="group">
-          <summary className="cursor-pointer select-none text-small text-text-3 hover:text-text">
+          <summary className="cursor-pointer select-none text-small text-subtle-foreground hover:text-foreground">
             Original text
           </summary>
-          <pre className="mt-2 max-h-[240px] overflow-auto rounded-sm border border-line bg-bg p-2 text-mono text-text-2 whitespace-pre-wrap">
+          <pre className="mt-2 max-h-[240px] overflow-auto rounded-sm border border-border bg-background p-2 text-mono text-muted-foreground whitespace-pre-wrap">
             {existing.original_text}
           </pre>
         </details>
@@ -141,7 +141,7 @@ export function LicenceEditor({
         />
       </FieldRow>
       {detection && (
-        <div className="flex flex-col gap-2 rounded-md border border-line-2 bg-bg p-2.5">
+        <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-background p-2.5">
           <div className="flex items-center gap-2">
             <LicencePill status={detection.status} spdx={detection.detected_type || "Unknown"} />
             <Badge size="sm" mono>
@@ -157,7 +157,7 @@ export function LicenceEditor({
         </div>
       )}
       {error && (
-        <div className="flex items-center gap-1 text-small text-err">
+        <div className="flex items-center gap-1 text-small text-destructive">
           <X size={11} /> {error}
         </div>
       )}
@@ -198,7 +198,9 @@ function AttributeGrid({ attrs }: { attrs: LicenceAttributes }) {
       value: (
         <span className="inline-flex items-center gap-1.5">
           <StatusDot tone={tone} />
-          <span className={tone === "unk" ? "text-text-3" : "text-text-2"}>{value}</span>
+          <span className={tone === "unk" ? "text-subtle-foreground" : "text-muted-foreground"}>
+            {value}
+          </span>
         </span>
       ),
     };

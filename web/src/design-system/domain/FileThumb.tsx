@@ -64,13 +64,13 @@ export function FilePlaceholder({ node, large, className, style }: FilePlacehold
     <div
       aria-hidden
       className={cn(
-        "grid h-full w-full place-items-center gap-1.5 bg-surface text-text-3",
+        "grid h-full w-full place-items-center gap-1.5 bg-muted text-subtle-foreground",
         className,
       )}
       style={style}
     >
       <FileGlyph ftype={node.ftype} size={large ? 30 : 22} strokeWidth={1.4} />
-      <span className="font-mono text-[10px] uppercase tracking-wide text-text-4">
+      <span className="font-mono text-[10px] uppercase tracking-wide text-faint-foreground">
         {node.ext.replace(".", "") || "file"}
       </span>
     </div>
