@@ -45,13 +45,13 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <p data-slot="empty-state-title" className="text-base font-medium text-foreground">
+      <p data-slot="empty-state-title" className="text-subhead font-medium text-foreground">
         {title}
       </p>
       {description && (
         <p
           data-slot="empty-state-description"
-          className="max-w-[42ch] text-sm text-muted-foreground"
+          className="max-w-[42ch] text-body text-muted-foreground"
         >
           {description}
         </p>
