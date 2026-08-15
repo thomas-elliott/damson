@@ -60,7 +60,7 @@ export function StorageCleanupSection() {
         selectedBytes,
       )} from storage. Each object is re-checked immediately before deletion; anything referenced again is skipped.`,
       confirmLabel: "Delete",
-      tone: "danger",
+      tone: "destructive",
     });
     if (!ok) return;
     del.mutate(keys, {
@@ -171,7 +171,7 @@ export function StorageCleanupSection() {
               {selected.size} selected · {formatBytes(selectedBytes)}
             </span>
             <Button
-              variant="danger"
+              variant="destructive"
               onClick={runDelete}
               disabled={selected.size === 0 || del.isPending}
             >

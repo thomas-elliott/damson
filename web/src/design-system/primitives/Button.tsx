@@ -1,87 +1,26 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import {
+  Button as RegistryButton,
+  buttonVariants,
+  type ButtonProps as RegistryButtonProps,
+} from "@/components/ui/button";
+import { cn } from "@/design-system/utils";
 
-import { cn, cva, type VariantProps } from "@/design-system/utils";
+const SOFT_DESTRUCTIVE = [
+  "bg-destructive-soft text-destructive border-destructive/40",
+  "hover:bg-destructive/20 hover:border-destructive/60",
+  "active:bg-destructive/25",
+  "data-[pressed=true]:bg-destructive/25",
+].join(" ");
 
-const button = cva(
-  [
-    "inline-flex items-center justify-center gap-1.5 rounded-sm font-medium whitespace-nowrap",
-    "transition-colors duration-std ease",
-    "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
-    "disabled:cursor-not-allowed disabled:opacity-40",
-  ],
-  {
-    variants: {
-      variant: {
-        // Filled — primary call to action.
-        primary: [
-          "bg-primary text-primary-foreground border border-transparent",
-          "hover:bg-primary-hover",
-          "active:bg-primary-hover",
-          "data-[pressed=true]:bg-primary-hover",
-        ],
-        // Bordered neutral — visible weight at rest.
-        secondary: [
-          "bg-muted text-muted-foreground border border-border",
-          "hover:bg-accent hover:text-foreground hover:border-border-strong",
-          "active:bg-accent",
-          "data-[pressed=true]:bg-accent data-[pressed=true]:text-foreground data-[pressed=true]:border-border-strong",
-        ],
-        // Minimal — transparent at rest, reveals on hover.
-        ghost: [
-          "bg-transparent text-subtle-foreground border border-transparent",
-          "hover:bg-muted hover:text-foreground",
-          "active:bg-muted",
-          "data-[pressed=true]:bg-muted data-[pressed=true]:text-foreground",
-        ],
-        // Destructive — muted red tint with red text.
-        danger: [
-          "bg-destructive-soft text-destructive border border-destructive/40",
-          "hover:bg-destructive/20 hover:border-destructive/60",
-          "active:bg-destructive/25",
-          "data-[pressed=true]:bg-destructive/25",
-        ],
-      },
-      size: {
-        sm: "h-6 px-2 text-small",
-        md: "h-7 px-2.5 text-ui",
-      },
-    },
-    defaultVariants: { variant: "secondary", size: "md" },
-  },
-);
+export type ButtonProps = RegistryButtonProps;
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof button> & {
-    leadingIcon?: ReactNode;
-    trailingIcon?: ReactNode;
-    pressed?: boolean;
-  };
+export function Button({ variant, className, ...props }: ButtonProps) {
+  if (variant === "destructive") {
+    return (
+      <RegistryButton variant="secondary" className={cn(SOFT_DESTRUCTIVE, className)} {...props} />
+    );
+  }
+  return <RegistryButton variant={variant} className={className} {...props} />;
+}
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  {
-    className,
-    variant,
-    size,
-    leadingIcon,
-    trailingIcon,
-    pressed,
-    children,
-    type = "button",
-    ...props
-  },
-  ref,
-) {
-  return (
-    <button
-      ref={ref}
-      type={type}
-      data-pressed={pressed ? "true" : undefined}
-      className={cn(button({ variant, size }), className)}
-      {...props}
-    >
-      {leadingIcon}
-      {children}
-      {trailingIcon}
-    </button>
-  );
-});
+export { buttonVariants };

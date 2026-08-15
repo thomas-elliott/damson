@@ -78,7 +78,7 @@ export function ProjectDetailPage() {
               Pin asset
             </Button>
             <Button
-              variant="danger"
+              variant="destructive"
               leadingIcon={<Trash2 size={12} />}
               onClick={async () => {
                 if (!project) return;
@@ -86,7 +86,7 @@ export function ProjectDetailPage() {
                   title: `Delete project "${project.name}"?`,
                   description: "Pinned assets stay in your library — only the project is removed.",
                   confirmLabel: "Delete project",
-                  tone: "danger",
+                  tone: "destructive",
                 });
                 if (ok) {
                   del.mutate(project.id, {

@@ -443,14 +443,14 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       <div className="mt-2 flex items-center justify-between border-t border-border pt-3">
         <div className="flex items-center gap-2">
           <Button
-            variant="danger"
+            variant="destructive"
             leadingIcon={<Trash2 size={12} />}
             onClick={async () => {
               const ok = await confirm({
                 title: `Delete "${asset.name}"?`,
                 description: "This removes all versions and files.",
                 confirmLabel: "Delete asset",
-                tone: "danger",
+                tone: "destructive",
               });
               if (ok) del.mutate(asset.id);
             }}
@@ -898,7 +898,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
       title: "Delete this version?",
       description: "Its files are removed. A pinned version can't be deleted.",
       confirmLabel: "Delete version",
-      tone: "danger",
+      tone: "destructive",
     });
     if (ok) del.mutate({ assetId, versionId: version.id });
   };

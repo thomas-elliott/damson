@@ -10,7 +10,7 @@ const meta: Meta<typeof Button> = {
   argTypes: {
     variant: {
       control: { type: "select" },
-      options: ["primary", "secondary", "ghost", "danger"],
+      options: ["primary", "secondary", "ghost", "destructive"],
     },
     size: {
       control: { type: "inline-radio" },
@@ -27,7 +27,7 @@ export const Primary: Story = { args: { variant: "primary" } };
 export const Secondary: Story = { args: { variant: "secondary" } };
 export const Ghost: Story = { args: { variant: "ghost" } };
 export const Danger: Story = {
-  args: { variant: "danger", children: "Delete" },
+  args: { variant: "destructive", children: "Delete" },
 };
 
 export const Variants: Story = {
@@ -36,7 +36,7 @@ export const Variants: Story = {
       <Button variant="primary">Primary</Button>
       <Button variant="secondary">Secondary</Button>
       <Button variant="ghost">Ghost</Button>
-      <Button variant="danger">Danger</Button>
+      <Button variant="destructive">Danger</Button>
     </div>
   ),
 };
@@ -50,7 +50,7 @@ export const WithIcons: Story = {
       <Button variant="secondary" leadingIcon={<Download size={12} />}>
         Export
       </Button>
-      <Button variant="danger" leadingIcon={<Trash2 size={12} />}>
+      <Button variant="destructive" leadingIcon={<Trash2 size={12} />}>
         Delete
       </Button>
     </div>
@@ -88,12 +88,12 @@ function StateRow({ label, pseudoClass, children }: React.PropsWithChildren<Stat
 }
 
 const ROW_VARIANTS: Array<{
-  variant: "primary" | "secondary" | "ghost" | "danger";
+  variant: "primary" | "secondary" | "ghost" | "destructive";
 }> = [
   { variant: "primary" },
   { variant: "secondary" },
   { variant: "ghost" },
-  { variant: "danger" },
+  { variant: "destructive" },
 ];
 
 /**

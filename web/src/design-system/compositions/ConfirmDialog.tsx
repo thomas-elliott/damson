@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/design-system/primitives";
 
-export type ConfirmTone = "default" | "danger";
+export type ConfirmTone = "default" | "destructive";
 
 export type ConfirmOptions = {
   title: string;
@@ -62,7 +62,7 @@ export function ConfirmDialog({
             {cancelLabel}
           </Button>
           <Button
-            variant={tone === "danger" ? "danger" : "primary"}
+            variant={tone === "destructive" ? "destructive" : "primary"}
             onClick={() => {
               onConfirm();
               onOpenChange(false);
@@ -83,7 +83,7 @@ export function ConfirmDialog({
  *   const { confirm, dialog } = useConfirm();
  *   ...
  *   onClick={async () => {
- *     if (await confirm({ title: "Delete?", tone: "danger" })) {
+ *     if (await confirm({ title: "Delete?", tone: "destructive" })) {
  *       del.mutate(id);
  *     }
  *   }}
