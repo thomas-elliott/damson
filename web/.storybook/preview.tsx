@@ -11,11 +11,11 @@ function ThemeFrame({ theme, children }: { theme: "dark" | "light"; children: Re
   }, [theme]);
   return (
     <div
-      className={`${theme === "dark" ? "dark " : ""}bg-bg text-text`}
+      className={`${theme === "dark" ? "dark " : ""}bg-background text-foreground`}
       style={{
         padding: 24,
         minWidth: 320,
-        fontFamily: "var(--ds-font-sans)",
+        fontFamily: "var(--font-sans)",
       }}
     >
       {children}

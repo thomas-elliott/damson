@@ -41,7 +41,7 @@ export interface FileBrowserToolbarProps {
 }
 
 const crumbButton =
-  "rounded-sm text-text-2 transition-colors duration-std ease hover:text-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring";
+  "rounded-sm text-muted-foreground transition-colors duration-std ease hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Breadcrumb path navigation + active filter chips + grid/list toggle. */
 export function FileBrowserToolbar({
@@ -85,7 +85,9 @@ export function FileBrowserToolbar({
         {resultsMode ? (
           <>
             <BreadcrumbSeparator />
-            <span className="text-text">{trimmedQuery ? `“${trimmedQuery}”` : "Filtered"}</span>
+            <span className="text-foreground">
+              {trimmedQuery ? `“${trimmedQuery}”` : "Filtered"}
+            </span>
           </>
         ) : (
           path.map((seg, i) => (
@@ -95,7 +97,7 @@ export function FileBrowserToolbar({
                 type="button"
                 aria-current={i === path.length - 1 ? "page" : undefined}
                 onClick={() => onNavigate(path.slice(0, i + 1))}
-                className={cn(crumbButton, "aria-[current=page]:text-text")}
+                className={cn(crumbButton, "aria-[current=page]:text-foreground")}
               >
                 {seg}
               </button>
@@ -106,7 +108,7 @@ export function FileBrowserToolbar({
 
       {activeTypes.length > 0 && (
         <>
-          <span className="h-4 w-px bg-line" aria-hidden />
+          <span className="h-4 w-px bg-border" aria-hidden />
           {activeTypes.map((ftype) => (
             <Chip key={ftype} label="type:" onRemove={() => onToggleType?.(ftype)}>
               {fileTypeMeta(ftype).label}

@@ -97,9 +97,9 @@ function DangerZone({ library }: { library: MeLibrary }) {
   const [open, setOpen] = useState(false);
   return (
     <Section title="Danger zone" defaultOpen={false}>
-      <div className="flex items-start justify-between gap-4 rounded-md border border-err/40 bg-err-tint/30 p-3">
+      <div className="flex items-start justify-between gap-4 rounded-md border border-destructive/40 bg-destructive-soft/30 p-3">
         <div className="flex flex-col">
-          <span className="text-ui text-text">Delete this library</span>
+          <span className="text-ui text-foreground">Delete this library</span>
           <span className="text-caption">
             Removes every asset, project, collection, tag, setting, and member of{" "}
             <span className="font-mono">{library.name}</span>. Blob storage is untouched. This can't
@@ -171,7 +171,7 @@ function DeleteLibraryForm({
         <DialogTitle>Delete library?</DialogTitle>
       </DialogHeader>
       <DialogBody>
-        <p className="text-ui text-text-2">
+        <p className="text-ui text-muted-foreground">
           All assets, projects, collections, tags, settings, and member roles for{" "}
           <span className="font-mono">{library.name}</span> will be removed. Members will be signed
           out of any open sessions.
@@ -184,7 +184,7 @@ function DeleteLibraryForm({
             placeholder={library.name}
           />
         </FieldRow>
-        {error && <p className="text-small text-err">{error}</p>}
+        {error && <p className="text-small text-destructive">{error}</p>}
       </DialogBody>
       <DialogFooter>
         <Button variant="ghost" onClick={() => onOpenChange(false)}>

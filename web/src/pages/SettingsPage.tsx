@@ -51,7 +51,7 @@ export function SettingsPage() {
               description="You need to be in a library to configure its settings."
             />
           ) : loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading…
             </div>
           ) : !settings ? (
@@ -60,8 +60,8 @@ export function SettingsPage() {
             <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
                 <header>
-                  <h1 className="text-heading text-text">Library settings</h1>
-                  <p className="mt-1 text-ui text-text-3">
+                  <h1 className="text-heading text-foreground">Library settings</h1>
+                  <p className="mt-1 text-ui text-subtle-foreground">
                     Applies to <span className="font-mono">{me.current_library.name}</span>. Changes
                     are audited.
                     {!isAdmin && <> You have read-only access — ask a library admin to edit.</>}
@@ -306,7 +306,7 @@ function FormRow({
   return (
     <div className="flex items-center justify-between gap-4 py-2">
       <div className="flex flex-col">
-        <span className="text-ui text-text">{label}</span>
+        <span className="text-ui text-foreground">{label}</span>
         {help && <span className="text-caption">{help}</span>}
       </div>
       {children}

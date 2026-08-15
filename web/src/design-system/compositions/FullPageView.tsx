@@ -25,8 +25,8 @@ export function FullPageView({
   ...props
 }: FullPageViewProps) {
   return (
-    <div className={cn("flex h-full flex-col bg-bg", className)} {...props}>
-      <header className="flex shrink-0 items-center gap-2 border-b border-line bg-bg px-3.5 py-2.5">
+    <div className={cn("flex h-full flex-col bg-background", className)} {...props}>
+      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-3.5 py-2.5">
         {header}
       </header>
       <div
@@ -38,7 +38,7 @@ export function FullPageView({
             <div className="w-full max-w-[640px]">{preview}</div>
           </div>
         </ScrollArea>
-        <ScrollArea className="border-l border-line bg-panel">
+        <ScrollArea className="border-l border-border bg-card">
           <div className="px-3.5 py-3">{side}</div>
         </ScrollArea>
       </div>

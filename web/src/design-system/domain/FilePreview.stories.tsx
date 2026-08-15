@@ -28,7 +28,7 @@ const SAMPLE_IMAGE =
   );
 
 const frame = (children: ReactNode) => (
-  <div className="h-[220px] w-[220px] overflow-hidden rounded-md border border-line bg-bg">
+  <div className="h-[220px] w-[220px] overflow-hidden rounded-md border border-border bg-background">
     {children}
   </div>
 );

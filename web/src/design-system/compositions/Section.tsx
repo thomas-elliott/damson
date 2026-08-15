@@ -41,7 +41,7 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
   const bodyId = useId();
 
   return (
-    <section ref={ref} className={cn("border-b border-line", className)} {...props}>
+    <section ref={ref} className={cn("border-b border-border", className)} {...props}>
       <div className="flex items-center">
         <button
           type="button"
@@ -49,15 +49,15 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
           aria-controls={bodyId}
           onClick={() => setOpen(!open)}
           className={cn(
-            "flex flex-1 items-center gap-1.5 px-3 py-3 text-left text-ui text-text-2 transition-colors duration-std ease",
-            "hover:text-text",
-            "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+            "flex flex-1 items-center gap-1.5 px-3 py-3 text-left text-ui text-muted-foreground transition-colors duration-std ease",
+            "hover:text-foreground",
+            "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           )}
         >
           <ChevronRight
             size={12}
             className={cn(
-              "text-text-3 transition-transform duration-slow ease",
+              "text-subtle-foreground transition-transform duration-slow ease",
               open && "rotate-90",
             )}
           />

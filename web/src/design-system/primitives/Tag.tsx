@@ -4,12 +4,12 @@ import { Plus } from "lucide-react";
 import { cn, cva, type VariantProps } from "@/design-system/utils";
 
 const tag = cva(
-  "inline-flex h-[22px] items-center gap-1 rounded-pill px-2 text-small transition-colors duration-std ease",
+  "inline-flex h-[22px] items-center gap-1 rounded-full px-2 text-small transition-colors duration-std ease",
   {
     variants: {
       variant: {
-        solid: "border border-line bg-surface text-text-2 hover:text-text",
-        add: "border border-dashed border-line-2 bg-transparent text-text-3 hover:border-text-4 hover:text-text-2",
+        solid: "border border-border bg-muted text-muted-foreground hover:text-foreground",
+        add: "border border-dashed border-border-strong bg-transparent text-subtle-foreground hover:border-faint-foreground hover:text-muted-foreground",
       },
     },
     defaultVariants: { variant: "solid" },

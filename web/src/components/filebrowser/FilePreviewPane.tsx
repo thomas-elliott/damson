@@ -16,7 +16,7 @@ const DerivativePreview = lazy(() => import("./previews/DerivativePreview"));
 
 function PaneLoading() {
   return (
-    <div className="grid h-full w-full place-items-center text-ui text-text-3">
+    <div className="grid h-full w-full place-items-center text-ui text-subtle-foreground">
       Loading preview…
     </div>
   );

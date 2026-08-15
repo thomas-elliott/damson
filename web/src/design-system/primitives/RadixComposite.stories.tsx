@@ -56,13 +56,13 @@ export const TabsExample: Story = {
           Activity <TabCount>7</TabCount>
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="assets" className="pt-4 text-ui text-text-2">
+      <TabsContent value="assets" className="pt-4 text-ui text-muted-foreground">
         Assets pinned to this project.
       </TabsContent>
-      <TabsContent value="manifest" className="pt-4 text-ui text-text-2">
+      <TabsContent value="manifest" className="pt-4 text-ui text-muted-foreground">
         The project manifest JSON.
       </TabsContent>
-      <TabsContent value="activity" className="pt-4 text-ui text-text-2">
+      <TabsContent value="activity" className="pt-4 text-ui text-muted-foreground">
         Recent activity.
       </TabsContent>
     </Tabs>
@@ -116,7 +116,7 @@ export const DropdownMenuExample: Story = {
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>
-            <Trash2 size={12} className="text-err" /> Remove sort
+            <Trash2 size={12} className="text-destructive" /> Remove sort
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -134,8 +134,8 @@ export const PopoverExample: Story = {
       </PopoverTrigger>
       <PopoverContent className="min-w-[240px]">
         <div className="flex flex-col gap-2">
-          <div className="text-label text-text-4">Quick info</div>
-          <p className="text-small text-text-2">
+          <div className="text-label text-faint-foreground">Quick info</div>
+          <p className="text-small text-muted-foreground">
             Drop-in popover container. Use for rich content (filters, details) that needs more room
             than a dropdown menu.
           </p>
@@ -180,11 +180,11 @@ export const DialogExample: Story = {
             later.
           </DialogDescription>
           <label className="flex flex-col gap-1.5 text-small">
-            <span className="text-text-4">Name</span>
+            <span className="text-faint-foreground">Name</span>
             <Input placeholder="Crystal Quest" autoFocus />
           </label>
           <label className="flex flex-col gap-1.5 text-small">
-            <span className="text-text-4">Path</span>
+            <span className="text-faint-foreground">Path</span>
             <Input placeholder="~/Dev/crystal-quest" />
           </label>
         </DialogBody>

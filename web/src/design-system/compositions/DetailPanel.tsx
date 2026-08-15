@@ -13,7 +13,7 @@ export interface DetailPanelProps extends Omit<HTMLAttributes<HTMLElement>, "tit
   actions?: ReactNode;
   /** Called when the user clicks the close button or presses Escape. */
   onClose?: () => void;
-  /** Override width (px). Defaults to `--ds-detail-w` (440px). */
+  /** Override width (px). Defaults to `--detail-w` (440px). */
   width?: number | string;
   children: ReactNode;
   /** `overlay` floats above main (box-shadow, z-detail). `flush` sits in flow. */
@@ -66,7 +66,7 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
       ref={ref}
       aria-label="Details"
       className={cn(
-        "flex h-full flex-col border-l border-line bg-panel text-text",
+        "flex h-full flex-col border-l border-border bg-card text-foreground",
         variant === "overlay" &&
           !fullscreen &&
           "absolute right-0 top-0 z-detail animate-slide-in-right shadow-elevated",
@@ -92,8 +92,8 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
           />
         </div>
       )}
-      <header className="flex shrink-0 items-center gap-2 border-b border-line px-3.5 py-2.5">
-        <div className="flex-1 truncate text-subhead text-text">{title}</div>
+      <header className="flex shrink-0 items-center gap-2 border-b border-border px-3.5 py-2.5">
+        <div className="flex-1 truncate text-subhead text-foreground">{title}</div>
         {actions && <div className="flex items-center gap-1">{actions}</div>}
         {onClose && (
           <IconButton aria-label="Close details" onClick={onClose}>

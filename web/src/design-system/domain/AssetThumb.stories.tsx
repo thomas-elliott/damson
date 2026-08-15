@@ -38,10 +38,10 @@ export const AllPatterns: Story = {
     <div className="grid grid-cols-3 gap-4">
       {SPRITE_PATTERNS.map((p) => (
         <div key={p} className="flex flex-col gap-1.5">
-          <div className="aspect-square overflow-hidden rounded-md border border-line">
+          <div className="aspect-square overflow-hidden rounded-md border border-border">
             <AssetThumb thumb={{ kind: "sprite", palette: SAMPLE_PALETTES[p], pattern: p }} />
           </div>
-          <div className="text-mono text-text-3">{p}</div>
+          <div className="text-mono text-subtle-foreground">{p}</div>
         </div>
       ))}
     </div>
@@ -53,10 +53,10 @@ export const Waveforms: Story = {
     <div className="grid grid-cols-4 gap-3">
       {[1, 3, 7, 13].map((seed) => (
         <div key={seed} className="flex flex-col gap-1.5">
-          <div className="aspect-square overflow-hidden rounded-md border border-line bg-panel">
+          <div className="aspect-square overflow-hidden rounded-md border border-border bg-card">
             <AssetThumb thumb={{ kind: "waveform", seed }} />
           </div>
-          <div className="text-mono text-text-3">seed {seed}</div>
+          <div className="text-mono text-subtle-foreground">seed {seed}</div>
         </div>
       ))}
     </div>
@@ -73,10 +73,10 @@ export const Fonts: Story = {
         { sample: "Qt", family: "Courier" },
       ].map((s) => (
         <div key={s.family} className="flex flex-col gap-1.5">
-          <div className="aspect-square overflow-hidden rounded-md border border-line">
+          <div className="aspect-square overflow-hidden rounded-md border border-border">
             <AssetThumb thumb={{ kind: "font", sample: s.sample, family: s.family }} />
           </div>
-          <div className="text-mono text-text-3">{s.family}</div>
+          <div className="text-mono text-subtle-foreground">{s.family}</div>
         </div>
       ))}
     </div>
@@ -85,7 +85,7 @@ export const Fonts: Story = {
 
 export const Unknown: Story = {
   render: () => (
-    <div className="h-[160px] w-[160px] overflow-hidden rounded-md border border-line">
+    <div className="h-[160px] w-[160px] overflow-hidden rounded-md border border-border">
       <AssetThumb thumb={{ kind: "unknown" }} />
     </div>
   ),

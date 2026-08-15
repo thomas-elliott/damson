@@ -25,14 +25,14 @@ export function EmptyState({
     <div
       role="status"
       className={cn(
-        "flex flex-col items-center justify-center gap-3 px-6 py-14 text-center text-text-3",
+        "flex flex-col items-center justify-center gap-3 px-6 py-14 text-center text-subtle-foreground",
         className,
       )}
       {...props}
     >
-      {icon && <div className="text-text-4">{icon}</div>}
-      {title && <h3 className="text-subhead-medium text-text-2">{title}</h3>}
-      {description && <p className="max-w-sm text-ui text-text-3">{description}</p>}
+      {icon && <div className="text-faint-foreground">{icon}</div>}
+      {title && <h3 className="text-subhead-medium text-muted-foreground">{title}</h3>}
+      {description && <p className="max-w-sm text-ui text-subtle-foreground">{description}</p>}
       {action && <div className="pt-1">{action}</div>}
     </div>
   );

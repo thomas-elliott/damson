@@ -54,10 +54,10 @@ export const NavRailItem = forwardRef<HTMLButtonElement, NavRailItemProps>(funct
           onClick?.(e);
         }}
         className={cn(
-          "relative grid h-[34px] w-[34px] place-items-center rounded-sm text-text-3 transition-colors duration-std ease",
-          "hover:bg-surface hover:text-text",
-          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
-          "aria-[current=page]:bg-surface aria-[current=page]:text-text",
+          "relative grid h-[34px] w-[34px] place-items-center rounded-sm text-subtle-foreground transition-colors duration-std ease",
+          "hover:bg-muted hover:text-foreground",
+          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+          "aria-[current=page]:bg-muted aria-[current=page]:text-foreground",
           className,
         )}
         {...props}
@@ -65,12 +65,12 @@ export const NavRailItem = forwardRef<HTMLButtonElement, NavRailItemProps>(funct
         {active && (
           <span
             aria-hidden
-            className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-sm bg-accent"
+            className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-sm bg-primary"
           />
         )}
         {icon}
         {badge !== undefined && (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-pill bg-accent px-1 text-mono font-semibold text-accent-fg">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-mono font-semibold text-primary-foreground">
             {badge}
           </span>
         )}

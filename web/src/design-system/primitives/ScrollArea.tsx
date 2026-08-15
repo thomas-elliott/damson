@@ -43,7 +43,7 @@ const ScrollBar = forwardRef<
     >
       <RadixScrollArea.Thumb
         className={cn(
-          "relative flex-1 rounded-full bg-line-2 transition-colors duration-std ease hover:bg-text-4",
+          "relative flex-1 rounded-full bg-border-strong transition-colors duration-std ease hover:bg-faint-foreground",
         )}
       />
     </RadixScrollArea.Scrollbar>

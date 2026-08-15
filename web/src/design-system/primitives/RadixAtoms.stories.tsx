@@ -43,7 +43,7 @@ export const Sliders: Story = {
     return (
       <div className="flex min-w-[280px] flex-col gap-4">
         <Slider value={v} onValueChange={setV} min={0} max={100} step={1} aria-label="Density" />
-        <div className="text-mono text-text-3">value: {v[0]}</div>
+        <div className="text-mono text-subtle-foreground">value: {v[0]}</div>
       </div>
     );
   },

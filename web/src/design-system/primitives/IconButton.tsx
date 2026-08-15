@@ -3,7 +3,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn, cva, type VariantProps } from "@/design-system/utils";
 
 const iconButton = cva(
-  "grid place-items-center rounded-sm text-text-3 transition-colors duration-std ease hover:bg-surface hover:text-text disabled:cursor-not-allowed disabled:opacity-40",
+  "grid place-items-center rounded-sm text-subtle-foreground transition-colors duration-std ease hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40",
   {
     variants: {
       size: {
@@ -12,7 +12,8 @@ const iconButton = cva(
       },
       tone: {
         neutral: "",
-        accent: "text-text-2 data-[active=true]:text-text data-[active=true]:bg-surface",
+        accent:
+          "text-muted-foreground data-[active=true]:text-foreground data-[active=true]:bg-muted",
       },
     },
     defaultVariants: { size: "sm", tone: "neutral" },

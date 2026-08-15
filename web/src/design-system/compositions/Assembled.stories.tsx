@@ -52,7 +52,7 @@ type Story = StoryObj;
 
 function DamsonBrand() {
   return (
-    <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-ui font-bold text-accent-fg">
+    <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-primary to-primary-hover font-mono text-ui font-bold text-primary-foreground">
       D
     </div>
   );
@@ -61,12 +61,12 @@ function DamsonBrand() {
 function PlaceholderCard() {
   return (
     <div className="flex flex-col gap-2">
-      <div className="aspect-square rounded-md border border-line bg-surface" />
+      <div className="aspect-square rounded-md border border-border bg-muted" />
       <div className="flex items-center justify-between">
-        <span className="truncate text-ui font-medium text-text">Asset name</span>
+        <span className="truncate text-ui font-medium text-foreground">Asset name</span>
         <StatusDot tone="ok" />
       </div>
-      <span className="text-mono text-text-3">12.4 MB</span>
+      <span className="text-mono text-subtle-foreground">12.4 MB</span>
     </div>
   );
 }
@@ -227,7 +227,7 @@ export const LibraryView: Story = {
                   onClose={() => setDetailOpen(false)}
                 >
                   <div className="flex flex-col gap-4">
-                    <div className="aspect-video rounded-md border border-line bg-surface" />
+                    <div className="aspect-video rounded-md border border-border bg-muted" />
                     <div className="flex flex-wrap items-center gap-2">
                       <Pill mono tone="ok">
                         <StatusDot tone="ok" /> CC-BY-4.0
@@ -237,14 +237,14 @@ export const LibraryView: Story = {
                       <Tag variant="add">Add tag</Tag>
                     </div>
                     <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2 text-small">
-                      <dt className="text-text-3">Source</dt>
-                      <dd className="text-text-2">itch.io · craftpix</dd>
-                      <dt className="text-text-3">Imported</dt>
-                      <dd className="text-text-2">3 days ago</dd>
-                      <dt className="text-text-3">Size</dt>
-                      <dd className="font-mono text-text-2">42.8 MB</dd>
-                      <dt className="text-text-3">Files</dt>
-                      <dd className="font-mono text-text-2">128</dd>
+                      <dt className="text-subtle-foreground">Source</dt>
+                      <dd className="text-muted-foreground">itch.io · craftpix</dd>
+                      <dt className="text-subtle-foreground">Imported</dt>
+                      <dd className="text-muted-foreground">3 days ago</dd>
+                      <dt className="text-subtle-foreground">Size</dt>
+                      <dd className="font-mono text-muted-foreground">42.8 MB</dd>
+                      <dt className="text-subtle-foreground">Files</dt>
+                      <dd className="font-mono text-muted-foreground">128</dd>
                     </dl>
                     <div className="flex items-center gap-1.5">
                       <Button variant="primary" leadingIcon={<Pin size={12} />}>

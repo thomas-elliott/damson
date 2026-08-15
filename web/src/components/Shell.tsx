@@ -38,7 +38,11 @@ export function Shell({ main, sidebar }: { main: ReactNode; sidebar?: ReactNode 
 }
 
 function LoadingShell() {
-  return <div className="grid h-screen place-items-center bg-bg text-ui text-text-3">Loading…</div>;
+  return (
+    <div className="grid h-screen place-items-center bg-background text-ui text-subtle-foreground">
+      Loading…
+    </div>
+  );
 }
 
 function DamsonRail({ displayName, email }: { displayName: string; email: string }) {
@@ -134,7 +138,7 @@ function DamsonBrand() {
   return (
     <div
       aria-label="Damson"
-      className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-accent to-accent-2 font-mono text-ui font-bold text-accent-fg"
+      className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-primary to-primary-hover font-mono text-ui font-bold text-primary-foreground"
     >
       D
     </div>

@@ -56,7 +56,7 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
     <FilterSidebar>
       <Section title="Projects" defaultOpen={false}>
         {projects.length === 0 ? (
-          <div className="text-small text-text-4">No projects yet</div>
+          <div className="text-small text-faint-foreground">No projects yet</div>
         ) : (
           <ul className="flex flex-col gap-0.5">
             {projects.map((p) => (
@@ -80,7 +80,7 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
 
       <Section title="Tags" defaultOpen>
         {tags.length === 0 ? (
-          <div className="text-small text-text-4">
+          <div className="text-small text-faint-foreground">
             No tags yet — add some from an asset detail panel
           </div>
         ) : (
@@ -108,7 +108,7 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
 
       <Section title="Publisher" defaultOpen={false}>
         {facets.publishers.length === 0 ? (
-          <div className="text-small text-text-4">
+          <div className="text-small text-faint-foreground">
             No publishers yet — fetch storefront metadata for an asset
           </div>
         ) : (
@@ -131,7 +131,7 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
 
       <Section title="Store" defaultOpen={false}>
         {facets.stores.length === 0 ? (
-          <div className="text-small text-text-4">No stores yet</div>
+          <div className="text-small text-faint-foreground">No stores yet</div>
         ) : (
           <ul className="flex flex-col gap-0.5">
             {facets.stores.map((st) => (
@@ -226,15 +226,17 @@ function FilterRow({
       onClick={onClick}
       className={
         "flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-small transition-colors duration-std ease " +
-        "hover:bg-surface " +
-        (active ? "bg-accent-tint text-text" : "text-text-2")
+        "hover:bg-muted " +
+        (active ? "bg-primary-soft text-foreground" : "text-muted-foreground")
       }
     >
       <span className="flex min-w-0 items-center gap-2 truncate">
         {icon}
         {label}
       </span>
-      {count !== undefined && <span className="text-mono tabular-nums text-text-3">{count}</span>}
+      {count !== undefined && (
+        <span className="text-mono tabular-nums text-subtle-foreground">{count}</span>
+      )}
     </button>
   );
 }
@@ -290,15 +292,15 @@ function TagNode({
     <li>
       <div
         className={
-          "flex items-center gap-1 rounded-sm px-1 py-1 text-small hover:bg-surface " +
-          (active ? "bg-accent-tint text-text" : "text-text-2")
+          "flex items-center gap-1 rounded-sm px-1 py-1 text-small hover:bg-muted " +
+          (active ? "bg-primary-soft text-foreground" : "text-muted-foreground")
         }
         style={{ paddingLeft: 6 + depth * 12 }}
       >
         {hasChildren ? (
-          <ChevronDown size={10} className="text-text-3" />
+          <ChevronDown size={10} className="text-subtle-foreground" />
         ) : (
-          <ChevronRight size={10} className="text-text-4" />
+          <ChevronRight size={10} className="text-faint-foreground" />
         )}
         <button
           type="button"
@@ -307,7 +309,7 @@ function TagNode({
           aria-pressed={active}
         >
           <span className="truncate">{label}</span>
-          <span className="text-mono tabular-nums text-text-3">{tag.asset_count}</span>
+          <span className="text-mono tabular-nums text-subtle-foreground">{tag.asset_count}</span>
         </button>
       </div>
       {hasChildren && (

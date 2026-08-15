@@ -19,10 +19,10 @@ export interface LicenceBarProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const SEG_COLOR: Record<LicenceStatus, string> = {
-  ok: "bg-ok",
-  warn: "bg-warn",
-  err: "bg-err",
-  unk: "bg-unk",
+  ok: "bg-success",
+  warn: "bg-warning",
+  err: "bg-destructive",
+  unk: "bg-unknown",
 };
 
 /**
@@ -52,7 +52,7 @@ export function LicenceBar({
         `${counts.ok} compliant, ${counts.warn} review, ${counts.err} violation, ${counts.unk} unknown`
       }
       className={cn(
-        "flex w-full overflow-hidden rounded-full bg-line",
+        "flex w-full overflow-hidden rounded-full bg-border",
         size === "sm" ? "h-[3px]" : "h-1",
         className,
       )}

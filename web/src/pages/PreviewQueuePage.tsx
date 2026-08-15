@@ -36,7 +36,7 @@ export function PreviewQueuePage() {
             </Breadcrumb>
           </Toolbar>
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading queue…
             </div>
           ) : previews.length === 0 && finished.length === 0 ? (
@@ -48,7 +48,7 @@ export function PreviewQueuePage() {
           ) : (
             <div className="flex flex-col gap-2 p-3">
               {previews.length === 0 ? (
-                <div className="px-1 py-6 text-center text-ui text-text-3">
+                <div className="px-1 py-6 text-center text-ui text-subtle-foreground">
                   Nothing processing right now.
                 </div>
               ) : (
@@ -62,7 +62,7 @@ export function PreviewQueuePage() {
               )}
               {finished.length > 0 && (
                 <>
-                  <div className="mt-4 mb-1 px-1 text-caption uppercase tracking-wide text-text-4">
+                  <div className="mt-4 mb-1 px-1 text-caption uppercase tracking-wide text-faint-foreground">
                     Finished
                   </div>
                   {finished.map((row) => (
@@ -89,9 +89,9 @@ function PreviewQueueRow({ row, onOpen }: { row: PreviewRow; onOpen: () => void 
   // never attempted), so "done/attempted" reflects real preview progress.
   const attempted = row.done + row.failed + row.processing + row.queued;
 
-  let thumb = <CheckCircle2 size={20} className="text-text-3" />;
-  if (processing) thumb = <Loader2 size={20} className="animate-spin text-text-3" />;
-  else if (hasFailures) thumb = <AlertTriangle size={20} className="text-err" />;
+  let thumb = <CheckCircle2 size={20} className="text-subtle-foreground" />;
+  if (processing) thumb = <Loader2 size={20} className="animate-spin text-subtle-foreground" />;
+  else if (hasFailures) thumb = <AlertTriangle size={20} className="text-destructive" />;
 
   return (
     <QueueItem
@@ -102,11 +102,13 @@ function PreviewQueueRow({ row, onOpen }: { row: PreviewRow; onOpen: () => void 
           <Badge size="sm" mono tone={processing ? "warn" : "ok"}>
             {row.status}
           </Badge>
-          <span className="tabular-nums text-text-3">
+          <span className="tabular-nums text-subtle-foreground">
             {row.done}/{attempted} previews
           </span>
-          {hasFailures && <span className="text-err">{row.failed} failed</span>}
-          <span className="text-text-4">updated {new Date(row.updated_at).toLocaleString()}</span>
+          {hasFailures && <span className="text-destructive">{row.failed} failed</span>}
+          <span className="text-faint-foreground">
+            updated {new Date(row.updated_at).toLocaleString()}
+          </span>
         </>
       }
       actions={

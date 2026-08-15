@@ -100,7 +100,7 @@ export function ProjectDetailPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading project…
             </div>
           ) : !project ? (
@@ -114,45 +114,47 @@ export function ProjectDetailPage() {
                   color={project.glyph_color || "oklch(0.4 0.14 260)"}
                 />
                 <div className="flex-1">
-                  <h1 className="text-heading text-text">{project.name}</h1>
+                  <h1 className="text-heading text-foreground">{project.name}</h1>
                   <div className="mt-1 flex items-center gap-2 text-caption">
                     <Badge size="sm" mono>
                       {project.target_distribution}
                     </Badge>
                     <span>· {project.asset_count} assets pinned</span>
                     {project.updates_available > 0 && (
-                      <span className="text-warn">
+                      <span className="text-warning">
                         · {project.updates_available} updates available
                       </span>
                     )}
                   </div>
                   {project.description && (
-                    <p className="mt-2 max-w-prose text-ui text-text-2">{project.description}</p>
+                    <p className="mt-2 max-w-prose text-ui text-muted-foreground">
+                      {project.description}
+                    </p>
                   )}
                 </div>
               </header>
 
-              <section className="rounded-md border border-line bg-panel p-3">
-                <div className="mb-2 text-label text-text-3">Licence mix</div>
+              <section className="rounded-md border border-border bg-card p-3">
+                <div className="mb-2 text-label text-subtle-foreground">Licence mix</div>
                 <LicenceBar counts={counts} size="md" />
-                <div className="mt-1 flex gap-3 text-small text-text-3">
+                <div className="mt-1 flex gap-3 text-small text-subtle-foreground">
                   <span>
-                    <span className="font-mono text-ok">{counts.ok}</span> compliant
+                    <span className="font-mono text-success">{counts.ok}</span> compliant
                   </span>
                   <span>
-                    <span className="font-mono text-warn">{counts.warn}</span> review
+                    <span className="font-mono text-warning">{counts.warn}</span> review
                   </span>
                   <span>
-                    <span className="font-mono text-err">{counts.err}</span> violation
+                    <span className="font-mono text-destructive">{counts.err}</span> violation
                   </span>
                   <span>
-                    <span className="font-mono text-unk">{counts.unk}</span> unknown
+                    <span className="font-mono text-unknown">{counts.unk}</span> unknown
                   </span>
                 </div>
               </section>
 
               <section>
-                <h2 className="mb-2 text-ui font-medium text-text">Pinned assets</h2>
+                <h2 className="mb-2 text-ui font-medium text-foreground">Pinned assets</h2>
                 {project.pins.length === 0 ? (
                   <EmptyState
                     title="No assets pinned"
@@ -170,7 +172,7 @@ export function ProjectDetailPage() {
                 ) : (
                   <table className="w-full border-collapse text-table-row">
                     <thead>
-                      <tr className="border-b border-line text-left text-table-header text-text-3">
+                      <tr className="border-b border-border text-left text-table-header text-subtle-foreground">
                         <th className="py-2 font-normal">Asset</th>
                         <th className="py-2 font-normal">Pinned</th>
                         <th className="py-2 font-normal">Latest</th>
@@ -190,7 +192,7 @@ export function ProjectDetailPage() {
               </section>
 
               <section>
-                <h2 className="mb-2 text-ui font-medium text-text">Recent activity</h2>
+                <h2 className="mb-2 text-ui font-medium text-foreground">Recent activity</h2>
                 <ProjectAuditPanel projectId={project.id} />
               </section>
             </div>
@@ -218,20 +220,24 @@ function ProjectPinRow({
   const unpin = useUnpinAssetFromProject();
   const repin = usePinAssetToProject();
   return (
-    <tr className="border-b border-line/60 hover:bg-surface">
-      <td className="py-2 text-text">{pin.asset_name}</td>
-      <td className="py-2 font-mono text-text-2">{pin.version_label}</td>
-      <td className={"py-2 font-mono " + (pin.has_update ? "text-warn" : "text-text-3")}>
+    <tr className="border-b border-border/60 hover:bg-muted">
+      <td className="py-2 text-foreground">{pin.asset_name}</td>
+      <td className="py-2 font-mono text-muted-foreground">{pin.version_label}</td>
+      <td
+        className={"py-2 font-mono " + (pin.has_update ? "text-warning" : "text-subtle-foreground")}
+      >
         {pin.latest_label ?? "—"} {pin.has_update ? "↑" : ""}
       </td>
       <td className="py-2">
         {pin.licence_spdx ? (
           <LicencePill status={pin.licence_status as LicenceStatus} spdx={pin.licence_spdx} />
         ) : (
-          <span className="text-small text-text-4">—</span>
+          <span className="text-small text-faint-foreground">—</span>
         )}
       </td>
-      <td className="py-2 text-right font-mono text-text-2">{formatBytes(pin.size_bytes)}</td>
+      <td className="py-2 text-right font-mono text-muted-foreground">
+        {formatBytes(pin.size_bytes)}
+      </td>
       <td className="py-2 text-small">
         {pin.has_update ? (
           <button
@@ -244,12 +250,12 @@ function ProjectPinRow({
                 version_id: pin.latest_version_id,
               })
             }
-            className="text-warn hover:underline"
+            className="text-warning hover:underline"
           >
             Upgrade to {pin.latest_label}
           </button>
         ) : (
-          <span className="text-text-4">Up to date</span>
+          <span className="text-faint-foreground">Up to date</span>
         )}
       </td>
       <td className="py-2 text-right">
@@ -268,7 +274,7 @@ function ProjectPinRow({
 function ProjectAuditPanel({ projectId }: { projectId: number }) {
   const { data: entries, loading } = useProjectAudit(projectId);
   if (loading) {
-    return <div className="text-small text-text-4">Loading…</div>;
+    return <div className="text-small text-faint-foreground">Loading…</div>;
   }
   return (
     <AuditList

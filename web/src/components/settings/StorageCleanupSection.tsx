@@ -107,7 +107,9 @@ export function StorageCleanupSection() {
         )}
       </div>
 
-      {scan.error && <div className="text-caption mt-2 text-err">Scan failed. Try again.</div>}
+      {scan.error && (
+        <div className="text-caption mt-2 text-destructive">Scan failed. Try again.</div>
+      )}
 
       {scanned && candidates.length === 0 && !scan.isPending && (
         <div className="mt-3">
@@ -117,7 +119,7 @@ export function StorageCleanupSection() {
 
       {candidates.length > 0 && (
         <div className="mt-3 flex flex-col">
-          <div className="text-caption flex items-center gap-3 border-b border-line py-2">
+          <div className="text-caption flex items-center gap-3 border-b border-border py-2">
             <Checkbox aria-label="Select all" checked={allSelected} onCheckedChange={toggleAll} />
             <span className="flex-1">Object</span>
             <span className="w-24 text-right">Size</span>
@@ -129,7 +131,7 @@ export function StorageCleanupSection() {
             return (
               <div
                 key={id}
-                className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
+                className="flex items-center gap-3 border-b border-border py-2 last:border-b-0"
               >
                 <Checkbox
                   aria-label={`Select ${c.key}`}
@@ -141,10 +143,12 @@ export function StorageCleanupSection() {
                     <Badge size="sm" tone="neutral">
                       {c.prefix}
                     </Badge>
-                    <span className="text-caption truncate font-mono text-text-2">{c.key}</span>
+                    <span className="text-caption truncate font-mono text-muted-foreground">
+                      {c.key}
+                    </span>
                   </div>
                   {hasMeta && (
-                    <div className="text-caption truncate text-text-3">
+                    <div className="text-caption truncate text-subtle-foreground">
                       {c.filename ?? "—"}
                       {c.library_id ? ` · lib ${c.library_id}` : ""}
                       {c.asset_id ? ` · asset ${c.asset_id}` : ""}
@@ -156,7 +160,7 @@ export function StorageCleanupSection() {
                 <span className="text-caption w-24 text-right font-mono">
                   {formatBytes(c.size)}
                 </span>
-                <span className="text-caption w-28 text-right text-text-3">
+                <span className="text-caption w-28 text-right text-subtle-foreground">
                   {new Date(c.last_modified).toLocaleDateString()}
                 </span>
               </div>

@@ -51,7 +51,7 @@ export function ConfirmDialog({
         {description !== undefined && (
           <DialogBody>
             {typeof description === "string" ? (
-              <p className="text-ui text-text-2">{description}</p>
+              <p className="text-ui text-muted-foreground">{description}</p>
             ) : (
               description
             )}

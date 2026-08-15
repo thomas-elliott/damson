@@ -163,7 +163,7 @@ function GridCard({
             <span className="font-mono">{formatBytes(a.size_bytes)}</span>
             {a.file_count > 1 && (
               <>
-                <span className="text-text-4">·</span>
+                <span className="text-faint-foreground">·</span>
                 <span className="font-mono">{a.file_count} files</span>
               </>
             )}

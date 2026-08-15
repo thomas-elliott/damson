@@ -72,7 +72,7 @@ export function CollectionDetailPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading…
             </div>
           ) : !collection ? (

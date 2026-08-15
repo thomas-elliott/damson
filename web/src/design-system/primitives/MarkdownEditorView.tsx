@@ -14,38 +14,38 @@ import type { MarkdownEditorProps } from "./MarkdownEditor";
 // stock CodeMirror theme, so the editor reads as one surface with Input and
 // Textarea beside it.
 const highlight = HighlightStyle.define([
-  { tag: tags.heading, color: "var(--ds-text)", fontWeight: "600" },
-  { tag: tags.strong, color: "var(--ds-text)", fontWeight: "600" },
+  { tag: tags.heading, color: "var(--foreground)", fontWeight: "600" },
+  { tag: tags.strong, color: "var(--foreground)", fontWeight: "600" },
   { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--ds-text-3)" },
-  { tag: tags.link, color: "var(--ds-accent)" },
-  { tag: tags.url, color: "var(--ds-accent)" },
-  { tag: tags.monospace, fontFamily: "var(--ds-font-mono)", color: "var(--ds-text-2)" },
-  { tag: tags.quote, color: "var(--ds-text-2)", fontStyle: "italic" },
-  { tag: [tags.processingInstruction, tags.meta, tags.atom], color: "var(--ds-text-4)" },
+  { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--subtle-foreground)" },
+  { tag: tags.link, color: "var(--primary)" },
+  { tag: tags.url, color: "var(--primary)" },
+  { tag: tags.monospace, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" },
+  { tag: tags.quote, color: "var(--muted-foreground)", fontStyle: "italic" },
+  { tag: [tags.processingInstruction, tags.meta, tags.atom], color: "var(--faint-foreground)" },
 ]);
 
 const theme = EditorView.theme({
   "&": {
     fontSize: "14px",
-    color: "var(--ds-text)",
-    backgroundColor: "var(--ds-bg)",
-    borderRadius: "var(--ds-r-sm)",
-    border: "1px solid var(--ds-line-2)",
+    color: "var(--foreground)",
+    backgroundColor: "var(--background)",
+    borderRadius: "calc(var(--radius) * 0.6)",
+    border: "1px solid var(--border-strong)",
     transition: "border-color 100ms cubic-bezier(0.4, 0, 0.2, 1)",
   },
   "&.cm-focused": {
     outline: "none",
-    borderColor: "var(--ds-accent)",
-    boxShadow: "inset 0 0 0 2px var(--ds-accent-ring)",
+    borderColor: "var(--primary)",
+    boxShadow: "inset 0 0 0 2px var(--ring)",
   },
-  ".cm-scroller": { fontFamily: "var(--ds-font-sans)", lineHeight: "1.5" },
-  ".cm-content": { padding: "8px", caretColor: "var(--ds-text)" },
+  ".cm-scroller": { fontFamily: "var(--font-sans)", lineHeight: "1.5" },
+  ".cm-content": { padding: "8px", caretColor: "var(--foreground)" },
   ".cm-line": { padding: "0" },
-  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--ds-text)" },
-  ".cm-placeholder": { color: "var(--ds-text-4)" },
+  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--foreground)" },
+  ".cm-placeholder": { color: "var(--faint-foreground)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-    backgroundColor: "var(--ds-accent-tint)",
+    backgroundColor: "var(--primary-soft)",
   },
 });
 

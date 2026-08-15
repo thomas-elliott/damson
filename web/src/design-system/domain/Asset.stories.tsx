@@ -29,7 +29,7 @@ export const Grid: Story = {
                 <span className="font-mono">{formatBytes(a.size)}</span>
                 {a.files > 1 && (
                   <>
-                    <span className="text-text-4">·</span>
+                    <span className="text-faint-foreground">·</span>
                     <span className="font-mono">{a.files} files</span>
                   </>
                 )}
@@ -51,7 +51,7 @@ export const ListView: Story = {
   render: function ListViewDemo() {
     const [selected, setSelected] = useState<string | null>(null);
     return (
-      <div className="overflow-hidden rounded-md border border-line bg-bg">
+      <div className="overflow-hidden rounded-md border border-border bg-background">
         <table className="w-full border-separate border-spacing-0">
           <AssetListHead columns={["Type", "Licence", "Size", "Imported"]} />
           <tbody>
@@ -63,10 +63,10 @@ export const ListView: Story = {
                 selected={selected === a.id}
                 onSelect={() => setSelected((prev) => (prev === a.id ? null : a.id))}
                 cells={[
-                  <span className="text-mono text-text-3">{a.type}</span>,
+                  <span className="text-mono text-subtle-foreground">{a.type}</span>,
                   <LicencePill status={a.licenceStatus} spdx={a.spdx} noDot />,
-                  <span className="text-mono text-text-3">{formatBytes(a.size)}</span>,
-                  <span className="text-mono text-text-3">{a.imported}</span>,
+                  <span className="text-mono text-subtle-foreground">{formatBytes(a.size)}</span>,
+                  <span className="text-mono text-subtle-foreground">{a.imported}</span>,
                 ]}
               />
             ))}

@@ -50,7 +50,9 @@ export function FileSelectionBar({
       }
     >
       {dragHint && (
-        <span className="whitespace-nowrap font-mono text-small text-text-4">{dragHint}</span>
+        <span className="whitespace-nowrap font-mono text-small text-faint-foreground">
+          {dragHint}
+        </span>
       )}
     </SelectionBar>
   );
