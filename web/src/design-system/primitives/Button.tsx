@@ -5,6 +5,8 @@ import {
 } from "@/components/ui/button";
 import { cn } from "@/design-system/utils";
 
+// A wrapper rather than an edit to components/ui/button.tsx, which the next
+// `shadcn add` overwrites. Button.test.tsx fails if a call site bypasses this.
 const SOFT_DESTRUCTIVE = [
   "bg-destructive-soft text-destructive border-destructive/40",
   "hover:bg-destructive/20 hover:border-destructive/60",

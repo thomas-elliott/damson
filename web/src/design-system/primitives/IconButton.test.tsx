@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it } from "vitest";
 
-import { IconButton } from "./IconButton";
+import { IconButton } from "@/design-system/primitives/IconButton";
+
+const btn = (name: string) => screen.getByRole("button", { name });
+const classes = (name: string) => btn(name).className.split(/\s+/);
 
 describe("IconButton", () => {
   it("forwards a ref to the underlying button", () => {
@@ -14,12 +17,12 @@ describe("IconButton", () => {
     );
 
     expect(ref.current).toBeInstanceOf(HTMLButtonElement);
-    expect(ref.current).toBe(screen.getByRole("button", { name: "Close" }));
+    expect(ref.current).toBe(btn("Close"));
   });
 
   it("defaults to type=button so it never submits a surrounding form", () => {
     render(<IconButton aria-label="Close" />);
-    expect(screen.getByRole("button", { name: "Close" })).toHaveAttribute("type", "button");
+    expect(btn("Close")).toHaveAttribute("type", "button");
   });
 
   it("sizes sm/md/lg as squares on Button's 28/32/36 scale", () => {
@@ -31,9 +34,9 @@ describe("IconButton", () => {
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "s" })).toHaveClass("size-7");
-    expect(screen.getByRole("button", { name: "m" })).toHaveClass("size-8");
-    expect(screen.getByRole("button", { name: "l" })).toHaveClass("size-9");
+    expect(classes("s")).toContain("size-7");
+    expect(classes("m")).toContain("size-8");
+    expect(classes("l")).toContain("size-9");
   });
 
   it("marks pressed via data-pressed, and omits the attribute otherwise", () => {
@@ -44,15 +47,14 @@ describe("IconButton", () => {
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "on" })).toHaveAttribute("data-pressed", "true");
-    expect(screen.getByRole("button", { name: "off" })).not.toHaveAttribute("data-pressed");
+    expect(btn("on")).toHaveAttribute("data-pressed", "true");
+    expect(btn("off")).not.toHaveAttribute("data-pressed");
   });
 
   it("defaults to ghost, not to Button's primary", () => {
     render(<IconButton aria-label="Close" />);
-    const button = screen.getByRole("button", { name: "Close" });
 
-    expect(button).toHaveClass("bg-transparent");
-    expect(button).not.toHaveClass("bg-primary");
+    expect(classes("Close")).toContain("bg-transparent");
+    expect(classes("Close")).not.toContain("bg-primary");
   });
 });

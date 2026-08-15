@@ -6,6 +6,8 @@
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* globals.css maps this as `--row-h: var(--row-h)`, so dropping it here leaves
+   * a self-referential no-op rather than an error. */
   --row-h: 36px;
 
   /* Warm neutral scale. Hue 80, very low chroma. */
@@ -62,9 +64,15 @@
    * a second project sights one. */
   --unknown: oklch(0.72 0.01 80);
   --unknown-soft: oklch(0.72 0.01 80 / 0.2);
+  /* A lighter brand yellow, not `--primary` at reduced alpha: half its sites are
+   * the `from-primary to-primary-hover` gradient, where opacity is not lightness. */
   --primary-hover: oklch(0.74 0.15 86);
+  /* Theme-independent: it sits on server-supplied `glyph_color` values, which are
+   * saturated and dark in both themes, so `--foreground` inverts to unreadable. */
   --swatch-foreground: oklch(0.98 0 0);
 
+  /* GitHub Dark's canvas — tracks `HIGHLIGHT_THEME` in previews/highlight.ts, not
+   * Damson's palette. Here only because tokens.css is where a raw value may live. */
   --code-canvas: #24292e;
 
   --elevation: 0 10px 30px -14px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.06);
