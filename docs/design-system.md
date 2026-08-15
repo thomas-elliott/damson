@@ -8,7 +8,7 @@ The old mockup now lives at `docs/archive/mockup/` and is consulted only for the
 
 The token vocabulary is the shared contract's
 (`design.smol.cloud/r/tokens.json`); the values are Damson's. See
-`docs/specs/2026-08-15-shared-design-system.md` for how it got here.
+`docs/specs/history/2026-08-15-shared-design-system.md` for how it got here.
 
 **Two directories, two owners.** `web/src/components/ui/` holds files installed by
 `shadcn add` — re-running the CLI overwrites them, so never edit them. Damson's own

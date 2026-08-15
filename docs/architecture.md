@@ -1509,7 +1509,7 @@ the code diverges:
    user picks one. Primitives come from shadcn/ui via the shared `@shared`
    registry as copy-in source; Damson-specific components are still hand-rolled
    on Radix. See
-   [`specs/2026-08-15-shared-design-system.md`](specs/2026-08-15-shared-design-system.md).
+   [`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md).
 10. Background jobs: River on Postgres, replacing hand-rolled
     goroutine pools. Chosen for durability across restarts and
     observable job state without building a scheduler.
