@@ -5,7 +5,7 @@ import { extendTailwindMerge } from "tailwind-merge";
 // (body/ui/small) and 19 composed semantic tokens (text-title, text-mono,
 // text-caption, etc.) that are not in tailwind-merge's default groups.
 // Teach tailwind-merge about them so e.g. `text-mono` isn't mistaken for a
-// colour and accidentally deduplicated against `text-accent-fg`.
+// colour and accidentally deduplicated against `text-primary-foreground`.
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {

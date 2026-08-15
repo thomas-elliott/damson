@@ -406,3 +406,9 @@ reason about later.
   said to drop `--ds-accent-2` in favour of `--primary/90`. Four of its sites are a gradient
   (`from-accent to-accent-2`) and opacity is not lightness, so the token survives as a local
   extension. Worth a line in `design-system.md`.
+- `web/src/design-system/primitives/MarkdownEditorView.tsx` — why the border radius is a raw
+  `calc(var(--radius) * 0.6)` rather than `var(--radius-sm)`: `@theme inline` emits no custom
+  property, so `--radius-sm` does not exist at runtime. Only the utility does.
+- `web/src/styles/globals.css` — the three `--color-*` mappings for `--unknown`, `--unknown-soft`
+  and `--primary-hover` are what make those utilities exist at all. Without them Tailwind silently
+  emits nothing, which is the characteristic failure of this whole migration.

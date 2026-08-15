@@ -106,9 +106,9 @@ export function FileTreeSidebar({
             type="button"
             onClick={onExit}
             title="Back to library"
-            className="flex items-center gap-1.5 rounded-sm text-ui font-medium text-text-2 transition-colors duration-std ease hover:text-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring"
+            className="flex items-center gap-1.5 rounded-sm text-ui font-medium text-muted-foreground transition-colors duration-std ease hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <ChevronLeft size={13} className="shrink-0 text-text-3" />
+            <ChevronLeft size={13} className="shrink-0 text-subtle-foreground" />
             {assetIcon}
             <span className="truncate">{assetName}</span>
           </button>
@@ -252,7 +252,7 @@ function TreeRow({
       style={{ paddingLeft: 8 + depth * 13 }}
       className={cn(
         "flex items-center gap-1.5 rounded-sm pr-2 text-ui transition-colors duration-std ease",
-        active ? "bg-accent-tint text-text" : "text-text-2 hover:bg-surface",
+        active ? "bg-primary-soft text-foreground" : "text-muted-foreground hover:bg-muted",
       )}
     >
       {expandable ? (
@@ -261,7 +261,7 @@ function TreeRow({
           aria-label={expanded ? "Collapse folder" : "Expand folder"}
           aria-expanded={expanded}
           onClick={onToggle}
-          className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] text-text-3 transition-colors duration-std ease hover:text-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring"
+          className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] text-subtle-foreground transition-colors duration-std ease hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         </button>
@@ -272,11 +272,13 @@ function TreeRow({
         type="button"
         aria-current={active ? "true" : undefined}
         onClick={onActivate}
-        className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-text-2 transition-colors duration-std ease hover:text-text focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring aria-[current=true]:text-text"
+        className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-muted-foreground transition-colors duration-std ease hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring aria-[current=true]:text-foreground"
       >
-        <span className="grid place-items-center text-text-3">{icon}</span>
+        <span className="grid place-items-center text-subtle-foreground">{icon}</span>
         <span className="flex-1 truncate">{label}</span>
-        {count !== undefined && <span className="text-mono tabular-nums text-text-3">{count}</span>}
+        {count !== undefined && (
+          <span className="text-mono tabular-nums text-subtle-foreground">{count}</span>
+        )}
       </button>
     </div>
   );

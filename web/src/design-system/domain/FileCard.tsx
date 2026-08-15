@@ -29,16 +29,16 @@ export const FolderCard = forwardRef<HTMLButtonElement, FolderCardProps>(functio
       }}
       className={cn(
         "flex flex-col gap-2 rounded-md text-left",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       {...props}
     >
-      <div className="grid aspect-square place-items-center rounded-md border border-line bg-panel text-text-3 transition-colors duration-std ease hover:border-line-2 hover:text-text-2">
+      <div className="grid aspect-square place-items-center rounded-md border border-border bg-card text-subtle-foreground transition-colors duration-std ease hover:border-border-strong hover:text-muted-foreground">
         <Folder size={34} strokeWidth={1.25} />
       </div>
       <div className="px-0.5">
-        <div className="truncate text-ui font-medium text-text">{name}</div>
+        <div className="truncate text-ui font-medium text-foreground">{name}</div>
         <div className="mt-0.5 text-caption">
           {count} {count === 1 ? "item" : "items"}
         </div>
@@ -93,17 +93,17 @@ export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function Fi
       }}
       className={cn(
         "group/file flex flex-col gap-2 rounded-md text-left",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       {...props}
     >
       <div
         className={cn(
-          "relative aspect-square overflow-hidden rounded-md border border-line bg-panel transition-colors duration-std ease",
-          "group-hover/file:border-line-2",
-          open && "border-line-2",
-          selected && "border-accent ring-2 ring-accent-ring",
+          "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-std ease",
+          "group-hover/file:border-border-strong",
+          open && "border-border-strong",
+          selected && "border-primary ring-2 ring-ring",
         )}
       >
         <FileThumb node={node} imageUrl={imageUrl} imageSrc={imageSrc} />
@@ -114,18 +114,18 @@ export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function Fi
         )}
         <span
           className={cn(
-            "absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full text-accent-fg transition-opacity duration-std ease",
-            selected ? "bg-accent opacity-100" : "opacity-0",
+            "absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full text-primary-foreground transition-opacity duration-std ease",
+            selected ? "bg-primary opacity-100" : "opacity-0",
           )}
         >
           <Check size={11} strokeWidth={3} />
         </span>
       </div>
       <div className="px-0.5">
-        <div className="truncate text-ui font-medium text-text">{node.name}</div>
+        <div className="truncate text-ui font-medium text-foreground">{node.name}</div>
         <div className="mt-0.5 truncate text-caption">
           {pathLabel ? (
-            <span className="font-mono text-text-4">{pathLabel}</span>
+            <span className="font-mono text-faint-foreground">{pathLabel}</span>
           ) : (
             formatBytes(node.size)
           )}

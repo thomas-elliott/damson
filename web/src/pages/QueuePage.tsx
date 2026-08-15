@@ -75,7 +75,7 @@ export function QueuePage() {
             </Breadcrumb>
           </Toolbar>
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading queue…
             </div>
           ) : imports.length === 0 && finished.length === 0 ? (
@@ -90,7 +90,7 @@ export function QueuePage() {
               className="flex flex-1 flex-col gap-2 overflow-auto p-3"
             >
               {imports.length === 0 ? (
-                <div className="px-1 py-6 text-center text-ui text-text-3">
+                <div className="px-1 py-6 text-center text-ui text-subtle-foreground">
                   Nothing waiting for review.
                 </div>
               ) : (
@@ -105,7 +105,7 @@ export function QueuePage() {
               )}
               {finished.length > 0 && (
                 <>
-                  <div className="mt-4 mb-1 px-1 text-caption uppercase tracking-wide text-text-4">
+                  <div className="mt-4 mb-1 px-1 text-caption uppercase tracking-wide text-faint-foreground">
                     Finished
                   </div>
                   {finished.map((imp) => (
@@ -138,14 +138,14 @@ function ImportThumb({ imp }: { imp: ImportRow }) {
     imp.thumbnail_object_key ? `/api/thumbs/${imp.thumbnail_object_key}` : undefined,
   );
   if (url) return <img src={url} alt="" className="h-full w-full object-cover" />;
-  if (imp.stage === "failed") return <AlertTriangle size={20} className="text-err" />;
+  if (imp.stage === "failed") return <AlertTriangle size={20} className="text-destructive" />;
   if (IN_FLIGHT_STAGES.includes(imp.stage))
-    return <Loader2 size={20} className="animate-spin text-text-3" />;
-  return <Package size={20} className="text-text-4" />;
+    return <Loader2 size={20} className="animate-spin text-subtle-foreground" />;
+  return <Package size={20} className="text-faint-foreground" />;
 }
 
 function activeRowClass(active: boolean): string {
-  return active ? "border-accent ring-1 ring-accent-ring" : "";
+  return active ? "border-primary ring-1 ring-ring" : "";
 }
 
 function FinishedImportRow({
@@ -165,7 +165,7 @@ function FinishedImportRow({
         imp.thumbnail_object_key ? (
           <ImportThumb imp={imp} />
         ) : (
-          <CheckCircle2 size={20} className="text-text-3" />
+          <CheckCircle2 size={20} className="text-subtle-foreground" />
         )
       }
       sub={
@@ -173,7 +173,9 @@ function FinishedImportRow({
           <Badge size="sm" mono tone="ok">
             reviewed
           </Badge>
-          <span className="text-text-4">updated {new Date(imp.updated_at).toLocaleString()}</span>
+          <span className="text-faint-foreground">
+            updated {new Date(imp.updated_at).toLocaleString()}
+          </span>
         </>
       }
       actions={
@@ -216,15 +218,19 @@ function ImportQueueRow({
               matched
             </Badge>
           )}
-          {isFailed && imp.error && <span className="truncate text-err">{imp.error}</span>}
-          <span className="text-text-4">updated {new Date(imp.updated_at).toLocaleString()}</span>
+          {isFailed && imp.error && <span className="truncate text-destructive">{imp.error}</span>}
+          <span className="text-faint-foreground">
+            updated {new Date(imp.updated_at).toLocaleString()}
+          </span>
         </>
       }
       detail={
         description ? (
-          <p className="line-clamp-3 text-small text-text-3">{description}</p>
+          <p className="line-clamp-3 text-small text-subtle-foreground">{description}</p>
         ) : (
-          <p className="text-small text-text-4">No description yet — try a store match.</p>
+          <p className="text-small text-faint-foreground">
+            No description yet — try a store match.
+          </p>
         )
       }
       actions={

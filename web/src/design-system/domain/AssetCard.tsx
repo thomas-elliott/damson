@@ -60,17 +60,17 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
       }}
       className={cn(
         "flex w-full min-w-0 flex-col gap-2 rounded-md text-left",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       {...props}
     >
       <div
         className={cn(
-          "relative aspect-square overflow-hidden rounded-md border border-line bg-panel transition-colors duration-std ease",
-          "group-hover:border-line-2",
-          "aria-[pressed=true]:border-accent aria-[pressed=true]:ring-2 aria-[pressed=true]:ring-accent-ring",
-          selected && "border-accent ring-2 ring-accent-ring",
+          "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-std ease",
+          "group-hover:border-border-strong",
+          "aria-[pressed=true]:border-primary aria-[pressed=true]:ring-2 aria-[pressed=true]:ring-ring",
+          selected && "border-primary ring-2 ring-ring",
         )}
       >
         {imageUrl ? (
@@ -86,21 +86,21 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
         {needsReview && (
           <span
             aria-label="Needs review"
-            className="absolute right-1.5 top-1.5 block h-1.5 w-1.5 rounded-full bg-accent ring-2 ring-panel"
+            className="absolute right-1.5 top-1.5 block h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-card"
           />
         )}
         {updateAvailable && (
           <span
             aria-label="Update available"
             title="A newer version is available from the store"
-            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-[3px] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-accent-fg"
+            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-[3px] bg-primary px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-primary-foreground"
           >
             Update
           </span>
         )}
       </div>
       <div className="min-w-0 px-0.5">
-        <div className="truncate text-ui font-medium text-text">{name}</div>
+        <div className="truncate text-ui font-medium text-foreground">{name}</div>
         {(sub || trailing) && (
           <div className="mt-0.5 flex items-center justify-between gap-1.5">
             {sub && (

@@ -40,17 +40,17 @@ export function MergeDialog({
   const candidates = assets.filter((a) => a.id !== targetId);
 
   const candidateRows = () => {
-    if (loading) return <li className="px-2 py-3 text-small text-text-4">Searching…</li>;
+    if (loading) return <li className="px-2 py-3 text-small text-faint-foreground">Searching…</li>;
     if (candidates.length === 0)
-      return <li className="px-2 py-3 text-small text-text-4">No other assets</li>;
+      return <li className="px-2 py-3 text-small text-faint-foreground">No other assets</li>;
     return candidates.map((a) => (
       <li key={a.id}>
         <button
           type="button"
           onClick={() => setSourceId(a.id)}
           className={cn(
-            "w-full truncate rounded-md px-2 py-1.5 text-left text-small text-text-2 transition-colors duration-std ease hover:bg-surface",
-            sourceId === a.id && "bg-surface text-text",
+            "w-full truncate rounded-md px-2 py-1.5 text-left text-small text-muted-foreground transition-colors duration-std ease hover:bg-muted",
+            sourceId === a.id && "bg-muted text-foreground",
           )}
         >
           {a.name}
@@ -105,7 +105,7 @@ export function MergeDialog({
             </DialogHeader>
             <DialogBody>
               {!result.adoptable.name && !result.adoptable.description ? (
-                <p className="text-small text-text-3">
+                <p className="text-small text-subtle-foreground">
                   The merged asset had no extra name or description to adopt.
                 </p>
               ) : (
@@ -117,8 +117,8 @@ export function MergeDialog({
                         onCheckedChange={(v) => setAdoptName(v === true)}
                         aria-label="Adopt name"
                       />
-                      <span className="text-small text-text-2">
-                        Name: <span className="text-text">{result.adoptable.name}</span>
+                      <span className="text-small text-muted-foreground">
+                        Name: <span className="text-foreground">{result.adoptable.name}</span>
                       </span>
                     </li>
                   )}
@@ -129,9 +129,9 @@ export function MergeDialog({
                         onCheckedChange={(v) => setAdoptDescription(v === true)}
                         aria-label="Adopt description"
                       />
-                      <span className="text-small text-text-2">
+                      <span className="text-small text-muted-foreground">
                         Description:{" "}
-                        <span className="text-text">{result.adoptable.description}</span>
+                        <span className="text-foreground">{result.adoptable.description}</span>
                       </span>
                     </li>
                   )}
@@ -162,7 +162,7 @@ export function MergeDialog({
                 placeholder="Search assets to merge in"
                 autoFocus
               />
-              {merge.error && <p className="text-small text-err">{merge.error.message}</p>}
+              {merge.error && <p className="text-small text-destructive">{merge.error.message}</p>}
               <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">{candidateRows()}</ul>
             </DialogBody>
             <DialogFooter>

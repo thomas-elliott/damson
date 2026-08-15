@@ -8,7 +8,7 @@ export interface AppShellProps {
   rail: ReactNode;
   sidebar?: ReactNode;
   main: ReactNode;
-  /** Override the default sidebar width (px). Defaults to `--ds-sidebar-w`. */
+  /** Override the default sidebar width (px). Defaults to `--sidebar-w`. */
   sidebarWidth?: number;
   /** Allow the sidebar to be resized with a drag handle. Width is
    * persisted to localStorage under `damson.sidebar.w`. */
@@ -62,21 +62,19 @@ export function AppShell({
   const onResize = useCallback((next: number) => setStateW(next), []);
 
   const sidebarColPx = sidebar ? stateW : 0;
-  const gridTemplate = sidebar
-    ? `var(--ds-rail-w) ${sidebarColPx}px 1fr`
-    : `var(--ds-rail-w) 0px 1fr`;
+  const gridTemplate = sidebar ? `var(--rail-w) ${sidebarColPx}px 1fr` : `var(--rail-w) 0px 1fr`;
 
   return (
     <div
       className={cn(
-        "grid h-screen min-h-[640px] grid-rows-1 overflow-hidden bg-bg text-text",
+        "grid h-screen min-h-[640px] grid-rows-1 overflow-hidden bg-background text-foreground",
         className,
       )}
       style={{ gridTemplateColumns: gridTemplate }}
     >
-      <div className="border-r border-line bg-panel">{rail}</div>
+      <div className="border-r border-border bg-card">{rail}</div>
       {sidebar ? (
-        <div className="relative border-r border-line bg-panel">
+        <div className="relative border-r border-border bg-card">
           {sidebar}
           {resizableSidebar && (
             <div className="absolute right-[-2px] top-0 z-resizer h-full w-1">

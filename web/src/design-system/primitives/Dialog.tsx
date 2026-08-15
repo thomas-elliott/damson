@@ -36,7 +36,7 @@ export const DialogContent = forwardRef<
       <RadixDialog.Content
         ref={ref}
         className={cn(
-          "fixed left-1/2 top-1/2 z-dialog -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-panel text-text shadow-elevated data-[state=open]:animate-pop-up",
+          "fixed left-1/2 top-1/2 z-dialog -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-popover text-foreground shadow-elevated data-[state=open]:animate-pop-up",
           "flex max-h-[90vh] flex-col overflow-hidden",
           className,
         )}
@@ -46,7 +46,7 @@ export const DialogContent = forwardRef<
         {children}
         <RadixDialog.Close
           aria-label="Close"
-          className="absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-sm text-text-3 transition-colors duration-std ease hover:bg-surface hover:text-text"
+          className="absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-sm text-subtle-foreground transition-colors duration-std ease hover:bg-muted hover:text-foreground"
         >
           <X size={14} />
         </RadixDialog.Close>
@@ -62,7 +62,7 @@ export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLD
   // the description.
   return (
     <div
-      className={cn("flex flex-col gap-1 border-b border-line px-4 py-3 pr-10", className)}
+      className={cn("flex flex-col gap-1 border-b border-border px-4 py-3 pr-10", className)}
       {...props}
     />
   );
@@ -81,7 +81,7 @@ export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLD
   return (
     <div
       className={cn(
-        "flex items-center justify-end gap-2 border-t border-line bg-bg px-4 py-3",
+        "flex items-center justify-end gap-2 border-t border-border bg-background px-4 py-3",
         className,
       )}
       {...props}
@@ -94,7 +94,11 @@ export const DialogTitle = forwardRef<
   ComponentPropsWithoutRef<typeof RadixDialog.Title>
 >(function DialogTitle({ className, ...props }, ref) {
   return (
-    <RadixDialog.Title ref={ref} className={cn("text-subhead text-text", className)} {...props} />
+    <RadixDialog.Title
+      ref={ref}
+      className={cn("text-subhead text-foreground", className)}
+      {...props}
+    />
   );
 });
 

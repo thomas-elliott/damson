@@ -62,7 +62,7 @@ export function AuthGuard() {
 
   if (modeLoading || state === "checking") {
     return (
-      <div className="flex min-h-screen items-center justify-center text-ui text-text-3">
+      <div className="flex min-h-screen items-center justify-center text-ui text-subtle-foreground">
         Authenticating…
       </div>
     );
@@ -90,7 +90,7 @@ function ProfileGate() {
 
   if (loading || !me) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-ui text-text-3">
+      <div className="flex min-h-screen items-center justify-center text-ui text-subtle-foreground">
         Authenticating…
       </div>
     );

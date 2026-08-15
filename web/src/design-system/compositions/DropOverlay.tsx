@@ -25,13 +25,13 @@ export function DropOverlay({
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none absolute inset-3.5 z-drop grid place-items-center rounded-md border-2 border-dashed border-accent bg-accent-tint text-text animate-fade-in",
+        "pointer-events-none absolute inset-3.5 z-drop grid place-items-center rounded-md border-2 border-dashed border-primary bg-primary-soft text-foreground animate-fade-in",
         className,
       )}
       {...props}
     >
       <div className="flex flex-col items-center gap-2 text-ui">
-        <UploadCloud size={28} className="text-accent" />
+        <UploadCloud size={28} className="text-primary" />
         <span className="font-medium">{caption}</span>
       </div>
     </div>

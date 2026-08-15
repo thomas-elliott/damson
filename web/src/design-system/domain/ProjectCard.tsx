@@ -29,9 +29,9 @@ export const ProjectCard = forwardRef<HTMLButtonElement, ProjectCardProps>(funct
         onClick?.(e);
       }}
       className={cn(
-        "flex flex-col gap-3 rounded-md border border-line bg-panel p-3.5 text-left transition-colors duration-std ease",
-        "hover:border-line-2",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "flex flex-col gap-3 rounded-md border border-border bg-card p-3.5 text-left transition-colors duration-std ease",
+        "hover:border-border-strong",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       {...props}
@@ -39,12 +39,12 @@ export const ProjectCard = forwardRef<HTMLButtonElement, ProjectCardProps>(funct
       <div className="flex items-start gap-3">
         <ProjectGlyph size="md" glyph={glyph} color={color} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-ui font-medium text-text">{name}</div>
+          <div className="truncate text-ui font-medium text-foreground">{name}</div>
           {(path || engine) && (
             <div className="mt-0.5 flex items-center gap-1.5 text-caption">
               {engine && <span>{engine}</span>}
-              {engine && path && <span className="text-text-3">·</span>}
-              {path && <span className="truncate font-mono text-text-3">{path}</span>}
+              {engine && path && <span className="text-subtle-foreground">·</span>}
+              {path && <span className="truncate font-mono text-subtle-foreground">{path}</span>}
             </div>
           )}
         </div>
@@ -72,9 +72,9 @@ export function ProjectCardNew({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-line-2 bg-transparent p-4 text-ui text-text-3 transition-colors duration-std ease",
-        "hover:border-text-4 hover:text-text-2",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+        "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border-strong bg-transparent p-4 text-ui text-subtle-foreground transition-colors duration-std ease",
+        "hover:border-faint-foreground hover:text-muted-foreground",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >

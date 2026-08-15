@@ -38,15 +38,15 @@ export function ProjectListRow({
         onClick?.(e);
       }}
       className={cn(
-        "grid cursor-pointer items-center gap-3 border-b border-line px-3.5 py-2 text-list-row text-text-2 transition-colors duration-std ease",
-        "hover:bg-surface hover:text-text last:border-b-0",
+        "grid cursor-pointer items-center gap-3 border-b border-border px-3.5 py-2 text-list-row text-muted-foreground transition-colors duration-std ease",
+        "hover:bg-muted hover:text-foreground last:border-b-0",
         className,
       )}
       {...props}
     >
       <div className="flex items-center gap-2.5">
         <ProjectGlyph size="sm" glyph={glyph} color={color} />
-        <span className="truncate font-medium text-text">{name}</span>
+        <span className="truncate font-medium text-foreground">{name}</span>
       </div>
       {cells}
     </div>

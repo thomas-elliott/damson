@@ -71,16 +71,16 @@ export function FileDetailPanel({
   return (
     <aside
       aria-label="File details"
-      className="flex h-full flex-col border-l border-line bg-panel text-text"
+      className="flex h-full flex-col border-l border-border bg-card text-foreground"
     >
-      <header className="flex shrink-0 items-center gap-1 border-b border-line px-3.5 py-2.5">
+      <header className="flex shrink-0 items-center gap-1 border-b border-border px-3.5 py-2.5">
         <IconButton aria-label="Previous file" onClick={onPrev} title="Previous (↑)">
           <ChevronLeft size={14} />
         </IconButton>
         <IconButton aria-label="Next file" onClick={onNext} title="Next (↓)">
           <ChevronRight size={14} />
         </IconButton>
-        <span className="text-mono tabular-nums text-text-3">
+        <span className="text-mono tabular-nums text-subtle-foreground">
           {index + 1} / {total}
         </span>
         <div className="flex-1" />
@@ -90,10 +90,10 @@ export function FileDetailPanel({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3">
-        <div className="mb-3 aspect-square w-full overflow-hidden rounded-md border border-line bg-bg">
+        <div className="mb-3 aspect-square w-full overflow-hidden rounded-md border border-border bg-background">
           {preview ?? <FilePreview node={node} large previewUrl={previewUrl} />}
         </div>
-        <h2 className="break-all text-subhead text-text">{node.name}</h2>
+        <h2 className="break-all text-subhead text-foreground">{node.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption">
           <FileGlyph ftype={node.ftype} size={11} strokeWidth={1.5} />
           <span>{meta.label}</span>
@@ -106,7 +106,7 @@ export function FileDetailPanel({
             </>
           )}
         </div>
-        <div className="mt-2 break-all rounded-sm bg-bg px-2 py-1.5 font-mono text-small text-text-3">
+        <div className="mt-2 break-all rounded-sm bg-background px-2 py-1.5 font-mono text-small text-subtle-foreground">
           {[assetName, ...dir, node.name].join(" / ")}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -140,7 +140,7 @@ export function FileDetailPanel({
                   value: (
                     <span>
                       {meta.label}{" "}
-                      <span className="font-mono text-text-4">({node.ext || "—"})</span>
+                      <span className="font-mono text-faint-foreground">({node.ext || "—"})</span>
                     </span>
                   ),
                 },
@@ -168,7 +168,7 @@ export function FileDetailCounter({
   className?: string;
 }) {
   return (
-    <span className={cn("text-mono tabular-nums text-text-3", className)}>
+    <span className={cn("text-mono tabular-nums text-subtle-foreground", className)}>
       {index + 1} / {total}
     </span>
   );

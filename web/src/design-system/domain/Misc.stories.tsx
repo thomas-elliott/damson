@@ -157,7 +157,7 @@ export const Versions: Story = {
 export const Activity: Story = {
   parameters: { layout: "padded" },
   render: () => (
-    <div className="overflow-hidden rounded-md border border-line bg-bg">
+    <div className="overflow-hidden rounded-md border border-border bg-background">
       <ActivityRow
         timestamp="2026-04-24 14:12"
         actor="thomas@datch.io"

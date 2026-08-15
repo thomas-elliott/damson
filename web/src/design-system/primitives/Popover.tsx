@@ -19,7 +19,7 @@ export const PopoverContent = forwardRef<
         align={align}
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover rounded-md border border-line bg-panel p-3 text-ui text-text shadow-elevated",
+          "z-popover rounded-md border border-border bg-popover p-3 text-ui text-foreground shadow-elevated",
           "data-[state=open]:animate-fade-in",
           className,
         )}

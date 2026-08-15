@@ -39,7 +39,7 @@ export function AuditList({
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
   return (
-    <div className="rounded-md border border-line bg-panel">
+    <div className="rounded-md border border-border bg-card">
       {entries.map((e) => (
         <ActivityRow
           key={e.id}

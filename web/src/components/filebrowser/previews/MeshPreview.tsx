@@ -126,15 +126,15 @@ export default function MeshPreview({ node }: { node: FileNode }) {
   }, [node]);
 
   return (
-    <div className="relative h-full w-full bg-bg">
+    <div className="relative h-full w-full bg-background">
       <div ref={mountRef} className="h-full w-full" />
       {loading && !error && (
-        <div className="absolute inset-0 grid place-items-center text-ui text-text-3">
+        <div className="absolute inset-0 grid place-items-center text-ui text-subtle-foreground">
           Loading model…
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 grid place-items-center p-4 text-center text-ui text-text-3">
+        <div className="absolute inset-0 grid place-items-center p-4 text-center text-ui text-subtle-foreground">
           Couldn’t load this model — download it to view.
         </div>
       )}

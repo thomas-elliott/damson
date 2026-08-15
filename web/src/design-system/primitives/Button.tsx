@@ -6,7 +6,7 @@ const button = cva(
   [
     "inline-flex items-center justify-center gap-1.5 rounded-sm font-medium whitespace-nowrap",
     "transition-colors duration-std ease",
-    "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+    "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
     "disabled:cursor-not-allowed disabled:opacity-40",
   ],
   {
@@ -14,31 +14,31 @@ const button = cva(
       variant: {
         // Filled — primary call to action.
         primary: [
-          "bg-accent text-accent-fg border border-transparent",
-          "hover:bg-accent-2",
-          "active:bg-accent-2",
-          "data-[pressed=true]:bg-accent-2",
+          "bg-primary text-primary-foreground border border-transparent",
+          "hover:bg-primary-hover",
+          "active:bg-primary-hover",
+          "data-[pressed=true]:bg-primary-hover",
         ],
         // Bordered neutral — visible weight at rest.
         secondary: [
-          "bg-surface text-text-2 border border-line",
-          "hover:bg-surface-2 hover:text-text hover:border-line-2",
-          "active:bg-surface-2",
-          "data-[pressed=true]:bg-surface-2 data-[pressed=true]:text-text data-[pressed=true]:border-line-2",
+          "bg-muted text-muted-foreground border border-border",
+          "hover:bg-accent hover:text-foreground hover:border-border-strong",
+          "active:bg-accent",
+          "data-[pressed=true]:bg-accent data-[pressed=true]:text-foreground data-[pressed=true]:border-border-strong",
         ],
         // Minimal — transparent at rest, reveals on hover.
         ghost: [
-          "bg-transparent text-text-3 border border-transparent",
-          "hover:bg-surface hover:text-text",
-          "active:bg-surface",
-          "data-[pressed=true]:bg-surface data-[pressed=true]:text-text",
+          "bg-transparent text-subtle-foreground border border-transparent",
+          "hover:bg-muted hover:text-foreground",
+          "active:bg-muted",
+          "data-[pressed=true]:bg-muted data-[pressed=true]:text-foreground",
         ],
         // Destructive — muted red tint with red text.
         danger: [
-          "bg-err-tint text-err border border-err/40",
-          "hover:bg-err/20 hover:border-err/60",
-          "active:bg-err/25",
-          "data-[pressed=true]:bg-err/25",
+          "bg-destructive-soft text-destructive border border-destructive/40",
+          "hover:bg-destructive/20 hover:border-destructive/60",
+          "active:bg-destructive/25",
+          "data-[pressed=true]:bg-destructive/25",
         ],
       },
       size: {
