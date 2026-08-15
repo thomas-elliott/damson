@@ -69,10 +69,10 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
         "flex h-full flex-col border-l border-border bg-card text-foreground",
         variant === "overlay" &&
           !fullscreen &&
-          "absolute right-0 top-0 z-detail animate-slide-in-right shadow-elevated",
+          "absolute right-0 top-0 z-detail animate-slide-in-right shadow-lg",
         variant === "overlay" &&
           fullscreen &&
-          "absolute inset-0 z-detail animate-slide-in-right shadow-elevated",
+          "absolute inset-0 z-detail animate-slide-in-right shadow-lg",
         !width && variant === "overlay" && !fullscreen && "w-detail",
         !width && variant === "flush" && "w-full",
         className,

@@ -34,7 +34,7 @@ export const FolderCard = forwardRef<HTMLButtonElement, FolderCardProps>(functio
       )}
       {...props}
     >
-      <div className="grid aspect-square place-items-center rounded-md border border-border bg-card text-subtle-foreground transition-colors duration-std ease hover:border-border-strong hover:text-muted-foreground">
+      <div className="grid aspect-square place-items-center rounded-md border border-border bg-card text-subtle-foreground transition-colors duration-fast ease-standard hover:border-border-strong hover:text-muted-foreground">
         <Folder size={34} strokeWidth={1.25} />
       </div>
       <div className="px-0.5">
@@ -100,7 +100,7 @@ export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function Fi
     >
       <div
         className={cn(
-          "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-std ease",
+          "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-fast ease-standard",
           "group-hover/file:border-border-strong",
           open && "border-border-strong",
           selected && "border-primary ring-2 ring-ring",
@@ -108,13 +108,13 @@ export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function Fi
       >
         <FileThumb node={node} imageUrl={imageUrl} imageSrc={imageSrc} />
         {node.ext && (
-          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-[3px] bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-xs bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
             {node.ext.replace(".", "")}
           </span>
         )}
         <span
           className={cn(
-            "absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full text-primary-foreground transition-opacity duration-std ease",
+            "absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full text-primary-foreground transition-opacity duration-fast ease-standard",
             selected ? "bg-primary opacity-100" : "opacity-0",
           )}
         >

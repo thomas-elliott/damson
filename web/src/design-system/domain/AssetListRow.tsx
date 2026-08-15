@@ -32,7 +32,7 @@ export const AssetListRow = forwardRef<HTMLTableRowElement, AssetListRowProps>(
           onClick?.(e);
         }}
         className={cn(
-          "cursor-pointer text-list-row text-muted-foreground transition-colors duration-std ease",
+          "cursor-pointer text-list-row text-muted-foreground transition-colors duration-fast ease-standard",
           "hover:bg-card hover:text-foreground",
           "aria-selected:bg-primary-soft aria-selected:text-foreground",
           className,
@@ -41,7 +41,7 @@ export const AssetListRow = forwardRef<HTMLTableRowElement, AssetListRowProps>(
       >
         <td className="px-2.5 py-1.5">
           <div className="flex items-center gap-2">
-            <div className="h-[22px] w-[22px] shrink-0 overflow-hidden rounded-[3px] border border-border bg-muted">
+            <div className="h-[22px] w-[22px] shrink-0 overflow-hidden rounded-xs border border-border bg-muted">
               <AssetThumb thumb={thumb} />
             </div>
             <span className="truncate font-medium text-foreground">{name}</span>

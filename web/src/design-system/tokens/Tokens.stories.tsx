@@ -90,7 +90,7 @@ export const Typography: Story = {
         <p className="text-overline text-subtle-foreground">Layer 1 — size primitives</p>
         <p className="text-body">text-body — 15px (default running text)</p>
         <p className="text-ui">text-ui — 14px (UI controls, list rows)</p>
-        <p className="text-small">text-small — 12px (fine print floor)</p>
+        <p className="text-label">text-label — 12px (fine print floor)</p>
       </section>
 
       <section className="flex flex-col gap-2">

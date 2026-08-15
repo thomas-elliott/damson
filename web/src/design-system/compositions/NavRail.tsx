@@ -54,7 +54,7 @@ export const NavRailItem = forwardRef<HTMLButtonElement, NavRailItemProps>(funct
           onClick?.(e);
         }}
         className={cn(
-          "relative grid h-[34px] w-[34px] place-items-center rounded-sm text-subtle-foreground transition-colors duration-std ease",
+          "relative grid h-[34px] w-[34px] place-items-center rounded-sm text-subtle-foreground transition-colors duration-fast ease-standard",
           "hover:bg-muted hover:text-foreground",
           "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           "aria-[current=page]:bg-muted aria-[current=page]:text-foreground",

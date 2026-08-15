@@ -57,7 +57,7 @@ export function NotificationCentre() {
   return (
     <section
       aria-label="Notification centre"
-      className="fixed bottom-4 right-4 z-selbar flex max-h-[70vh] w-[340px] flex-col overflow-hidden rounded-lg border border-border-strong bg-card shadow-elevated"
+      className="fixed bottom-4 right-4 z-selbar flex max-h-[70vh] w-[340px] flex-col overflow-hidden rounded-lg border border-border-strong bg-card shadow-lg"
     >
       <header className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <h2 className="text-ui font-semibold text-foreground">Notifications</h2>
@@ -195,11 +195,11 @@ function NotificationRow({
           <Icon size={14} className={cn("shrink-0", TONE_TEXT[n.tone])} />
           <span className="truncate text-ui font-medium text-foreground">{n.title}</span>
         </div>
-        <span className="shrink-0 text-mono text-small text-faint-foreground">
+        <span className="shrink-0 text-mono text-label text-faint-foreground">
           {relativeTime(n.createdAt)}
         </span>
       </div>
-      {n.message && <span className="pl-6 text-small text-subtle-foreground">{n.message}</span>}
+      {n.message && <span className="pl-6 text-label text-subtle-foreground">{n.message}</span>}
       <div className="flex gap-1.5 pl-6">
         {n.action && onAction && (
           <Button size="sm" variant="primary" onClick={() => onAction(n.id)}>
@@ -221,7 +221,7 @@ function NotificationRow({
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-8 text-small text-faint-foreground">
+    <div className="flex items-center justify-center gap-2 py-8 text-label text-faint-foreground">
       <StatusDot tone="neutral" />
       {children}
     </div>

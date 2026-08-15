@@ -42,7 +42,7 @@ export function SegmentedControl<T extends string>({
             aria-label={opt["aria-label"]}
             onClick={() => onValueChange(opt.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-[3px] text-small text-subtle-foreground transition-colors duration-std ease hover:text-foreground",
+              "inline-flex items-center gap-1.5 rounded-xs text-label text-subtle-foreground transition-colors duration-fast ease-standard hover:text-foreground",
               onlyIcon ? "h-5 w-6 justify-center" : "h-5 px-1.5",
               selected && "bg-accent text-foreground",
             )}

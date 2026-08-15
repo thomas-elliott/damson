@@ -49,7 +49,7 @@ export function FileBrowserList({
           <tr
             key={`f/${folder.name}`}
             onClick={() => onOpenFolder?.(folder.name)}
-            className="cursor-pointer text-list-row text-muted-foreground transition-colors duration-std ease hover:bg-card hover:text-foreground"
+            className="cursor-pointer text-list-row text-muted-foreground transition-colors duration-fast ease-standard hover:bg-card hover:text-foreground"
           >
             <td className="px-2.5 py-1.5">
               <div className="flex items-center gap-2">
@@ -77,7 +77,7 @@ export function FileBrowserList({
                 else onOpenFile?.(file);
               }}
               className={cn(
-                "cursor-pointer text-list-row text-muted-foreground transition-colors duration-std ease",
+                "cursor-pointer text-list-row text-muted-foreground transition-colors duration-fast ease-standard",
                 "hover:bg-card hover:text-foreground",
                 "aria-selected:bg-primary-soft aria-selected:text-foreground",
               )}
@@ -95,14 +95,14 @@ export function FileBrowserList({
               </td>
               <td className="px-2.5 py-1.5">{fileTypeMeta(file.ftype).label}</td>
               {showPath && (
-                <td className="px-2.5 py-1.5 font-mono text-small text-faint-foreground">
+                <td className="px-2.5 py-1.5 font-mono text-label text-faint-foreground">
                   {file.dir.join("/") || "—"}
                 </td>
               )}
               <td className="px-2.5 py-1.5 text-right font-mono tabular-nums">
                 {formatBytes(file.size)}
               </td>
-              <td className="px-2.5 py-1.5 font-mono text-small">{file.modified ?? "—"}</td>
+              <td className="px-2.5 py-1.5 font-mono text-label">{file.modified ?? "—"}</td>
             </tr>
           );
         })}

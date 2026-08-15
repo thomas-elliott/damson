@@ -85,7 +85,7 @@ export function ProjectsPage() {
                   engine={p.target_distribution || undefined}
                   onOpen={() => navigate(`/projects/${p.id}`)}
                 >
-                  <div className="flex items-center justify-between gap-2 text-small text-subtle-foreground">
+                  <div className="flex items-center justify-between gap-2 text-label text-subtle-foreground">
                     <span>
                       <span className="font-mono text-muted-foreground">{p.asset_count}</span>{" "}
                       assets
@@ -184,7 +184,7 @@ function NewProjectDialog({
               </SelectContent>
             </Select>
           </FieldRow>
-          {error && <div className="text-small text-destructive">{error}</div>}
+          {error && <div className="text-label text-destructive">{error}</div>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

@@ -236,7 +236,7 @@ export const LibraryView: Story = {
                       <Tag>ui/icons</Tag>
                       <Tag variant="add">Add tag</Tag>
                     </div>
-                    <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2 text-small">
+                    <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2 text-label">
                       <dt className="text-subtle-foreground">Source</dt>
                       <dd className="text-muted-foreground">itch.io · craftpix</dd>
                       <dt className="text-subtle-foreground">Imported</dt>

@@ -226,9 +226,9 @@ function ImportQueueRow({
       }
       detail={
         description ? (
-          <p className="line-clamp-3 text-small text-subtle-foreground">{description}</p>
+          <p className="line-clamp-3 text-label text-subtle-foreground">{description}</p>
         ) : (
-          <p className="text-small text-faint-foreground">
+          <p className="text-label text-faint-foreground">
             No description yet — try a store match.
           </p>
         )

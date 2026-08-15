@@ -31,7 +31,7 @@ export const QueueItem = forwardRef<HTMLDivElement, QueueItemProps>(function Que
     <div
       ref={ref}
       className={cn(
-        "flex gap-3.5 rounded-md border border-border bg-card p-3.5 transition-colors duration-std ease hover:border-border-strong",
+        "flex gap-3.5 rounded-md border border-border bg-card p-3.5 transition-colors duration-fast ease-standard hover:border-border-strong",
         detail ? "items-start" : "items-center",
         className,
       )}
@@ -48,7 +48,7 @@ export const QueueItem = forwardRef<HTMLDivElement, QueueItemProps>(function Que
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="truncate text-list-row font-medium text-foreground">{name}</div>
         {sub && (
-          <div className="flex items-center gap-2 text-small text-subtle-foreground">{sub}</div>
+          <div className="flex items-center gap-2 text-label text-subtle-foreground">{sub}</div>
         )}
         {detail}
         {typeof progress === "number" && (

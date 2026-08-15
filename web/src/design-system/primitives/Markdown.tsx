@@ -233,7 +233,7 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
     }
     return (
       <div key={key} className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-0 text-small">
+        <table className="w-full border-separate border-spacing-0 text-label">
           {head.length > 0 && <thead>{head}</thead>}
           <tbody>{body}</tbody>
         </table>
