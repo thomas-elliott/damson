@@ -372,3 +372,16 @@ deleting the only test of the mechanism.
 - **Dark-mode a11y coverage for damson's own palette** — `shared-design`'s gate has only ever checked
   its reference palette. Stage 10 covers the story set; a broader sweep across composed pages is not
   in scope here.
+
+## Deferred comments
+
+Transient scratch for `/cleanup` — one bullet per candidate. Not comment text; a prompt to
+reason about later.
+
+- `web/components.json` — `baseColor: "neutral"` is inert (only `init` and base-color installs read
+  it) but reads as if damson uses shadcn's neutral palette, which it emphatically does not. JSON
+  cannot carry a comment, so if this is worth saying it belongs in `docs/design-system.md`.
+- `web/components.json` — why `aliases.utils` points at `@/design-system/utils` rather than the
+  conventional `@/lib/utils` (B2: the extended `cn` and its 24 registered `text-*` groups live
+  there, and a re-export invites someone to "simplify" it back to the stock two-liner). Same
+  constraint: belongs in `design-system.md`, not the file.
