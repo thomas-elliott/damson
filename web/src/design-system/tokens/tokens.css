@@ -63,6 +63,7 @@
   --unknown: oklch(0.72 0.01 80);
   --unknown-soft: oklch(0.72 0.01 80 / 0.2);
   --primary-hover: oklch(0.74 0.15 86);
+  --swatch-foreground: oklch(0.98 0 0);
 
   --code-canvas: #24292e;
 
