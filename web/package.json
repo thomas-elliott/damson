@@ -15,7 +15,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && touch static/.gitkeep",
-    "lint": "eslint .",
+    "lint": "node scripts/check-tokens.mjs && eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest --project=unit",

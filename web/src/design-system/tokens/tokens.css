@@ -64,6 +64,8 @@
   --unknown-soft: oklch(0.72 0.01 80 / 0.2);
   --primary-hover: oklch(0.74 0.15 86);
 
+  --code-canvas: #24292e;
+
   --elevation: 0 10px 30px -14px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.06);
 
   --sidebar-w: 248px;

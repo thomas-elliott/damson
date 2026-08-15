@@ -412,3 +412,8 @@ reason about later.
 - `web/src/styles/globals.css` — the three `--color-*` mappings for `--unknown`, `--unknown-soft`
   and `--primary-hover` are what make those utilities exist at all. Without them Tailwind silently
   emits nothing, which is the characteristic failure of this whole migration.
+- `web/scripts/check-tokens.mjs` — why `accent` is deliberately absent from `RETIRED`: it is a live
+  contract name meaning the hover surface, so listing it would flag every correct `bg-accent`.
+- `web/src/design-system/tokens/tokens.css` — `--code-canvas` is GitHub Dark's canvas and must track
+  `HIGHLIGHT_THEME` in `previews/highlight.ts`, not damson's palette. It is here because tokens.css
+  is the only place a raw value may live, not because it is a semantic token.
