@@ -46,6 +46,50 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### Shared design system adoption — 2026-08-15
+
+Scoped by [`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md).
+
+damson was consumer 2 of 2 in the estate's shadcn proof, and the brownfield
+half of it: dialogue-db tested a clean install, damson tested installing into
+an existing vocabulary of 57 `--ds-*` tokens and 27 hand-assembled primitives.
+
+**The vocabulary.** `tokens.css` was rewritten onto the shared contract's names
+with damson's own values, and the theme selector inverted — light at `:root`,
+dark on `.dark`, matching what the registry's `cssVars` actually generate. The
+845 utility usages across 117 files flipped in **one mechanical commit**
+(`b580b6b`), because a half-swapped vocabulary was the specific thing to avoid
+and the guardrail can only go green at the end. `web/scripts/check-tokens.mjs`
+was ported from dialogue-db and wired into `lint:web`; it fails on any retired
+name, on raw hex outside `tokens.css`, and — the trap that renders wrong and
+never errors — on any `:root`/`.dark` block in `globals.css`, which every
+`shadcn add` re-appends with the contract's reference palette.
+
+**The primitives.** `Button`, `Dialog`, `EmptyState` and `IconButton` now come
+from the registry into `components/ui/`; `design-system/primitives/` stays
+damson's. That directory split is the answer to "which files does re-running
+`add` overwrite?". `IconButton` went *up* first — damson's implementation
+became `@shared/icon-button` and was then installed back. `Dialog`'s numeric
+`width` prop became `size="default | wide | full"`, the one genuine API change.
+
+**The exit criterion.** damson's soft-red `destructive` is kept as a thin
+wrapper composing the registry `Button`, not as an edit to the installed file.
+Verified: `add --overwrite` on `button` replaced `components/ui/button.tsx` and
+left the wrapper byte-identical, then survived three further installs. That is
+the whole proof of copy-in ownership, and damson is the only place it was
+tested.
+
+**The theme left the database.** `resolveInitialTheme()` is now
+`stored → prefers-color-scheme`, following the OS live until the first explicit
+toggle. `library_settings.theme_default` is no longer read and the control came
+off the Settings page — but the column stays, unread, because dropping it is a
+database change and the point was to take the theme *out* of the database.
+
+Radius landed on `--radius: 0.5rem` against a multiplicative scale, since no
+anchor reproduced damson's 4 / 6 / 10. `shared-design` 0.1.7 has since replaced
+that derivation with eight literal steps, so this is the shortest-lived
+decision in the slice.
+
 ### Large-upload reliability + upload observability — 2026-08-01/02
 
 Scoped by [`specs/2026-08-01-upload-reliability-observability.md`](specs/2026-08-01-upload-reliability-observability.md).
