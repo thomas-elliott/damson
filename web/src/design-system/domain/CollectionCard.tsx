@@ -41,19 +41,19 @@ export const CollectionCard = forwardRef<HTMLButtonElement, CollectionCardProps>
           onClick?.(e);
         }}
         className={cn(
-          "flex flex-col gap-3 rounded-md border border-line bg-panel p-3.5 text-left transition-colors duration-std ease",
-          "hover:border-line-2",
-          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+          "flex flex-col gap-3 rounded-md border border-border bg-card p-3.5 text-left transition-colors duration-std ease",
+          "hover:border-border-strong",
+          "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           className,
         )}
         {...props}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-surface text-text-3">
+            <span className="grid h-7 w-7 place-items-center rounded-md bg-muted text-subtle-foreground">
               {icon ?? (kind === "smart" ? <Sliders size={14} /> : <Folder size={14} />)}
             </span>
-            <div className="text-ui font-medium text-text">{name}</div>
+            <div className="text-ui font-medium text-foreground">{name}</div>
           </div>
           {kind === "smart" && (
             <Pill tone="accent" size="sm">
@@ -62,12 +62,12 @@ export const CollectionCard = forwardRef<HTMLButtonElement, CollectionCardProps>
           )}
         </div>
         {queryDescription && (
-          <div className="rounded-sm border border-line-2 bg-bg px-2 py-1.5 text-mono text-text-3">
+          <div className="rounded-sm border border-border-strong bg-background px-2 py-1.5 text-mono text-subtle-foreground">
             {queryDescription}
           </div>
         )}
-        <div className="text-small text-text-3">
-          <span className="font-mono tabular-nums text-text-2">{count}</span>
+        <div className="text-small text-subtle-foreground">
+          <span className="font-mono tabular-nums text-muted-foreground">{count}</span>
           <span> assets</span>
         </div>
       </button>

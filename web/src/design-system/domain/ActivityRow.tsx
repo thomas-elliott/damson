@@ -28,20 +28,20 @@ export function ActivityRow({
   return (
     <div
       className={cn(
-        "grid items-baseline gap-3 border-b border-line px-3.5 py-2 text-list-row last:border-b-0",
+        "grid items-baseline gap-3 border-b border-border px-3.5 py-2 text-list-row last:border-b-0",
         className,
       )}
       style={{ gridTemplateColumns: "96px 140px 1fr auto" }}
       {...props}
     >
-      <span className="text-mono tabular-nums text-text-3">{timestamp}</span>
-      <span className="truncate text-text-2">{actor}</span>
-      <span className="truncate text-text-2">
-        <span className="text-text-3">{action}</span>
+      <span className="text-mono tabular-nums text-subtle-foreground">{timestamp}</span>
+      <span className="truncate text-muted-foreground">{actor}</span>
+      <span className="truncate text-muted-foreground">
+        <span className="text-subtle-foreground">{action}</span>
         {target && (
           <>
             {" "}
-            <span className="font-medium text-text">{target}</span>
+            <span className="font-medium text-foreground">{target}</span>
           </>
         )}
       </span>

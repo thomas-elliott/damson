@@ -57,12 +57,12 @@ export function NotificationCentre() {
   return (
     <section
       aria-label="Notification centre"
-      className="fixed bottom-4 right-4 z-selbar flex max-h-[70vh] w-[340px] flex-col overflow-hidden rounded-lg border border-line-2 bg-panel shadow-elevated"
+      className="fixed bottom-4 right-4 z-selbar flex max-h-[70vh] w-[340px] flex-col overflow-hidden rounded-lg border border-border-strong bg-card shadow-elevated"
     >
-      <header className="flex items-center justify-between border-b border-line px-3 py-2.5">
-        <h2 className="text-ui font-semibold text-text">Notifications</h2>
-        <IconButton aria-label="Minimise notifications" onClick={() => setOpen(false)}>
-          <Minus size={15} />
+      <header className="flex items-center justify-between border-b border-border px-3 py-2.5">
+        <h2 className="text-ui font-semibold text-foreground">Notifications</h2>
+        <IconButton aria-label="Minimise notifications" size="sm" onClick={() => setOpen(false)}>
+          <Minus />
         </IconButton>
       </header>
 
@@ -95,8 +95,12 @@ export function NotificationCentre() {
                 <li key={u.id}>
                   <QueueItem
                     name={u.filename}
-                    thumb={<UploadCloud size={20} className="text-text-3" />}
-                    sub={<span className="text-mono text-text-3">{uploadStatusLine(u)}</span>}
+                    thumb={<UploadCloud size={20} className="text-subtle-foreground" />}
+                    sub={
+                      <span className="text-mono text-subtle-foreground">
+                        {uploadStatusLine(u)}
+                      </span>
+                    }
                     progress={u.progress * 100}
                     actions={
                       <Button size="sm" variant="ghost" onClick={() => cancelUpload(u.id)}>
@@ -166,10 +170,10 @@ const TONE_ICON: Record<NotificationTone, typeof Info> = {
 };
 
 const TONE_TEXT: Record<NotificationTone, string> = {
-  info: "text-text-3",
-  success: "text-ok",
-  warn: "text-warn",
-  error: "text-err",
+  info: "text-subtle-foreground",
+  success: "text-success",
+  warn: "text-warning",
+  error: "text-destructive",
 };
 
 function NotificationRow({
@@ -185,17 +189,17 @@ function NotificationRow({
 }) {
   const Icon = TONE_ICON[n.tone];
   return (
-    <li className="flex flex-col gap-1.5 rounded-md border border-line bg-panel p-2.5">
+    <li className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <Icon size={14} className={cn("shrink-0", TONE_TEXT[n.tone])} />
-          <span className="truncate text-ui font-medium text-text">{n.title}</span>
+          <span className="truncate text-ui font-medium text-foreground">{n.title}</span>
         </div>
-        <span className="shrink-0 text-mono text-small text-text-4">
+        <span className="shrink-0 text-mono text-small text-faint-foreground">
           {relativeTime(n.createdAt)}
         </span>
       </div>
-      {n.message && <span className="pl-6 text-small text-text-3">{n.message}</span>}
+      {n.message && <span className="pl-6 text-small text-subtle-foreground">{n.message}</span>}
       <div className="flex gap-1.5 pl-6">
         {n.action && onAction && (
           <Button size="sm" variant="primary" onClick={() => onAction(n.id)}>
@@ -217,7 +221,7 @@ function NotificationRow({
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-8 text-small text-text-4">
+    <div className="flex items-center justify-center gap-2 py-8 text-small text-faint-foreground">
       <StatusDot tone="neutral" />
       {children}
     </div>

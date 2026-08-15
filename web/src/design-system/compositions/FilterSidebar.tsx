@@ -24,11 +24,11 @@ export function FilterSidebar({
 }: FilterSidebarProps) {
   return (
     <aside className={cn("flex h-full flex-col", className)} aria-label="Filters" {...props}>
-      {header && <div className="shrink-0 border-b border-line px-3 py-2">{header}</div>}
+      {header && <div className="shrink-0 border-b border-border px-3 py-2">{header}</div>}
       <ScrollArea className="min-h-0 flex-1">
         <div className="py-1">{children}</div>
       </ScrollArea>
-      {footer && <div className="shrink-0 border-t border-line px-3 py-2">{footer}</div>}
+      {footer && <div className="shrink-0 border-t border-border px-3 py-2">{footer}</div>}
     </aside>
   );
 }
@@ -63,19 +63,21 @@ export function FilterRow({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-ui text-text-2 transition-colors duration-std ease",
-        "hover:bg-surface hover:text-text",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
-        "aria-[pressed=true]:bg-accent-tint aria-[pressed=true]:text-text",
+        "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-ui text-muted-foreground transition-colors duration-std ease",
+        "hover:bg-muted hover:text-foreground",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+        "aria-[pressed=true]:bg-primary-soft aria-[pressed=true]:text-foreground",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
     >
       {dot}
-      {icon && <span className="grid place-items-center text-text-3">{icon}</span>}
+      {icon && <span className="grid place-items-center text-subtle-foreground">{icon}</span>}
       <span className="flex-1 text-left">{label}</span>
-      {count !== undefined && <span className="text-mono tabular-nums text-text-3">{count}</span>}
+      {count !== undefined && (
+        <span className="text-mono tabular-nums text-subtle-foreground">{count}</span>
+      )}
     </button>
   );
 }

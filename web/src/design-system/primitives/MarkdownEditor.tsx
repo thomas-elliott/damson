@@ -40,7 +40,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       fallback={
         <div
           className={cn(
-            "w-full animate-pulse rounded-sm border border-line-2 bg-bg",
+            "w-full animate-pulse rounded-sm border border-border-strong bg-background",
             props.className,
           )}
           style={{ height: props.minHeight ?? 120 }}

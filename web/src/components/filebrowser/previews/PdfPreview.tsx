@@ -91,25 +91,25 @@ export default function PdfPreview({ node }: { node: FileNode }) {
 
   if (error) {
     return (
-      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-text-3">
+      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-subtle-foreground">
         Couldn’t open this PDF.
       </div>
     );
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-surface">
+    <div className="flex h-full w-full flex-col bg-muted">
       <div className="min-h-0 flex-1 overflow-auto p-3">
         <canvas ref={canvasRef} className="mx-auto max-w-full shadow-elevated" />
       </div>
       {numPages > 1 && (
-        <div className="flex shrink-0 items-center justify-center gap-3 border-t border-line py-1.5 text-small text-text-3">
+        <div className="flex shrink-0 items-center justify-center gap-3 border-t border-border py-1.5 text-small text-subtle-foreground">
           <button
             type="button"
             aria-label="Previous page"
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="grid h-7 w-7 place-items-center rounded-md hover:bg-surface-2 disabled:opacity-30"
+            className="grid h-7 w-7 place-items-center rounded-md hover:bg-accent disabled:opacity-30"
           >
             <ChevronLeft size={15} />
           </button>
@@ -121,7 +121,7 @@ export default function PdfPreview({ node }: { node: FileNode }) {
             aria-label="Next page"
             disabled={page >= numPages}
             onClick={() => setPage((p) => Math.min(numPages, p + 1))}
-            className="grid h-7 w-7 place-items-center rounded-md hover:bg-surface-2 disabled:opacity-30"
+            className="grid h-7 w-7 place-items-center rounded-md hover:bg-accent disabled:opacity-30"
           >
             <ChevronRight size={15} />
           </button>

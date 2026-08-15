@@ -32,19 +32,19 @@ export const AssetListRow = forwardRef<HTMLTableRowElement, AssetListRowProps>(
           onClick?.(e);
         }}
         className={cn(
-          "cursor-pointer text-list-row text-text-2 transition-colors duration-std ease",
-          "hover:bg-panel hover:text-text",
-          "aria-selected:bg-accent-tint aria-selected:text-text",
+          "cursor-pointer text-list-row text-muted-foreground transition-colors duration-std ease",
+          "hover:bg-card hover:text-foreground",
+          "aria-selected:bg-primary-soft aria-selected:text-foreground",
           className,
         )}
         {...props}
       >
         <td className="px-2.5 py-1.5">
           <div className="flex items-center gap-2">
-            <div className="h-[22px] w-[22px] shrink-0 overflow-hidden rounded-[3px] border border-line bg-surface">
+            <div className="h-[22px] w-[22px] shrink-0 overflow-hidden rounded-[3px] border border-border bg-muted">
               <AssetThumb thumb={thumb} />
             </div>
-            <span className="truncate font-medium text-text">{name}</span>
+            <span className="truncate font-medium text-foreground">{name}</span>
           </div>
         </td>
         {cells?.map((cell, i) => (
@@ -63,8 +63,8 @@ export const AssetListRow = forwardRef<HTMLTableRowElement, AssetListRowProps>(
  */
 export function AssetListHead({ columns }: { columns: ReactNode[] }) {
   return (
-    <thead className="sticky top-0 z-10 bg-bg">
-      <tr className="text-table-header text-text-3">
+    <thead className="sticky top-0 z-10 bg-background">
+      <tr className="text-table-header text-subtle-foreground">
         <th className="px-2.5 py-1.5 text-left">Name</th>
         {columns.map((col, i) => (
           <th key={i} className="px-2.5 py-1.5 text-left">

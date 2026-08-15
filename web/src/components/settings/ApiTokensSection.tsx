@@ -62,7 +62,7 @@ export function ApiTokensSection() {
           description="Your tokens are still there — this list just failed to load. Reload to try again."
         />
       ) : loading ? (
-        <div className="py-2 text-ui text-text-3">Loading…</div>
+        <div className="py-2 text-ui text-subtle-foreground">Loading…</div>
       ) : tokens.length === 0 ? (
         <EmptyState
           title="No access tokens"
@@ -73,10 +73,10 @@ export function ApiTokensSection() {
           {tokens.map((t) => (
             <div
               key={t.id}
-              className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
+              className="flex items-center gap-3 border-b border-border py-2 last:border-b-0"
             >
               <div className="min-w-0 flex-1">
-                <div className="truncate text-ui text-text">{t.label}</div>
+                <div className="truncate text-ui text-foreground">{t.label}</div>
                 <div className="truncate text-caption">
                   <span className="font-mono">{t.prefix}…</span>
                   {t.library_name && <> · {t.library_name}</>} · {describeUse(t)}
@@ -99,7 +99,7 @@ export function ApiTokensSection() {
                       title: `Revoke ${t.label}?`,
                       description: "Any client using this token stops working immediately.",
                       confirmLabel: "Revoke",
-                      tone: "danger",
+                      tone: "destructive",
                     });
                     if (!ok) return;
                     setRevokeError(null);
@@ -124,7 +124,7 @@ export function ApiTokensSection() {
         </div>
       )}
 
-      {revokeError && <p className="mt-2 text-small text-err">{revokeError}</p>}
+      {revokeError && <p className="mt-2 text-small text-destructive">{revokeError}</p>}
 
       <CreateTokenDialog
         open={createOpen}
@@ -217,7 +217,7 @@ function CreateTokenDialog({
             The token is pinned to your current library and acts as you. It cannot create other
             tokens or reach server administration.
           </p>
-          {error && <p className="text-small text-err">{error}</p>}
+          {error && <p className="text-small text-destructive">{error}</p>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
@@ -273,7 +273,7 @@ function IssuedTokenDialog({
           <DialogTitle>Copy your token now</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-ui text-text">
+          <p className="text-ui text-foreground">
             This is the only time the token is shown. Damson stores a digest, not the value — if you
             lose it, revoke this token and create another.
           </p>
@@ -290,7 +290,7 @@ function IssuedTokenDialog({
             </Button>
           </div>
           {copyFailed && (
-            <p className="mt-2 text-small text-err">
+            <p className="mt-2 text-small text-destructive">
               Couldn&rsquo;t reach the clipboard — browsers only allow it over HTTPS or on
               localhost. Select the value above and copy it manually.
             </p>

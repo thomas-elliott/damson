@@ -56,13 +56,13 @@ export const TabsExample: Story = {
           Activity <TabCount>7</TabCount>
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="assets" className="pt-4 text-ui text-text-2">
+      <TabsContent value="assets" className="pt-4 text-ui text-muted-foreground">
         Assets pinned to this project.
       </TabsContent>
-      <TabsContent value="manifest" className="pt-4 text-ui text-text-2">
+      <TabsContent value="manifest" className="pt-4 text-ui text-muted-foreground">
         The project manifest JSON.
       </TabsContent>
-      <TabsContent value="activity" className="pt-4 text-ui text-text-2">
+      <TabsContent value="activity" className="pt-4 text-ui text-muted-foreground">
         Recent activity.
       </TabsContent>
     </Tabs>
@@ -73,13 +73,13 @@ export const TooltipExample: Story = {
   render: () => (
     <div className="flex items-center gap-4">
       <SimpleTooltip label="Library" side="bottom">
-        <IconButton aria-label="Library">
-          <Settings size={14} />
+        <IconButton size="sm" aria-label="Library">
+          <Settings />
         </IconButton>
       </SimpleTooltip>
       <SimpleTooltip label="Download asset" side="right">
-        <IconButton aria-label="Download">
-          <Download size={14} />
+        <IconButton size="sm" aria-label="Download">
+          <Download />
         </IconButton>
       </SimpleTooltip>
     </div>
@@ -92,7 +92,7 @@ export const DropdownMenuExample: Story = {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button>
+          <Button variant="secondary">
             Sort <ChevronDown size={12} />
           </Button>
         </DropdownMenuTrigger>
@@ -116,7 +116,7 @@ export const DropdownMenuExample: Story = {
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>
-            <Trash2 size={12} className="text-err" /> Remove sort
+            <Trash2 size={12} className="text-destructive" /> Remove sort
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -128,14 +128,14 @@ export const PopoverExample: Story = {
   render: () => (
     <Popover>
       <PopoverTrigger asChild>
-        <IconButton aria-label="More">
-          <MoreHorizontal size={14} />
+        <IconButton size="sm" aria-label="More">
+          <MoreHorizontal />
         </IconButton>
       </PopoverTrigger>
       <PopoverContent className="min-w-[240px]">
         <div className="flex flex-col gap-2">
-          <div className="text-label text-text-4">Quick info</div>
-          <p className="text-small text-text-2">
+          <div className="text-label text-faint-foreground">Quick info</div>
+          <p className="text-small text-muted-foreground">
             Drop-in popover container. Use for rich content (filters, details) that needs more room
             than a dropdown menu.
           </p>
@@ -180,17 +180,17 @@ export const DialogExample: Story = {
             later.
           </DialogDescription>
           <label className="flex flex-col gap-1.5 text-small">
-            <span className="text-text-4">Name</span>
+            <span className="text-faint-foreground">Name</span>
             <Input placeholder="Crystal Quest" autoFocus />
           </label>
           <label className="flex flex-col gap-1.5 text-small">
-            <span className="text-text-4">Path</span>
+            <span className="text-faint-foreground">Path</span>
             <Input placeholder="~/Dev/crystal-quest" />
           </label>
         </DialogBody>
         <DialogFooter>
           <DialogClose asChild>
-            <Button>Cancel</Button>
+            <Button variant="secondary">Cancel</Button>
           </DialogClose>
           <Button variant="primary">Create project</Button>
         </DialogFooter>

@@ -223,11 +223,17 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
   useKeyboardShortcuts(bindings);
 
   if (!asset && loading) {
-    return <div className="grid h-full place-items-center text-ui text-text-3">Loading files…</div>;
+    return (
+      <div className="grid h-full place-items-center text-ui text-subtle-foreground">
+        Loading files…
+      </div>
+    );
   }
   if (!asset) {
     return (
-      <div className="grid h-full place-items-center text-ui text-text-3">Asset not found.</div>
+      <div className="grid h-full place-items-center text-ui text-subtle-foreground">
+        Asset not found.
+      </div>
     );
   }
 
@@ -265,10 +271,10 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="w-[260px] shrink-0 border-r border-line bg-panel">
+      <div className="w-[260px] shrink-0 border-r border-border bg-card">
         <FileTreeSidebar
           assetName={asset.name}
-          assetIcon={<Package size={13} className="text-text-3" />}
+          assetIcon={<Package size={13} className="text-subtle-foreground" />}
           onExit={onExit}
           query={query}
           onQueryChange={setQuery}
@@ -305,14 +311,14 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           {folders.length === 0 && listingFiles.length === 0 ? (
             <div className="grid h-full place-items-center text-center">
               <div>
-                <div className="text-ui text-text-2">
+                <div className="text-ui text-muted-foreground">
                   {resultsMode
                     ? "No files match"
                     : path.length === 0
                       ? "No files in this pack"
                       : "This folder is empty"}
                 </div>
-                <div className="mt-1 text-small text-text-4">
+                <div className="mt-1 text-small text-faint-foreground">
                   {resultsMode
                     ? "Try a different search or clear the file-type filter."
                     : path.length === 0
@@ -358,7 +364,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
             />
           )}
           {truncated && (
-            <div className="mt-3 text-center text-small text-text-4">
+            <div className="mt-3 text-center text-small text-faint-foreground">
               Showing the first {RESULTS_CAP} matches — refine your search to narrow the results.
             </div>
           )}
@@ -371,8 +377,8 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
         />
 
         {saved && (
-          <div className="absolute bottom-4 left-1/2 z-selbar flex -translate-x-1/2 items-center gap-2 rounded-pill border border-line-2 bg-surface-2 px-3.5 py-1.5 text-ui text-text shadow-elevated">
-            <Check size={13} className="text-ok" /> Subset version created
+          <div className="absolute bottom-4 left-1/2 z-selbar flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-strong bg-popover px-3.5 py-1.5 text-ui text-foreground shadow-elevated">
+            <Check size={13} className="text-success" /> Subset version created
           </div>
         )}
       </div>

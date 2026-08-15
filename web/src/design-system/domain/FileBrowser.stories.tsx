@@ -100,8 +100,8 @@ export const Glyphs: Story = {
   render: () => (
     <div className="grid grid-cols-4 gap-3">
       {(Object.keys(FILE_TYPE_META) as FileType[]).map((ftype) => (
-        <div key={ftype} className="flex items-center gap-2 text-ui text-text-2">
-          <FileGlyph ftype={ftype} size={16} strokeWidth={1.6} className="text-text-3" />
+        <div key={ftype} className="flex items-center gap-2 text-ui text-muted-foreground">
+          <FileGlyph ftype={ftype} size={16} strokeWidth={1.6} className="text-subtle-foreground" />
           {FILE_TYPE_META[ftype].label}
         </div>
       ))}
@@ -120,10 +120,10 @@ export const Thumbnails: Story = {
         ALL_FILES.find((x) => x.ftype === "doc")!,
       ].map((node) => (
         <div key={node.name} className="flex flex-col gap-1.5">
-          <div className="aspect-square overflow-hidden rounded-md border border-line">
+          <div className="aspect-square overflow-hidden rounded-md border border-border">
             {node.thumb ? <FileThumb node={node} /> : <FilePlaceholder node={node} />}
           </div>
-          <div className="text-mono text-text-3">{node.ext || "file"}</div>
+          <div className="text-mono text-subtle-foreground">{node.ext || "file"}</div>
         </div>
       ))}
     </div>
@@ -191,7 +191,7 @@ export const TreeSidebar: Story = {
         return next;
       });
     return (
-      <div className="h-[560px] w-[280px] border-r border-line bg-panel">
+      <div className="h-[560px] w-[280px] border-r border-border bg-card">
         <FileTreeSidebar
           assetName="PolygonFantasyKingdom"
           query={query}
@@ -259,7 +259,7 @@ export const SelectionBar: Story = {
   render: function SelectionBarStory() {
     const [count, setCount] = useState(3);
     return (
-      <div className="relative h-[200px] bg-bg">
+      <div className="relative h-[200px] bg-background">
         <FileSelectionBar
           count={count}
           onClear={() => setCount(0)}
@@ -305,8 +305,8 @@ export const FullLayout: Story = {
       });
 
     return (
-      <div className="flex h-[640px] bg-bg text-text">
-        <div className="w-[260px] border-r border-line bg-panel">
+      <div className="flex h-[640px] bg-background text-foreground">
+        <div className="w-[260px] border-r border-border bg-card">
           <FileTreeSidebar
             assetName="PolygonFantasyKingdom"
             query={query}

@@ -861,7 +861,7 @@ Gated by `library_settings.previews_enabled`.
 replacing the hand-rolled bounded goroutine pools draining in-memory
 channels that preceded it. The pipelines themselves are unchanged;
 River wraps them, and enqueue becomes a `river_job` row instead of a
-channel send. See `docs/specs/2026-07-19-river-queue-migration.md`
+channel send. See `docs/specs/history/2026-07-19-river-queue-migration.md`
 for the reasoning.
 
 - **Two queues.** `import` and `preview`, sized independently so each
@@ -1503,9 +1503,13 @@ the code diverges:
    PNG for everything else. File previews (§11.2) follow the same
    pure-Go constraint.
 8. Ownership model: library-based group ownership.
-9. **Accent colour is yellow only** — no theme-swap. **Dark default,
-   light override on `data-theme`.** Hand-rolled components on
-   Radix headless primitives — no shadcn/ui.
+9. **Brand colour is yellow only** — no theme-swap, and it is `--primary`
+   (shadcn's `--accent` is the hover surface). **Light at `:root`, dark on
+   `.dark`**, with `prefers-color-scheme` deciding the initial value until the
+   user picks one. Primitives come from shadcn/ui via the shared `@shared`
+   registry as copy-in source; Damson-specific components are still hand-rolled
+   on Radix. See
+   [`specs/2026-08-15-shared-design-system.md`](specs/2026-08-15-shared-design-system.md).
 10. Background jobs: River on Postgres, replacing hand-rolled
     goroutine pools. Chosen for durability across restarts and
     observable job state without building a scheduler.

@@ -1,6 +1,6 @@
 import { cn, cva, type VariantProps } from "@/design-system/utils";
 
-const track = cva("w-full overflow-hidden rounded-full bg-line", {
+const track = cva("w-full overflow-hidden rounded-full bg-border", {
   variants: {
     size: {
       sm: "h-[3px]",
@@ -13,10 +13,10 @@ const track = cva("w-full overflow-hidden rounded-full bg-line", {
 const fill = cva("h-full transition-[width] duration-200 ease", {
   variants: {
     tone: {
-      accent: "bg-accent",
-      ok: "bg-ok",
-      warn: "bg-warn",
-      err: "bg-err",
+      accent: "bg-primary",
+      ok: "bg-success",
+      warn: "bg-warning",
+      err: "bg-destructive",
     },
   },
   defaultVariants: { tone: "accent" },

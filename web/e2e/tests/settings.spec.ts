@@ -7,7 +7,7 @@ import { test, expect, bootstrapAdmin, installSession } from "../fixtures";
 // vanishes. The hard reload at the end is the actual test — every
 // assertion after it is a pure server-state read.
 test.describe("Library settings persist across reload", () => {
-  test("toggling the theme default sticks after a hard reload", async ({
+  test("toggling the grid density default sticks after a hard reload", async ({
     page,
     request,
     noConsoleErrors,
@@ -17,13 +17,13 @@ test.describe("Library settings persist across reload", () => {
     await installSession(page, session);
     await page.goto("/settings");
 
-    const themeDark = page.getByRole("radio", { name: "Dark" });
-    const themeLight = page.getByRole("radio", { name: "Light" });
+    const densityMedium = page.getByRole("radio", { name: "Medium" });
+    const densityLarge = page.getByRole("radio", { name: "Large" });
 
-    // Default is "dark" — bootstrap creates a row of defaults via
+    // Default is "medium" — bootstrap creates a row of defaults via
     // loadOrCreateLibrarySettings on first GET.
-    await expect(themeDark).toHaveAttribute("aria-checked", "true");
-    await expect(themeLight).toHaveAttribute("aria-checked", "false");
+    await expect(densityMedium).toHaveAttribute("aria-checked", "true");
+    await expect(densityLarge).toHaveAttribute("aria-checked", "false");
 
     // Drive the change via UI; pin to the PATCH so the reload below can't
     // race the network. The autosave fires from onValueChange.
@@ -31,19 +31,19 @@ test.describe("Library settings persist across reload", () => {
       page.waitForResponse(
         (r) => r.url().endsWith("/api/settings") && r.request().method() === "PATCH",
       ),
-      themeLight.click(),
+      densityLarge.click(),
     ]);
-    await expect(themeLight).toHaveAttribute("aria-checked", "true");
+    await expect(densityLarge).toHaveAttribute("aria-checked", "true");
 
     // Hard reload — SPA loses every in-memory cache; the assertion below
     // is a pure server-state read via the refetch on mount.
     await page.reload();
 
-    await expect(page.getByRole("radio", { name: "Light" })).toHaveAttribute(
+    await expect(page.getByRole("radio", { name: "Large" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
-    await expect(page.getByRole("radio", { name: "Dark" })).toHaveAttribute(
+    await expect(page.getByRole("radio", { name: "Medium" })).toHaveAttribute(
       "aria-checked",
       "false",
     );

@@ -9,43 +9,72 @@
 
 @import "tailwindcss";
 
+/* Supplies the `animate-in` / `data-[state=open]:` utilities the registry Dialog
+   uses. `shadcn add` installs the package but never writes this import, and the
+   missing classes are silent — the dialog just snaps. */
+@import "tw-animate-css";
+
 @plugin '@tailwindcss/typography';
 
 @custom-variant dark (&:is(.dark *));
 
-@theme {
-  --color-bg: var(--ds-bg);
-  --color-panel: var(--ds-panel);
-  --color-surface: var(--ds-surface);
-  --color-surface-2: var(--ds-surface-2);
-  --color-line: var(--ds-line);
-  --color-line-2: var(--ds-line-2);
+/* CLI-owned: `shadcn add @shared/tokens` regenerates this block wholesale.
+   Damson's own entries go in the second one below, out of its reach. */
+@theme inline {
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-faint-foreground: var(--faint-foreground);
+  --color-background-sunken: var(--background-sunken);
+  --color-background-inset: var(--background-inset);
+  --color-background-hover: var(--background-hover);
+  --color-background-active: var(--background-active);
+  --color-border-strong: var(--border-strong);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-info-soft: var(--info-soft);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --row-h: var(--row-h);
+}
 
-  --color-text-2: var(--ds-text-2);
-  --color-text-3: var(--ds-text-3);
-  --color-text-4: var(--ds-text-4);
-  --color-text: var(--ds-text);
-
-  --color-accent-2: var(--ds-accent-2);
-  --color-accent: var(--ds-accent);
-  --color-accent-tint: var(--ds-accent-tint);
-  --color-accent-ring: var(--ds-accent-ring);
-  --color-accent-fg: var(--ds-accent-fg);
-
-  --color-ok: var(--ds-ok);
-  --color-ok-tint: var(--ds-ok-tint);
-
-  --color-warn: var(--ds-warn);
-  --color-warn-tint: var(--ds-warn-tint);
-
-  --color-err: var(--ds-err);
-  --color-err-tint: var(--ds-err-tint);
-
-  --color-unk: var(--ds-unk);
-  --color-unk-tint: var(--ds-unk-tint);
-
-  --font-sans: var(--ds-font-sans);
-  --font-mono: var(--ds-font-mono);
+@theme inline {
+  --color-unknown: var(--unknown);
+  --color-unknown-soft: var(--unknown-soft);
+  --color-primary-hover: var(--primary-hover);
+  --color-swatch-foreground: var(--swatch-foreground);
 
   --text-body: 15px;
   --text-body--line-height: 1.5;
@@ -54,12 +83,7 @@
   --text-small: 12px;
   --text-small--line-height: 1.4;
 
-  --radius-sm: var(--ds-r-sm);
-  --radius-md: var(--ds-r-md);
-  --radius-lg: var(--ds-r-lg);
-  --radius-pill: var(--ds-r-pill);
-
-  --shadow-elevated: var(--ds-shadow);
+  --shadow-elevated: var(--elevation);
 
   --transition-duration-fast: 80ms;
   --transition-duration-std: 100ms;
@@ -77,9 +101,9 @@
   --z-index-popover: 600;
   --z-index-tweaks: 1000;
 
-  --width-sidebar: var(--ds-sidebar-w);
-  --width-rail: var(--ds-rail-w);
-  --width-detail: var(--ds-detail-w);
+  --width-sidebar: var(--sidebar-w);
+  --width-rail: var(--rail-w);
+  --width-detail: var(--detail-w);
 
   --animate-slide-in-right: slide-in-right 160ms cubic-bezier(0.4, 0, 0.2, 1);
   --animate-fade-in: fade-in 100ms ease;
@@ -131,8 +155,9 @@
   }
 }
 
-/* Layer 2 — composed semantic tokens. Add to globals.css inside
- * @layer components { ... } below the @tailwind directives. */
+/* Composed semantic type. `@utility` rather than `@layer components` so these
+ * participate in Tailwind's own ordering and `cn()` can dedupe them — all 22
+ * names below are registered with tailwind-merge in design-system/utils/cn.ts. */
 @utility text-title-reg {
   /* Headings — title (22), heading (20), subhead (18). Each has
    * 4 weight variants and a bare alias = -semibold. */
@@ -218,7 +243,7 @@
   @apply font-mono text-small;
 }
 @utility text-caption {
-  @apply text-small text-text-3;
+  @apply text-small text-subtle-foreground;
 }
 @utility text-num {
   @apply text-ui font-mono;
@@ -248,11 +273,11 @@
 
   body {
     margin: 0;
-    font-family: var(--ds-font-sans);
+    font-family: var(--font-sans);
     font-size: 15px;
     line-height: 1.5;
-    color: var(--ds-text);
-    background: var(--ds-bg);
+    color: var(--foreground);
+    background: var(--background);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     font-feature-settings: "cv11", "ss01";
@@ -275,12 +300,12 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--ds-accent-ring);
+    outline: 2px solid var(--ring);
     outline-offset: 1px;
     border-radius: 3px;
   }
 
   ::selection {
-    background: var(--ds-accent-tint);
+    background: var(--primary-soft);
   }
 }

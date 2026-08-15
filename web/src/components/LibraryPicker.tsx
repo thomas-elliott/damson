@@ -20,15 +20,15 @@ export function LibraryPicker({ current }: { current: MeLibrary }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Switch library"
-        className="group flex min-w-0 items-center gap-1.5 rounded-sm px-1 py-0.5 text-ui hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        className="group flex min-w-0 items-center gap-1.5 rounded-sm px-1 py-0.5 text-ui hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
       >
-        <span className="truncate font-medium text-text">{current.name}</span>
+        <span className="truncate font-medium text-foreground">{current.name}</span>
         <Badge size="sm" mono>
           {current.role}
         </Badge>
         <ChevronDown
           size={12}
-          className="shrink-0 text-text-3 transition-transform duration-std ease group-data-[state=open]:rotate-180"
+          className="shrink-0 text-subtle-foreground transition-transform duration-std ease group-data-[state=open]:rotate-180"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[14rem]">
@@ -48,7 +48,7 @@ export function LibraryPicker({ current }: { current: MeLibrary }) {
               className="justify-between gap-3"
             >
               <span className="flex min-w-0 items-center gap-2">
-                <span className="grid h-3.5 w-3.5 place-items-center text-accent">
+                <span className="grid h-3.5 w-3.5 place-items-center text-primary">
                   {active ? <Check size={12} strokeWidth={3} /> : null}
                 </span>
                 <span className="truncate">{lib.name}</span>

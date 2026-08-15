@@ -107,7 +107,7 @@ export function DetailsSection({ asset }: { asset: AssetDetailView }) {
 function DetailsRead({ asset }: { asset: AssetDetailView }) {
   if (!hasAnyDetail(asset)) {
     return (
-      <p className="text-small text-text-4">
+      <p className="text-small text-faint-foreground">
         Nothing yet — fetch storefront metadata from Overview, or add these by hand.
       </p>
     );
@@ -130,8 +130,8 @@ function DetailsRead({ asset }: { asset: AssetDetailView }) {
 // SpecSheet renders whatever the store itself listed, in the store's own order.
 function SpecSheet({ attributes }: { attributes: MetadataAttribute[] }) {
   return (
-    <div className="flex flex-col gap-1.5 border-t border-line pt-2.5">
-      <div className="text-small text-text-3">From the store listing</div>
+    <div className="flex flex-col gap-1.5 border-t border-border pt-2.5">
+      <div className="text-small text-subtle-foreground">From the store listing</div>
       <DefinitionList rows={attributes.map((a) => ({ label: a.label, value: a.value }))} />
     </div>
   );
@@ -142,14 +142,14 @@ function DefinitionList({ rows }: { rows: { label: string; value?: string; href?
     <dl className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-small">
       {rows.map((r) => (
         <div key={r.label} className="col-span-2 grid grid-cols-subgrid">
-          <dt className="min-w-0 truncate text-text-3">{r.label}</dt>
-          <dd className="min-w-0 break-words whitespace-pre-line text-text-2">
+          <dt className="min-w-0 truncate text-subtle-foreground">{r.label}</dt>
+          <dd className="min-w-0 break-words whitespace-pre-line text-muted-foreground">
             {r.href ? (
               <a
                 href={r.href}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-1 text-accent hover:underline"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
               >
                 <span className="min-w-0 truncate">{r.value}</span>
                 <ExternalLink size={10} className="shrink-0" />
@@ -217,13 +217,15 @@ function DetailsForm({ asset, onDone }: { asset: AssetDetailView; onDone: () => 
           />
         </FieldRow>
       ))}
-      <p className="text-small text-text-4">Clear a field to remove it.</p>
-      {patch.error && <p className="text-small text-err">{(patch.error as Error).message}</p>}
+      <p className="text-small text-faint-foreground">Clear a field to remove it.</p>
+      {patch.error && (
+        <p className="text-small text-destructive">{(patch.error as Error).message}</p>
+      )}
       <div className="flex items-center justify-end gap-1.5">
         <Button variant="ghost" size="sm" onClick={onDone} disabled={patch.isPending}>
           Cancel
         </Button>
-        <Button size="sm" onClick={onSave} disabled={patch.isPending}>
+        <Button variant="secondary" size="sm" onClick={onSave} disabled={patch.isPending}>
           {patch.isPending ? "Saving…" : "Save"}
         </Button>
       </div>

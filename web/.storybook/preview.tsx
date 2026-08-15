@@ -7,20 +7,15 @@ import "../src/styles/globals.css";
 // from the bare decorator function (react-hooks/rules-of-hooks).
 function ThemeFrame({ theme, children }: { theme: "dark" | "light"; children: React.ReactNode }) {
   React.useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "light") {
-      root.setAttribute("data-theme", "light");
-    } else {
-      root.removeAttribute("data-theme");
-    }
+    document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
   return (
     <div
-      className="bg-bg text-text"
+      className={`${theme === "dark" ? "dark " : ""}bg-background text-foreground`}
       style={{
         padding: 24,
         minWidth: 320,
-        fontFamily: "var(--ds-font-sans)",
+        fontFamily: "var(--font-sans)",
       }}
     >
       {children}
@@ -55,7 +50,7 @@ const preview: Preview = {
     theme: {
       name: "Theme",
       description: "Damson theme (dark default, light opt-in)",
-      defaultValue: "dark",
+      defaultValue: (import.meta.env?.STORYBOOK_THEME as "dark" | "light") ?? "dark",
       toolbar: {
         icon: "circlehollow",
         items: [

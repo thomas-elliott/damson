@@ -1,8 +1,19 @@
 # Adopting the shared design system
 
-**Status `[2026-08-15]`:** not started. This is the **input to `/spec`**, not a spec — it carries the
-estate context that lives outside this repo, the measurements, and the questions an alignment session
-has to settle. The spec it produces goes to `docs/specs/2026-08-__-shared-design-system.md`.
+**Status `[2026-08-15]`:** superseded. The spec is written and signed off —
+[`specs/2026-08-15-shared-design-system.md`](specs/2026-08-15-shared-design-system.md).
+**Read that instead.** Where it and this file disagree, **the spec wins**: it verified its claims
+against the working trees, and several of the ones below turned out to be stale.
+
+Known stale here, corrected in the spec: the `--ds-surface-2` gap (its twelve sites decompose into
+three roles that already have names, so no new contract name is needed); the guardrail script (the
+one in `personal-practices` is the Svelte variant and has no retired-name check); the `@theme inline`
+step (the CLI generates that block itself); the radius scale (multiplicative, not additive); the
+font-size layer's directive (`@utility`, not `@layer components`); and `EmptyState`'s location (a
+composition, not a primitive).
+
+This file is kept for the **estate context that lives outside this repo** — what the registry is, why
+damson is consumer two, and the reasoning behind the vocabulary decisions. That part has not changed.
 
 ## What the shared design system is
 
@@ -29,8 +40,10 @@ Authoritative reading, in order. All paths are siblings of this repo under `~/Pr
 - `shared-design/src/styles/tokens.css` — the contract itself, with its three traps in the header.
 - `personal-practices/standards/design-system.md` — the measurements and reasoning.
 - `personal-practices/decisions/2026-08-15-design-system-vocabulary.md` — what was chosen.
-- `dialogue-db/docs/specs/2026-08-15-shared-design-system.md` — the first consumer's spec, in
-  flight. The closest thing to a worked example.
+- `dialogue-db/docs/specs/2026-08-15-shared-design-system.md` — the first consumer's spec.
+  **Shipped**, merged as PR #39 (`5e6b4ba`) `[re-checked 2026-08-15]` — so it is a completed worked
+  example rather than a plan, and `dialogue-db/web/src/styles/tokens.css` is the more reliable
+  reading of what it actually settled on.
 
 ## Where damson sits
 
