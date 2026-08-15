@@ -106,7 +106,11 @@ function DangerZone({ library }: { library: MeLibrary }) {
             be undone.
           </span>
         </div>
-        <Button variant="danger" leadingIcon={<Trash2 size={12} />} onClick={() => setOpen(true)}>
+        <Button
+          variant="destructive"
+          leadingIcon={<Trash2 size={12} />}
+          onClick={() => setOpen(true)}
+        >
           Delete library
         </Button>
       </div>
@@ -190,7 +194,7 @@ function DeleteLibraryForm({
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button variant="danger" disabled={!matches || del.isPending} onClick={submit}>
+        <Button variant="destructive" disabled={!matches || del.isPending} onClick={submit}>
           {del.isPending ? "Deleting…" : "Delete library"}
         </Button>
       </DialogFooter>

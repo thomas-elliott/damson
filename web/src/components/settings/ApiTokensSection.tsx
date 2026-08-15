@@ -99,7 +99,7 @@ export function ApiTokensSection() {
                       title: `Revoke ${t.label}?`,
                       description: "Any client using this token stops working immediately.",
                       confirmLabel: "Revoke",
-                      tone: "danger",
+                      tone: "destructive",
                     });
                     if (!ok) return;
                     setRevokeError(null);
