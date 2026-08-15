@@ -97,7 +97,7 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
                   ))}
                 </div>
               )}
-              <Button size="sm" onClick={onPick}>
+              <Button variant="secondary" size="sm" onClick={onPick}>
                 Use this listing
               </Button>
             </>
@@ -233,6 +233,7 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
         <Button
+          variant="secondary"
           size="sm"
           onClick={() => meta.runFetch()}
           disabled={!hasSource || meta.pending}
@@ -360,7 +361,11 @@ function MatchPickerDialog({
               placeholder="Asset name"
               autoFocus
             />
-            <Button onClick={() => search.mutate(q)} disabled={search.isPending}>
+            <Button
+              variant="secondary"
+              onClick={() => search.mutate(q)}
+              disabled={search.isPending}
+            >
               Search
             </Button>
           </div>

@@ -47,7 +47,9 @@ export const WithIcons: Story = {
       <Button variant="primary" leadingIcon={<Plus size={12} />}>
         Create
       </Button>
-      <Button leadingIcon={<Download size={12} />}>Export</Button>
+      <Button variant="secondary" leadingIcon={<Download size={12} />}>
+        Export
+      </Button>
       <Button variant="danger" leadingIcon={<Trash2 size={12} />}>
         Delete
       </Button>
@@ -58,8 +60,12 @@ export const WithIcons: Story = {
 export const Sizes: Story = {
   render: () => (
     <div className="flex items-center gap-2">
-      <Button size="sm">Small</Button>
-      <Button size="md">Medium</Button>
+      <Button variant="secondary" size="sm">
+        Small
+      </Button>
+      <Button variant="secondary" size="md">
+        Medium
+      </Button>
       <Button size="sm" variant="primary">
         Small primary
       </Button>

@@ -74,7 +74,9 @@ export const Queue: Story = {
         }
         actions={
           <>
-            <Button size="sm">Review</Button>
+            <Button variant="secondary" size="sm">
+              Review
+            </Button>
             <Button size="sm" variant="primary" leadingIcon={<Check size={12} />}>
               Confirm
             </Button>

@@ -125,9 +125,15 @@ export const DetailPanelExample: Story = {
             <dd className="font-mono text-muted-foreground">128</dd>
           </dl>
           <div className="flex items-center gap-1.5">
-            <Button leadingIcon={<Download size={12} />}>Download</Button>
-            <Button leadingIcon={<Pin size={12} />}>Pin</Button>
-            <Button leadingIcon={<Copy size={12} />}>Duplicate</Button>
+            <Button variant="secondary" leadingIcon={<Download size={12} />}>
+              Download
+            </Button>
+            <Button variant="secondary" leadingIcon={<Pin size={12} />}>
+              Pin
+            </Button>
+            <Button variant="secondary" leadingIcon={<Copy size={12} />}>
+              Duplicate
+            </Button>
           </div>
         </div>
       </DetailPanel>
@@ -147,7 +153,9 @@ export const FullPageViewExample: Story = {
               <BreadcrumbItem current>Stylised Sprite Pack v1.2</BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
-            <Button leadingIcon={<ExternalLink size={12} />}>Source</Button>
+            <Button variant="secondary" leadingIcon={<ExternalLink size={12} />}>
+              Source
+            </Button>
             <IconButton aria-label="Close">
               <Maximize2 size={14} />
             </IconButton>
@@ -191,8 +199,12 @@ export const SelectionBarExample: Story = {
     return (
       <div className="relative h-[240px] w-[640px] overflow-hidden border border-border bg-background p-4 text-ui text-subtle-foreground">
         <div className="flex items-center gap-2">
-          <Button onClick={() => setCount((c) => c + 1)}>Select more</Button>
-          <Button onClick={() => setCount(0)}>Clear selection</Button>
+          <Button variant="secondary" onClick={() => setCount((c) => c + 1)}>
+            Select more
+          </Button>
+          <Button variant="secondary" onClick={() => setCount(0)}>
+            Clear selection
+          </Button>
         </div>
         <SelectionBar
           count={count}
