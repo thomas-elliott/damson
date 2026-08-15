@@ -39,23 +39,42 @@ diverging, not of deciding from scratch. Pairs with the 0.1.7 uptake below.
 
 Spec-ready: no — (c) still needs a decision, and (a) needs confirming rather than taking.
 
-*Nothing else queued — the 0.1.7 uptake moved to `In flight` on 2026-08-15. Promote something from
-`Shaped` when it lands.*
+### 2. Contribute damson's icon-slot field API to `@shared/input`
+
+A leading-icon / trailing-slot input is primitive-shaped and not damson-specific, so by the estate's
+own rule it belongs in the registry. The path `IconButton` took. Deferred out of the 0.1.7 uptake
+because it would have blocked that slice on a `shared-design` change; taking it would let damson
+retire three owned primitives (`Input`, `SearchInput`, `Textarea`).
+
+Blocked on nothing but sequencing. Spec-ready: nearly — the API is already designed, because damson
+is running it.
+
+### 3. Tell `shared-design` its `@theme inline` self-mapping is a cycle
+
+The 0.1.7 uptake found that the CLI generates `--radius-md: var(--radius-md)` — the same name on
+both sides — which is invalid at computed-value time and destroys any other declaration of that
+name. Every consumer that deletes the appended reference `:root`, which `consuming.md` instructs
+them to do, silently loses the whole non-colour scale. damson has a local workaround
+(`docs/design-system.md`, **Tailwind mapping**); the fix belongs in `gen-tokens-item.mjs`.
+
+Not damson work, but damson found it and nobody else has hit it yet. Spec-ready: n/a — it is an
+upstream issue, not a slice.
+
+*Nothing else queued. Promote something from `Shaped` when these land.*
 
 ---
 
 ## In flight  (spec written — pointer only, the spec owns the detail)
 
-- **Take up `shared-design` 0.1.7** → [`specs/2026-08-15-shared-design-0-1-7.md`](specs/2026-08-15-shared-design-0-1-7.md).
-  Signed off 2026-08-15. Seven stages; frontend only. Absorbs the four scales 0.1.7 added past
-  colour — literal radius, eight-role type, motion, elevation — plus the 16px field floor and
-  `@shared/type-scale`. **Supersedes Q4 of the slice below**, whose radius anchor answered a
-  multiplicative scale that no longer exists.
+*Nothing in flight.*
 
-The shared design system slice itself shipped 2026-08-15 (PR #40, `f91d654`) — see
-[`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md)
-and [`progress.md`](progress.md). What it deferred is carried in
-[`specs/history/README.md`](specs/history/README.md).
+Both design-system slices shipped 2026-08-15 — the vocabulary adoption
+([`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md),
+PR #40 `f91d654`) and the 0.1.7 uptake that took the contract past colour
+([`specs/history/2026-08-15-shared-design-0-1-7.md`](specs/history/2026-08-15-shared-design-0-1-7.md),
+PR #41), whose Q2 **superseded Q4 of the first**: the radius anchor it chose answered a
+multiplicative scale that no longer exists. See [`progress.md`](progress.md); what they deferred is
+carried in [`specs/history/README.md`](specs/history/README.md).
 
 <details>
 <summary>What the roadmap banked before that spec (2026-08-15) — kept for the record</summary>

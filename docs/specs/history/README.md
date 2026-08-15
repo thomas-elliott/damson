@@ -24,6 +24,7 @@ flight — see [`../../roadmap.md`](../../roadmap.md) for what is queued.
 | 2026-08-01 | [unity-local-cache-import](2026-08-01-unity-local-cache-import.md) | Importing from the local Unity Asset Store cache, with `(source_kind, source_relative_path)` preflight precision. | PR #38 `531ea5b` |
 | 2026-08-01 | [upload-reliability-observability](2026-08-01-upload-reliability-observability.md) | Removed the double spool, added the chunked resumable path, and made upload failures visible in logs. | PR #39 `510b9ff` |
 | 2026-08-15 | [shared-design-system](2026-08-15-shared-design-system.md) | Moved the frontend off 57 `--ds-*` tokens onto the shared `@shared` registry and shadcn's vocabulary, in one sweep behind a token gate. Frontend only — no Go, no SQL. | PR #40 `f91d654` |
+| 2026-08-15 | [shared-design-0-1-7](2026-08-15-shared-design-0-1-7.md) | Took the contract past colour — literal radii, eight role sizes, motion, per-theme elevation, the 16px field floor. Found that the CLI's `@theme inline` self-mapping is a dependency cycle that had been silently killing tokens since before the slice. | PR #41 |
 
 ## What they deferred
 
@@ -45,12 +46,22 @@ section stays intact as the historical record — this is a copy, not a move.
   it, so it is latent rather than live.
 - **Dark-mode a11y coverage for damson's own palette** — the design-system slice covered the story
   set; a sweep across composed pages was not in scope.
+- **Contribute damson's icon-slot field API to `@shared/input`** — from the 0.1.7 slice. A
+  leading-icon / trailing-slot input is primitive-shaped and not damson-specific, so by the estate's
+  own rule it belongs in the registry. Would let damson retire three owned primitives.
+- **Tell `shared-design` its `@theme inline` self-mapping is a cycle** — from the 0.1.7 slice, and
+  the one with reach beyond damson. Every consumer that deletes the appended reference `:root`, which
+  `consuming.md` instructs them to do, silently loses the entire non-colour scale.
+- **Extend the 16px field floor to `select`, `command` and combobox search fields** — from the 0.1.7
+  slice. Upstream names these as carrying the same 14px class and not yet covered by the contract.
+- **A genuine slow motion step** — from the 0.1.7 slice. `--duration-normal` (180ms) and
+  `--duration-slow` (260ms) are installed and unused; damson's motion collapsed onto `fast`. Whether
+  it wants a slower step is a design question nobody has asked.
 
-Three more of that slice's deferrals were **answered upstream by `shared-design` 0.1.7**, which
-replaced the derived radius scale with eight literals and added the type, motion and elevation
-scales: the radius-scale-shape question, the nine `rounded-[3px]` arbitraries (there is now a
-`rounded-xs` at 4px), and the dissolved third sighting of `--ds-surface-2`. They belong to the
-0.1.7 uptake, not to the roadmap.
+Three of the design-system slice's deferrals were **answered upstream by `shared-design` 0.1.7** and
+taken up by the slice below it: the radius-scale-shape question, the nine `rounded-[3px]` arbitraries
+(now `rounded-xs` at 4px), and the dissolved third sighting of `--ds-surface-2`. None of them reached
+the roadmap.
 
 The versioning slice's two follow-ups — the *add as a version of…* upload prompt and the merge
 picker — **both shipped** (`NotificationProvider.tsx`, `MergeDialog.tsx`) and are not carried

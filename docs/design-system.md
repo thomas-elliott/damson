@@ -356,7 +356,7 @@ long-run answer and is on the roadmap.
   close button. Calls `onRemove`.
 - **`Tag`** — `variant: solid|add`. The `add` variant is dashed-border
   with a Plus icon for "add new tag" affordances.
-- **`Kbd`** — inline keyboard hint, mono 10.5px with a bordered surface.
+- **`Kbd`** — inline keyboard hint, `text-mono` in a 20px-high bordered surface.
 - **`Markdown`** — renders CommonMark + GFM as React elements, parsed with
   CodeMirror's own `@lezer/markdown` grammar so the read view and
   `MarkdownEditor` can't disagree about a document. Safe for untrusted
@@ -428,7 +428,7 @@ orchestrate these rather than rebuilding the layout each time.
   owns the resized element's width.
 - **`FilterSidebar`** + **`FilterRow`** — scrollable frame with sticky
   header + footer. Rows take `icon`/`dot`/`label`/`count`/`active` and
-  auto-apply the accent-tint highlight when pressed.
+  auto-apply the `bg-primary-soft` highlight when pressed.
 - **`Section`** — collapsible section with rotating caret. Controlled
   (`open`/`onOpenChange`) or uncontrolled (`defaultOpen`); wires
   `aria-expanded`/`aria-controls`.
@@ -576,7 +576,7 @@ app-level story is for the cases where the value is in seeing the wired
 thing, gallery fetches and all.
 
 Contrast exceptions: if a story legitimately uses a decorative
-low-contrast element (e.g. an all-caps 10.5px label in `text-text-4`),
+low-contrast element (e.g. a `text-overline` label in `text-faint-foreground`),
 override at the story level with `parameters.a11y.test = "todo"` and
 explain the rationale in a comment.
 
