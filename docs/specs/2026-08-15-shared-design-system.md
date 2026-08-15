@@ -385,3 +385,12 @@ reason about later.
   conventional `@/lib/utils` (B2: the extended `cn` and its 24 registered `text-*` groups live
   there, and a re-export invites someone to "simplify" it back to the stock two-liner). Same
   constraint: belongs in `design-system.md`, not the file.
+- `web/src/styles/globals.css` — why there are three `@theme` blocks and why the legacy `--ds-*` one
+  is deliberately **last**: it must keep winning the cascade so stages 2-3 render identically to
+  today, because `--color-accent` collides (legacy brand yellow vs the contract's hover surface).
+  Stage 4 deletes that block in the same commit as the call-site sweep, so the flip is atomic.
+- `web/src/styles/globals.css` — the first block is CLI-owned (`shadcn add @shared/tokens`
+  regenerates it); damson's own theme entries are in a separate block on purpose so re-running the
+  CLI cannot clobber them.
+- `web/src/design-system/tokens/tokens.css` (stage 3) — `--row-h` must be defined or the generated
+  `--row-h: var(--row-h)` mapping stays a self-referential no-op.
