@@ -32,22 +32,33 @@ at 4.42:1. **(c)** a Markdown link at 1.13:1 against surrounding body text, whic
 question, not just a colour one. Note `shared-design` darkened its own `--destructive` for (b)-shaped
 reasons; damson overrides that token, so it does not inherit the fix.
 
-Spec-ready: no — (a) and (c) need a decision before anything is written.
+**(a) now has an upstream answer.** `shared-design` 0.1.7 raised its own `--subtle-foreground` to
+pass AA (`8c7cee3`) rather than exempting the tier. damson overrides the value so it does not inherit
+it, but the estate has taken the decision once — which makes this a question of following or
+diverging, not of deciding from scratch. Pairs with the 0.1.7 uptake below.
 
-*Nothing else queued — the design system slice moved to `In flight` on 2026-08-15. Promote something
-from `Shaped` when it lands.*
+Spec-ready: no — (c) still needs a decision, and (a) needs confirming rather than taking.
+
+*Nothing else queued — the 0.1.7 uptake moved to `In flight` on 2026-08-15. Promote something from
+`Shaped` when it lands.*
 
 ---
 
 ## In flight  (spec written — pointer only, the spec owns the detail)
 
-- **Adopt the shared design system** → [`specs/2026-08-15-shared-design-system.md`](specs/2026-08-15-shared-design-system.md).
-  Signed off 2026-08-15. Eleven stages; touches no Go and no SQL. The decision table below is
-  retained as the record of what was banked *before* the spec — where the two disagree, **the spec
-  wins**, and it says so in its own header.
+- **Take up `shared-design` 0.1.7** → [`specs/2026-08-15-shared-design-0-1-7.md`](specs/2026-08-15-shared-design-0-1-7.md).
+  Signed off 2026-08-15. Seven stages; frontend only. Absorbs the four scales 0.1.7 added past
+  colour — literal radius, eight-role type, motion, elevation — plus the 16px field floor and
+  `@shared/type-scale`. **Supersedes Q4 of the slice below**, whose radius anchor answered a
+  multiplicative scale that no longer exists.
+
+The shared design system slice itself shipped 2026-08-15 (PR #40, `f91d654`) — see
+[`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md)
+and [`progress.md`](progress.md). What it deferred is carried in
+[`specs/history/README.md`](specs/history/README.md).
 
 <details>
-<summary>What the roadmap banked before the spec (2026-08-15)</summary>
+<summary>What the roadmap banked before that spec (2026-08-15) — kept for the record</summary>
 
 **Intent:** install `@shared` registry items, replace the `--ds-*` vocabulary with shadcn's token
 names, and prove that copy-in ownership survives re-running `shadcn add`.

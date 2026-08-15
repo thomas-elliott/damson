@@ -23,6 +23,7 @@ flight — see [`../../roadmap.md`](../../roadmap.md) for what is queued.
 | 2026-08-01 | [dmsn-cli](2026-08-01-dmsn-cli.md) | The `dmsn` CLI and personal access tokens. Split out of the Unity slice, taking its stages 1 and 4 wholesale. | PR #37 `05faeae` |
 | 2026-08-01 | [unity-local-cache-import](2026-08-01-unity-local-cache-import.md) | Importing from the local Unity Asset Store cache, with `(source_kind, source_relative_path)` preflight precision. | PR #38 `531ea5b` |
 | 2026-08-01 | [upload-reliability-observability](2026-08-01-upload-reliability-observability.md) | Removed the double spool, added the chunked resumable path, and made upload failures visible in logs. | PR #39 `510b9ff` |
+| 2026-08-15 | [shared-design-system](2026-08-15-shared-design-system.md) | Moved the frontend off 57 `--ds-*` tokens onto the shared `@shared` registry and shadcn's vocabulary, in one sweep behind a token gate. Frontend only — no Go, no SQL. | PR #40 `f91d654` |
 
 ## What they deferred
 
@@ -36,6 +37,20 @@ section stays intact as the historical record — this is a copy, not a move.
   reason rather than being OOM-killed silently.
 - **Preview format coverage** — PSD/EXR/TGA, SVG rasterisation, PDF posters, staged behind the
   shipped pure-Go raster path.
+- **Drop `library_settings.theme_default`** — from the design-system slice. The theme became a
+  browser concern; the column, its API field and its GORM tag survive unread, because removing them
+  is itself a database change.
+- **`IconButton`'s `variant="destructive"` is filled, not soft** — the soft-red override lives in
+  `Button.tsx`'s wrapper and `IconButton` is a pure re-export, so the two disagree. No call site uses
+  it, so it is latent rather than live.
+- **Dark-mode a11y coverage for damson's own palette** — the design-system slice covered the story
+  set; a sweep across composed pages was not in scope.
+
+Three more of that slice's deferrals were **answered upstream by `shared-design` 0.1.7**, which
+replaced the derived radius scale with eight literals and added the type, motion and elevation
+scales: the radius-scale-shape question, the nine `rounded-[3px]` arbitraries (there is now a
+`rounded-xs` at 4px), and the dissolved third sighting of `--ds-surface-2`. They belong to the
+0.1.7 uptake, not to the roadmap.
 
 The versioning slice's two follow-ups — the *add as a version of…* upload prompt and the merge
 picker — **both shipped** (`NotificationProvider.tsx`, `MergeDialog.tsx`) and are not carried
