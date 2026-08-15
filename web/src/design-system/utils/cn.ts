@@ -9,6 +9,10 @@ import {
 
 import { typeScale } from "@/lib/type-scale";
 
+// The contract's 8 role sizes come from `typeScale`; these are damson's own
+// composed roles on top of it. Neither set looks like a t-shirt size, so without
+// both registered tailwind-merge reads them as colours — `cn("text-mono",
+// "text-muted-foreground")` would silently drop the size.
 const damsonRoles: ConfigExtension<DefaultClassGroupIds, DefaultThemeGroupIds> = {
   extend: {
     classGroups: {
@@ -41,6 +45,8 @@ const damsonRoles: ConfigExtension<DefaultClassGroupIds, DefaultThemeGroupIds> =
   },
 };
 
+// Composed through mergeConfigs, not spread: extendTailwindMerge takes only one
+// ConfigExtension, and a spread would drop any key `typeScale` grows later.
 const twMerge = extendTailwindMerge(typeScale, (config) => mergeConfigs(config, damsonRoles));
 
 export function cn(...inputs: ClassValue[]): string {

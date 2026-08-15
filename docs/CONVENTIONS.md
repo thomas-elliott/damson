@@ -185,7 +185,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Tailwind's theme extends the tokens as utility classes (`bg-bg`, `bg-panel`, `text-text-2`, `border-line`, `bg-accent-tint`, `text-ok`, etc.) — prefer these over raw `var(--ds-*)`.
 - `@tailwindcss/typography` for markdown content.
 - Use the design-system primitives (`Button`, `Input`, `Dialog`, `Pill`, `Tabs`, …) from `@/design-system` rather than hand-rolling equivalents. New components go in `src/design-system/{primitives,compositions,domain}/` alongside a `*.stories.tsx` with variants + states; see `docs/design-system.md`.
-- `cn()` composes classes: `clsx` for conditional joins, `tailwind-merge` for dedup. The custom font-size keys (`2xs`, `xs-plus`, `sm-plus`, `base`, `md`) are registered with `tailwind-merge` in `utils/cn.ts` — new size utilities belong in the same group.
+- `cn()` composes classes: `clsx` for conditional joins, `tailwind-merge` for dedup. The role-named font sizes are registered with `tailwind-merge` in `utils/cn.ts` — the contract's eight via `@shared/type-scale`, Damson's 19 composed roles (`text-mono`, `text-caption`, the weight variants, …) via a local group merged onto it. A new size utility belongs in that local group, or it is silently dropped when it meets a text colour. See `docs/design-system.md`.
 - Do not reintroduce CDN Tailwind; everything goes through the Vite pipeline.
 
 ### Frontend tests (Vitest)
