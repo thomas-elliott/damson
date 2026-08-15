@@ -153,17 +153,19 @@ export function AssetDetailPanel({
         <IconButton
           aria-label="Browse files"
           title="Browse files"
+          size="sm"
           onClick={() => onBrowse(asset.id)}
         >
-          <FolderOpen size={14} />
+          <FolderOpen />
         </IconButton>
       )}
       {!autoFullscreen && (
         <IconButton
           aria-label={userFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          size="sm"
           onClick={() => setUserFullscreen((v) => !v)}
         >
-          {userFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          {userFullscreen ? <Minimize2 /> : <Maximize2 />}
         </IconButton>
       )}
     </>
@@ -836,10 +838,11 @@ function GalleryLightbox({
     >
       <IconButton
         aria-label="Close preview"
+        size="lg"
         onClick={onClose}
-        className="absolute right-4 top-4 text-white"
+        className="absolute right-4 top-4 text-white hover:bg-white/20 hover:text-white"
       >
-        <X size={18} />
+        <X />
       </IconButton>
       <img
         src={urls[thumbSource(images[index]).url]}
@@ -915,7 +918,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
         placeholder="1.1"
         aria-label="Store version"
         autoFocus
-        className="h-6 w-16 text-small"
+        className="h-7 w-16 text-small"
       />
       <Input
         value={label}
@@ -926,13 +929,13 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
         }}
         placeholder="label"
         aria-label="Version label"
-        className="h-6 w-20 text-small"
+        className="h-7 w-20 text-small"
       />
-      <IconButton aria-label="Save version" onClick={onSave} disabled={patch.isPending}>
-        <Check size={12} />
+      <IconButton aria-label="Save version" size="sm" onClick={onSave} disabled={patch.isPending}>
+        <Check />
       </IconButton>
-      <IconButton aria-label="Cancel edit" onClick={() => setEditing(false)}>
-        <X size={12} />
+      <IconButton aria-label="Cancel edit" size="sm" onClick={() => setEditing(false)}>
+        <X />
       </IconButton>
     </span>
   ) : (
@@ -940,21 +943,23 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
       <IconButton
         aria-label="Edit version"
         title="Edit store version and label"
+        size="sm"
         onClick={() => {
           setStore(version.store_version);
           setLabel(version.version_label);
           setEditing(true);
         }}
       >
-        <Pencil size={12} />
+        <Pencil />
       </IconButton>
       <IconButton
         aria-label="Delete version"
         title="Delete this version"
+        size="sm"
         onClick={onDelete}
         disabled={del.isPending}
       >
-        <Trash2 size={12} />
+        <Trash2 />
       </IconButton>
     </span>
   );
