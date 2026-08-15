@@ -229,7 +229,7 @@ function PanelHarness({ assetId }: { assetId: number }) {
   );
   return (
     <QueryClientProvider client={client}>
-      <div className="relative h-[900px] w-full overflow-hidden bg-bg">
+      <div className="relative h-[900px] w-full overflow-hidden bg-background">
         <AssetDetailPanel assetId={assetId} onClose={() => {}} onBrowse={() => {}} />
       </div>
     </QueryClientProvider>

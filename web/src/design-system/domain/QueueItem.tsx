@@ -31,7 +31,7 @@ export const QueueItem = forwardRef<HTMLDivElement, QueueItemProps>(function Que
     <div
       ref={ref}
       className={cn(
-        "flex gap-3.5 rounded-md border border-line bg-panel p-3.5 transition-colors duration-std ease hover:border-line-2",
+        "flex gap-3.5 rounded-md border border-border bg-card p-3.5 transition-colors duration-std ease hover:border-border-strong",
         detail ? "items-start" : "items-center",
         className,
       )}
@@ -40,14 +40,16 @@ export const QueueItem = forwardRef<HTMLDivElement, QueueItemProps>(function Que
       {thumb && (
         <div
           style={{ width: thumbSize, height: thumbSize }}
-          className="grid shrink-0 place-items-center overflow-hidden rounded-sm border border-line bg-surface text-text-3"
+          className="grid shrink-0 place-items-center overflow-hidden rounded-sm border border-border bg-muted text-subtle-foreground"
         >
           {thumb}
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="truncate text-list-row font-medium text-text">{name}</div>
-        {sub && <div className="flex items-center gap-2 text-small text-text-3">{sub}</div>}
+        <div className="truncate text-list-row font-medium text-foreground">{name}</div>
+        {sub && (
+          <div className="flex items-center gap-2 text-small text-subtle-foreground">{sub}</div>
+        )}
         {detail}
         {typeof progress === "number" && (
           <ProgressBar value={progress} aria-label={`${Math.round(progress)}% uploaded`} />

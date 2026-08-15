@@ -13,8 +13,12 @@ export interface BreadcrumbProps extends HTMLAttributes<HTMLElement> {
 export function Breadcrumb({ className, count, children, ...props }: BreadcrumbProps) {
   return (
     <nav aria-label="Breadcrumb" className={cn("flex items-center gap-2", className)} {...props}>
-      <div className="flex items-center gap-1.5 text-ui font-medium text-text">{children}</div>
-      {count !== undefined && <span className="text-mono tabular-nums text-text-3">{count}</span>}
+      <div className="flex items-center gap-1.5 text-ui font-medium text-foreground">
+        {children}
+      </div>
+      {count !== undefined && (
+        <span className="text-mono tabular-nums text-subtle-foreground">{count}</span>
+      )}
     </nav>
   );
 }
@@ -28,7 +32,7 @@ export function BreadcrumbItem({ className, current, children, ...props }: Bread
   return (
     <span
       aria-current={current ? "page" : undefined}
-      className={cn("text-text-2 aria-[current=page]:text-text", className)}
+      className={cn("text-muted-foreground aria-[current=page]:text-foreground", className)}
       {...props}
     >
       {children}
@@ -37,5 +41,5 @@ export function BreadcrumbItem({ className, current, children, ...props }: Bread
 }
 
 export function BreadcrumbSeparator() {
-  return <ChevronRight aria-hidden size={12} className="text-text-4" />;
+  return <ChevronRight aria-hidden size={12} className="text-faint-foreground" />;
 }

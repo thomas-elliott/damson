@@ -26,14 +26,14 @@ describe("AppShell sidebar column", () => {
 
   it("collapses the sidebar column when no sidebar is passed", () => {
     mount();
-    expect(columns()).toBe("var(--ds-rail-w) 0px 1fr");
+    expect(columns()).toBe("var(--rail-w) 0px 1fr");
     expect(screen.queryByLabelText("Resize sidebar")).toBeNull();
   });
 
   it("opens the column at the persisted width", () => {
     localStorage.setItem(SIDEBAR_W_KEY, "312");
     mount("filters");
-    expect(columns()).toBe("var(--ds-rail-w) 312px 1fr");
+    expect(columns()).toBe("var(--rail-w) 312px 1fr");
     expect(screen.getByLabelText("Resize sidebar")).toBeInTheDocument();
   });
 
@@ -47,7 +47,7 @@ describe("AppShell sidebar column", () => {
         resizableSidebar={false}
       />,
     );
-    expect(columns()).toBe("var(--ds-rail-w) 0px 1fr");
+    expect(columns()).toBe("var(--rail-w) 0px 1fr");
 
     rerender(
       <AppShell
@@ -57,14 +57,14 @@ describe("AppShell sidebar column", () => {
         resizableSidebar
       />,
     );
-    expect(columns()).toBe("var(--ds-rail-w) 312px 1fr");
+    expect(columns()).toBe("var(--rail-w) 312px 1fr");
     expect(localStorage.getItem(SIDEBAR_W_KEY)).toBe("312");
   });
 
   it("ignores a stored width outside the clamp bounds", () => {
     localStorage.setItem(SIDEBAR_W_KEY, "9000");
     mount("filters");
-    expect(columns()).toBe("var(--ds-rail-w) 248px 1fr");
+    expect(columns()).toBe("var(--rail-w) 248px 1fr");
   });
 
   it("lets an explicit sidebarWidth win over the stored value", () => {
@@ -77,6 +77,6 @@ describe("AppShell sidebar column", () => {
         sidebarWidth={200}
       />,
     );
-    expect(columns()).toBe("var(--ds-rail-w) 200px 1fr");
+    expect(columns()).toBe("var(--rail-w) 200px 1fr");
   });
 });

@@ -42,7 +42,7 @@ export const ToolbarExample: Story = {
   render: function ToolbarExampleDemo() {
     const [view, setView] = useState<"grid" | "list">("grid");
     return (
-      <div className="w-[720px] border border-line bg-bg">
+      <div className="w-[720px] border border-border bg-background">
         <Toolbar>
           <Breadcrumb count="254 assets">
             <BreadcrumbItem>Library</BreadcrumbItem>
@@ -88,24 +88,24 @@ export const ToolbarExample: Story = {
 export const DetailPanelExample: Story = {
   parameters: { layout: "centered" },
   render: () => (
-    <div className="relative h-[560px] w-[460px] border border-line bg-bg">
+    <div className="relative h-[560px] w-[460px] border border-border bg-background">
       <DetailPanel
         variant="flush"
         title="Stylised Sprite Pack v1.2"
         actions={
           <>
-            <IconButton aria-label="Expand">
-              <Maximize2 size={14} />
+            <IconButton size="sm" aria-label="Expand">
+              <Maximize2 />
             </IconButton>
-            <IconButton aria-label="More">
-              <MoreHorizontal size={14} />
+            <IconButton size="sm" aria-label="More">
+              <MoreHorizontal />
             </IconButton>
           </>
         }
         onClose={() => {}}
       >
         <div className="flex flex-col gap-4">
-          <div className="aspect-video rounded-md border border-line bg-surface" />
+          <div className="aspect-video rounded-md border border-border bg-muted" />
           <div className="flex items-center gap-2">
             <Pill mono tone="ok">
               <StatusDot tone="ok" /> CC-BY-4.0
@@ -115,19 +115,25 @@ export const DetailPanelExample: Story = {
             <Tag variant="add">Add tag</Tag>
           </div>
           <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2 text-small">
-            <dt className="text-text-3">Source</dt>
-            <dd className="text-text-2">itch.io · craftpix</dd>
-            <dt className="text-text-3">Imported</dt>
-            <dd className="text-text-2">3 days ago</dd>
-            <dt className="text-text-3">Size</dt>
-            <dd className="font-mono text-text-2">42.8 MB</dd>
-            <dt className="text-text-3">Files</dt>
-            <dd className="font-mono text-text-2">128</dd>
+            <dt className="text-subtle-foreground">Source</dt>
+            <dd className="text-muted-foreground">itch.io · craftpix</dd>
+            <dt className="text-subtle-foreground">Imported</dt>
+            <dd className="text-muted-foreground">3 days ago</dd>
+            <dt className="text-subtle-foreground">Size</dt>
+            <dd className="font-mono text-muted-foreground">42.8 MB</dd>
+            <dt className="text-subtle-foreground">Files</dt>
+            <dd className="font-mono text-muted-foreground">128</dd>
           </dl>
           <div className="flex items-center gap-1.5">
-            <Button leadingIcon={<Download size={12} />}>Download</Button>
-            <Button leadingIcon={<Pin size={12} />}>Pin</Button>
-            <Button leadingIcon={<Copy size={12} />}>Duplicate</Button>
+            <Button variant="secondary" leadingIcon={<Download size={12} />}>
+              Download
+            </Button>
+            <Button variant="secondary" leadingIcon={<Pin size={12} />}>
+              Pin
+            </Button>
+            <Button variant="secondary" leadingIcon={<Copy size={12} />}>
+              Duplicate
+            </Button>
           </div>
         </div>
       </DetailPanel>
@@ -147,13 +153,15 @@ export const FullPageViewExample: Story = {
               <BreadcrumbItem current>Stylised Sprite Pack v1.2</BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
-            <Button leadingIcon={<ExternalLink size={12} />}>Source</Button>
-            <IconButton aria-label="Close">
-              <Maximize2 size={14} />
+            <Button variant="secondary" leadingIcon={<ExternalLink size={12} />}>
+              Source
+            </Button>
+            <IconButton size="sm" aria-label="Close">
+              <Maximize2 />
             </IconButton>
           </>
         }
-        preview={<div className="aspect-[16/9] rounded-lg border border-line bg-surface" />}
+        preview={<div className="aspect-[16/9] rounded-lg border border-border bg-muted" />}
         side={
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
@@ -163,7 +171,7 @@ export const FullPageViewExample: Story = {
               <Tag>sprites</Tag>
               <Tag>ui/icons</Tag>
             </div>
-            <p className="text-ui text-text-2">
+            <p className="text-ui text-muted-foreground">
               A 128-file sprite pack with 2× and 3× variants. Compliant for commercial use with
               attribution.
             </p>
@@ -177,7 +185,7 @@ export const FullPageViewExample: Story = {
 export const DropOverlayExample: Story = {
   parameters: { layout: "centered" },
   render: () => (
-    <div className="relative h-[320px] w-[520px] overflow-hidden border border-line bg-bg p-4 text-ui text-text-3">
+    <div className="relative h-[320px] w-[520px] overflow-hidden border border-border bg-background p-4 text-ui text-subtle-foreground">
       Dropping files would show:
       <DropOverlay active caption="Drop files to import" />
     </div>
@@ -189,23 +197,27 @@ export const SelectionBarExample: Story = {
   render: function SelectionBarExampleDemo() {
     const [count, setCount] = useState(3);
     return (
-      <div className="relative h-[240px] w-[640px] overflow-hidden border border-line bg-bg p-4 text-ui text-text-3">
+      <div className="relative h-[240px] w-[640px] overflow-hidden border border-border bg-background p-4 text-ui text-subtle-foreground">
         <div className="flex items-center gap-2">
-          <Button onClick={() => setCount((c) => c + 1)}>Select more</Button>
-          <Button onClick={() => setCount(0)}>Clear selection</Button>
+          <Button variant="secondary" onClick={() => setCount((c) => c + 1)}>
+            Select more
+          </Button>
+          <Button variant="secondary" onClick={() => setCount(0)}>
+            Clear selection
+          </Button>
         </div>
         <SelectionBar
           count={count}
           actions={
             <>
-              <IconButton aria-label="Pin">
-                <Pin size={14} />
+              <IconButton size="sm" aria-label="Pin">
+                <Pin />
               </IconButton>
-              <IconButton aria-label="Delete">
-                <Trash2 size={14} />
+              <IconButton size="sm" aria-label="Delete">
+                <Trash2 />
               </IconButton>
-              <IconButton aria-label="More">
-                <MoreHorizontal size={14} />
+              <IconButton size="sm" aria-label="More">
+                <MoreHorizontal />
               </IconButton>
             </>
           }
@@ -218,7 +230,7 @@ export const SelectionBarExample: Story = {
 export const EmptyStateExample: Story = {
   parameters: { layout: "centered" },
   render: () => (
-    <div className="h-[360px] w-[640px] border border-line bg-bg">
+    <div className="h-[360px] w-[640px] border border-border bg-background">
       <EmptyState
         icon={<Inbox size={32} />}
         title="Nothing here yet"

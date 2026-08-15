@@ -36,38 +36,40 @@ export function UserMenu({ displayName, email }: { displayName: string; email: s
         <NavRailItem
           label="Account"
           icon={
-            <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-surface-2 text-mono font-semibold text-text-2">
+            <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-muted text-mono font-semibold text-muted-foreground">
               {initialsFor(displayName, email)}
             </span>
           }
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" className="min-w-[15rem]">
-        <DropdownMenuLabel className="text-ui text-text">
+        <DropdownMenuLabel className="text-ui text-foreground">
           <span className="block truncate">{displayName || email}</span>
           {displayName && (
-            <span className="block truncate font-mono text-small text-text-3">{email}</span>
+            <span className="block truncate font-mono text-small text-subtle-foreground">
+              {email}
+            </span>
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Theme</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={mode} onValueChange={(next) => setTheme(next as ThemeMode)}>
           <DropdownMenuRadioItem value="light">
-            <Sun size={13} className="text-text-3" />
+            <Sun size={13} className="text-subtle-foreground" />
             Light
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">
-            <Moon size={13} className="text-text-3" />
+            <Moon size={13} className="text-subtle-foreground" />
             Dark
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => navigate("/settings")}>
-          <SettingsIcon size={13} className="text-text-3" />
+          <SettingsIcon size={13} className="text-subtle-foreground" />
           Settings
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => void logout()}>
-          <LogOut size={13} className="text-text-3" />
+          <LogOut size={13} className="text-subtle-foreground" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

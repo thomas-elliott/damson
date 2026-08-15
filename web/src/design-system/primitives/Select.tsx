@@ -16,9 +16,9 @@ export const SelectTrigger = forwardRef<
     <RadixSelect.Trigger
       ref={ref}
       className={cn(
-        "inline-flex h-7 items-center justify-between gap-2 rounded-sm border border-line bg-bg px-2 text-ui text-text transition-colors duration-std ease",
-        "hover:border-line-2",
-        "data-[state=open]:border-transparent data-[state=open]:outline data-[state=open]:outline-2 data-[state=open]:outline-accent-ring",
+        "inline-flex h-7 items-center justify-between gap-2 rounded-sm border border-border bg-background px-2 text-ui text-foreground transition-colors duration-std ease",
+        "hover:border-border-strong",
+        "data-[state=open]:border-transparent data-[state=open]:outline data-[state=open]:outline-2 data-[state=open]:outline-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
@@ -26,7 +26,7 @@ export const SelectTrigger = forwardRef<
     >
       {children}
       <RadixSelect.Icon asChild>
-        <ChevronDown size={12} className="text-text-3" />
+        <ChevronDown size={12} className="text-subtle-foreground" />
       </RadixSelect.Icon>
     </RadixSelect.Trigger>
   );
@@ -49,18 +49,18 @@ export const SelectContent = forwardRef<
         // could silently drop the `z-popover` class. Inline wins.
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover overflow-hidden rounded-md border border-line bg-panel text-ui text-text-2 shadow-elevated",
+          "z-popover overflow-hidden rounded-md border border-border bg-popover text-ui text-muted-foreground shadow-elevated",
           "data-[state=open]:animate-fade-in",
           position === "popper" && "min-w-[var(--radix-select-trigger-width)]",
           className,
         )}
         {...props}
       >
-        <RadixSelect.ScrollUpButton className="flex cursor-default items-center justify-center py-1 text-text-3">
+        <RadixSelect.ScrollUpButton className="flex cursor-default items-center justify-center py-1 text-subtle-foreground">
           <ChevronUp size={12} />
         </RadixSelect.ScrollUpButton>
         <RadixSelect.Viewport className="p-1">{props.children}</RadixSelect.Viewport>
-        <RadixSelect.ScrollDownButton className="flex cursor-default items-center justify-center py-1 text-text-3">
+        <RadixSelect.ScrollDownButton className="flex cursor-default items-center justify-center py-1 text-subtle-foreground">
           <ChevronDown size={12} />
         </RadixSelect.ScrollDownButton>
       </RadixSelect.Content>
@@ -78,12 +78,12 @@ export const SelectItem = forwardRef<
       className={cn(
         "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-1.5 pl-7 pr-2 text-ui outline-hidden transition-colors duration-std ease",
         "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
-        "data-[highlighted]:bg-surface data-[highlighted]:text-text",
+        "data-[highlighted]:bg-muted data-[highlighted]:text-foreground",
         className,
       )}
       {...props}
     >
-      <span className="absolute left-2 grid h-4 w-4 place-items-center text-accent">
+      <span className="absolute left-2 grid h-4 w-4 place-items-center text-primary">
         <RadixSelect.ItemIndicator>
           <Check size={12} strokeWidth={3} />
         </RadixSelect.ItemIndicator>
@@ -100,7 +100,7 @@ export const SelectLabel = forwardRef<
   return (
     <RadixSelect.Label
       ref={ref}
-      className={cn("px-2 py-1 text-label text-text-4", className)}
+      className={cn("px-2 py-1 text-label text-faint-foreground", className)}
       {...props}
     />
   );
@@ -111,6 +111,6 @@ export const SelectSeparator = forwardRef<
   ComponentPropsWithoutRef<typeof RadixSelect.Separator>
 >(function SelectSeparator({ className, ...props }, ref) {
   return (
-    <RadixSelect.Separator ref={ref} className={cn("my-1 h-px bg-line", className)} {...props} />
+    <RadixSelect.Separator ref={ref} className={cn("my-1 h-px bg-border", className)} {...props} />
   );
 });

@@ -192,14 +192,16 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
           <DropZone>
             <Toolbar>
               <LibraryPicker current={lib} />
-              <span className="shrink-0 text-small tabular-nums text-text-3">{total} assets</span>
+              <span className="shrink-0 text-small tabular-nums text-subtle-foreground">
+                {total} assets
+              </span>
               <Button
                 variant="secondary"
                 pressed={filtersOpen}
                 aria-expanded={filtersOpen}
                 leadingIcon={<SlidersHorizontal size={12} />}
                 onClick={toggleFilters}
-                className={filterCount > 0 ? "border-accent/50 text-text" : undefined}
+                className={filterCount > 0 ? "border-primary/50 text-foreground" : undefined}
               >
                 Filter
                 {filterCount > 0 && (
@@ -239,7 +241,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <UploadButton />
             </Toolbar>
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+              <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
                 Loading assets…
               </div>
             ) : (
@@ -262,8 +264,9 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
             title="No library access yet"
             description={
               <>
-                You're signed in as <span className="font-mono text-text-2">{me.email}</span> but
-                you haven't been added to a library. Ask a Damson administrator to invite you.
+                You're signed in as{" "}
+                <span className="font-mono text-muted-foreground">{me.email}</span> but you haven't
+                been added to a library. Ask a Damson administrator to invite you.
               </>
             }
           />

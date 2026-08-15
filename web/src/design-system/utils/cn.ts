@@ -2,10 +2,10 @@ import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 // The design system uses a two-layer font-size system: 3 size primitives
-// (body/ui/small) and 19 composed semantic tokens (text-title, text-mono,
+// (body/ui/small) and 22 composed semantic tokens (text-title, text-mono,
 // text-caption, etc.) that are not in tailwind-merge's default groups.
 // Teach tailwind-merge about them so e.g. `text-mono` isn't mistaken for a
-// colour and accidentally deduplicated against `text-accent-fg`.
+// colour and accidentally deduplicated against `text-primary-foreground`.
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {

@@ -15,10 +15,10 @@ export const Checkbox = forwardRef<React.ElementRef<typeof RadixCheckbox.Root>, 
       <RadixCheckbox.Root
         ref={ref}
         className={cn(
-          "grid h-[14px] w-[14px] shrink-0 place-items-center rounded-[3px] border border-line-2 bg-bg text-accent-fg transition-colors duration-std ease",
-          "hover:border-text-4",
-          "data-[state=checked]:border-transparent data-[state=checked]:bg-accent",
-          "data-[state=indeterminate]:border-transparent data-[state=indeterminate]:bg-accent",
+          "grid h-[14px] w-[14px] shrink-0 place-items-center rounded-[3px] border border-border-strong bg-background text-primary-foreground transition-colors duration-std ease",
+          "hover:border-faint-foreground",
+          "data-[state=checked]:border-transparent data-[state=checked]:bg-primary",
+          "data-[state=indeterminate]:border-transparent data-[state=indeterminate]:bg-primary",
           "disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}

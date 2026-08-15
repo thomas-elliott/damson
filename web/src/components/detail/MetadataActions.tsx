@@ -36,7 +36,7 @@ function candidateSubtitle(c: MetadataCandidate): string {
 
 function ProxiedImage({ src, className }: { src: string; className?: string }) {
   const url = useBlobUrl(`/api/metadata/image?url=${encodeURIComponent(src)}`);
-  if (!url) return <div className={cn("animate-pulse bg-bg", className)} />;
+  if (!url) return <div className={cn("animate-pulse bg-background", className)} />;
   return <img src={url} alt="" loading="lazy" className={className} />;
 }
 
@@ -53,32 +53,39 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
   };
 
   return (
-    <div className="rounded-md border border-line bg-surface transition-colors duration-std ease hover:border-line-2">
+    <div className="rounded-md border border-border bg-muted transition-colors duration-std ease hover:border-border-strong">
       <div className="flex items-center gap-2 p-2">
         {c.cover_url ? (
           <ProxiedImage src={c.cover_url} className="h-10 w-10 shrink-0 rounded object-cover" />
         ) : (
-          <div className="h-10 w-10 shrink-0 rounded bg-bg" />
+          <div className="h-10 w-10 shrink-0 rounded bg-background" />
         )}
         <button type="button" onClick={onPick} className="min-w-0 flex-1 text-left">
-          <div className="truncate text-ui text-text">{c.title}</div>
-          <div className="truncate text-mono text-text-3">{candidateSubtitle(c)}</div>
+          <div className="truncate text-ui text-foreground">{c.title}</div>
+          <div className="truncate text-mono text-subtle-foreground">{candidateSubtitle(c)}</div>
         </button>
-        <IconButton aria-label={expanded ? "Collapse details" : "Expand details"} onClick={toggle}>
+        <IconButton
+          aria-label={expanded ? "Collapse details" : "Expand details"}
+          size="sm"
+          onClick={toggle}
+        >
           <ChevronDown
-            size={14}
             className={`transition-transform duration-std ease ${expanded ? "rotate-180" : ""}`}
           />
         </IconButton>
       </div>
       {expanded && (
-        <div className="flex flex-col gap-1.5 border-t border-line p-2">
-          {preview.isPending && <p className="text-caption text-text-3">Loading details…</p>}
-          {preview.isError && <p className="text-caption text-err">Couldn't load details</p>}
+        <div className="flex flex-col gap-1.5 border-t border-border p-2">
+          {preview.isPending && (
+            <p className="text-caption text-subtle-foreground">Loading details…</p>
+          )}
+          {preview.isError && (
+            <p className="text-caption text-destructive">Couldn't load details</p>
+          )}
           {preview.data && (
             <>
               {preview.data.description && (
-                <p className="max-h-32 overflow-y-auto whitespace-pre-line text-caption text-text-2">
+                <p className="max-h-32 overflow-y-auto whitespace-pre-line text-caption text-muted-foreground">
                   {preview.data.description}
                 </p>
               )}
@@ -88,12 +95,12 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
                     <ProxiedImage
                       key={src}
                       src={src}
-                      className="h-16 w-24 shrink-0 rounded-md border border-line object-cover"
+                      className="h-16 w-24 shrink-0 rounded-md border border-border object-cover"
                     />
                   ))}
                 </div>
               )}
-              <Button size="sm" onClick={onPick}>
+              <Button variant="secondary" size="sm" onClick={onPick}>
                 Use this listing
               </Button>
             </>
@@ -229,6 +236,7 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
         <Button
+          variant="secondary"
           size="sm"
           onClick={() => meta.runFetch()}
           disabled={!hasSource || meta.pending}
@@ -247,8 +255,10 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
           <Search size={12} /> Find listing
         </Button>
       </div>
-      {meta.failed && <span className="text-mono text-err">Fetch failed</span>}
-      {meta.note && <span className="text-right text-mono text-text-3">{meta.note}</span>}
+      {meta.failed && <span className="text-mono text-destructive">Fetch failed</span>}
+      {meta.note && (
+        <span className="text-right text-mono text-subtle-foreground">{meta.note}</span>
+      )}
 
       <MatchPickerDialog
         open={pickerOpen}
@@ -280,8 +290,8 @@ export function EnrichmentReview({ asset }: { asset: AssetDetailView }) {
   const candidates = sm.candidates ?? [];
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-line bg-surface p-2">
-      <div className="flex flex-wrap items-center gap-x-1.5 text-mono text-text-3">
+    <div className="flex flex-col gap-1.5 rounded-md border border-border bg-muted p-2">
+      <div className="flex flex-wrap items-center gap-x-1.5 text-mono text-subtle-foreground">
         <span>{sm.matched ? `Metadata from ${sm.store || "source"}` : "No confident match"}</span>
         {whenLabel && <span>· {whenLabel}</span>}
         {sm.matched && sm.listing_url && (
@@ -291,7 +301,7 @@ export function EnrichmentReview({ asset }: { asset: AssetDetailView }) {
               href={sm.listing_url}
               target="_blank"
               rel="noreferrer"
-              className="text-accent hover:underline"
+              className="text-primary hover:underline"
             >
               listing
             </a>
@@ -300,7 +310,7 @@ export function EnrichmentReview({ asset }: { asset: AssetDetailView }) {
       </div>
       {candidates.length > 0 && (
         <div className="flex flex-col gap-1">
-          <div className="text-mono text-text-3">
+          <div className="text-mono text-subtle-foreground">
             {sm.matched ? "Other candidates" : "Suggested listings — pick the match:"}
           </div>
           <ul className="flex flex-col gap-1">
@@ -312,8 +322,8 @@ export function EnrichmentReview({ asset }: { asset: AssetDetailView }) {
           </ul>
         </div>
       )}
-      {meta.failed && <span className="text-mono text-err">Fetch failed</span>}
-      {meta.note && <span className="text-mono text-text-3">{meta.note}</span>}
+      {meta.failed && <span className="text-mono text-destructive">Fetch failed</span>}
+      {meta.note && <span className="text-mono text-subtle-foreground">{meta.note}</span>}
       {meta.dialog}
     </div>
   );
@@ -338,7 +348,7 @@ function MatchPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent width={560}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Find listing</DialogTitle>
           <DialogDescription>Search storefronts and pick the matching listing.</DialogDescription>
@@ -354,14 +364,18 @@ function MatchPickerDialog({
               placeholder="Asset name"
               autoFocus
             />
-            <Button onClick={() => search.mutate(q)} disabled={search.isPending}>
+            <Button
+              variant="secondary"
+              onClick={() => search.mutate(q)}
+              disabled={search.isPending}
+            >
               Search
             </Button>
           </div>
-          {search.isPending && <p className="text-caption text-text-3">Searching…</p>}
-          {search.isError && <p className="text-caption text-err">Search failed</p>}
+          {search.isPending && <p className="text-caption text-subtle-foreground">Searching…</p>}
+          {search.isError && <p className="text-caption text-destructive">Search failed</p>}
           {!search.isPending && search.data && candidates.length === 0 && (
-            <p className="text-caption text-text-3">No matches found.</p>
+            <p className="text-caption text-subtle-foreground">No matches found.</p>
           )}
           <ul className="flex flex-col gap-1">
             {candidates.map((c, i) => (
@@ -393,7 +407,7 @@ function ConflictDialog({
 }) {
   return (
     <Dialog open={conflicts !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent width={520}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Confirm overwrites</DialogTitle>
           <DialogDescription>
@@ -410,12 +424,13 @@ function ConflictDialog({
                 className="mt-0.5"
               />
               <div className="min-w-0 flex-1">
-                <div className="text-ui capitalize text-text">{c.field}</div>
-                <div className="text-mono text-text-3">
-                  current: <span className="text-text-2">{truncate(c.current) || "—"}</span>
+                <div className="text-ui capitalize text-foreground">{c.field}</div>
+                <div className="text-mono text-subtle-foreground">
+                  current:{" "}
+                  <span className="text-muted-foreground">{truncate(c.current) || "—"}</span>
                 </div>
-                <div className="text-mono text-text-3">
-                  new: <span className="text-text-2">{truncate(c.proposed)}</span>
+                <div className="text-mono text-subtle-foreground">
+                  new: <span className="text-muted-foreground">{truncate(c.proposed)}</span>
                 </div>
               </div>
             </label>

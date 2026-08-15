@@ -22,7 +22,7 @@ export const DropdownMenuContent = forwardRef<
         sideOffset={sideOffset}
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover min-w-[10rem] rounded-md border border-line bg-panel p-1 text-ui text-text-2 shadow-elevated",
+          "z-popover min-w-[10rem] rounded-md border border-border bg-popover p-1 text-ui text-muted-foreground shadow-elevated",
           "data-[state=open]:animate-fade-in",
           className,
         )}
@@ -33,7 +33,7 @@ export const DropdownMenuContent = forwardRef<
 });
 
 const itemClasses =
-  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-hidden transition-colors duration-std ease data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-surface data-[highlighted]:text-text";
+  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-hidden transition-colors duration-std ease data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground";
 
 export const DropdownMenuItem = forwardRef<
   React.ElementRef<typeof RadixDropdown.Item>,
@@ -53,7 +53,7 @@ export const DropdownMenuCheckboxItem = forwardRef<
       className={cn(itemClasses, "pl-7", className)}
       {...props}
     >
-      <span className="absolute left-2 grid h-4 w-4 place-items-center text-accent">
+      <span className="absolute left-2 grid h-4 w-4 place-items-center text-primary">
         <RadixDropdown.ItemIndicator>
           <Check size={12} strokeWidth={3} />
         </RadixDropdown.ItemIndicator>
@@ -69,9 +69,9 @@ export const DropdownMenuRadioItem = forwardRef<
 >(function DropdownMenuRadioItem({ className, children, ...props }, ref) {
   return (
     <RadixDropdown.RadioItem ref={ref} className={cn(itemClasses, "pl-7", className)} {...props}>
-      <span className="absolute left-2 grid h-4 w-4 place-items-center text-accent">
+      <span className="absolute left-2 grid h-4 w-4 place-items-center text-primary">
         <RadixDropdown.ItemIndicator>
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
         </RadixDropdown.ItemIndicator>
       </span>
       {children}
@@ -86,7 +86,7 @@ export const DropdownMenuLabel = forwardRef<
   return (
     <RadixDropdown.Label
       ref={ref}
-      className={cn("px-2 py-1 text-label text-text-4", className)}
+      className={cn("px-2 py-1 text-label text-faint-foreground", className)}
       {...props}
     />
   );
@@ -97,7 +97,11 @@ export const DropdownMenuSeparator = forwardRef<
   ComponentPropsWithoutRef<typeof RadixDropdown.Separator>
 >(function DropdownMenuSeparator({ className, ...props }, ref) {
   return (
-    <RadixDropdown.Separator ref={ref} className={cn("my-1 h-px bg-line", className)} {...props} />
+    <RadixDropdown.Separator
+      ref={ref}
+      className={cn("my-1 h-px bg-border", className)}
+      {...props}
+    />
   );
 });
 
@@ -105,5 +109,5 @@ export const DropdownMenuShortcut = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) => (
-  <span className={cn("ml-auto text-mono text-text-4", className)} {...props} />
+  <span className={cn("ml-auto text-mono text-faint-foreground", className)} {...props} />
 );
