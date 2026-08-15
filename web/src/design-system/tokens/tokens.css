@@ -1,96 +1,148 @@
-/* Damson design-system tokens
- *
- * Ported from docs/mockup/styles/damson.css. Accent retuned to Damson's
- * canonical yellow (per docs/ui-design.md); the mockup's blue/yellow theme
- * swap is deliberately dropped.
- *
- * Dark theme is the default. Light theme opts in via html[data-theme="light"].
- */
+/* Damson design-system tokens — shared contract vocabulary, Damson values. */
 
 :root {
-  /* Warm neutral scale. Hue 70, very low chroma. */
-  --ds-bg: oklch(0.195 0.006 70);
-  --ds-panel: oklch(0.225 0.006 70);
-  --ds-surface: oklch(0.258 0.007 70);
-  --ds-surface-2: oklch(0.295 0.008 70);
-  --ds-line: oklch(0.325 0.008 70);
-  --ds-line-2: oklch(0.385 0.008 70);
+  --radius: 0.5rem;
 
-  /* Text tiers — lifted from the mockup values (0.93 / 0.76 / 0.60 / 0.46)
-   * so text-3 passes WCAG AA on bg/panel and text-4 passes on bg. text-3
-   * on surface-2 and text-4 on panel still read as slightly sub-4.5:1 and
-   * should only be used for decorative/low-weight text. */
-  --ds-text: oklch(0.93 0.005 80);
-  --ds-text-2: oklch(0.78 0.006 80);
-  --ds-text-3: oklch(0.7 0.006 80);
-  --ds-text-4: oklch(0.6 0.006 80);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Yellow accent — the single semantic accent. */
-  --ds-accent: oklch(0.82 0.15 86);
-  --ds-accent-2: oklch(0.74 0.15 86);
-  --ds-accent-tint: oklch(0.82 0.15 86 / 0.16);
-  --ds-accent-ring: oklch(0.82 0.15 86 / 0.35);
-  --ds-accent-fg: oklch(0.18 0.02 86);
+  --row-h: 36px;
 
-  /* Licence status — the only other semantic colour axis. */
-  --ds-ok: oklch(0.72 0.12 155);
-  --ds-ok-tint: oklch(0.72 0.12 155 / 0.16);
-  --ds-warn: oklch(0.78 0.13 85);
-  --ds-warn-tint: oklch(0.78 0.13 85 / 0.16);
-  --ds-err: oklch(0.68 0.17 28);
-  --ds-err-tint: oklch(0.68 0.17 28 / 0.16);
-  /* Unknown status — deliberately muted, but lifted from the mockup's
-   * L=0.60 so it still meets WCAG AA for normal text on bg. */
-  --ds-unk: oklch(0.72 0.01 80);
-  --ds-unk-tint: oklch(0.72 0.01 80 / 0.2);
+  /* Warm neutral scale. Hue 80, very low chroma. */
+  --background: oklch(0.985 0.003 80);
+  --card: oklch(0.965 0.004 80);
+  --popover: oklch(0.965 0.004 80);
+  --muted: oklch(0.945 0.005 80);
+  --secondary: oklch(0.945 0.005 80);
+  --accent: oklch(0.92 0.006 80);
 
-  /* Elevation */
-  --ds-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.35);
+  --border: oklch(0.88 0.006 80);
+  --input: oklch(0.88 0.006 80);
+  --border-strong: oklch(0.82 0.006 80);
 
-  /* Sizing */
-  --ds-sidebar-w: 248px;
-  --ds-rail-w: 52px;
-  --ds-detail-w: 440px;
+  --background-sunken: oklch(0.96 0.004 80);
+  --background-inset: oklch(0.93 0.005 80);
+  --background-hover: oklch(0 0 0 / 4%);
+  --background-active: oklch(0 0 0 / 7%);
 
-  /* Radii */
+  /* Text tiers. The bottom two are below WCAG AA on purpose — decorative and
+   * low-weight text only, never body copy. */
+  --foreground: oklch(0.2 0.01 80);
+  --muted-foreground: oklch(0.38 0.01 80);
+  --subtle-foreground: oklch(0.52 0.01 80);
+  --faint-foreground: oklch(0.65 0.01 80);
+
+  --card-foreground: var(--foreground);
+  --popover-foreground: var(--foreground);
+  --secondary-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+
+  /* Yellow brand. Shared by both themes. */
+  --primary: oklch(0.82 0.15 86);
+  --primary-foreground: oklch(0.18 0.02 86);
+  --primary-soft: oklch(0.82 0.15 86 / 0.16);
+  --ring: oklch(0.82 0.15 86 / 0.35);
+
+  /* Licence status. Shared by both themes. */
+  --success: oklch(0.72 0.12 155);
+  --success-foreground: oklch(0.18 0.02 155);
+  --success-soft: oklch(0.72 0.12 155 / 0.16);
+  --warning: oklch(0.78 0.13 85);
+  --warning-foreground: oklch(0.18 0.02 85);
+  --warning-soft: oklch(0.78 0.13 85 / 0.16);
+  --destructive: oklch(0.68 0.17 28);
+  --destructive-foreground: oklch(0.18 0.02 28);
+  --destructive-soft: oklch(0.68 0.17 28 / 0.16);
+  --info: oklch(0.55 0.13 250);
+  --info-foreground: oklch(0.985 0 0);
+  --info-soft: oklch(0.55 0.13 250 / 0.12);
+
+  /* ── Damson-local extensions ──────────────────────────────────────────────
+   * Names the contract has no equivalent for. Candidates to contribute back if
+   * a second project sights one. */
+  --unknown: oklch(0.72 0.01 80);
+  --unknown-soft: oklch(0.72 0.01 80 / 0.2);
+  --primary-hover: oklch(0.74 0.15 86);
+
+  --elevation: 0 10px 30px -14px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.06);
+
+  --sidebar-w: 248px;
+  --rail-w: 52px;
+  --detail-w: 440px;
+}
+
+.dark {
+  --background: oklch(0.195 0.006 70);
+  --card: oklch(0.225 0.006 70);
+  --popover: oklch(0.225 0.006 70);
+  --muted: oklch(0.258 0.007 70);
+  --secondary: oklch(0.258 0.007 70);
+  --accent: oklch(0.295 0.008 70);
+
+  --border: oklch(0.325 0.008 70);
+  --input: oklch(0.325 0.008 70);
+  --border-strong: oklch(0.385 0.008 70);
+
+  --background-sunken: oklch(0.17 0.006 70);
+  --background-inset: oklch(0.145 0.006 70);
+  --background-hover: oklch(1 0 0 / 6%);
+  --background-active: oklch(1 0 0 / 10%);
+
+  --foreground: oklch(0.93 0.005 80);
+  --muted-foreground: oklch(0.78 0.006 80);
+  --subtle-foreground: oklch(0.7 0.006 80);
+  --faint-foreground: oklch(0.6 0.006 80);
+
+  --info: oklch(0.7 0.12 250);
+  --info-foreground: oklch(0.16 0.02 250);
+  --info-soft: oklch(0.7 0.12 250 / 0.16);
+
+  --elevation: 0 12px 40px -12px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Legacy --ds-* aliases ────────────────────────────────────────────────────
+ * Deleted in the same commit as the call-site sweep. Until then they keep the
+ * pre-adoption vocabulary rendering off the new values, so this commit is a
+ * no-op on screen. */
+:root {
+  --ds-bg: var(--background);
+  --ds-panel: var(--card);
+  --ds-surface: var(--muted);
+  --ds-surface-2: var(--accent);
+  --ds-line: var(--border);
+  --ds-line-2: var(--border-strong);
+
+  --ds-text: var(--foreground);
+  --ds-text-2: var(--muted-foreground);
+  --ds-text-3: var(--subtle-foreground);
+  --ds-text-4: var(--faint-foreground);
+
+  --ds-accent: var(--primary);
+  --ds-accent-2: var(--primary-hover);
+  --ds-accent-tint: var(--primary-soft);
+  --ds-accent-ring: var(--ring);
+  --ds-accent-fg: var(--primary-foreground);
+
+  --ds-ok: var(--success);
+  --ds-ok-tint: var(--success-soft);
+  --ds-warn: var(--warning);
+  --ds-warn-tint: var(--warning-soft);
+  --ds-err: var(--destructive);
+  --ds-err-tint: var(--destructive-soft);
+  --ds-unk: var(--unknown);
+  --ds-unk-tint: var(--unknown-soft);
+
+  --ds-shadow: var(--elevation);
+
+  --ds-sidebar-w: var(--sidebar-w);
+  --ds-rail-w: var(--rail-w);
+  --ds-detail-w: var(--detail-w);
+
   --ds-r-sm: 4px;
   --ds-r-md: 6px;
   --ds-r-lg: 10px;
   --ds-r-pill: 999px;
 
-  /* Typography */
-  --ds-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --ds-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  /* Motion */
-  --ds-transition-fast: 80ms;
-  --ds-transition-std: 100ms;
-  --ds-transition-slow: 120ms;
-  --ds-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --ds-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-
-  /* Z-index scale */
-  --ds-z-resizer: 5;
-  --ds-z-detail: 10;
-  --ds-z-drop: 20;
-  --ds-z-selbar: 30;
-  --ds-z-tooltip: 100;
-  --ds-z-dialog: 500;
-  --ds-z-popover: 600; /* Select/Dropdown/Popover content inside a dialog. */
-  --ds-z-tweaks: 1000;
-}
-
-html[data-theme="light"] {
-  --ds-bg: oklch(0.985 0.003 80);
-  --ds-panel: oklch(0.965 0.004 80);
-  --ds-surface: oklch(0.945 0.005 80);
-  --ds-surface-2: oklch(0.92 0.006 80);
-  --ds-line: oklch(0.88 0.006 80);
-  --ds-line-2: oklch(0.82 0.006 80);
-  --ds-text: oklch(0.2 0.01 80);
-  --ds-text-2: oklch(0.38 0.01 80);
-  --ds-text-3: oklch(0.52 0.01 80);
-  --ds-text-4: oklch(0.65 0.01 80);
-
-  --ds-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --ds-font-sans: var(--font-sans);
+  --ds-font-mono: var(--font-mono);
 }

@@ -394,3 +394,15 @@ reason about later.
   CLI cannot clobber them.
 - `web/src/design-system/tokens/tokens.css` (stage 3) — `--row-h` must be defined or the generated
   `--row-h: var(--row-h)` mapping stays a self-referential no-op.
+- `web/index.html` — why a blocking inline script exists at all: the B1 inversion makes light the
+  default, so without it every dark user gets a flash of light before React mounts. The `catch`
+  defaults to dark deliberately (a thrown `matchMedia`/`localStorage` in privacy mode should not
+  mean "light").
+- `web/src/hooks/useTheme.ts` — why the first effect calls `applyTheme` and not `applyAndStore`:
+  storing on mount would make a stored value always exist, and "follow the OS until the user picks"
+  would never fire. The `[mode]` dependency on the watcher effect is deliberate — it re-checks
+  `readStoredTheme()` so an explicit toggle unsubscribes.
+- `web/src/design-system/tokens/tokens.css` — `--primary-hover` is a deviation from the spec, which
+  said to drop `--ds-accent-2` in favour of `--primary/90`. Four of its sites are a gradient
+  (`from-accent to-accent-2`) and opacity is not lightness, so the token survives as a local
+  extension. Worth a line in `design-system.md`.

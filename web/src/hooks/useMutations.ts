@@ -389,7 +389,6 @@ export function useRemoveAssetFromCollection() {
 }
 
 export interface LibrarySettingsPatch {
-  theme_default?: "dark" | "light";
   grid_density_default?: "small" | "medium" | "large";
   retain_original_packages?: boolean;
   dedupe_enabled?: boolean;

@@ -7,16 +7,11 @@ import "../src/styles/globals.css";
 // from the bare decorator function (react-hooks/rules-of-hooks).
 function ThemeFrame({ theme, children }: { theme: "dark" | "light"; children: React.ReactNode }) {
   React.useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "light") {
-      root.setAttribute("data-theme", "light");
-    } else {
-      root.removeAttribute("data-theme");
-    }
+    document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
   return (
     <div
-      className="bg-bg text-text"
+      className={`${theme === "dark" ? "dark " : ""}bg-bg text-text`}
       style={{
         padding: 24,
         minWidth: 320,
