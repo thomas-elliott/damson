@@ -93,7 +93,7 @@ export function FileDetailPanel({
         <div className="mb-3 aspect-square w-full overflow-hidden rounded-md border border-border bg-background">
           {preview ?? <FilePreview node={node} large previewUrl={previewUrl} />}
         </div>
-        <h2 className="break-all text-subhead text-foreground">{node.name}</h2>
+        <h2 className="break-all text-subhead-semibold text-foreground">{node.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption">
           <FileGlyph ftype={node.ftype} size={11} strokeWidth={1.5} />
           <span>{meta.label}</span>

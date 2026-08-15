@@ -134,7 +134,7 @@ export const PopoverExample: Story = {
       </PopoverTrigger>
       <PopoverContent className="min-w-[240px]">
         <div className="flex flex-col gap-2">
-          <div className="text-label text-faint-foreground">Quick info</div>
+          <div className="text-overline text-faint-foreground">Quick info</div>
           <p className="text-small text-muted-foreground">
             Drop-in popover container. Use for rich content (filters, details) that needs more room
             than a dropdown menu.
