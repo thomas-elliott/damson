@@ -151,7 +151,7 @@ export function LibraryMembersSection({
                           title: `Remove ${m.display_name}?`,
                           description: "They'll lose access to this library.",
                           confirmLabel: "Remove",
-                          tone: "danger",
+                          tone: "destructive",
                         });
                         if (ok) remove.mutate({ libraryId, userId: m.user_id });
                       }}

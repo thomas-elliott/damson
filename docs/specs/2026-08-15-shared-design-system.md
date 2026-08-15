@@ -417,3 +417,10 @@ reason about later.
 - `web/src/design-system/tokens/tokens.css` — `--code-canvas` is GitHub Dark's canvas and must track
   `HIGHLIGHT_THEME` in `previews/highlight.ts`, not damson's palette. It is here because tokens.css
   is the only place a raw value may live, not because it is a semantic token.
+- `web/src/design-system/primitives/Button.tsx` — why this is a wrapper and not an edit to
+  `components/ui/button.tsx`: the wrapper is the estate's exit criterion for copy-in ownership.
+  Editing the installed file would be silently undone by the next `add`. Verified: re-running
+  `add --overwrite` replaced the installed file and left this one byte-identical.
+- `web/src/styles/globals.css` — every `shadcn add` re-appends the contract's reference :root/.dark
+  (button depends on tokens), so it has to be deleted after each install. Worth a task target or a
+  post-add step rather than remembering.
