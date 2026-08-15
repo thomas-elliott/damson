@@ -161,9 +161,17 @@ View-specific role tokens:
 
 ### Tailwind mapping
 
-Tokens become Tailwind utilities via `tailwind.config.ts`. **Prefer the
-utility over `var(--ds-*)`** — e.g. `bg-panel`, `text-text-2`,
-`border-line`, `rounded-md`, `animate-slide-in-right`.
+Tokens become Tailwind utilities via the `@theme` block in
+`web/src/styles/globals.css`. There is no `tailwind.config.ts` — Tailwind 4
+takes its theme from CSS. **Prefer the utility over `var(--ds-*)`** — e.g.
+`bg-panel`, `text-text-2`, `border-line`, `rounded-md`,
+`animate-slide-in-right`. That preference is why the vocabulary here is ~832
+class names against only 69 raw `var()` calls.
+
+> **Changing.** This whole section is superseded by the shared design system
+> adoption — the `--ds-` prefix goes and shadcn's token names become primary.
+> See [`roadmap.md`](roadmap.md) and
+> [`shared-design-adoption.md`](shared-design-adoption.md).
 
 ---
 
