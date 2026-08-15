@@ -97,6 +97,11 @@
   --duration-fast: var(--duration-fast);
 }
 
+/* Damson's block. Tailwind merges @theme blocks with the later one winning, so
+ * this is also the only place that can override the generated block above — the
+ * contract's scales are restated here as literals because the form it generates,
+ * `--radius-md: var(--radius-md)`, is a self-reference that computes to nothing.
+ * See the naming note in tokens.css. */
 @theme inline {
   --color-unknown: var(--unknown);
   --color-unknown-soft: var(--unknown-soft);

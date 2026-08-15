@@ -403,27 +403,45 @@ damson's wherever damson has a view.
   `MarkdownEditorView` calc was swept. It is kept only so a registry component installed direct
   still resolves, per upstream's reason for keeping the alias.
 
-## Deferred comments
+## What implementation found
 
-Notes for `/cleanup` to evaluate — `path — the why`, not comment text.
+Appended after the fact, per the standing rule that a spec is not rewritten. The plan above held;
+these are the three places the tree disagreed with it.
 
-- `web/src/design-system/tokens/tokens.css` — why the font stacks are `--sans-stack` / `--mono-stack`
-  and the shadows are `--elevation-sm/md/lg` rather than the contract's own names: a custom property
-  that `@theme inline` maps to *itself* (`--font-sans: var(--font-sans)`) is a dependency cycle, so
-  it computes to guaranteed-invalid and takes damson's own declaration down with it regardless of
-  cascade layer. Distinct names are what break the cycle. This is load-bearing and non-obvious.
-- `web/src/styles/globals.css`, second `@theme inline` block — why it now restates the whole radius,
-  type and motion scale as literals when tokens.css is meant to be the only place a value lives:
-  same cycle. Tailwind merges `@theme` blocks with the later winning, so damson's block is the only
-  override point that survives `shadcn add` regenerating the first one.
-- `web/src/styles/globals.css` — why `--row-h` and `--font-sans` moved: they were *already* broken by
-  this cycle before the slice started (damson was rendering system-ui, not Inter). Worth a comment
-  only if `/cleanup` judges the tokens.css note insufficient on its own.
-- `web/src/design-system/utils/cn.ts` — why `mergeConfigs` rather than spreading `typeScale.extend`:
-  a spread silently drops any key type-scale grows later, which is the same class of silent failure
-  the extension exists to prevent.
-- `web/scripts/check-tokens.mjs` — why the new scale checks sit *before* the fixture early-return
-  while the hex/arbitrary-colour checks stay after it: a retired name is retired in a story too.
-- `web/src/design-system/primitives/Input.tsx` — why both the wrapper and the inner field carry
-  `text-field` rather than just the field: the guardrail's rule is file-scoped, so a `text-ui` left
-  on the wrapper would fail it.
+### The `@theme inline` self-mapping is a dependency cycle — the slice's real finding
+
+Not anticipated anywhere above, and it invalidates the way stage 1 was first verified. `shadcn add`
+generates mappings of the form `--radius-md: var(--radius-md)` — the same name on both sides. That
+is a custom-property cycle, so the property is invalid at computed-value time, **and it takes
+damson's own `--radius-md: 12px` down with it whatever the cascade layer says**. Measured in Chrome
+after stage 1: `rounded-md` computed to `0px`, `text-ui` to the inherited 15px, every shadow to none.
+The built stylesheet contained exactly the right text throughout — reading it proves nothing.
+
+It predates this slice. `--row-h` and `--font-sans` have had the same shape since before stage 1, so
+damson has been rendering system-ui rather than Inter. The colour tokens escape it only because they
+map `--color-x: var(--x)`, where the two names differ; 0.1.7 uses identical names throughout, which
+is what turned a two-token bug into a whole-vocabulary one.
+
+The fix is that damson's own `@theme inline` block is the override point — Tailwind merges the blocks
+with the later winning, and `shadcn add` only ever regenerates the first. Theme-independent scales
+are restated there as literals. The shadows cannot be, because they differ per theme, so they stay in
+`tokens.css` as `--elevation-sm/md/lg` and are mapped across; the font stacks likewise became
+`--sans-stack` / `--mono-stack`. **Distinct names are what break the cycle**, and that is the single
+fact most likely to be undone by a well-meaning tidy — hence the comment in `tokens.css`.
+
+This is a contract-side bug affecting any consumer that deletes the appended reference `:root`, which
+`consuming.md` instructs them to do. Carried up as a follow-up above.
+
+### Q1's collision question, answered
+
+Stage 3 recorded it as unverified. Tailwind **emits both rules at equal specificity and the theme
+token sorts last**, so the theme silently wins and nothing errors. The consequence is the one that
+mattered: the build cannot catch a missed rename, so stage 6's guardrail carries it instead.
+
+### Counts, re-measured on the branch
+
+The spec's numbers were close but not exact, as it warned. Measured: `text-ui` 108 (spec 103),
+`text-small` 98 (~91), `text-label` 19 (17), bare heading aliases 17 (14), `duration-std` 43 (44),
+bare `ease` 45 (48), `shadow-elevated` 12 (13). Every radius count matched exactly. The `ease` split
+was 45 class-string sites plus one genuine CSS keyword in `--animate-fade-in`, which the codemod
+correctly left alone.
