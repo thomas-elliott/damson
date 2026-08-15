@@ -41,7 +41,7 @@ export interface FileBrowserToolbarProps {
 }
 
 const crumbButton =
-  "rounded-sm text-muted-foreground transition-colors duration-std ease hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
+  "rounded-sm text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Breadcrumb path navigation + active filter chips + grid/list toggle. */
 export function FileBrowserToolbar({
@@ -120,7 +120,7 @@ export function FileBrowserToolbar({
       <ToolbarSpacer />
 
       {resultsMode && onClearResults && (
-        <button type="button" onClick={onClearResults} className={cn("text-small", crumbButton)}>
+        <button type="button" onClick={onClearResults} className={cn("text-label", crumbButton)}>
           Clear
         </button>
       )}

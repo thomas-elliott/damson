@@ -106,7 +106,7 @@ export function FileDetailPanel({
             </>
           )}
         </div>
-        <div className="mt-2 break-all rounded-sm bg-background px-2 py-1.5 font-mono text-small text-subtle-foreground">
+        <div className="mt-2 break-all rounded-sm bg-background px-2 py-1.5 font-mono text-label text-subtle-foreground">
           {[assetName, ...dir, node.name].join(" / ")}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">

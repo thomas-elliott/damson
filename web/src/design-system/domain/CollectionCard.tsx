@@ -41,7 +41,7 @@ export const CollectionCard = forwardRef<HTMLButtonElement, CollectionCardProps>
           onClick?.(e);
         }}
         className={cn(
-          "flex flex-col gap-3 rounded-md border border-border bg-card p-3.5 text-left transition-colors duration-std ease",
+          "flex flex-col gap-3 rounded-md border border-border bg-card p-3.5 text-left transition-colors duration-fast ease-standard",
           "hover:border-border-strong",
           "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           className,
@@ -66,7 +66,7 @@ export const CollectionCard = forwardRef<HTMLButtonElement, CollectionCardProps>
             {queryDescription}
           </div>
         )}
-        <div className="text-small text-subtle-foreground">
+        <div className="text-label text-subtle-foreground">
           <span className="font-mono tabular-nums text-muted-foreground">{count}</span>
           <span> assets</span>
         </div>

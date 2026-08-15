@@ -53,7 +53,7 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
   };
 
   return (
-    <div className="rounded-md border border-border bg-muted transition-colors duration-std ease hover:border-border-strong">
+    <div className="rounded-md border border-border bg-muted transition-colors duration-fast ease-standard hover:border-border-strong">
       <div className="flex items-center gap-2 p-2">
         {c.cover_url ? (
           <ProxiedImage src={c.cover_url} className="h-10 w-10 shrink-0 rounded object-cover" />
@@ -70,7 +70,7 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
           onClick={toggle}
         >
           <ChevronDown
-            className={`transition-transform duration-std ease ${expanded ? "rotate-180" : ""}`}
+            className={`transition-transform duration-fast ease-standard ${expanded ? "rotate-180" : ""}`}
           />
         </IconButton>
       </div>

@@ -138,7 +138,7 @@ function NewCollectionDialog({
               rows={2}
             />
           </FieldRow>
-          {error && <div className="text-small text-destructive">{error}</div>}
+          {error && <div className="text-label text-destructive">{error}</div>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

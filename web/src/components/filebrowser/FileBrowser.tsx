@@ -318,7 +318,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
                       ? "No files in this pack"
                       : "This folder is empty"}
                 </div>
-                <div className="mt-1 text-small text-faint-foreground">
+                <div className="mt-1 text-label text-faint-foreground">
                   {resultsMode
                     ? "Try a different search or clear the file-type filter."
                     : path.length === 0
@@ -364,7 +364,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
             />
           )}
           {truncated && (
-            <div className="mt-3 text-center text-small text-faint-foreground">
+            <div className="mt-3 text-center text-label text-faint-foreground">
               Showing the first {RESULTS_CAP} matches — refine your search to narrow the results.
             </div>
           )}
@@ -377,7 +377,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
         />
 
         {saved && (
-          <div className="absolute bottom-4 left-1/2 z-selbar flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-strong bg-popover px-3.5 py-1.5 text-ui text-foreground shadow-elevated">
+          <div className="absolute bottom-4 left-1/2 z-selbar flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-strong bg-popover px-3.5 py-1.5 text-ui text-foreground shadow-lg">
             <Check size={13} className="text-success" /> Subset version created
           </div>
         )}

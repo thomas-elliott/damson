@@ -263,7 +263,7 @@ function InviteMemberDialog({
               identities in your provider.
             </p>
           )}
-          {error && <p className="text-small text-destructive">{error}</p>}
+          {error && <p className="text-label text-destructive">{error}</p>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

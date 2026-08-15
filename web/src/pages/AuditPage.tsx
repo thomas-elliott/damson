@@ -77,7 +77,7 @@ export function AuditPage() {
                 type="button"
                 onClick={() => setParam("action", f.value)}
                 className={cn(
-                  "h-[22px] rounded-full border px-2.5 text-small transition-colors duration-std ease",
+                  "h-[22px] rounded-full border px-2.5 text-label transition-colors duration-fast ease-standard",
                   action === f.value
                     ? "border-primary bg-primary-soft text-foreground"
                     : "border-border bg-card text-muted-foreground hover:text-foreground",

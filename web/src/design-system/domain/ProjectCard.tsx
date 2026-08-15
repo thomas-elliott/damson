@@ -29,7 +29,7 @@ export const ProjectCard = forwardRef<HTMLButtonElement, ProjectCardProps>(funct
         onClick?.(e);
       }}
       className={cn(
-        "flex flex-col gap-3 rounded-md border border-border bg-card p-3.5 text-left transition-colors duration-std ease",
+        "flex flex-col gap-3 rounded-md border border-border bg-card p-3.5 text-left transition-colors duration-fast ease-standard",
         "hover:border-border-strong",
         "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         className,
@@ -72,7 +72,7 @@ export function ProjectCardNew({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border-strong bg-transparent p-4 text-ui text-subtle-foreground transition-colors duration-std ease",
+        "flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border-strong bg-transparent p-4 text-ui text-subtle-foreground transition-colors duration-fast ease-standard",
         "hover:border-faint-foreground hover:text-muted-foreground",
         "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         className,

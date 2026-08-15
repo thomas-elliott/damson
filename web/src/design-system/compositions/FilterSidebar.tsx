@@ -63,7 +63,7 @@ export function FilterRow({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-ui text-muted-foreground transition-colors duration-std ease",
+        "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-ui text-muted-foreground transition-colors duration-fast ease-standard",
         "hover:bg-muted hover:text-foreground",
         "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         "aria-[pressed=true]:bg-primary-soft aria-[pressed=true]:text-foreground",
