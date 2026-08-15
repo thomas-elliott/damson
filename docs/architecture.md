@@ -861,7 +861,7 @@ Gated by `library_settings.previews_enabled`.
 replacing the hand-rolled bounded goroutine pools draining in-memory
 channels that preceded it. The pipelines themselves are unchanged;
 River wraps them, and enqueue becomes a `river_job` row instead of a
-channel send. See `docs/specs/2026-07-19-river-queue-migration.md`
+channel send. See `docs/specs/history/2026-07-19-river-queue-migration.md`
 for the reasoning.
 
 - **Two queues.** `import` and `preview`, sized independently so each
@@ -1505,7 +1505,11 @@ the code diverges:
 8. Ownership model: library-based group ownership.
 9. **Accent colour is yellow only** — no theme-swap. **Dark default,
    light override on `data-theme`.** Hand-rolled components on
-   Radix headless primitives — no shadcn/ui.
+   Radix headless primitives — no shadcn/ui. *Changing: the shared
+   design system adoption makes shadcn/ui the primitive layer, moves
+   the theme to `:root`/`.dark` with `prefers-color-scheme` deciding
+   the initial value, and renames the accent to `--primary`. See
+   [`roadmap.md`](roadmap.md).*
 10. Background jobs: River on Postgres, replacing hand-rolled
     goroutine pools. Chosen for durability across restarts and
     observable job state without building a scheduler.
