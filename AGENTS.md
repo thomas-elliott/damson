@@ -11,6 +11,7 @@ Before making non-trivial changes, read the docs in `docs/`. They describe the c
 - `docs/architecture.md` — current architecture, data model, API surface, shipped decisions
 - `docs/CONVENTIONS.md` — stack, formatting rules, handler patterns, test helpers
 - `docs/design-system.md` — frontend design system spec
+- `docs/shared-design-adoption.md` — the brief for moving this repo onto the shared `@shared` registry and shadcn's token vocabulary. Estate context that lives outside this repo, the measurements, and the questions alignment has to settle. Read before running `/spec` on it, or before touching tokens or a primitive
 - `docs/progress.md` — what's actually in the tree: the MVP ladder in summary, then post-MVP work slice by slice. Read this before starting a new slice so you know what foundations do (and don't) already exist
 - `docs/specs/` — signed-off specs, `YYYY-MM-DD-slug.md`. Post-MVP work is spec-driven: each file is the agreed scope for one slice, written before implementation and left in place afterwards as the record of *why* it was built that way. Every spec opens with a `**Status:**` line; flip it from `signed off … ready for implement` to `implemented — … merged <date> (PR #N, <sha>)` when the slice lands, and add the slice to `progress.md`, so an unbuilt spec stays visible at a glance
 - `docs/observability.md` — logging shape, request correlation, LogsQL queries
