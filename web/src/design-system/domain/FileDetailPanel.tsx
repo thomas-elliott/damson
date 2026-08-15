@@ -93,7 +93,7 @@ export function FileDetailPanel({
         <div className="mb-3 aspect-square w-full overflow-hidden rounded-md border border-border bg-background">
           {preview ?? <FilePreview node={node} large previewUrl={previewUrl} />}
         </div>
-        <h2 className="break-all text-subhead text-foreground">{node.name}</h2>
+        <h2 className="break-all text-subhead-semibold text-foreground">{node.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption">
           <FileGlyph ftype={node.ftype} size={11} strokeWidth={1.5} />
           <span>{meta.label}</span>
@@ -106,7 +106,7 @@ export function FileDetailPanel({
             </>
           )}
         </div>
-        <div className="mt-2 break-all rounded-sm bg-background px-2 py-1.5 font-mono text-small text-subtle-foreground">
+        <div className="mt-2 break-all rounded-sm bg-background px-2 py-1.5 font-mono text-label text-subtle-foreground">
           {[assetName, ...dir, node.name].join(" / ")}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">

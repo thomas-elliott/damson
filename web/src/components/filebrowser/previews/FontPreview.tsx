@@ -73,7 +73,7 @@ export default function FontPreview({ node }: { node: FileNode }) {
           </div>
         ))}
       </div>
-      {!loaded && <div className="text-small text-faint-foreground">Loading font…</div>}
+      {!loaded && <div className="text-label text-faint-foreground">Loading font…</div>}
     </div>
   );
 }

@@ -60,7 +60,7 @@ export function SettingsPage() {
             <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
                 <header>
-                  <h1 className="text-heading text-foreground">Library settings</h1>
+                  <h1 className="text-heading-semibold text-foreground">Library settings</h1>
                   <p className="mt-1 text-ui text-subtle-foreground">
                     Applies to <span className="font-mono">{me.current_library.name}</span>. Changes
                     are audited.

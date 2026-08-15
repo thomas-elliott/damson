@@ -17,8 +17,8 @@ const badge = cva("inline-flex items-center gap-1 whitespace-nowrap border font-
       pill: "rounded-full",
     },
     size: {
-      sm: "h-[20px] px-1.5 text-small",
-      md: "h-5 px-2 text-small",
+      sm: "h-[20px] px-1.5 text-label",
+      md: "h-5 px-2 text-label",
     },
     mono: { true: "font-mono", false: "" },
   },

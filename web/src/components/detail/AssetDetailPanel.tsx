@@ -311,7 +311,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             }}
             placeholder="environment/trees"
             aria-label="New tag path"
-            className="h-7 w-[180px] text-small"
+            className="h-7 w-[180px] text-label"
           />
         </div>
       </Section>
@@ -372,7 +372,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           {rescan.isPending ? "Rescanning…" : "Rescan package"}
         </Button>
         {rescanNote && (
-          <div className="mb-2 px-1 text-small text-subtle-foreground">{rescanNote}</div>
+          <div className="mb-2 px-1 text-label text-subtle-foreground">{rescanNote}</div>
         )}
         <Button
           size="sm"
@@ -384,7 +384,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         >
           Regenerate previews only
         </Button>
-        <div className="flex items-center justify-between rounded-sm border border-border bg-muted px-2.5 py-2 text-small text-muted-foreground">
+        <div className="flex items-center justify-between rounded-sm border border-border bg-muted px-2.5 py-2 text-label text-muted-foreground">
           <span>
             {asset.files.length} {asset.files.length === 1 ? "file" : "files"}
           </span>
@@ -411,7 +411,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       {/* Projects using this asset */}
       <Section title="Projects" accessory={`${asset.projects.length}`} defaultOpen={false}>
         {asset.projects.length === 0 ? (
-          <div className="text-small text-faint-foreground">Not pinned to any project yet</div>
+          <div className="text-label text-faint-foreground">Not pinned to any project yet</div>
         ) : (
           <KeyValueList
             entries={asset.projects.map((p) => ({
@@ -426,9 +426,9 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       {/* Collections */}
       <Section title="Collections" accessory={`${asset.collections.length}`} defaultOpen={false}>
         {asset.collections.length === 0 ? (
-          <div className="text-small text-faint-foreground">Not in any collections</div>
+          <div className="text-label text-faint-foreground">Not in any collections</div>
         ) : (
-          <ul className="flex flex-col gap-0.5 text-small text-muted-foreground">
+          <ul className="flex flex-col gap-0.5 text-label text-muted-foreground">
             {asset.collections.map((c) => (
               <li key={c.collection_id}>{c.collection_name}</li>
             ))}
@@ -536,7 +536,7 @@ function OverviewSection({ asset }: { asset: AssetDetailView }) {
 // scan for doesn't need the section opened. Expanded, LicenceEditor shows the
 // same pill, so the accessory drops away.
 function LicenceSummary({ licence }: { licence: LicenceView | null }) {
-  if (!licence) return <span className="text-small text-faint-foreground">Not set</span>;
+  if (!licence) return <span className="text-label text-faint-foreground">Not set</span>;
   return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} noDot />;
 }
 
@@ -547,7 +547,7 @@ function OverviewRead({ asset }: { asset: AssetDetailView }) {
       {asset.description.trim() ? (
         <ClampedDescription>{asset.description}</ClampedDescription>
       ) : (
-        <p className="text-small text-faint-foreground">No description yet.</p>
+        <p className="text-label text-faint-foreground">No description yet.</p>
       )}
       {/* Source link and the fetch actions share one line — they're all about
           where this asset's metadata comes from. */}
@@ -558,13 +558,13 @@ function OverviewRead({ asset }: { asset: AssetDetailView }) {
             target="_blank"
             rel="noreferrer noopener"
             title={source}
-            className="inline-flex min-w-0 items-center gap-1 pt-1 text-small text-primary hover:underline"
+            className="inline-flex min-w-0 items-center gap-1 pt-1 text-label text-primary hover:underline"
           >
             <span className="truncate">{sourceLabel(source)}</span>
             <ExternalLink size={11} className="shrink-0" />
           </a>
         ) : (
-          <span className="pt-1 text-small text-faint-foreground">No source URL</span>
+          <span className="pt-1 text-label text-faint-foreground">No source URL</span>
         )}
         <MetadataActions asset={asset} />
       </div>
@@ -614,7 +614,7 @@ function ClampedDescription({ children }: { children: string }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="self-start text-small text-primary hover:underline"
+          className="self-start text-label text-primary hover:underline"
         >
           {expanded ? "Show less" : "Read more"}
         </button>
@@ -725,7 +725,7 @@ function AssetGallery({ images }: { images: AssetImageView[] }) {
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border bg-muted">
       <div
-        className="flex h-full w-full transition-transform duration-std ease"
+        className="flex h-full w-full transition-transform duration-fast ease-standard"
         style={{ transform: `translateX(-${current * 100}%)` }}
       >
         {images.map((img, i) => (
@@ -776,7 +776,7 @@ function GalleryArrow({ side, onClick }: { side: "left" | "right"; onClick: () =
       aria-label={side === "left" ? "Previous image" : "Next image"}
       className={cn(
         "absolute top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full",
-        "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
+        "bg-black/55 text-white transition-colors duration-fast ease-standard hover:bg-black/80",
         "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         side === "left" ? "left-1.5" : "right-1.5",
       )}
@@ -874,7 +874,7 @@ function LightboxArrow({ side, onClick }: { side: "left" | "right"; onClick: () 
       aria-label={side === "left" ? "Previous image" : "Next image"}
       className={cn(
         "absolute top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full",
-        "bg-black/55 text-white transition-colors duration-std ease hover:bg-black/80",
+        "bg-black/55 text-white transition-colors duration-fast ease-standard hover:bg-black/80",
         "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
         side === "left" ? "left-4" : "right-4",
       )}
@@ -921,7 +921,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
         placeholder="1.1"
         aria-label="Store version"
         autoFocus
-        className="h-7 w-16 text-small"
+        className="h-7 w-16 text-label"
       />
       <Input
         value={label}
@@ -932,7 +932,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
         }}
         placeholder="label"
         aria-label="Version label"
-        className="h-7 w-20 text-small"
+        className="h-7 w-20 text-label"
       />
       <IconButton aria-label="Save version" size="sm" onClick={onSave} disabled={patch.isPending}>
         <Check />
@@ -986,7 +986,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
 function AssetAuditSection({ assetId }: { assetId: number }) {
   const { data: entries, loading } = useAssetAudit(assetId);
   if (loading) {
-    return <div className="text-small text-faint-foreground">Loading…</div>;
+    return <div className="text-label text-faint-foreground">Loading…</div>;
   }
   return (
     <AuditList

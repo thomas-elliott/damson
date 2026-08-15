@@ -16,7 +16,7 @@ export const SelectTrigger = forwardRef<
     <RadixSelect.Trigger
       ref={ref}
       className={cn(
-        "inline-flex h-7 items-center justify-between gap-2 rounded-sm border border-border bg-background px-2 text-ui text-foreground transition-colors duration-std ease",
+        "inline-flex h-7 items-center justify-between gap-2 rounded-sm border border-border bg-background px-2 text-ui text-foreground transition-colors duration-fast ease-standard",
         "hover:border-border-strong",
         "data-[state=open]:border-transparent data-[state=open]:outline data-[state=open]:outline-2 data-[state=open]:outline-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
@@ -49,7 +49,7 @@ export const SelectContent = forwardRef<
         // could silently drop the `z-popover` class. Inline wins.
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover overflow-hidden rounded-md border border-border bg-popover text-ui text-muted-foreground shadow-elevated",
+          "z-popover overflow-hidden rounded-md border border-border bg-popover text-ui text-muted-foreground shadow-lg",
           "data-[state=open]:animate-fade-in",
           position === "popper" && "min-w-[var(--radix-select-trigger-width)]",
           className,
@@ -76,7 +76,7 @@ export const SelectItem = forwardRef<
     <RadixSelect.Item
       ref={ref}
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-1.5 pl-7 pr-2 text-ui outline-hidden transition-colors duration-std ease",
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-1.5 pl-7 pr-2 text-ui outline-hidden transition-colors duration-fast ease-standard",
         "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
         "data-[highlighted]:bg-muted data-[highlighted]:text-foreground",
         className,
@@ -100,7 +100,7 @@ export const SelectLabel = forwardRef<
   return (
     <RadixSelect.Label
       ref={ref}
-      className={cn("px-2 py-1 text-label text-faint-foreground", className)}
+      className={cn("px-2 py-1 text-overline text-faint-foreground", className)}
       {...props}
     />
   );

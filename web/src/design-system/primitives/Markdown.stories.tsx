@@ -85,7 +85,7 @@ export const Editor: Story = {
           />
         </FieldRow>
         <div>
-          <div className="mb-1.5 text-small text-subtle-foreground">Preview</div>
+          <div className="mb-1.5 text-label text-subtle-foreground">Preview</div>
           <Markdown>{value}</Markdown>
         </div>
       </div>

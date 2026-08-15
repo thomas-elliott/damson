@@ -69,10 +69,10 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
         "flex h-full flex-col border-l border-border bg-card text-foreground",
         variant === "overlay" &&
           !fullscreen &&
-          "absolute right-0 top-0 z-detail animate-slide-in-right shadow-elevated",
+          "absolute right-0 top-0 z-detail animate-slide-in-right shadow-lg",
         variant === "overlay" &&
           fullscreen &&
-          "absolute inset-0 z-detail animate-slide-in-right shadow-elevated",
+          "absolute inset-0 z-detail animate-slide-in-right shadow-lg",
         !width && variant === "overlay" && !fullscreen && "w-detail",
         !width && variant === "flush" && "w-full",
         className,
@@ -93,7 +93,7 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
         </div>
       )}
       <header className="flex shrink-0 items-center gap-2 border-b border-border px-3.5 py-2.5">
-        <div className="flex-1 truncate text-subhead text-foreground">{title}</div>
+        <div className="flex-1 truncate text-subhead-semibold text-foreground">{title}</div>
         {actions && <div className="flex items-center gap-1">{actions}</div>}
         {onClose && (
           <IconButton aria-label="Close details" size="sm" onClick={onClose}>

@@ -10,7 +10,7 @@ const track = cva("w-full overflow-hidden rounded-full bg-border", {
   defaultVariants: { size: "sm" },
 });
 
-const fill = cva("h-full transition-[width] duration-200 ease", {
+const fill = cva("h-full transition-[width] duration-200 ease-standard", {
   variants: {
     tone: {
       accent: "bg-primary",

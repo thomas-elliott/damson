@@ -134,8 +134,8 @@ export const PopoverExample: Story = {
       </PopoverTrigger>
       <PopoverContent className="min-w-[240px]">
         <div className="flex flex-col gap-2">
-          <div className="text-label text-faint-foreground">Quick info</div>
-          <p className="text-small text-muted-foreground">
+          <div className="text-overline text-faint-foreground">Quick info</div>
+          <p className="text-label text-muted-foreground">
             Drop-in popover container. Use for rich content (filters, details) that needs more room
             than a dropdown menu.
           </p>
@@ -179,11 +179,11 @@ export const DialogExample: Story = {
             Projects group assets pinned to a specific game. You can always rename or move them
             later.
           </DialogDescription>
-          <label className="flex flex-col gap-1.5 text-small">
+          <label className="flex flex-col gap-1.5 text-label">
             <span className="text-faint-foreground">Name</span>
             <Input placeholder="Crystal Quest" autoFocus />
           </label>
-          <label className="flex flex-col gap-1.5 text-small">
+          <label className="flex flex-col gap-1.5 text-label">
             <span className="text-faint-foreground">Path</span>
             <Input placeholder="~/Dev/crystal-quest" />
           </label>

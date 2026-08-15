@@ -16,7 +16,7 @@ export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
     <span
       ref={ref}
       className={cn(
-        "inline-flex h-[22px] items-center gap-1 rounded-full border border-border bg-card pl-2 pr-0.5 text-small text-muted-foreground",
+        "inline-flex h-[22px] items-center gap-1 rounded-full border border-border bg-card pl-2 pr-0.5 text-label text-muted-foreground",
         className,
       )}
       {...props}
@@ -28,7 +28,7 @@ export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
           type="button"
           aria-label="Remove"
           onClick={onRemove}
-          className="grid h-[18px] w-[18px] place-items-center rounded-[3px] text-subtle-foreground transition-colors duration-std ease hover:bg-accent hover:text-foreground"
+          className="grid h-[18px] w-[18px] place-items-center rounded-xs text-subtle-foreground transition-colors duration-fast ease-standard hover:bg-accent hover:text-foreground"
         >
           <X size={11} />
         </button>

@@ -13,7 +13,7 @@ function Panel({ label }: { label: string }) {
   return (
     <div data-testid={label} className="bg-card text-foreground rounded-md border p-4">
       <p className="text-ui font-medium">{label}</p>
-      <p className="text-subtle-foreground text-small">Tier three text</p>
+      <p className="text-subtle-foreground text-label">Tier three text</p>
     </div>
   );
 }

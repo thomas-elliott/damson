@@ -46,7 +46,7 @@ export function UserMenu({ displayName, email }: { displayName: string; email: s
         <DropdownMenuLabel className="text-ui text-foreground">
           <span className="block truncate">{displayName || email}</span>
           {displayName && (
-            <span className="block truncate font-mono text-small text-subtle-foreground">
+            <span className="block truncate font-mono text-label text-subtle-foreground">
               {email}
             </span>
           )}
