@@ -100,10 +100,10 @@ export default function PdfPreview({ node }: { node: FileNode }) {
   return (
     <div className="flex h-full w-full flex-col bg-muted">
       <div className="min-h-0 flex-1 overflow-auto p-3">
-        <canvas ref={canvasRef} className="mx-auto max-w-full shadow-elevated" />
+        <canvas ref={canvasRef} className="mx-auto max-w-full shadow-md" />
       </div>
       {numPages > 1 && (
-        <div className="flex shrink-0 items-center justify-center gap-3 border-t border-border py-1.5 text-small text-subtle-foreground">
+        <div className="flex shrink-0 items-center justify-center gap-3 border-t border-border py-1.5 text-label text-subtle-foreground">
           <button
             type="button"
             aria-label="Previous page"

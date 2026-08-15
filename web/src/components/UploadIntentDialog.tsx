@@ -71,7 +71,7 @@ export function useUploadIntent() {
             Bundle them into a single asset, or upload each file as its own asset?
           </p>
           {large && (
-            <p className="mt-2 text-small text-warning">
+            <p className="mt-2 text-label text-warning">
               This is a large bundle — zipping it in the browser may take a while and use a lot of
               memory. You can still proceed.
             </p>

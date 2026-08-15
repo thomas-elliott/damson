@@ -15,7 +15,7 @@ export const Checkbox = forwardRef<React.ElementRef<typeof RadixCheckbox.Root>, 
       <RadixCheckbox.Root
         ref={ref}
         className={cn(
-          "grid h-[14px] w-[14px] shrink-0 place-items-center rounded-[3px] border border-border-strong bg-background text-primary-foreground transition-colors duration-std ease",
+          "grid h-[14px] w-[14px] shrink-0 place-items-center rounded-xs border border-border-strong bg-background text-primary-foreground transition-colors duration-fast ease-standard",
           "hover:border-faint-foreground",
           "data-[state=checked]:border-transparent data-[state=checked]:bg-primary",
           "data-[state=indeterminate]:border-transparent data-[state=indeterminate]:bg-primary",

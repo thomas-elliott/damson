@@ -19,7 +19,7 @@ export interface VersionItemProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const baseClasses =
-  "flex w-full items-start gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-2 text-left text-small transition-colors duration-std ease";
+  "flex w-full items-start gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-2 text-left text-label transition-colors duration-fast ease-standard";
 const currentClasses = "border-primary bg-primary-soft";
 
 /**
@@ -48,12 +48,12 @@ export function VersionItem({
               <span className="font-mono text-list-row font-medium text-foreground">
                 {storeVersion}
               </span>
-              <span className="text-label text-subtle-foreground">{version}</span>
+              <span className="text-overline text-subtle-foreground">{version}</span>
             </>
           ) : (
             <span className="font-mono text-list-row font-medium text-foreground">{version}</span>
           )}
-          {current && <span className="text-label text-primary">Current</span>}
+          {current && <span className="text-overline text-primary">Current</span>}
           {action && <span className="ml-auto">{action}</span>}
         </div>
         {notes && <div className="mt-0.5 text-muted-foreground">{notes}</div>}

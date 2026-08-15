@@ -67,7 +67,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
     >
       <div
         className={cn(
-          "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-std ease",
+          "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-fast ease-standard",
           "group-hover:border-border-strong",
           "aria-[pressed=true]:border-primary aria-[pressed=true]:ring-2 aria-[pressed=true]:ring-ring",
           selected && "border-primary ring-2 ring-ring",
@@ -79,7 +79,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           <AssetThumb thumb={thumb} />
         )}
         {typeBadge && (
-          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-[3px] bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-xs bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
             {typeBadge}
           </span>
         )}
@@ -93,7 +93,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           <span
             aria-label="Update available"
             title="A newer version is available from the store"
-            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-[3px] bg-primary px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-primary-foreground"
+            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-xs bg-primary px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-primary-foreground"
           >
             Update
           </span>

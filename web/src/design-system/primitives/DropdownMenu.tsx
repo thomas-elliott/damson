@@ -22,7 +22,7 @@ export const DropdownMenuContent = forwardRef<
         sideOffset={sideOffset}
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover min-w-[10rem] rounded-md border border-border bg-popover p-1 text-ui text-muted-foreground shadow-elevated",
+          "z-popover min-w-[10rem] rounded-md border border-border bg-popover p-1 text-ui text-muted-foreground shadow-lg",
           "data-[state=open]:animate-fade-in",
           className,
         )}
@@ -33,7 +33,7 @@ export const DropdownMenuContent = forwardRef<
 });
 
 const itemClasses =
-  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-hidden transition-colors duration-std ease data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground";
+  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-hidden transition-colors duration-fast ease-standard data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground";
 
 export const DropdownMenuItem = forwardRef<
   React.ElementRef<typeof RadixDropdown.Item>,
@@ -86,7 +86,7 @@ export const DropdownMenuLabel = forwardRef<
   return (
     <RadixDropdown.Label
       ref={ref}
-      className={cn("px-2 py-1 text-label text-faint-foreground", className)}
+      className={cn("px-2 py-1 text-overline text-faint-foreground", className)}
       {...props}
     />
   );

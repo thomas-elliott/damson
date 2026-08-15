@@ -21,13 +21,13 @@
 /* CLI-owned: `shadcn add @shared/tokens` regenerates this block wholesale.
    Damson's own entries go in the second one below, out of its reach. */
 @theme inline {
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-3xl: var(--radius-3xl);
+  --radius-4xl: var(--radius-4xl);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -68,28 +68,85 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --row-h: var(--row-h);
+  --text-display: var(--text-display);
+  --text-display--line-height: var(--text-display--line-height);
+  --text-title: var(--text-title);
+  --text-title--line-height: var(--text-title--line-height);
+  --text-heading: var(--text-heading);
+  --text-heading--line-height: var(--text-heading--line-height);
+  --text-subhead: var(--text-subhead);
+  --text-subhead--line-height: var(--text-subhead--line-height);
+  --text-field: var(--text-field);
+  --text-field--line-height: var(--text-field--line-height);
+  --text-body: var(--text-body);
+  --text-body--line-height: var(--text-body--line-height);
+  --text-ui: var(--text-ui);
+  --text-ui--line-height: var(--text-ui--line-height);
+  --text-label: var(--text-label);
+  --text-label--line-height: var(--text-label--line-height);
+  --radius-xs: var(--radius-xs);
+  --transition-duration-fast: var(--duration-fast);
+  --transition-duration-normal: var(--duration-normal);
+  --transition-duration-slow: var(--duration-slow);
+  --ease-standard: var(--ease-standard);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --duration-slow: var(--duration-slow);
+  --duration-normal: var(--duration-normal);
+  --duration-fast: var(--duration-fast);
 }
 
+/* Damson's block. Tailwind merges @theme blocks with the later one winning, so
+ * this is also the only place that can override the generated block above — the
+ * contract's scales are restated here as literals because the form it generates,
+ * `--radius-md: var(--radius-md)`, is a self-reference that computes to nothing.
+ * See the naming note in tokens.css. */
 @theme inline {
   --color-unknown: var(--unknown);
   --color-unknown-soft: var(--unknown-soft);
   --color-primary-hover: var(--primary-hover);
   --color-swatch-foreground: var(--swatch-foreground);
 
+  --font-sans: var(--sans-stack);
+  --font-mono: var(--mono-stack);
+  --row-h: 36px;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --radius-3xl: 40px;
+  --radius-4xl: 48px;
+
+  --text-display: 28px;
+  --text-display--line-height: 1.2;
+  --text-title: 22px;
+  --text-title--line-height: 1.25;
+  --text-heading: 20px;
+  --text-heading--line-height: 1.3;
+  --text-subhead: 18px;
+  --text-subhead--line-height: 1.35;
+  --text-field: 16px;
+  --text-field--line-height: 1.4;
   --text-body: 15px;
-  --text-body--line-height: 1.5;
+  --text-body--line-height: 1.55;
   --text-ui: 14px;
-  --text-ui--line-height: 1.4;
-  --text-small: 12px;
-  --text-small--line-height: 1.4;
+  --text-ui--line-height: 1.45;
+  --text-label: 12px;
+  --text-label--line-height: 1.4;
 
-  --shadow-elevated: var(--elevation);
+  --transition-duration-fast: 120ms;
+  --transition-duration-normal: 180ms;
+  --transition-duration-slow: 260ms;
 
-  --transition-duration-fast: 80ms;
-  --transition-duration-std: 100ms;
-  --transition-duration-slow: 120ms;
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
 
-  --ease-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --z-index-resizer: 5;
@@ -156,7 +213,7 @@
 }
 
 /* Composed semantic type. `@utility` rather than `@layer components` so these
- * participate in Tailwind's own ordering and `cn()` can dedupe them — all 22
+ * participate in Tailwind's own ordering and `cn()` can dedupe them — all 19
  * names below are registered with tailwind-merge in design-system/utils/cn.ts. */
 @utility text-title-reg {
   /* Headings — title (22), heading (20), subhead (18). Each has
@@ -180,11 +237,6 @@
   line-height: 1.25;
   font-weight: 700;
 }
-@utility text-title {
-  font-size: 22px;
-  line-height: 1.25;
-  font-weight: 600;
-}
 @utility text-heading-reg {
   font-size: 20px;
   line-height: 1.3;
@@ -204,11 +256,6 @@
   font-size: 20px;
   line-height: 1.3;
   font-weight: 700;
-}
-@utility text-heading {
-  font-size: 20px;
-  line-height: 1.3;
-  font-weight: 600;
 }
 @utility text-subhead-reg {
   font-size: 18px;
@@ -230,20 +277,15 @@
   line-height: 1.35;
   font-weight: 700;
 }
-@utility text-subhead {
-  font-size: 18px;
-  line-height: 1.35;
-  font-weight: 600;
-}
-@utility text-label {
+@utility text-overline {
   /* Generic role tokens. */
-  @apply text-small font-medium uppercase tracking-wide;
+  @apply text-label font-medium uppercase tracking-wide;
 }
 @utility text-mono {
-  @apply font-mono text-small;
+  @apply font-mono text-label;
 }
 @utility text-caption {
-  @apply text-small text-subtle-foreground;
+  @apply text-label text-subtle-foreground;
 }
 @utility text-num {
   @apply text-ui font-mono;
@@ -307,5 +349,16 @@
 
   ::selection {
     background: var(--primary-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

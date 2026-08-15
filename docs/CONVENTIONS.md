@@ -181,11 +181,13 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Never log tokens or raw session values.
 
 ### Styling
-- OKLCH design tokens live in `src/design-system/tokens/tokens.css`. Dark is the default (`:root`); light opts in via `html[data-theme="light"]`.
-- Tailwind's theme extends the tokens as utility classes (`bg-bg`, `bg-panel`, `text-text-2`, `border-line`, `bg-accent-tint`, `text-ok`, etc.) — prefer these over raw `var(--ds-*)`.
+- The token **vocabulary** is the shared contract's (`design.smol.cloud/r/tokens.json`); the **values** are Damson's. OKLCH colour values live in `src/design-system/tokens/tokens.css`. Light is the base (`:root`); dark opts in via a `.dark` class on `<html>` (`applyTheme` in `design-system/tokens/`). There is no `data-theme` attribute.
+- The size, radius, motion and elevation scales are **not** in `tokens.css` — they are literals in the second `@theme inline` block of `src/styles/globals.css`, the one block `shadcn add` will not regenerate. `docs/design-system.md` explains why; the short version is that the CLI's generated `--radius-md: var(--radius-md)` is a self-reference that destroys any declaration of that name.
+- Tailwind's theme exposes the tokens as utility classes (`bg-background`, `bg-card`, `text-muted-foreground`, `text-subtle-foreground`, `border-border`, `bg-primary-soft`, `text-success`, `rounded-md`, `shadow-lg`, …) — prefer these over raw `var(--token)`.
+- `web/scripts/check-tokens.mjs` fails the build on a retired token name, a raw colour outside `tokens.css`, or a typing surface below the 16px floor. It runs as part of `task lint:web`.
 - `@tailwindcss/typography` for markdown content.
 - Use the design-system primitives (`Button`, `Input`, `Dialog`, `Pill`, `Tabs`, …) from `@/design-system` rather than hand-rolling equivalents. New components go in `src/design-system/{primitives,compositions,domain}/` alongside a `*.stories.tsx` with variants + states; see `docs/design-system.md`.
-- `cn()` composes classes: `clsx` for conditional joins, `tailwind-merge` for dedup. The custom font-size keys (`2xs`, `xs-plus`, `sm-plus`, `base`, `md`) are registered with `tailwind-merge` in `utils/cn.ts` — new size utilities belong in the same group.
+- `cn()` composes classes: `clsx` for conditional joins, `tailwind-merge` for dedup. The role-named font sizes are registered with `tailwind-merge` in `utils/cn.ts` — the contract's eight via `@shared/type-scale`, Damson's 19 composed roles (`text-mono`, `text-caption`, the weight variants, …) via a local group merged onto it. A new size utility belongs in that local group, or it is silently dropped when it meets a text colour. See `docs/design-system.md`.
 - Do not reintroduce CDN Tailwind; everything goes through the Vite pipeline.
 
 ### Frontend tests (Vitest)

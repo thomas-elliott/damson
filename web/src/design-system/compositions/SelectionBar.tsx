@@ -23,7 +23,7 @@ export function SelectionBar({ className, count, actions, children, ...props }: 
       role="status"
       aria-live="polite"
       className={cn(
-        "absolute bottom-4 left-1/2 z-selbar flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-border-strong bg-popover py-1.5 pl-3.5 pr-1.5 text-ui text-foreground shadow-elevated",
+        "absolute bottom-4 left-1/2 z-selbar flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-border-strong bg-popover py-1.5 pl-3.5 pr-1.5 text-ui text-foreground shadow-lg",
         "animate-pop-up",
         className,
       )}

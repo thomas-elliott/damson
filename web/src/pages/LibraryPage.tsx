@@ -192,7 +192,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
           <DropZone>
             <Toolbar>
               <LibraryPicker current={lib} />
-              <span className="shrink-0 text-small tabular-nums text-subtle-foreground">
+              <span className="shrink-0 text-label tabular-nums text-subtle-foreground">
                 {total} assets
               </span>
               <Button

@@ -1,8 +1,10 @@
 // Ported from dialogue-db/web/scripts/check-tokens.mjs. Fix bugs there too.
 //
-// Fails the build on a token name this project has retired, or on a raw colour
-// outside tokens.css. The vocabulary is the shared contract's
-// (design.smol.cloud/r/tokens.json); tokens.css is the only place a value lives.
+// Fails the build on a token name this project has retired, on a raw colour
+// outside tokens.css, or on a typing surface below the 16px floor. The
+// vocabulary is the shared contract's (design.smol.cloud/r/tokens.json).
+// Colour values live in tokens.css; the scale literals live in globals.css's
+// second @theme block, which is the only thing `shadcn add` will not regenerate.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -86,10 +88,40 @@ const retiredUtil = new RegExp(
 const dsPrefix = /--ds-[a-z0-9-]+/;
 const retiredRadius = /(?<![\w-])rounded-pill(?![\w-])/;
 
+/** Size, radius, motion and elevation names, so they cannot ride the
+ * COLOUR_PREFIXES regex above and need their own list. */
+const RETIRED_SCALE = [
+  [/(?<![\w-])text-small(?![\w-])/, "text-small was retired — use text-label (12px)"],
+  [/(?<![\w-])duration-std(?![\w-])/, "duration-std was retired — use duration-fast (120ms)"],
+  [
+    /(?<![\w-])shadow-elevated(?![\w-])/,
+    "shadow-elevated was retired — use shadow-lg for overlays, shadow-md for resting surfaces",
+  ],
+  [/--elevation(?=[),;\s]|$)/, "--elevation was retired — use --shadow-md / --shadow-lg"],
+  [/(?<![\w-])rounded-\[3px\](?![\w-])/, "rounded-[3px] was retired — use rounded-xs (4px)"],
+];
+
+/** Scoped to a preceding transition utility, not matched as a bare word: `ease`
+ * is ordinary English, and a real CSS keyword in the animation shorthand that
+ * globals.css still uses. Every retired call site had this shape. */
+const BARE_EASE = /(?<![\w-])(?:transition|duration|delay)-[\w[\].-]+\s+ease(?![\w-])/;
+
+/** The 16px floor: below it, iOS Safari zooms on focus and does not zoom back.
+ * An allowlist rather than general typing-surface detection. The last two are
+ * not installed (the field primitives are damson's), so the rule is already in
+ * place if that is ever revisited. */
+const TYPING_SURFACES = new Set([
+  "design-system/primitives/Input.tsx",
+  "design-system/primitives/Textarea.tsx",
+  "design-system/primitives/SearchInput.tsx",
+  "components/ui/input.tsx",
+  "components/ui/textarea.tsx",
+]);
+const BELOW_FIELD = /(?<![\w-])text-(ui|label|small|xs|sm|base|\[[^\]]+\])(?![\w-])/;
+
 for (const file of files) {
   const rel = file.slice(ROOT.length + 1);
   const isStylesheet = file.endsWith(".css") && file !== TOKENS_CSS;
-  // Stories may demonstrate a raw value as documentation, not as styling.
   const isFixture = /\.stories\.tsx$/.test(file) || /\.test\.tsx?$/.test(file);
 
   readFileSync(file, "utf8")
@@ -114,6 +146,25 @@ for (const file of files) {
       const pill = line.match(retiredRadius);
       if (pill) problems.push(`${at}: rounded-pill was retired — use rounded-full`);
 
+      for (const [re, message] of RETIRED_SCALE) {
+        if (re.test(line)) problems.push(`${at}: ${message}`);
+      }
+
+      if (BARE_EASE.test(line))
+        problems.push(`${at}: bare \`ease\` emits nothing — use ease-standard`);
+
+      if (TYPING_SURFACES.has(rel)) {
+        const small = line.match(BELOW_FIELD);
+        if (small)
+          problems.push(
+            `${at}: ${small[0]} on a typing surface — must be text-field (16px), or ` +
+              `iOS Safari zooms on focus and does not zoom back`,
+          );
+      }
+
+      // Everything above this line applies to stories and tests too: a retired
+      // name is retired in a fixture as well. Only the value checks below are
+      // relaxed, because a story may demonstrate a raw value as documentation.
       if (isFixture || /^\s*(\/\/|\/\*|\*)/.test(line)) return;
 
       const hex = isStylesheet && line.match(RAW_HEX);

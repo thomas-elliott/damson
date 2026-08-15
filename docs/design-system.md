@@ -8,7 +8,7 @@ The old mockup now lives at `docs/archive/mockup/` and is consulted only for the
 
 The token vocabulary is the shared contract's
 (`design.smol.cloud/r/tokens.json`); the values are Damson's. See
-`docs/specs/2026-08-15-shared-design-system.md` for how it got here.
+`docs/specs/history/2026-08-15-shared-design-system.md` for how it got here.
 
 **Two directories, two owners.** `web/src/components/ui/` holds files installed by
 `shadcn add` — re-running the CLI overwrites them, so never edit them. Damson's own
@@ -152,26 +152,40 @@ a candidate to contribute upstream if a second project sights one.
 
 - `--font-sans`: Inter (self-hosted via `@fontsource/inter`)
 - `--font-mono`: JetBrains Mono (self-hosted via `@fontsource/jetbrains-mono`)
-- Body: 15px / 1.5 line-height, `cv11 + ss01` OpenType features.
+- Body: 15px / 1.55 line-height, `cv11 + ss01` OpenType features.
 
-The font-size scale is two-layered: raw size primitives compose into
-role-named semantic tokens. Authors should reach for the role tokens
-(`text-title`, `text-label`, etc.) by default; the size primitives exist
-for the rare cases where role tokens don't fit.
+The font-size scale is two-layered: the shared contract's eight role sizes, which
+Damson composes into its own weight and treatment variants. Authors reach for
+whichever layer names what they mean — the contract's roles carry sizes only, and
+Damson's composed tokens add a weight, family or transform on top.
 
-**Layer 1 — size primitives** (Tailwind `fontSize` entries; size +
-line-height only)
+**Layer 1 — the contract's role sizes** (from `@shared/tokens`; size +
+line-height only, no weight)
 
 | Utility | px / line-height | Used for |
 |---|---|---|
-| `text-body` | 15 / 1.5 | Default running text. Also the `<body>` default. |
-| `text-ui` | 14 / 1.4 | Buttons, inputs, list rows, table cells, chip / tag / badge text. |
-| `text-small` | 12 / 1.4 | Captions, labels, mono hashes, kbd hints. |
+| `text-display` | 28 / 1.2 | Page and hero titles. **Installed, currently unused** — Damson's largest is `title`. |
+| `text-title` | 22 / 1.25 | Dialog and section titles. |
+| `text-heading` | 20 / 1.3 | Subsection headings. |
+| `text-subhead` | 18 / 1.35 | Card headings, list group headers. |
+| `text-field` | 16 / 1.4 | **Anything you type into — a hard floor**, see below. |
+| `text-body` | 15 / 1.55 | Default running text. Also the `<body>` default. |
+| `text-ui` | 14 / 1.45 | Buttons, list rows, table cells, chip / tag / badge text. |
+| `text-label` | 12 / 1.4 | **Absolute floor.** Captions, badges, column headers, mono hashes, kbd hints. |
 
-**Layer 2 — composed semantic tokens** (declared in `globals.css` under
-`@layer components`; bake in size + weight + transform + tracking + family)
+There is no 13px step and nothing below 12px.
 
-Headings (each has 4 weight variants; the bare alias = `-semibold`):
+**The 16px field floor is enforced, not merely applied.** Below 16px, iOS Safari
+zooms the viewport on focus and does not zoom back, leaving the layout broken for
+the rest of the session. `Input`, `Textarea` and `SearchInput` carry `text-field`,
+and `web/scripts/check-tokens.mjs` fails the build if any of them drops below it.
+
+**Layer 2 — Damson's composed tokens** (declared in `globals.css` as `@utility`
+rules; bake in size + weight + transform + tracking + family)
+
+Headings — four weight variants each. There is deliberately **no bare alias**:
+`text-title` is the contract's plain 22px, and `text-title-semibold` is Damson's
+22px at 600. The two used to collide.
 
 | Token | px / line-height | Pairs with |
 |---|---|---|
@@ -183,9 +197,9 @@ Generic role tokens:
 
 | Token | Composes | Used for |
 |---|---|---|
-| `text-label` | `text-small font-medium uppercase tracking-wide` | Section labels, kbd-row labels. |
-| `text-mono` | `font-mono text-small` | Sha hashes, IDs, file paths, short code refs. |
-| `text-caption` | `text-small text-text-3` | Helper text under inputs, muted captions. |
+| `text-overline` | `text-label font-medium uppercase tracking-wide` | Section labels, kbd-row labels. |
+| `text-mono` | `font-mono text-label` | Sha hashes, IDs, file paths, short code refs. |
+| `text-caption` | `text-label text-subtle-foreground` | Helper text under inputs, muted captions. |
 | `text-num` | `text-ui font-mono` + tabular numerals | Inline numeric data. |
 
 View-specific role tokens:
@@ -196,36 +210,70 @@ View-specific role tokens:
 | `text-table-header` | `text-ui font-medium` | `<thead>` cells. |
 | `text-list-row` | `text-ui` | Rows of dense list views (e.g. `AssetListRow`). |
 
-### Sizing, radii, motion, z-index
+**All 19 Layer 2 names must stay registered with `tailwind-merge`** in
+`design-system/utils/cn.ts`, alongside the contract's eight from
+`@shared/type-scale`. A role name fails tailwind-merge's t-shirt-size test, falls
+through to the `text-color` group, and `cn("text-mono", "text-muted-foreground")`
+silently returns the colour alone. `cn.test.ts` pins both halves.
+
+### Sizing, radii, motion, elevation, z-index
 
 - Sizes: `--sidebar-w: 248px`, `--rail-w: 52px`, `--detail-w: 440px`
-- Radii: derived from `--radius: 0.5rem` — `sm` 4.8px, `md` 6.4px, `lg` 8px, `xl` 11.2px. No pill; use `rounded-full`
-- Transitions: `duration-fast/std/slow` = 80/100/120ms
-- Easings: `ease-ease` (0.4, 0, 0.2, 1), `ease-bounce` (0.34, 1.56, 0.64, 1)
+- Radii: the contract's **literal** scale — `xs` 4, `sm` 6, `md` 12, `lg` 16, `xl` 24,
+  `2xl` 32, `3xl` 40, `4xl` 48px. No pill; use `rounded-full`
+- Transitions: `duration-fast` 120ms is the only step in use. `normal` (180ms) and
+  `slow` (260ms) are installed and unused
+- Easing: `ease-standard` (0.2, 0.8, 0.2, 1). `ease-bounce` (0.34, 1.56, 0.64, 1)
+  stays Damson-local and is consumed by `--animate-pop-up`, not used as a utility
+- Elevation: `shadow-lg` for overlays (portals, sliding panels, toasts), `shadow-md`
+  for resting raised surfaces (auth cards, the PDF canvas). Values differ per theme
 - Z-index: `resizer=5`, `detail=10`, `drop=20`, `selbar=30`, `tooltip=100`,
-  `dialog=500`, `tweaks=1000`
+  `dialog=500`, `popover=600`, `tweaks=1000`
+- A global `prefers-reduced-motion` block ships with `@shared/tokens` and is written
+  into `globals.css` by the CLI
+
+**Radii are literal, not derived.** Corners nest by subtraction (`inner = outer −
+padding`) rather than by ratio, which no multiplicative scale expresses. Adopting
+them reflowed 88 sites and made Damson visibly rounder; that was accepted rather
+than fought.
 
 ### Tailwind mapping
 
-`web/src/styles/globals.css` carries **three `@theme` blocks, in order**:
+`web/src/styles/globals.css` carries **two `@theme inline` blocks, in order**:
 
-1. **CLI-owned**, generated by `shadcn add @shared/tokens` — the contract's colour
-   mappings and the radius scale. Re-running the CLI regenerates it, so do not hand-edit it.
-2. **Damson-local `@theme inline`** — the extension colours plus the font-size
-   primitives, elevation, motion, z-index, widths, animations and keyframes. Kept
-   separate precisely so a re-install cannot clobber them.
-3. There is no `tailwind.config.ts` — Tailwind 4 takes its theme from CSS.
+1. **CLI-owned**, generated by `shadcn add @shared/tokens` — the contract's colour,
+   type, radius, motion and elevation mappings. Re-running the CLI regenerates it
+   wholesale, so never hand-edit it.
+2. **Damson's** — the extension colours, the z-indexes, widths, animations and
+   keyframes, `--ease-bounce`, and the contract's scales restated as literals.
+   Tailwind merges `@theme` blocks with the later winning, so this is the only
+   place that can override block 1, and the CLI cannot see it.
+
+There is no `tailwind.config.ts` — Tailwind 4 takes its theme from CSS.
+
+**A generated mapping is a dependency cycle, and this is the trap in the whole
+setup.** The CLI emits `--radius-md: var(--radius-md)` — the same name on both
+sides. A custom property that references itself is invalid at computed-value time,
+**and that invalidates every declaration of the name, whatever the cascade layer
+says**. So a value of the contract's own name placed in `tokens.css` does not
+merely lose; it is destroyed along with the mapping. This is why:
+
+- The scales are restated as literals in block 2, not as values in `tokens.css`.
+- The font stacks are `--sans-stack` / `--mono-stack`, and the per-theme shadows
+  are `--elevation-sm/md/lg`. Both are mapped across in block 2. **Renaming these
+  back to the contract's spelling silently breaks them** — Inter stops loading and
+  every shadow disappears, with no error anywhere.
+
+Colour tokens are unaffected: they map `--color-x: var(--x)`, where the two names
+differ, so `tokens.css` remains where every colour value lives.
 
 **Prefer the utility over `var(--token)`** — e.g. `bg-card`, `text-muted-foreground`,
-`border-border`, `rounded-md`. That preference is why the vocabulary is ~849 class
-names against only a handful of raw `var()` calls.
+`border-border`, `rounded-md`.
 
-**Radii are derived from one `--radius`** (`0.5rem`) by the contract's multiplicative
-scale: `sm = 0.6r`, `md = 0.8r`, `lg = r`, `xl = 1.4r`. There is no `rounded-pill` —
-use `rounded-full`.
-
-**`var(--radius-sm)` does not exist at runtime.** `@theme inline` emits no custom
-property, only the utility. Reach for the utility, or `calc(var(--radius) * 0.6)`.
+**`var(--radius-sm)` is a real custom property now.** The scale ships literal
+values, so `var(--radius-sm)` resolves and the old `calc(var(--radius) * 0.6)`
+idiom is gone. `--radius` survives as an unreferenced 16px alias, kept only so a
+registry component installed direct still resolves.
 
 **Every `shadcn add` re-appends the contract's reference palette** to the end of
 `globals.css` as an unlayered `:root`/`.dark`, which beats `tokens.css` in the
@@ -270,10 +318,24 @@ Atomic components with no domain knowledge. All live under
 
 ### Input
 
+All three typing surfaces render at `text-field` (16px) and the token guardrail
+enforces it — see **Typography**.
+
+**`@shared/input` and `@shared/textarea` are deliberately not installed.** This is
+a divergence from the usual "install what the registry has" stance, alongside the
+`Button` wrapper precedent, and it is a decision rather than an oversight. The
+registry's `Input` is a bare `<input>` carrying its own border and background;
+Damson's is a wrapping `<div>` that carries them, so nesting the two double-borders,
+and the icon and keyboard-hint slots have no registry equivalent. What Damson takes
+from the contract is the `--text-field` token and the floor rule, not the component.
+Contributing Damson's icon-slot API upstream — the path `IconButton` took — is the
+long-run answer and is on the roadmap.
+
 - **`Input`** — leading icon slot + trailing slot, `invalid` state sets
-  `aria-invalid`, focus-within applies the focus ring.
+  `aria-invalid`, focus-within applies the focus ring. Both the wrapper and the
+  inner field carry `text-field`.
 - **`SearchInput`** — preset over `Input`: Search icon + optional `kbd`
-  hint (⌘K).
+  hint (⌘K). Inherits the field size from `Input`.
 - **`Textarea`** — resizable vertical, same invalid/disabled semantics
   as `Input`.
 - **`MarkdownEditor`** — markdown source editor on CodeMirror 6
@@ -294,7 +356,7 @@ Atomic components with no domain knowledge. All live under
   close button. Calls `onRemove`.
 - **`Tag`** — `variant: solid|add`. The `add` variant is dashed-border
   with a Plus icon for "add new tag" affordances.
-- **`Kbd`** — inline keyboard hint, mono 10.5px with a bordered surface.
+- **`Kbd`** — inline keyboard hint, `text-mono` in a 20px-high bordered surface.
 - **`Markdown`** — renders CommonMark + GFM as React elements, parsed with
   CodeMirror's own `@lezer/markdown` grammar so the read view and
   `MarkdownEditor` can't disagree about a document. Safe for untrusted
@@ -366,7 +428,7 @@ orchestrate these rather than rebuilding the layout each time.
   owns the resized element's width.
 - **`FilterSidebar`** + **`FilterRow`** — scrollable frame with sticky
   header + footer. Rows take `icon`/`dot`/`label`/`count`/`active` and
-  auto-apply the accent-tint highlight when pressed.
+  auto-apply the `bg-primary-soft` highlight when pressed.
 - **`Section`** — collapsible section with rotating caret. Controlled
   (`open`/`onOpenChange`) or uncontrolled (`defaultOpen`); wires
   `aria-expanded`/`aria-controls`.
@@ -514,7 +576,7 @@ app-level story is for the cases where the value is in seeing the wired
 thing, gallery fetches and all.
 
 Contrast exceptions: if a story legitimately uses a decorative
-low-contrast element (e.g. an all-caps 10.5px label in `text-text-4`),
+low-contrast element (e.g. a `text-overline` label in `text-faint-foreground`),
 override at the story level with `parameters.a11y.test = "todo"` and
 explain the rationale in a comment.
 

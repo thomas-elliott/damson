@@ -116,7 +116,7 @@ export function LicenceEditor({
         </div>
         <AttributeGrid attrs={existing.attributes} />
         <details className="group">
-          <summary className="cursor-pointer select-none text-small text-subtle-foreground hover:text-foreground">
+          <summary className="cursor-pointer select-none text-label text-subtle-foreground hover:text-foreground">
             Original text
           </summary>
           <pre className="mt-2 max-h-[240px] overflow-auto rounded-sm border border-border bg-background p-2 text-mono text-muted-foreground whitespace-pre-wrap">
@@ -157,7 +157,7 @@ export function LicenceEditor({
         </div>
       )}
       {error && (
-        <div className="flex items-center gap-1 text-small text-destructive">
+        <div className="flex items-center gap-1 text-label text-destructive">
           <X size={11} /> {error}
         </div>
       )}

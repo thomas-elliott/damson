@@ -46,9 +46,100 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### `shared-design` 0.1.7 — radius, type, motion, elevation — 2026-08-15
+
+Scoped by [`specs/history/2026-08-15-shared-design-0-1-7.md`](specs/history/2026-08-15-shared-design-0-1-7.md).
+
+The contract went past colour the same day damson finished adopting it. Four
+scales that had been each project's own arrived as one install, plus
+`@shared/type-scale` and a 16px floor for anything you type into.
+
+**Radius is literal now, not derived** — 4/6/12/16/24/32/40/48. `rounded-md`
+went 6.4 → 12px, so damson is visibly rounder across 88 sites. The reflow was
+accepted rather than fought, superseding the `--radius: 0.5rem` anchor above,
+which answered a multiplicative scale that no longer exists.
+
+**Four type names collided.** damson's bare `text-title`, `text-heading`,
+`text-subhead` and `text-label` baked in a weight; the contract declares all
+four as plain sizes. Tailwind turned out to emit *both* rules and let the theme
+token win silently — no error — so those `@utility` rules went, their call sites
+took the existing `-semibold` spelling, and the uppercase role became
+`text-overline`. That silence is also why the guardrail, not the build, is what
+catches a missed rename.
+
+**45 `ease` classes had never done anything.** `--ease-ease` generates
+`ease-ease`, and `ease` is not a Tailwind built-in, so 45 transitions had been
+running on Tailwind's default curve while appearing to specify one.
+
+**The `@theme inline` self-mapping is a dependency cycle** — the slice's real
+find, and it predates the slice. `shadcn add` generates
+`--radius-md: var(--radius-md)`, the same name both sides, which is invalid at
+computed-value time *and destroys any other declaration of that name whatever
+the cascade layer says*. The built stylesheet reads correctly and the computed
+values are empty, so verifying the CSS text proves nothing. `--row-h` and
+`--font-sans` had carried the same shape all along, meaning damson had been
+rendering system-ui rather than Inter. Colour tokens escaped only because they
+map `--color-x: var(--x)`, where the names differ. The fix: damson's own
+`@theme inline` block is the override point, since Tailwind merges blocks with
+the later winning and the CLI only regenerates the first. Per-theme shadows and
+the font stacks keep deliberately distinct names — `--elevation-*`,
+`--sans-stack` — because that is what breaks the cycle.
+
+**The guardrail carries the rules the components can't.** `check-tokens.mjs`
+gained the six retired names and a file-scoped rule that a typing surface may
+not drop below `text-field`. `@shared/input` and `@shared/textarea` were
+deliberately *not* installed: the two designs put the border on different
+elements, so nesting them double-borders.
+
+Frontend only — no Go, no SQL.
+
+### Shared design system adoption — 2026-08-15
+
+Scoped by [`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md).
+
+damson was consumer 2 of 2 in the estate's shadcn proof, and the brownfield
+half of it: dialogue-db tested a clean install, damson tested installing into
+an existing vocabulary of 57 `--ds-*` tokens and 27 hand-assembled primitives.
+
+**The vocabulary.** `tokens.css` was rewritten onto the shared contract's names
+with damson's own values, and the theme selector inverted — light at `:root`,
+dark on `.dark`, matching what the registry's `cssVars` actually generate. The
+845 utility usages across 117 files flipped in **one mechanical commit**
+(`b580b6b`), because a half-swapped vocabulary was the specific thing to avoid
+and the guardrail can only go green at the end. `web/scripts/check-tokens.mjs`
+was ported from dialogue-db and wired into `lint:web`; it fails on any retired
+name, on raw hex outside `tokens.css`, and — the trap that renders wrong and
+never errors — on any `:root`/`.dark` block in `globals.css`, which every
+`shadcn add` re-appends with the contract's reference palette.
+
+**The primitives.** `Button`, `Dialog`, `EmptyState` and `IconButton` now come
+from the registry into `components/ui/`; `design-system/primitives/` stays
+damson's. That directory split is the answer to "which files does re-running
+`add` overwrite?". `IconButton` went *up* first — damson's implementation
+became `@shared/icon-button` and was then installed back. `Dialog`'s numeric
+`width` prop became `size="default | wide | full"`, the one genuine API change.
+
+**The exit criterion.** damson's soft-red `destructive` is kept as a thin
+wrapper composing the registry `Button`, not as an edit to the installed file.
+Verified: `add --overwrite` on `button` replaced `components/ui/button.tsx` and
+left the wrapper byte-identical, then survived three further installs. That is
+the whole proof of copy-in ownership, and damson is the only place it was
+tested.
+
+**The theme left the database.** `resolveInitialTheme()` is now
+`stored → prefers-color-scheme`, following the OS live until the first explicit
+toggle. `library_settings.theme_default` is no longer read and the control came
+off the Settings page — but the column stays, unread, because dropping it is a
+database change and the point was to take the theme *out* of the database.
+
+Radius landed on `--radius: 0.5rem` against a multiplicative scale, since no
+anchor reproduced damson's 4 / 6 / 10. `shared-design` 0.1.7 has since replaced
+that derivation with eight literal steps, so this is the shortest-lived
+decision in the slice.
+
 ### Large-upload reliability + upload observability — 2026-08-01/02
 
-Scoped by [`specs/2026-08-01-upload-reliability-observability.md`](specs/2026-08-01-upload-reliability-observability.md).
+Scoped by [`specs/2026-08-01-upload-reliability-observability.md`](specs/history/2026-08-01-upload-reliability-observability.md).
 
 Two problems, one slice: 20 GB uploads were OOM-killing the pod, and the
 failures were invisible.
@@ -101,7 +192,7 @@ pod's filesystem.
 ### Unity local Asset Store cache import — 2026-08-01
 
 Scoped by
-[`specs/2026-08-01-unity-local-cache-import.md`](specs/2026-08-01-unity-local-cache-import.md),
+[`specs/2026-08-01-unity-local-cache-import.md`](specs/history/2026-08-01-unity-local-cache-import.md),
 built on the CLI slice below.
 
 - **`internal/unitycache`.** A leaf package, so the server and the CLI share one
@@ -143,7 +234,7 @@ deleting from damson when a package leaves the cache.
 
 ### `dmsn` CLI + personal access tokens — 2026-08-01
 
-Scoped by [`specs/2026-08-01-dmsn-cli.md`](specs/2026-08-01-dmsn-cli.md), split out of the
+Scoped by [`specs/2026-08-01-dmsn-cli.md`](specs/history/2026-08-01-dmsn-cli.md), split out of the
 Unity cache-import spec because a local CLI is its own piece of work.
 
 - **Personal access tokens.** `api_tokens` (migration 020), secret
@@ -185,7 +276,7 @@ release artefacts — the binary exists where someone builds it.
 ### Richer storefront metadata fields — 2026-07-31 → 08-01
 
 Scoped by
-[`specs/2026-07-31-asset-metadata-fields.md`](specs/2026-07-31-asset-metadata-fields.md).
+[`specs/2026-07-31-asset-metadata-fields.md`](specs/history/2026-07-31-asset-metadata-fields.md).
 Enrichment promoted five fields to asset state and dropped everything else into
 `source_metadata_json`, never to be read again. This is the spec's option C:
 curated typed columns for what's worth querying, an ordered attribute list for
@@ -240,7 +331,7 @@ all-or-nothing behaviour.
 ### Library top bar, rail account menu, file-manager browser — 2026-07-25
 
 Scoped by
-[`specs/2026-07-25-library-topbar-file-manager-browser.md`](specs/2026-07-25-library-topbar-file-manager-browser.md).
+[`specs/2026-07-25-library-topbar-file-manager-browser.md`](specs/history/2026-07-25-library-topbar-file-manager-browser.md).
 Front-end only — no API, schema or handler change.
 
 - **The library toolbar is the page's identity row.** Library switcher (doubling
@@ -299,7 +390,7 @@ No spec — UI polish on the library detail panel.
 
 ### Versioning rework + storefront-metadata refinements — 2026-07-24 → 07-25
 
-Spec: [`specs/2026-07-24-versioning-and-storefront-metadata-refinements.md`](specs/2026-07-24-versioning-and-storefront-metadata-refinements.md)
+Spec: [`specs/2026-07-24-versioning-and-storefront-metadata-refinements.md`](specs/history/2026-07-24-versioning-and-storefront-metadata-refinements.md)
 
 - **`store_version` is now the version identity** (migration 018). An
   `AssetVersion` is identified by the external pack version parsed from the
@@ -322,7 +413,7 @@ Spec: [`specs/2026-07-24-versioning-and-storefront-metadata-refinements.md`](spe
 
 ### Upload system refinements — 2026-07-24
 
-Spec: [`specs/2026-07-24-upload-system-refinements.md`](specs/2026-07-24-upload-system-refinements.md)
+Spec: [`specs/2026-07-24-upload-system-refinements.md`](specs/history/2026-07-24-upload-system-refinements.md)
 
 - Upload concurrency capped, with per-upload cancel and clear-all — fixes
   502s when a multi-file drop fired N unbounded simultaneous requests.
@@ -334,7 +425,7 @@ Spec: [`specs/2026-07-24-upload-system-refinements.md`](specs/2026-07-24-upload-
 
 ### River queue migration — 2026-07-19
 
-Spec: [`specs/2026-07-19-river-queue-migration.md`](specs/2026-07-19-river-queue-migration.md)
+Spec: [`specs/2026-07-19-river-queue-migration.md`](specs/history/2026-07-19-river-queue-migration.md)
 
 Replaced both hand-rolled goroutine-pool-over-channel queues with
 [River](https://riverqueue.com), Postgres-backed. The pipelines themselves
@@ -363,7 +454,7 @@ side-by-side TS6/TS7 install, Go + web minor/patch sweep, `x/image` and
 
 ### Storefront metadata enrichment — 2026-07-13 → 07-14
 
-Spec: [`specs/2026-07-13-storefront-metadata-enrichment.md`](specs/2026-07-13-storefront-metadata-enrichment.md)
+Spec: [`specs/2026-07-13-storefront-metadata-enrichment.md`](specs/history/2026-07-13-storefront-metadata-enrichment.md)
 
 - SSRF-guarded fetcher core + generic OG/JSON-LD scraper
   (`internal/services/metadata`).
@@ -379,8 +470,8 @@ Spec: [`specs/2026-07-13-storefront-metadata-enrichment.md`](specs/2026-07-13-st
 
 ### Large uploads + orphan storage cleanup — 2026-07-05
 
-Specs: [`specs/2026-07-05-large-uploads-storage.md`](specs/2026-07-05-large-uploads-storage.md),
-[`specs/2026-07-05-orphan-storage-cleanup.md`](specs/2026-07-05-orphan-storage-cleanup.md)
+Specs: [`specs/2026-07-05-large-uploads-storage.md`](specs/history/2026-07-05-large-uploads-storage.md),
+[`specs/2026-07-05-orphan-storage-cleanup.md`](specs/history/2026-07-05-orphan-storage-cleanup.md)
 
 - **S3 uploads stream** via `manager.Uploader` instead of `io.ReadAll` into
   memory — this is what unblocked uploads above ~500 MB.
@@ -399,7 +490,7 @@ Specs: [`specs/2026-07-05-large-uploads-storage.md`](specs/2026-07-05-large-uplo
 
 ### Notification centre — 2026-07-04/05
 
-Spec: [`specs/2026-07-04-notification-centre.md`](specs/2026-07-04-notification-centre.md)
+Spec: [`specs/2026-07-04-notification-centre.md`](specs/history/2026-07-04-notification-centre.md)
 
 Client-side only — no table, no endpoint. `NotificationProvider` mounts above
 the router so **it owns the upload queue**: uploads no longer die when
@@ -408,8 +499,8 @@ cancellation in `uploadFile`, and mutation-error surfacing.
 
 ### File previews + processing queue — 2026-06-18/19
 
-Specs: [`specs/2026-06-18-file-previews.md`](specs/2026-06-18-file-previews.md),
-[`specs/2026-06-18-preview-processing-queue.md`](specs/2026-06-18-preview-processing-queue.md)
+Specs: [`specs/2026-06-18-file-previews.md`](specs/history/2026-06-18-file-previews.md),
+[`specs/2026-06-18-preview-processing-queue.md`](specs/history/2026-06-18-preview-processing-queue.md)
 
 - Per-file preview derivatives (`internal/services/preview`), stored under
   `thumbs/`, currently pure-Go raster (TIFF/BMP and friends).

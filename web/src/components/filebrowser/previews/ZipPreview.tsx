@@ -86,12 +86,12 @@ export default function ZipPreview({ node }: { node: FileNode }) {
   const entries = ready.entries ?? [];
   return (
     <div className="flex h-full w-full flex-col overflow-auto bg-muted text-left">
-      <div className="sticky top-0 border-b border-border bg-muted px-3 py-2 text-small text-subtle-foreground">
+      <div className="sticky top-0 border-b border-border bg-muted px-3 py-2 text-label text-subtle-foreground">
         {entries.length} {entries.length === 1 ? "file" : "files"} — listing only, nothing extracted
       </div>
       <ul className="divide-y divide-border">
         {entries.map((e) => (
-          <li key={e.name} className="flex items-center gap-2 px-3 py-1.5 text-small">
+          <li key={e.name} className="flex items-center gap-2 px-3 py-1.5 text-label">
             <span
               className="min-w-0 flex-1 truncate font-mono text-muted-foreground"
               title={e.name}
