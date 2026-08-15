@@ -840,6 +840,9 @@ function GalleryLightbox({
         aria-label="Close preview"
         size="lg"
         onClick={onClose}
+        // hover:text-white is not redundant: `ghost` carries hover:text-foreground,
+        // which tailwind-merge keeps as a separate modifier, and that is near-black
+        // in light theme.
         className="absolute right-4 top-4 text-white hover:bg-white/20 hover:text-white"
       >
         <X />

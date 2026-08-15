@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Damson</title>
+    <!-- Blocking on purpose: light is the base theme, so a dark user sees a white
+         flash if this waits for React. The catch falls back to dark rather than
+         light — localStorage and matchMedia both throw under some privacy modes. -->
     <script>
       (function () {
         try {

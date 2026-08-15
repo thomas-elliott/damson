@@ -55,6 +55,21 @@ web/src/design-system/
 web/.storybook/          Storybook config + a11y parameter + vitest setup
 ```
 
+Two entries in `web/components.json` are worth knowing, because JSON cannot explain
+itself and both look wrong at a glance:
+
+- **`aliases.utils` points at `@/design-system/utils`, not the conventional
+  `@/lib/utils`.** Damson's `cn()` registers 25 custom `text-*` names (3 size
+  primitives + the 22 composed utilities) with `tailwind-merge`, so its font
+  sizes aren't deduplicated against colour classes.
+  Installed registry files import `@/lib/utils` and the CLI rewrites that to this
+  alias on install, so the extended `cn` is what they get. A re-export at
+  `lib/utils` would work and would invite someone to "simplify" it back to the
+  stock two-liner, silently breaking every custom text size.
+- **`tailwind.baseColor: "neutral"` is inert.** Only `init` and base-colour
+  installs read it; it does not mean Damson uses shadcn's neutral palette, which
+  it emphatically does not — see the warm scale below.
+
 Components:
 
 - Use `cn()` from `design-system/utils` to compose classes (via
@@ -125,7 +140,9 @@ rather than *broken*, which is much harder to spot.
 
 **Local extensions**, where the contract has no equivalent: `--unknown` /
 `--unknown-soft` (the licence axis is four-valued and the contract carries three),
-`--primary-hover`, `--swatch-foreground` (light ink for server-supplied
+`--primary-hover` (a lighter yellow, not `--primary` at reduced alpha — half its
+sites are the `from-primary to-primary-hover` gradient, where opacity is not
+lightness), `--swatch-foreground` (light ink for server-supplied
 `glyph_color` swatches, which are dark in both themes), `--elevation`,
 `--sidebar-w` / `--rail-w` / `--detail-w`, and `--code-canvas` (GitHub Dark's
 background, which must track `HIGHLIGHT_THEME` rather than Damson's palette). Each is

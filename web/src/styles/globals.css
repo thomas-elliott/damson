@@ -9,12 +9,17 @@
 
 @import "tailwindcss";
 
+/* Supplies the `animate-in` / `data-[state=open]:` utilities the registry Dialog
+   uses. `shadcn add` installs the package but never writes this import, and the
+   missing classes are silent — the dialog just snaps. */
 @import "tw-animate-css";
 
 @plugin '@tailwindcss/typography';
 
 @custom-variant dark (&:is(.dark *));
 
+/* CLI-owned: `shadcn add @shared/tokens` regenerates this block wholesale.
+   Damson's own entries go in the second one below, out of its reach. */
 @theme inline {
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -150,8 +155,9 @@
   }
 }
 
-/* Layer 2 — composed semantic tokens. Add to globals.css inside
- * @layer components { ... } below the @tailwind directives. */
+/* Composed semantic type. `@utility` rather than `@layer components` so these
+ * participate in Tailwind's own ordering and `cn()` can dedupe them — all 22
+ * names below are registered with tailwind-merge in design-system/utils/cn.ts. */
 @utility text-title-reg {
   /* Headings — title (22), heading (20), subhead (18). Each has
    * 4 weight variants and a bare alias = -semibold. */
