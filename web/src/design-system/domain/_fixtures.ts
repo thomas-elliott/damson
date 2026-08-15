@@ -1,4 +1,4 @@
-/** Shared fixtures for domain-component stories. Shapes mirror docs/mockup/src/data.jsx. */
+/** Shared fixtures for domain-component stories. Shapes mirror docs/archive/mockup/src/data.jsx. */
 import type { ThumbDescriptor } from "./AssetThumb";
 import type { LicenceStatus } from "@/design-system/tokens";
 

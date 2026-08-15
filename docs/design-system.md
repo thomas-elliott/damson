@@ -1,14 +1,19 @@
 # Damson Design System
 
-**Status:** v1 (M2.5) **Last updated:** 2026-04-25
+**Status:** v2 — on the shared `@shared` registry **Last updated:** 2026-08-15
 
-The authoritative implementation contract for Damson's frontend. The mockup at
-`docs/mockup/` is the visual reference; this document is what the code
-actually does.
+The authoritative implementation contract for Damson's frontend. **Storybook is the
+visual reference** (`task storybook`); this document is what the code actually does.
+The old mockup now lives at `docs/archive/mockup/` and is consulted only for the *why*.
 
-This document describes the system as built here. The vocabulary, the `Button` contract and the
-primitive tiering are all due to move onto the shared registry —
-`docs/shared-design-adoption.md` is the brief, and it lists what in here goes wrong when they do.
+The token vocabulary is the shared contract's
+(`design.smol.cloud/r/tokens.json`); the values are Damson's. See
+`docs/specs/2026-08-15-shared-design-system.md` for how it got here.
+
+**Two directories, two owners.** `web/src/components/ui/` holds files installed by
+`shadcn add` — re-running the CLI overwrites them, so never edit them. Damson's own
+primitives stay in `web/src/design-system/primitives/`. A per-project difference
+belongs in a token override or a wrapper, never in an installed file.
 
 Companions: `docs/architecture.md` (architecture, data model, API),
 `docs/CONVENTIONS.md` (stack, developer commands),
@@ -65,47 +70,71 @@ Components:
 
 ## Tokens
 
-Source: `web/src/design-system/tokens/tokens.css`. Dark is the default
-(`:root`); light overrides on `html[data-theme="light"]`.
+Source: `web/src/design-system/tokens/tokens.css`. **Light is the base (`:root`);
+dark opts in via the `.dark` class**, which is the shape the registry `tokens` item
+installs as. The initial theme follows `prefers-color-scheme` until the user picks
+one; `web/index.html` sets the class before first paint so dark users see no flash.
 
 ### Neutrals + text
 
 | Token | Dark L | Light L | Purpose |
 |---|---|---|---|
-| `--ds-bg` | 0.195 | 0.985 | Page background |
-| `--ds-panel` | 0.225 | 0.965 | Sidebars, panels |
-| `--ds-surface` | 0.258 | 0.945 | Cards, hover, surface |
-| `--ds-surface-2` | 0.295 | 0.92 | Higher elevation |
-| `--ds-line` | 0.325 | 0.88 | Hairline dividers |
-| `--ds-line-2` | 0.385 | 0.82 | Stronger borders |
-| `--ds-text` | 0.93 | 0.20 | Primary text |
-| `--ds-text-2` | 0.78 | 0.38 | Secondary |
-| `--ds-text-3` | 0.70 | 0.52 | Tertiary — meets WCAG AA on `bg`/`panel` |
-| `--ds-text-4` | 0.60 | 0.65 | Decorative / labels; meets AA on `bg` only |
+| `--background` | 0.195 | 0.985 | Page background |
+| `--card` | 0.225 | 0.965 | Sidebars, panels, cards |
+| `--popover` | 0.225 | 0.965 | Floating surfaces — equal to `--card` on purpose |
+| `--muted` | 0.258 | 0.945 | Controls, inputs, chips, skeletons |
+| `--accent` | 0.295 | 0.92 | Hover / selected surface — **not** the brand |
+| `--border` | 0.325 | 0.88 | Hairline dividers |
+| `--border-strong` | 0.385 | 0.82 | Stronger borders |
+| `--foreground` | 0.93 | 0.20 | Primary text |
+| `--muted-foreground` | 0.78 | 0.38 | Secondary |
+| `--subtle-foreground` | 0.70 | 0.52 | Tertiary — meets WCAG AA on `background`/`card` |
+| `--faint-foreground` | 0.60 | 0.65 | Decorative / labels; meets AA on `background` only |
 
-All OKLCH, hue 70–80 (very slight warm bias). `text-4` is deliberately
+All OKLCH, hue 70–80 (very slight warm bias). `faint-foreground` is deliberately
 at the edge of legibility — reserve it for decorative/ornamental text
-(ChevronRight separators, unused states); reach for `text-3` for anything
+(ChevronRight separators, unused states); reach for `subtle-foreground` for anything
 informational.
+
+**`--card` and `--popover` are set equal in both themes.** They differ in the
+reference palette, which means a floating element misclassified as a card renders
+correctly in one theme and wrongly in the other, and nothing catches it. Equal values
+make the classification unable to render wrongly while leaving them free to diverge
+later. The rule for choosing: *the element positions itself* — popovers, dropdowns,
+dialogs, tooltips, context menus and selection bars take `--popover`; everything else
+takes `--card`.
 
 ### Accent + status
 
 | Token | Dark | Purpose |
 |---|---|---|
-| `--ds-accent` | `oklch(0.82 0.15 86)` | Primary action, current selection, brand |
-| `--ds-accent-2` | `oklch(0.74 0.15 86)` | Hover / pressed |
-| `--ds-accent-tint` | `.../ 0.16` | Subtle accent background |
-| `--ds-accent-ring` | `.../ 0.35` | Focus ring |
-| `--ds-accent-fg` | `oklch(0.18 0.02 86)` | Foreground on filled accent bg |
-| `--ds-ok` / `--ds-ok-tint` | `oklch(0.72 0.12 155)` | Compliant licence |
-| `--ds-warn` / `--ds-warn-tint` | `oklch(0.78 0.13 85)` | Needs review |
-| `--ds-err` / `--ds-err-tint` | `oklch(0.68 0.17 28)` | Violation / destructive |
-| `--ds-unk` / `--ds-unk-tint` | `oklch(0.72 0.01 80)` | Unknown status |
+| `--primary` | `oklch(0.82 0.15 86)` | Primary action, current selection, **the brand** |
+| `--primary-hover` | `oklch(0.74 0.15 86)` | Hover / pressed. Local — the contract has no name |
+| `--primary-soft` | `.../ 0.16` | Subtle brand background |
+| `--ring` | `.../ 0.35` | Focus ring |
+| `--primary-foreground` | `oklch(0.18 0.02 86)` | Foreground on filled brand bg |
+| `--success` / `--success-soft` | `oklch(0.72 0.12 155)` | Compliant licence |
+| `--warning` / `--warning-soft` | `oklch(0.78 0.13 85)` | Needs review |
+| `--destructive` / `--destructive-soft` | `oklch(0.68 0.17 28)` | Violation / destructive |
+| `--unknown` / `--unknown-soft` | `oklch(0.72 0.01 80)` | Unknown status. Local — see below |
+
+**Watch the `accent` trap.** In shadcn's vocabulary `--accent` is the hover/selected
+*surface* and `--primary` is the brand. Damson's old `--ds-accent` was the brand, so
+it became `--primary`. Getting this backwards produces a palette that looks *wrong*
+rather than *broken*, which is much harder to spot.
+
+**Local extensions**, where the contract has no equivalent: `--unknown` /
+`--unknown-soft` (the licence axis is four-valued and the contract carries three),
+`--primary-hover`, `--swatch-foreground` (light ink for server-supplied
+`glyph_color` swatches, which are dark in both themes), `--elevation`,
+`--sidebar-w` / `--rail-w` / `--detail-w`, and `--code-canvas` (GitHub Dark's
+background, which must track `HIGHLIGHT_THEME` rather than Damson's palette). Each is
+a candidate to contribute upstream if a second project sights one.
 
 ### Typography
 
-- `--ds-font-sans`: Inter (self-hosted via `@fontsource/inter`)
-- `--ds-font-mono`: JetBrains Mono (self-hosted via `@fontsource/jetbrains-mono`)
+- `--font-sans`: Inter (self-hosted via `@fontsource/inter`)
+- `--font-mono`: JetBrains Mono (self-hosted via `@fontsource/jetbrains-mono`)
 - Body: 15px / 1.5 line-height, `cv11 + ss01` OpenType features.
 
 The font-size scale is two-layered: raw size primitives compose into
@@ -152,26 +181,39 @@ View-specific role tokens:
 
 ### Sizing, radii, motion, z-index
 
-- Sizes: `--ds-sidebar-w: 248px`, `--ds-rail-w: 52px`, `--ds-detail-w: 440px`
-- Radii: `--ds-r-sm: 4px`, `--ds-r-md: 6px`, `--ds-r-lg: 10px`, `--ds-r-pill: 999px`
-- Transitions: `--ds-transition-fast/std/slow` = 80/100/120ms
-- Easings: `--ds-ease` (0.4, 0, 0.2, 1), `--ds-ease-bounce` (0.34, 1.56, 0.64, 1)
+- Sizes: `--sidebar-w: 248px`, `--rail-w: 52px`, `--detail-w: 440px`
+- Radii: derived from `--radius: 0.5rem` — `sm` 4.8px, `md` 6.4px, `lg` 8px, `xl` 11.2px. No pill; use `rounded-full`
+- Transitions: `duration-fast/std/slow` = 80/100/120ms
+- Easings: `ease-ease` (0.4, 0, 0.2, 1), `ease-bounce` (0.34, 1.56, 0.64, 1)
 - Z-index: `resizer=5`, `detail=10`, `drop=20`, `selbar=30`, `tooltip=100`,
   `dialog=500`, `tweaks=1000`
 
 ### Tailwind mapping
 
-Tokens become Tailwind utilities via the `@theme` block in
-`web/src/styles/globals.css`. There is no `tailwind.config.ts` — Tailwind 4
-takes its theme from CSS. **Prefer the utility over `var(--ds-*)`** — e.g.
-`bg-panel`, `text-text-2`, `border-line`, `rounded-md`,
-`animate-slide-in-right`. That preference is why the vocabulary here is ~832
-class names against only 69 raw `var()` calls.
+`web/src/styles/globals.css` carries **three `@theme` blocks, in order**:
 
-> **Changing.** This whole section is superseded by the shared design system
-> adoption — the `--ds-` prefix goes and shadcn's token names become primary.
-> See [`roadmap.md`](roadmap.md) and
-> [`shared-design-adoption.md`](shared-design-adoption.md).
+1. **CLI-owned**, generated by `shadcn add @shared/tokens` — the contract's colour
+   mappings and the radius scale. Re-running the CLI regenerates it, so do not hand-edit it.
+2. **Damson-local `@theme inline`** — the extension colours plus the font-size
+   primitives, elevation, motion, z-index, widths, animations and keyframes. Kept
+   separate precisely so a re-install cannot clobber them.
+3. There is no `tailwind.config.ts` — Tailwind 4 takes its theme from CSS.
+
+**Prefer the utility over `var(--token)`** — e.g. `bg-card`, `text-muted-foreground`,
+`border-border`, `rounded-md`. That preference is why the vocabulary is ~849 class
+names against only a handful of raw `var()` calls.
+
+**Radii are derived from one `--radius`** (`0.5rem`) by the contract's multiplicative
+scale: `sm = 0.6r`, `md = 0.8r`, `lg = r`, `xl = 1.4r`. There is no `rounded-pill` —
+use `rounded-full`.
+
+**`var(--radius-sm)` does not exist at runtime.** `@theme inline` emits no custom
+property, only the utility. Reach for the utility, or `calc(var(--radius) * 0.6)`.
+
+**Every `shadcn add` re-appends the contract's reference palette** to the end of
+`globals.css` as an unlayered `:root`/`.dark`, which beats `tokens.css` in the
+cascade and silently overrides every Damson value. Delete it after each install —
+`web/scripts/check-tokens.mjs` fails the build if you forget.
 
 ---
 
@@ -182,18 +224,28 @@ Atomic components with no domain knowledge. All live under
 
 ### Action
 
-- **`Button`** — `variant: primary|secondary|ghost|danger`, `size: sm|md`.
-  `leadingIcon`/`trailingIcon` slots. `pressed` state via
-  `data-pressed`. Focus ring on `focus-visible`.
+- **`Button`** — a **wrapper** around the installed `components/ui/button.tsx`.
+  `variant: primary|secondary|ghost|destructive` (plus `outline`/`default`
+  compatibility aliases for pasted upstream blocks), `size: sm|md|lg` (28/32/36px).
+  **Defaults to `primary`.** `leadingIcon`/`trailingIcon`, `loading`, `fullWidth`,
+  `asChild`, and `pressed` via `data-pressed`.
+
+  The wrapper exists for exactly one reason: `destructive` renders the registry's
+  `secondary` with Damson's soft red tint over it, because a filled red reads fine in
+  a confirm dialog and shouts in a toolbar. **That override lives in the wrapper, not
+  in the installed file** — editing `components/ui/button.tsx` would be silently
+  undone by the next `shadcn add`. This is the estate's worked example of copy-in
+  ownership; see `Button.test.tsx`, which fails if the wrapper is bypassed.
 - **`IconButton`** — square `size: sm|md` (24/34px), `active` highlights
-  with surface bg, used in toolbars and rails.
+  with the hover surface, used in toolbars and rails. Damson-owned; a candidate to
+  publish as `@shared/icon-button`.
 - **`SegmentedControl<T>`** — generic over a value type; options can be
   icon-only or text. Used for grid/list toggles and density picks.
 
 ### Input
 
 - **`Input`** — leading icon slot + trailing slot, `invalid` state sets
-  `aria-invalid`, focus-within applies the accent ring.
+  `aria-invalid`, focus-within applies the focus ring.
 - **`SearchInput`** — preset over `Input`: Search icon + optional `kbd`
   hint (⌘K).
 - **`Textarea`** — resizable vertical, same invalid/disabled semantics
@@ -333,7 +385,7 @@ reusable across features, but pre-assume the application's concepts
   - `SpriteThumb` — 9 procedural patterns (`abstract`, `landscape`,
     `character`, `tiles`, `ui`, `portrait`, `gradient`, `fire`, `icons`)
     parameterised by a 1–4 colour palette. Ported byte-identical from
-    `docs/mockup/src/thumbnails.jsx`.
+    `docs/archive/mockup/src/thumbnails.jsx`.
   - `FontThumb` — typeface sample text.
   - `UnknownThumb` — file-icon fallback.
 - **`AssetCard`** — grid tile with thumb + name + sub line + trailing
@@ -405,7 +457,7 @@ data + state lives in `web/src/components/filebrowser/`.
   the "Create subset" action.
 
 Fixture data for stories lives in `_fixtures.ts` (ASSET_FIXTURES,
-PROJECT_FIXTURES). Shapes mirror `docs/mockup/src/data.jsx`. The file-browser
+PROJECT_FIXTURES). Shapes mirror `docs/archive/mockup/src/data.jsx`. The file-browser
 stories build their own fixture tree inline.
 
 ---
@@ -446,6 +498,19 @@ explain the rationale in a comment.
 
 Follow the pattern of the nearest existing component.
 
+**First: does it belong here at all?** The estate's order of preference is
+upstream shadcn/ui → the `@shared` registry → Damson. If shadcn has it, install it
+rather than writing one. If it is primitive-shaped and *not* Damson-specific, it
+belongs in `shared-design` so every consumer gets it — the registry's inventory
+grows when a consumer needs something. Only genuinely Damson-specific components
+are written here.
+
+**Never edit `web/src/components/ui/`.** Those files are installed by the CLI and
+the next `shadcn add` overwrites them. A per-project difference goes in a token
+override (survives everything) or a wrapper (survives everything). Editing the
+installed file is a third option and it is a decision, not an accident — record it
+if you take it.
+
 1. Choose the tier: primitive (atomic, no domain), composition (reusable
    shell), or domain (Damson-specific). If it could live in multiple
    places, push toward the lower tier.
@@ -457,8 +522,16 @@ Follow the pattern of the nearest existing component.
    `pseudo-<state>-all` when `:hover`/`:focus-visible`/`:active` matter.
 4. Export from the tier's `index.ts` barrel.
 5. Run `task test:unit:web` and `task test:stories` — the storybook project must pass with
-   `a11y.test = "error"`.
+   `a11y.test = "error"`. `task lint:web` runs the token guardrail
+   (`web/scripts/check-tokens.mjs`), which fails on a retired token name, a raw hex
+   outside `tokens.css`, an arbitrary colour utility, or a `:root`/`.dark` block
+   left in `globals.css` by `shadcn add`.
 
 If axe flags a contrast issue, fix the token or reach for a brighter
-tier (e.g. `text-3` instead of `text-4`) before adding a story-level
-exception. Exceptions should be the exception.
+tier (e.g. `subtle-foreground` instead of `faint-foreground`) before adding a
+story-level exception. Exceptions should be the exception.
+
+**Check both themes.** `STORYBOOK_THEME=light pnpm run test:stories` runs the suite
+in light. It is not in `task check` yet — see the note in
+`docs/progress.md` about the Storybook vitest project not emitting Tailwind
+utilities, which makes its contrast checks weaker than they look.
