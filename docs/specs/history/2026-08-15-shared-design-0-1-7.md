@@ -1,11 +1,11 @@
 # Take up `shared-design` 0.1.7
 
-**Status:** signed off 2026-08-15 — not yet implemented.
+**Status:** implemented — all seven stages, 2026-08-15 (PR #41).
 **Alignment artifact:** `.lavish/spec-shared-design-0-1-7.html`.
-**Predecessor:** [`history/2026-08-15-shared-design-system.md`](history/2026-08-15-shared-design-system.md)
+**Predecessor:** [`2026-08-15-shared-design-system.md`](2026-08-15-shared-design-system.md)
 — the vocabulary adoption, merged the same morning (PR #40, `f91d654`). This spec revises two of its
 resolved questions; per the standing rule it does not rewrite them.
-**Roadmap item:** `Next` #2 in [`../roadmap.md`](../roadmap.md).
+**Roadmap item:** `Next` #2 in [`../../roadmap.md`](../../roadmap.md).
 
 **Assumed base:** damson at `f91d654`; `shared-design` at `df21ae4` (the 0.1.7 tree). Every count in
 this file was measured at those commits on 2026-08-15 and **must be re-measured at build time** —
