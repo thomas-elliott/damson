@@ -94,7 +94,7 @@ export function MergeDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent width={480}>
+      <DialogContent>
         {result ? (
           <>
             <DialogHeader>

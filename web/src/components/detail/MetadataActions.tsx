@@ -345,7 +345,7 @@ function MatchPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent width={560}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Find listing</DialogTitle>
           <DialogDescription>Search storefronts and pick the matching listing.</DialogDescription>
@@ -404,7 +404,7 @@ function ConflictDialog({
 }) {
   return (
     <Dialog open={conflicts !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent width={520}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Confirm overwrites</DialogTitle>
           <DialogDescription>

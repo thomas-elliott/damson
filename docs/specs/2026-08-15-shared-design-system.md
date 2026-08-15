@@ -424,3 +424,8 @@ reason about later.
 - `web/src/styles/globals.css` — every `shadcn add` re-appends the contract's reference :root/.dark
   (button depends on tokens), so it has to be deleted after each install. Worth a task target or a
   post-add step rather than remembering.
+- `web/src/styles/globals.css` — `@import "tw-animate-css"` is what makes the registry Dialog's
+  `animate-in`/`animate-out` classes exist. The CLI adds the package but not the import, and without
+  it the dialog just does not animate; nothing errors.
+- `web/src/design-system/compositions/EmptyState.tsx` — the wrapper exists for two deltas the
+  registry does not carry: `role="status"`, and `title` being optional.
