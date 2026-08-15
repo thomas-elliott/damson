@@ -5,7 +5,7 @@ import { Input } from "@/design-system/primitives/Input";
 import { SearchInput } from "@/design-system/primitives/SearchInput";
 import { Textarea } from "@/design-system/primitives/Textarea";
 
-const BELOW_FLOOR = ["text-ui", "text-label", "text-small", "text-sm", "text-xs", "text-base"];
+const BELOW_FLOOR = ["text-ui", "text-label", "text-sm", "text-xs", "text-base"];
 
 const classesOf = (el: Element | null) => (el?.className ?? "").split(/\s+/).filter(Boolean);
 
