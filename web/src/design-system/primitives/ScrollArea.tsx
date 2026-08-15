@@ -34,7 +34,7 @@ const ScrollBar = forwardRef<
       ref={ref}
       orientation={orientation}
       className={cn(
-        "flex touch-none select-none p-0.5 transition-colors duration-std ease",
+        "flex touch-none select-none p-0.5 transition-colors duration-fast ease-standard",
         orientation === "vertical" && "h-full w-2",
         orientation === "horizontal" && "h-2 w-full flex-col",
         className,
@@ -43,7 +43,7 @@ const ScrollBar = forwardRef<
     >
       <RadixScrollArea.Thumb
         className={cn(
-          "relative flex-1 rounded-full bg-border-strong transition-colors duration-std ease hover:bg-faint-foreground",
+          "relative flex-1 rounded-full bg-border-strong transition-colors duration-fast ease-standard hover:bg-faint-foreground",
         )}
       />
     </RadixScrollArea.Scrollbar>

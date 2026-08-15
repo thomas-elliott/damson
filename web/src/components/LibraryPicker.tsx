@@ -28,7 +28,7 @@ export function LibraryPicker({ current }: { current: MeLibrary }) {
         </Badge>
         <ChevronDown
           size={12}
-          className="shrink-0 text-subtle-foreground transition-transform duration-std ease group-data-[state=open]:rotate-180"
+          className="shrink-0 text-subtle-foreground transition-transform duration-fast ease-standard group-data-[state=open]:rotate-180"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[14rem]">

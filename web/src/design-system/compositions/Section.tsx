@@ -49,7 +49,7 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
           aria-controls={bodyId}
           onClick={() => setOpen(!open)}
           className={cn(
-            "flex flex-1 items-center gap-1.5 px-3 py-3 text-left text-ui text-muted-foreground transition-colors duration-std ease",
+            "flex flex-1 items-center gap-1.5 px-3 py-3 text-left text-ui text-muted-foreground transition-colors duration-fast ease-standard",
             "hover:text-foreground",
             "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           )}
@@ -57,7 +57,7 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
           <ChevronRight
             size={12}
             className={cn(
-              "text-subtle-foreground transition-transform duration-slow ease",
+              "text-subtle-foreground transition-transform duration-fast ease-standard",
               open && "rotate-90",
             )}
           />

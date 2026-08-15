@@ -32,7 +32,7 @@ const theme = EditorView.theme({
     backgroundColor: "var(--background)",
     // The `rounded-sm` derivation spelled out: `@theme inline` emits the utility
     // but no `--radius-sm` property, so there is nothing to reference here.
-    borderRadius: "calc(var(--radius) * 0.6)",
+    borderRadius: "var(--radius-sm)",
     border: "1px solid var(--border-strong)",
     transition: "border-color 100ms cubic-bezier(0.4, 0, 0.2, 1)",
   },

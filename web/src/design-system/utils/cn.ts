@@ -15,7 +15,6 @@ const damsonRoles: ConfigExtension<DefaultClassGroupIds, DefaultThemeGroupIds> =
       "font-size": [
         {
           text: [
-            "small",
             "overline",
             "title-reg",
             "title-medium",

@@ -103,13 +103,6 @@
   --color-primary-hover: var(--primary-hover);
   --color-swatch-foreground: var(--swatch-foreground);
 
-  --text-small: 12px;
-  --text-small--line-height: 1.4;
-
-  --shadow-elevated: var(--elevation);
-
-  --transition-duration-std: 100ms;
-
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --z-index-resizer: 5;
@@ -242,13 +235,13 @@
 }
 @utility text-overline {
   /* Generic role tokens. */
-  @apply text-small font-medium uppercase tracking-wide;
+  @apply text-label font-medium uppercase tracking-wide;
 }
 @utility text-mono {
-  @apply font-mono text-small;
+  @apply font-mono text-label;
 }
 @utility text-caption {
-  @apply text-small text-subtle-foreground;
+  @apply text-label text-subtle-foreground;
 }
 @utility text-num {
   @apply text-ui font-mono;

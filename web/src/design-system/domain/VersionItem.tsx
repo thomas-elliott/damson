@@ -19,7 +19,7 @@ export interface VersionItemProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const baseClasses =
-  "flex w-full items-start gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-2 text-left text-small transition-colors duration-std ease";
+  "flex w-full items-start gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-2 text-left text-label transition-colors duration-fast ease-standard";
 const currentClasses = "border-primary bg-primary-soft";
 
 /**

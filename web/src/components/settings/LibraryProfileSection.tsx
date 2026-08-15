@@ -188,7 +188,7 @@ function DeleteLibraryForm({
             placeholder={library.name}
           />
         </FieldRow>
-        {error && <p className="text-small text-destructive">{error}</p>}
+        {error && <p className="text-label text-destructive">{error}</p>}
       </DialogBody>
       <DialogFooter>
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
