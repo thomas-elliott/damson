@@ -383,3 +383,47 @@ damson's wherever damson has a view.
   genuine slow step is a design question nobody has asked.
 - **Revisit `--ease-bounce`** — it survives as a local extension consumed only by `--animate-pop-up`.
   If a second project sights a bounce curve it is a contract candidate.
+
+- **Stage 7's documentation was not written by `/implement`** — `design-system.md`'s **Typography**,
+  **Sizing, radii, motion, z-index** and **Tailwind mapping** sections and its **Input** entry still
+  describe the pre-0.1.7 shape, and the `@shared/input` divergence (Q4) is not yet recorded next to
+  the `Button` wrapper precedent. Docs are `/cleanup`'s phase 6; this is the handover note.
+
+- **Tell `shared-design` that `@theme inline` self-mapping is broken** — see the note below. Every
+  consumer that deletes the appended reference `:root` (which `consuming.md` instructs them to do)
+  loses the entire non-colour scale, silently. The colour tokens are unaffected only because they
+  map `--color-x: var(--x)` rather than `--x: var(--x)`. This is a contract-side bug, not damson's,
+  and the fix likely belongs in `gen-tokens-item.mjs`.
+
+- **`:focus-visible` in `globals.css` still hard-codes `border-radius: 3px`** — the sweep did not
+  touch it because it is a CSS property, not a `rounded-[3px]` utility. `var(--radius-xs)` is now
+  the right value, but changing a global focus ring was outside this slice.
+
+- **`--radius` is now an unreferenced 16px literal** — nothing in damson reads it since the
+  `MarkdownEditorView` calc was swept. It is kept only so a registry component installed direct
+  still resolves, per upstream's reason for keeping the alias.
+
+## Deferred comments
+
+Notes for `/cleanup` to evaluate — `path — the why`, not comment text.
+
+- `web/src/design-system/tokens/tokens.css` — why the font stacks are `--sans-stack` / `--mono-stack`
+  and the shadows are `--elevation-sm/md/lg` rather than the contract's own names: a custom property
+  that `@theme inline` maps to *itself* (`--font-sans: var(--font-sans)`) is a dependency cycle, so
+  it computes to guaranteed-invalid and takes damson's own declaration down with it regardless of
+  cascade layer. Distinct names are what break the cycle. This is load-bearing and non-obvious.
+- `web/src/styles/globals.css`, second `@theme inline` block — why it now restates the whole radius,
+  type and motion scale as literals when tokens.css is meant to be the only place a value lives:
+  same cycle. Tailwind merges `@theme` blocks with the later winning, so damson's block is the only
+  override point that survives `shadcn add` regenerating the first one.
+- `web/src/styles/globals.css` — why `--row-h` and `--font-sans` moved: they were *already* broken by
+  this cycle before the slice started (damson was rendering system-ui, not Inter). Worth a comment
+  only if `/cleanup` judges the tokens.css note insufficient on its own.
+- `web/src/design-system/utils/cn.ts` — why `mergeConfigs` rather than spreading `typeScale.extend`:
+  a spread silently drops any key type-scale grows later, which is the same class of silent failure
+  the extension exists to prevent.
+- `web/scripts/check-tokens.mjs` — why the new scale checks sit *before* the fixture early-return
+  while the hex/arbitrary-colour checks stay after it: a retired name is retired in a story too.
+- `web/src/design-system/primitives/Input.tsx` — why both the wrapper and the inner field carry
+  `text-field` rather than just the field: the guardrail's rule is file-scoped, so a `text-ui` left
+  on the wrapper would fail it.
