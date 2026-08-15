@@ -95,7 +95,6 @@ export function SettingsPage() {
 }
 
 interface SettingsView {
-  theme_default: "dark" | "light";
   grid_density_default: "small" | "medium" | "large";
   retain_original_packages: boolean;
   dedupe_enabled: boolean;
@@ -120,14 +119,6 @@ function ReadOnlySettings({ settings }: { settings: SettingsView }) {
       <Section title="Appearance" defaultOpen>
         <KeyValueList
           entries={[
-            {
-              key: "Theme default",
-              value: (
-                <Badge size="sm" mono>
-                  {settings.theme_default}
-                </Badge>
-              ),
-            },
             {
               key: "Grid density default",
               value: (
@@ -213,16 +204,6 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
           ) : null
         }
       >
-        <FormRow label="Theme default">
-          <SegmentedControl
-            value={settings.theme_default}
-            onValueChange={(v) => apply({ theme_default: v })}
-            options={[
-              { value: "dark", label: "Dark" },
-              { value: "light", label: "Light" },
-            ]}
-          />
-        </FormRow>
         <FormRow label="Grid density default">
           <SegmentedControl
             value={settings.grid_density_default}
