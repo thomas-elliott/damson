@@ -69,6 +69,7 @@
   --color-unknown: var(--unknown);
   --color-unknown-soft: var(--unknown-soft);
   --color-primary-hover: var(--primary-hover);
+  --color-swatch-foreground: var(--swatch-foreground);
 
   --text-body: 15px;
   --text-body--line-height: 1.5;
