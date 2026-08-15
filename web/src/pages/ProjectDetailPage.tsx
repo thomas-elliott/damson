@@ -114,7 +114,7 @@ export function ProjectDetailPage() {
                   color={project.glyph_color || "oklch(0.4 0.14 260)"}
                 />
                 <div className="flex-1">
-                  <h1 className="text-heading text-foreground">{project.name}</h1>
+                  <h1 className="text-heading-semibold text-foreground">{project.name}</h1>
                   <div className="mt-1 flex items-center gap-2 text-caption">
                     <Badge size="sm" mono>
                       {project.target_distribution}
@@ -135,9 +135,9 @@ export function ProjectDetailPage() {
               </header>
 
               <section className="rounded-md border border-border bg-card p-3">
-                <div className="mb-2 text-label text-subtle-foreground">Licence mix</div>
+                <div className="mb-2 text-overline text-subtle-foreground">Licence mix</div>
                 <LicenceBar counts={counts} size="md" />
-                <div className="mt-1 flex gap-3 text-small text-subtle-foreground">
+                <div className="mt-1 flex gap-3 text-label text-subtle-foreground">
                   <span>
                     <span className="font-mono text-success">{counts.ok}</span> compliant
                   </span>
@@ -232,13 +232,13 @@ function ProjectPinRow({
         {pin.licence_spdx ? (
           <LicencePill status={pin.licence_status as LicenceStatus} spdx={pin.licence_spdx} />
         ) : (
-          <span className="text-small text-faint-foreground">—</span>
+          <span className="text-label text-faint-foreground">—</span>
         )}
       </td>
       <td className="py-2 text-right font-mono text-muted-foreground">
         {formatBytes(pin.size_bytes)}
       </td>
-      <td className="py-2 text-small">
+      <td className="py-2 text-label">
         {pin.has_update ? (
           <button
             type="button"
@@ -274,7 +274,7 @@ function ProjectPinRow({
 function ProjectAuditPanel({ projectId }: { projectId: number }) {
   const { data: entries, loading } = useProjectAudit(projectId);
   if (loading) {
-    return <div className="text-small text-faint-foreground">Loading…</div>;
+    return <div className="text-label text-faint-foreground">Loading…</div>;
   }
   return (
     <AuditList

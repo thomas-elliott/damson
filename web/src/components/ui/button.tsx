@@ -57,9 +57,9 @@ const buttonVariants = cva(
         default: PRIMARY,
       },
       size: {
-        sm: "h-7 px-2.5 text-xs [&_svg:not([class*='size-'])]:size-3.5",
-        md: "h-8 px-3 text-sm",
-        lg: "h-9 px-4 text-sm",
+        sm: "h-7 px-2.5 text-label [&_svg:not([class*='size-'])]:size-3.5",
+        md: "h-8 px-3 text-ui",
+        lg: "h-9 px-4 text-ui",
       },
       fullWidth: {
         true: "w-full",

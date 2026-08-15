@@ -96,7 +96,7 @@ export function BootstrapPage() {
             onChange={(e) => setConfirm(e.target.value)}
           />
         </FieldRow>
-        {error && <p className="text-small text-destructive">{error}</p>}
+        {error && <p className="text-label text-destructive">{error}</p>}
         <Button type="submit" variant="primary" disabled={submitting} className="mt-1 w-full">
           {submitting ? "Creating account…" : "Create account"}
         </Button>
@@ -116,8 +116,8 @@ function AuthCard({
 }) {
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-elevated">
-        <h1 className="text-subhead text-foreground">{title}</h1>
+      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-md">
+        <h1 className="text-subhead-semibold text-foreground">{title}</h1>
         {description && <p className="mt-1 text-caption">{description}</p>}
         <div className="mt-5">{children}</div>
       </div>

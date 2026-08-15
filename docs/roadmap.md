@@ -32,22 +32,52 @@ at 4.42:1. **(c)** a Markdown link at 1.13:1 against surrounding body text, whic
 question, not just a colour one. Note `shared-design` darkened its own `--destructive` for (b)-shaped
 reasons; damson overrides that token, so it does not inherit the fix.
 
-Spec-ready: no — (a) and (c) need a decision before anything is written.
+**(a) now has an upstream answer.** `shared-design` 0.1.7 raised its own `--subtle-foreground` to
+pass AA (`8c7cee3`) rather than exempting the tier. damson overrides the value so it does not inherit
+it, but the estate has taken the decision once — which makes this a question of following or
+diverging, not of deciding from scratch. Pairs with the 0.1.7 uptake below.
 
-*Nothing else queued — the design system slice moved to `In flight` on 2026-08-15. Promote something
-from `Shaped` when it lands.*
+Spec-ready: no — (c) still needs a decision, and (a) needs confirming rather than taking.
+
+### 2. Contribute damson's icon-slot field API to `@shared/input`
+
+A leading-icon / trailing-slot input is primitive-shaped and not damson-specific, so by the estate's
+own rule it belongs in the registry. The path `IconButton` took. Deferred out of the 0.1.7 uptake
+because it would have blocked that slice on a `shared-design` change; taking it would let damson
+retire three owned primitives (`Input`, `SearchInput`, `Textarea`).
+
+Blocked on nothing but sequencing. Spec-ready: nearly — the API is already designed, because damson
+is running it.
+
+### 3. Tell `shared-design` its `@theme inline` self-mapping is a cycle
+
+The 0.1.7 uptake found that the CLI generates `--radius-md: var(--radius-md)` — the same name on
+both sides — which is invalid at computed-value time and destroys any other declaration of that
+name. Every consumer that deletes the appended reference `:root`, which `consuming.md` instructs
+them to do, silently loses the whole non-colour scale. damson has a local workaround
+(`docs/design-system.md`, **Tailwind mapping**); the fix belongs in `gen-tokens-item.mjs`.
+
+Not damson work, but damson found it and nobody else has hit it yet. Spec-ready: n/a — it is an
+upstream issue, not a slice.
+
+*Nothing else queued. Promote something from `Shaped` when these land.*
 
 ---
 
 ## In flight  (spec written — pointer only, the spec owns the detail)
 
-- **Adopt the shared design system** → [`specs/2026-08-15-shared-design-system.md`](specs/2026-08-15-shared-design-system.md).
-  Signed off 2026-08-15. Eleven stages; touches no Go and no SQL. The decision table below is
-  retained as the record of what was banked *before* the spec — where the two disagree, **the spec
-  wins**, and it says so in its own header.
+*Nothing in flight.*
+
+Both design-system slices shipped 2026-08-15 — the vocabulary adoption
+([`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md),
+PR #40 `f91d654`) and the 0.1.7 uptake that took the contract past colour
+([`specs/history/2026-08-15-shared-design-0-1-7.md`](specs/history/2026-08-15-shared-design-0-1-7.md),
+PR #41), whose Q2 **superseded Q4 of the first**: the radius anchor it chose answered a
+multiplicative scale that no longer exists. See [`progress.md`](progress.md); what they deferred is
+carried in [`specs/history/README.md`](specs/history/README.md).
 
 <details>
-<summary>What the roadmap banked before the spec (2026-08-15)</summary>
+<summary>What the roadmap banked before that spec (2026-08-15) — kept for the record</summary>
 
 **Intent:** install `@shared` registry items, replace the `--ds-*` vocabulary with shadcn's token
 names, and prove that copy-in ownership survives re-running `shadcn add`.

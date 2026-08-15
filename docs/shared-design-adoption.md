@@ -1,8 +1,8 @@
 # Adopting the shared design system
 
-**Status `[2026-08-15]`:** superseded. The spec is written and signed off —
-[`specs/2026-08-15-shared-design-system.md`](specs/2026-08-15-shared-design-system.md).
-**Read that instead.** Where it and this file disagree, **the spec wins**: it verified its claims
+**Status `[2026-08-15]`:** superseded, and the work has since shipped —
+[`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md)
+(PR #40, `f91d654`). **Read that instead**, and `docs/design-system.md` for the live shape. Where it and this file disagree, **the spec wins**: it verified its claims
 against the working trees, and several of the ones below turned out to be stale.
 
 Known stale here, corrected in the spec: the `--ds-surface-2` gap (its twelve sites decompose into

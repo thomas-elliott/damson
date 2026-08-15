@@ -124,7 +124,7 @@ export function ApiTokensSection() {
         </div>
       )}
 
-      {revokeError && <p className="mt-2 text-small text-destructive">{revokeError}</p>}
+      {revokeError && <p className="mt-2 text-label text-destructive">{revokeError}</p>}
 
       <CreateTokenDialog
         open={createOpen}
@@ -217,7 +217,7 @@ function CreateTokenDialog({
             The token is pinned to your current library and acts as you. It cannot create other
             tokens or reach server administration.
           </p>
-          {error && <p className="text-small text-destructive">{error}</p>}
+          {error && <p className="text-label text-destructive">{error}</p>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
@@ -290,7 +290,7 @@ function IssuedTokenDialog({
             </Button>
           </div>
           {copyFailed && (
-            <p className="mt-2 text-small text-destructive">
+            <p className="mt-2 text-label text-destructive">
               Couldn&rsquo;t reach the clipboard — browsers only allow it over HTTPS or on
               localhost. Select the value above and copy it manually.
             </p>

@@ -1349,7 +1349,7 @@ Alternatives:
 
 `cmd/dmsn` is a companion binary for scripting a library and for handing
 to an agent. Scoped by
-[`specs/2026-08-01-dmsn-cli.md`](specs/2026-08-01-dmsn-cli.md).
+[`specs/2026-08-01-dmsn-cli.md`](specs/history/2026-08-01-dmsn-cli.md).
 
 **Credential.** Personal access tokens, `api_tokens` (migration 020). The
 secret is `damson_pat_` + 32 random bytes, base64url, stored as a plain
@@ -1434,7 +1434,7 @@ no Woodpecker step and no release artefacts — see §19.13.
 `<Publisher>/<CategoryPath>/<Name>.unitypackage` under
 `%APPDATA%\Unity\Asset Store-5.x` (macOS `~/Library/Unity/…`, Linux
 `~/.local/share/unity3d/…`), overridable by `ASSETSTORE_CACHE_PATH`. Scoped by
-[`specs/2026-08-01-unity-local-cache-import.md`](specs/2026-08-01-unity-local-cache-import.md).
+[`specs/2026-08-01-unity-local-cache-import.md`](specs/history/2026-08-01-unity-local-cache-import.md).
 
 **The cache path is metadata.** Publisher and the store category tree are free
 from the directory layout and available nowhere else cheaply. Unity concatenates
@@ -1509,7 +1509,7 @@ the code diverges:
    user picks one. Primitives come from shadcn/ui via the shared `@shared`
    registry as copy-in source; Damson-specific components are still hand-rolled
    on Radix. See
-   [`specs/2026-08-15-shared-design-system.md`](specs/2026-08-15-shared-design-system.md).
+   [`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md).
 10. Background jobs: River on Postgres, replacing hand-rolled
     goroutine pools. Chosen for durability across restarts and
     observable job state without building a scheduler.

@@ -38,7 +38,7 @@ export function ProjectListRow({
         onClick?.(e);
       }}
       className={cn(
-        "grid cursor-pointer items-center gap-3 border-b border-border px-3.5 py-2 text-list-row text-muted-foreground transition-colors duration-std ease",
+        "grid cursor-pointer items-center gap-3 border-b border-border px-3.5 py-2 text-list-row text-muted-foreground transition-colors duration-fast ease-standard",
         "hover:bg-muted hover:text-foreground last:border-b-0",
         className,
       )}

@@ -62,7 +62,7 @@ function Group({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-label font-semibold text-faint-foreground">{heading}</h3>
+      <h3 className="text-overline font-semibold text-faint-foreground">{heading}</h3>
       <div className="grid grid-cols-2 gap-3">
         {swatches.map((s) => (
           <Swatch key={s.v} name={s.name} cssVar={s.v} />
@@ -87,27 +87,27 @@ export const Typography: Story = {
   render: () => (
     <div className="flex min-w-[420px] flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <p className="text-label text-subtle-foreground">Layer 1 — size primitives</p>
+        <p className="text-overline text-subtle-foreground">Layer 1 — size primitives</p>
         <p className="text-body">text-body — 15px (default running text)</p>
         <p className="text-ui">text-ui — 14px (UI controls, list rows)</p>
-        <p className="text-small">text-small — 12px (fine print floor)</p>
+        <p className="text-label">text-label — 12px (fine print floor)</p>
       </section>
 
       <section className="flex flex-col gap-2">
-        <p className="text-label text-subtle-foreground">
+        <p className="text-overline text-subtle-foreground">
           Layer 2 — headings (paired with HTML h1/h2/h3)
         </p>
-        <p className="text-title">text-title — 22px / semibold</p>
+        <p className="text-title-semibold">text-title-semibold — 22px / semibold</p>
         <p className="text-title-bold">text-title-bold — 22px / bold</p>
         <p className="text-title-medium">text-title-medium — 22px / medium</p>
         <p className="text-title-reg">text-title-reg — 22px / regular</p>
-        <p className="text-heading">text-heading — 20px / semibold</p>
-        <p className="text-subhead">text-subhead — 18px / semibold</p>
+        <p className="text-heading-semibold">text-heading-semibold — 20px / semibold</p>
+        <p className="text-subhead-semibold">text-subhead-semibold — 18px / semibold</p>
       </section>
 
       <section className="flex flex-col gap-2">
-        <p className="text-label text-subtle-foreground">Layer 2 — role tokens</p>
-        <p className="text-label">text-label — section labels</p>
+        <p className="text-overline text-subtle-foreground">Layer 2 — role tokens</p>
+        <p className="text-overline">text-overline — section labels</p>
         <p className="text-mono">text-mono — sha256:ab3c1d…</p>
         <p className="text-caption">text-caption — helper text under inputs</p>
         <p className="text-num">text-num — 1,234,567 (tabular numerals)</p>

@@ -72,7 +72,7 @@ export default function AudioPreview({ node }: { node: FileNode }) {
         </button>
       </div>
       {!ready && (
-        <div className="text-center text-small text-faint-foreground">Decoding audio…</div>
+        <div className="text-center text-label text-faint-foreground">Decoding audio…</div>
       )}
     </div>
   );

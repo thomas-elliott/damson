@@ -95,7 +95,7 @@ export function ResizeHandle({
         }
       }}
       className={cn(
-        "group relative h-full w-1 cursor-col-resize bg-transparent transition-colors duration-std ease",
+        "group relative h-full w-1 cursor-col-resize bg-transparent transition-colors duration-fast ease-standard",
         "hover:bg-ring/30",
         "data-[dragging=true]:bg-primary",
         "focus-visible:bg-ring/50 focus-visible:outline-hidden",

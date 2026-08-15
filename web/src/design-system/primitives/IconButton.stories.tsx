@@ -72,7 +72,7 @@ export const AllStates: Story = {
         { label: "Active", cls: "pseudo-active-all" },
       ].map((row) => (
         <div key={row.label} className="flex items-center gap-3">
-          <span className="w-20 font-mono text-label text-subtle-foreground">{row.label}</span>
+          <span className="w-20 font-mono text-overline text-subtle-foreground">{row.label}</span>
           <div className={row.cls}>
             <div className="flex items-center gap-1">
               <IconButton aria-label="Previous" size="sm">
@@ -89,7 +89,7 @@ export const AllStates: Story = {
         </div>
       ))}
       <div className="flex items-center gap-3">
-        <span className="w-20 font-mono text-label text-subtle-foreground">Disabled</span>
+        <span className="w-20 font-mono text-overline text-subtle-foreground">Disabled</span>
         <div className="flex items-center gap-1">
           <IconButton aria-label="Previous" size="sm" disabled>
             <ChevronLeft />

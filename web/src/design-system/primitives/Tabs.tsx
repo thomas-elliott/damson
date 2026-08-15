@@ -26,7 +26,7 @@ export const TabsTrigger = forwardRef<
     <RadixTabs.Trigger
       ref={ref}
       className={cn(
-        "-mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-ui text-subtle-foreground transition-colors duration-std ease hover:text-foreground",
+        "-mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-ui text-subtle-foreground transition-colors duration-fast ease-standard hover:text-foreground",
         "data-[state=active]:border-primary data-[state=active]:text-primary",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
