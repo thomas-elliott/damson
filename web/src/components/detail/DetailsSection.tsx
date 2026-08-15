@@ -225,7 +225,7 @@ function DetailsForm({ asset, onDone }: { asset: AssetDetailView; onDone: () => 
         <Button variant="ghost" size="sm" onClick={onDone} disabled={patch.isPending}>
           Cancel
         </Button>
-        <Button size="sm" onClick={onSave} disabled={patch.isPending}>
+        <Button variant="secondary" size="sm" onClick={onSave} disabled={patch.isPending}>
           {patch.isPending ? "Saving…" : "Save"}
         </Button>
       </div>

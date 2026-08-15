@@ -92,7 +92,7 @@ export const DropdownMenuExample: Story = {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button>
+          <Button variant="secondary">
             Sort <ChevronDown size={12} />
           </Button>
         </DropdownMenuTrigger>
@@ -190,7 +190,7 @@ export const DialogExample: Story = {
         </DialogBody>
         <DialogFooter>
           <DialogClose asChild>
-            <Button>Cancel</Button>
+            <Button variant="secondary">Cancel</Button>
           </DialogClose>
           <Button variant="primary">Create project</Button>
         </DialogFooter>

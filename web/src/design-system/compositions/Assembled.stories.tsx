@@ -250,7 +250,9 @@ export const LibraryView: Story = {
                       <Button variant="primary" leadingIcon={<Pin size={12} />}>
                         Pin to project
                       </Button>
-                      <Button leadingIcon={<Plus size={12} />}>Add to collection</Button>
+                      <Button variant="secondary" leadingIcon={<Plus size={12} />}>
+                        Add to collection
+                      </Button>
                     </div>
                   </div>
                 </DetailPanel>
