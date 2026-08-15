@@ -6,6 +6,10 @@ The authoritative implementation contract for Damson's frontend. The mockup at
 `docs/mockup/` is the visual reference; this document is what the code
 actually does.
 
+This document describes the system as built here. The vocabulary, the `Button` contract and the
+primitive tiering are all due to move onto the shared registry —
+`docs/shared-design-adoption.md` is the brief, and it lists what in here goes wrong when they do.
+
 Companions: `docs/architecture.md` (architecture, data model, API),
 `docs/CONVENTIONS.md` (stack, developer commands),
 `docs/archive/ui-design.md` (the original information-architecture
