@@ -2,7 +2,8 @@
 
 **Status:** implemented — signed off 2026-06-18 (lavish alignment), merged 2026-06-19
 (PR #24, `3fca0ae`). Format coverage is the staged remainder: see the *Preview format
-coverage* gap in [`../progress.md`](../progress.md).
+coverage* gap in [`progress.md`](../../progress.md) — as of 2026-08-15 it is tracked as
+*Preview formats, tier 2* in [`roadmap.md`](../../roadmap.md) under **Shaped**.
 **Source research:** `docs/archive/preview-research.md` · **Scoping brief:** `docs/archive/preview-feasibility-brief.md`
 
 ## Problem

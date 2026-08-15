@@ -4,7 +4,7 @@
 **Purpose:** capture the problem, the current architecture, the settled requirements, and
 the open design questions so a fresh (compacted) spec session can start with grounding.
 
-Origin: while validating the file-previews feature (`docs/specs/2026-06-18-file-previews.md`),
+Origin: while validating the file-previews feature (`docs/specs/history/2026-06-18-file-previews.md`),
 three issues surfaced. One was a contained bug (fixed); the other two are this feature.
 
 ---
