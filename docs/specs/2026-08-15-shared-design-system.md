@@ -429,3 +429,9 @@ reason about later.
   it the dialog just does not animate; nothing errors.
 - `web/src/design-system/compositions/EmptyState.tsx` — the wrapper exists for two deltas the
   registry does not carry: `role="status"`, and `title` being optional.
+- `web/src/design-system/tokens/tokens.css` — `--swatch-foreground` is theme-independent on purpose:
+  it sits on server-supplied `glyph_color` values, which are saturated and dark in both themes, so
+  `--foreground` is wrong by construction in light mode.
+- `web/.storybook/preview.tsx` — the theme default is env-driven so the a11y suite can be run in
+  light as well as dark. It is not in `task check` because the light run cannot pass until the
+  Storybook vitest project actually emits Tailwind utilities.
