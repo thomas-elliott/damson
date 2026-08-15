@@ -236,9 +236,18 @@ Atomic components with no domain knowledge. All live under
   in the installed file** — editing `components/ui/button.tsx` would be silently
   undone by the next `shadcn add`. This is the estate's worked example of copy-in
   ownership; see `Button.test.tsx`, which fails if the wrapper is bypassed.
-- **`IconButton`** — square `size: sm|md` (24/34px), `active` highlights
-  with the hover surface, used in toolbars and rails. Damson-owned; a candidate to
-  publish as `@shared/icon-button`.
+- **`IconButton`** — `@shared/icon-button`, and a **pure re-export** rather than a
+  wrapper: unlike `Button`, Damson has nothing to override. Square `size: sm|md|lg`
+  (28/32/36px), matching `Button`'s heights so the two line up in a toolbar; same four
+  variants, defaulting to `ghost`; `pressed` via `data-pressed`. `aria-label` is
+  required by the type — that guard is why it is a component and not `size="icon"`.
+
+  Two things to know when calling it. The size step also sets the icon
+  (`sm` → 14px, `md`/`lg` → 16px) via `[&_svg:not([class*='size-'])]`, so a `size={n}`
+  prop on a Lucide icon inside it is overridden and should be dropped — pass a
+  `size-*` class if you really need a different one. And `variant="destructive"` is
+  **filled**, not the soft red `Button` gives you: the destructive softening lives in
+  `Button.tsx`'s wrapper, which this component does not share. No call site uses it yet.
 - **`SegmentedControl<T>`** — generic over a value type; options can be
   icon-only or text. Used for grid/list toggles and density picks.
 

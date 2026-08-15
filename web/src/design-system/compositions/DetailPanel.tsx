@@ -96,8 +96,8 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
         <div className="flex-1 truncate text-subhead text-foreground">{title}</div>
         {actions && <div className="flex items-center gap-1">{actions}</div>}
         {onClose && (
-          <IconButton aria-label="Close details" onClick={onClose}>
-            <X size={14} />
+          <IconButton aria-label="Close details" size="sm" onClick={onClose}>
+            <X />
           </IconButton>
         )}
       </header>

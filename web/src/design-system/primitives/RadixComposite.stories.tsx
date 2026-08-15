@@ -73,13 +73,13 @@ export const TooltipExample: Story = {
   render: () => (
     <div className="flex items-center gap-4">
       <SimpleTooltip label="Library" side="bottom">
-        <IconButton aria-label="Library">
-          <Settings size={14} />
+        <IconButton size="sm" aria-label="Library">
+          <Settings />
         </IconButton>
       </SimpleTooltip>
       <SimpleTooltip label="Download asset" side="right">
-        <IconButton aria-label="Download">
-          <Download size={14} />
+        <IconButton size="sm" aria-label="Download">
+          <Download />
         </IconButton>
       </SimpleTooltip>
     </div>
@@ -128,8 +128,8 @@ export const PopoverExample: Story = {
   render: () => (
     <Popover>
       <PopoverTrigger asChild>
-        <IconButton aria-label="More">
-          <MoreHorizontal size={14} />
+        <IconButton size="sm" aria-label="More">
+          <MoreHorizontal />
         </IconButton>
       </PopoverTrigger>
       <PopoverContent className="min-w-[240px]">

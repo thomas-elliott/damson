@@ -43,8 +43,8 @@ export function FileSelectionBar({
               <Plus size={12} /> New subset
             </Button>
           )}
-          <IconButton aria-label="Clear selection" onClick={onClear}>
-            <X size={13} />
+          <IconButton aria-label="Clear selection" size="sm" onClick={onClear}>
+            <X />
           </IconButton>
         </>
       }

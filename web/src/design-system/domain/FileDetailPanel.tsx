@@ -74,18 +74,18 @@ export function FileDetailPanel({
       className="flex h-full flex-col border-l border-border bg-card text-foreground"
     >
       <header className="flex shrink-0 items-center gap-1 border-b border-border px-3.5 py-2.5">
-        <IconButton aria-label="Previous file" onClick={onPrev} title="Previous (↑)">
-          <ChevronLeft size={14} />
+        <IconButton aria-label="Previous file" size="sm" onClick={onPrev} title="Previous (↑)">
+          <ChevronLeft />
         </IconButton>
-        <IconButton aria-label="Next file" onClick={onNext} title="Next (↓)">
-          <ChevronRight size={14} />
+        <IconButton aria-label="Next file" size="sm" onClick={onNext} title="Next (↓)">
+          <ChevronRight />
         </IconButton>
         <span className="text-mono tabular-nums text-subtle-foreground">
           {index + 1} / {total}
         </span>
         <div className="flex-1" />
-        <IconButton aria-label="Close details" onClick={onClose} title="Close (Esc)">
-          <X size={14} />
+        <IconButton aria-label="Close details" size="sm" onClick={onClose} title="Close (Esc)">
+          <X />
         </IconButton>
       </header>
 

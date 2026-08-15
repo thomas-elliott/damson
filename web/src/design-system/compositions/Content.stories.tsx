@@ -94,11 +94,11 @@ export const DetailPanelExample: Story = {
         title="Stylised Sprite Pack v1.2"
         actions={
           <>
-            <IconButton aria-label="Expand">
-              <Maximize2 size={14} />
+            <IconButton size="sm" aria-label="Expand">
+              <Maximize2 />
             </IconButton>
-            <IconButton aria-label="More">
-              <MoreHorizontal size={14} />
+            <IconButton size="sm" aria-label="More">
+              <MoreHorizontal />
             </IconButton>
           </>
         }
@@ -156,8 +156,8 @@ export const FullPageViewExample: Story = {
             <Button variant="secondary" leadingIcon={<ExternalLink size={12} />}>
               Source
             </Button>
-            <IconButton aria-label="Close">
-              <Maximize2 size={14} />
+            <IconButton size="sm" aria-label="Close">
+              <Maximize2 />
             </IconButton>
           </>
         }
@@ -210,14 +210,14 @@ export const SelectionBarExample: Story = {
           count={count}
           actions={
             <>
-              <IconButton aria-label="Pin">
-                <Pin size={14} />
+              <IconButton size="sm" aria-label="Pin">
+                <Pin />
               </IconButton>
-              <IconButton aria-label="Delete">
-                <Trash2 size={14} />
+              <IconButton size="sm" aria-label="Delete">
+                <Trash2 />
               </IconButton>
-              <IconButton aria-label="More">
-                <MoreHorizontal size={14} />
+              <IconButton size="sm" aria-label="More">
+                <MoreHorizontal />
               </IconButton>
             </>
           }

@@ -204,14 +204,14 @@ export const LibraryView: Story = {
                 count={selected}
                 actions={
                   <>
-                    <IconButton aria-label="Pin">
-                      <Pin size={14} />
+                    <IconButton size="sm" aria-label="Pin">
+                      <Pin />
                     </IconButton>
-                    <IconButton aria-label="Delete" onClick={() => setSelected(0)}>
-                      <Trash2 size={14} />
+                    <IconButton size="sm" aria-label="Delete" onClick={() => setSelected(0)}>
+                      <Trash2 />
                     </IconButton>
-                    <IconButton aria-label="More">
-                      <MoreHorizontal size={14} />
+                    <IconButton size="sm" aria-label="More">
+                      <MoreHorizontal />
                     </IconButton>
                   </>
                 }
@@ -220,8 +220,8 @@ export const LibraryView: Story = {
                 <DetailPanel
                   title="Stylised Sprite Pack v1.2"
                   actions={
-                    <IconButton aria-label="Expand">
-                      <Maximize2 size={14} />
+                    <IconButton size="sm" aria-label="Expand">
+                      <Maximize2 />
                     </IconButton>
                   }
                   onClose={() => setDetailOpen(false)}

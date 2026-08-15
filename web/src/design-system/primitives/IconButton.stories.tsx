@@ -6,6 +6,19 @@ import { IconButton } from "./IconButton";
 const meta: Meta<typeof IconButton> = {
   title: "Primitives/IconButton",
   component: IconButton,
+  args: { "aria-label": "More actions", children: <MoreHorizontal /> },
+  argTypes: {
+    variant: {
+      control: { type: "select" },
+      options: ["primary", "secondary", "ghost", "destructive"],
+    },
+    size: {
+      control: { type: "inline-radio" },
+      options: ["sm", "md", "lg"],
+    },
+    disabled: { control: { type: "boolean" } },
+    pressed: { control: { type: "boolean" } },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof IconButton>;
@@ -14,10 +27,13 @@ export const Sizes: Story = {
   render: () => (
     <div className="flex items-center gap-3">
       <IconButton aria-label="Close" size="sm">
-        <X size={14} />
+        <X />
       </IconButton>
       <IconButton aria-label="Close" size="md">
-        <X size={16} />
+        <X />
+      </IconButton>
+      <IconButton aria-label="Close" size="lg">
+        <X />
       </IconButton>
     </div>
   ),
@@ -26,20 +42,20 @@ export const Sizes: Story = {
 export const Row: Story = {
   render: () => (
     <div className="flex items-center gap-1">
-      <IconButton aria-label="Previous">
-        <ChevronLeft size={14} />
+      <IconButton aria-label="Previous" size="sm">
+        <ChevronLeft />
       </IconButton>
-      <IconButton aria-label="Next">
-        <ChevronRight size={14} />
+      <IconButton aria-label="Next" size="sm">
+        <ChevronRight />
       </IconButton>
-      <IconButton aria-label="Search">
-        <Search size={14} />
+      <IconButton aria-label="Search" size="sm">
+        <Search />
       </IconButton>
-      <IconButton aria-label="Download">
-        <Download size={14} />
+      <IconButton aria-label="Download" size="sm">
+        <Download />
       </IconButton>
-      <IconButton aria-label="More">
-        <MoreHorizontal size={14} />
+      <IconButton aria-label="More" size="sm">
+        <MoreHorizontal />
       </IconButton>
     </div>
   ),
@@ -59,14 +75,14 @@ export const AllStates: Story = {
           <span className="w-20 font-mono text-label text-subtle-foreground">{row.label}</span>
           <div className={row.cls}>
             <div className="flex items-center gap-1">
-              <IconButton aria-label="Previous">
-                <ChevronLeft size={14} />
+              <IconButton aria-label="Previous" size="sm">
+                <ChevronLeft />
               </IconButton>
-              <IconButton aria-label="More">
-                <MoreHorizontal size={14} />
+              <IconButton aria-label="More" size="sm">
+                <MoreHorizontal />
               </IconButton>
-              <IconButton aria-label="Previous" active>
-                <ChevronLeft size={14} />
+              <IconButton aria-label="Previous" size="sm" pressed aria-pressed>
+                <ChevronLeft />
               </IconButton>
             </div>
           </div>
@@ -75,11 +91,11 @@ export const AllStates: Story = {
       <div className="flex items-center gap-3">
         <span className="w-20 font-mono text-label text-subtle-foreground">Disabled</span>
         <div className="flex items-center gap-1">
-          <IconButton aria-label="Previous" disabled>
-            <ChevronLeft size={14} />
+          <IconButton aria-label="Previous" size="sm" disabled>
+            <ChevronLeft />
           </IconButton>
-          <IconButton aria-label="More" disabled>
-            <MoreHorizontal size={14} />
+          <IconButton aria-label="More" size="sm" disabled>
+            <MoreHorizontal />
           </IconButton>
         </div>
       </div>

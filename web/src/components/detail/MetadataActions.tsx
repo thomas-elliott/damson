@@ -64,9 +64,12 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
           <div className="truncate text-ui text-foreground">{c.title}</div>
           <div className="truncate text-mono text-subtle-foreground">{candidateSubtitle(c)}</div>
         </button>
-        <IconButton aria-label={expanded ? "Collapse details" : "Expand details"} onClick={toggle}>
+        <IconButton
+          aria-label={expanded ? "Collapse details" : "Expand details"}
+          size="sm"
+          onClick={toggle}
+        >
           <ChevronDown
-            size={14}
             className={`transition-transform duration-std ease ${expanded ? "rotate-180" : ""}`}
           />
         </IconButton>
