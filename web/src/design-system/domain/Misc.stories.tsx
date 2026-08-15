@@ -57,8 +57,8 @@ export const Queue: Story = {
         }
         progress={42}
         actions={
-          <IconButton aria-label="Cancel upload">
-            <X size={14} />
+          <IconButton size="sm" aria-label="Cancel upload">
+            <X />
           </IconButton>
         }
       />

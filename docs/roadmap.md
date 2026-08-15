@@ -14,8 +14,28 @@ Created 2026-08-15 from the specs, at which point all 14 were implemented and no
 
 ## Next  (ordered — the queue for sitting-down time or an agent)
 
-*Empty — the design system slice moved to `In flight` on 2026-08-15. Promote something from `Shaped`
-when it lands.*
+### Turn the Storybook a11y gate back on
+
+Intent: apply the one-line fix that makes the `storybook` Vitest project emit Tailwind, then clear
+what it finds.
+
+Why now: the gate has been green while checking unstyled components since it was added, so
+`a11y.test = "error"` currently proves nothing about colour. The config half is a known one-liner,
+already proven in `shared-design` (`4135476`); the work is the palette decisions behind it.
+
+Decisions so far: none — that is the point. Measured 2026-08-15, the fix yields 9 failures over 4
+story files and three questions. **(a)** `--subtle-foreground` is used for 10–12px labels on
+`--card` at 3.96–4.34:1, and the tier is documented as deliberately sub-AA decorative — so either
+those labels move to `--muted-foreground`, or the tier is exempted where it is genuinely decorative,
+per `shared-design`'s `TextTiers` precedent. **(b)** a `destructive`-on-`destructive-soft` pairing
+at 4.42:1. **(c)** a Markdown link at 1.13:1 against surrounding body text, which is a link-affordance
+question, not just a colour one. Note `shared-design` darkened its own `--destructive` for (b)-shaped
+reasons; damson overrides that token, so it does not inherit the fix.
+
+Spec-ready: no — (a) and (c) need a decision before anything is written.
+
+*Nothing else queued — the design system slice moved to `In flight` on 2026-08-15. Promote something
+from `Shaped` when it lands.*
 
 ---
 

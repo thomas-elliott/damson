@@ -364,9 +364,16 @@ deleting the only test of the mechanism.
 - **Report the dissolved third sighting to `shared-design`** — damson's `--ds-surface-2` decomposed
   into three existing roles rather than needing a name. taskmanager's and mangapack's second upward
   steps should be re-examined the same way before a name is minted.
-- **`Button` and `IconButton` heights, looked at side by side** — the registry's `h-7/8/9` is a
-  midpoint between damson's compact `h-6/h-7` and dialogue-db's 30px, and nobody has yet compared
-  them in one place. Adopting the registry `Button` here is what finally puts them side by side.
+- ~~**`Button` and `IconButton` heights, looked at side by side**~~ — **done in stage 9.**
+  `shared-design`'s `IconButton` `ToolbarAlignment` story renders both at all three sizes and its
+  `play` asserts the heights match, so the midpoint is now enforced rather than assumed.
+- **`icon-button` duplicates `button`'s four variant class lists in `shared-design`**, because
+  importing them would make it a Composition under that repo's title-group rule. Nothing detects
+  drift between the two. Raised on that repo's roadmap; damson is only exposed to the consequences.
+- **damson's `IconButton` `variant="destructive"` is filled, not soft** — the soft-red override lives
+  in `Button.tsx`'s wrapper and `IconButton` is a pure re-export, so the two disagree. No call site
+  uses it, so this is latent rather than a live inconsistency; resolving it means either a second
+  wrapper or `destructive-subtle` landing upstream.
 - **Migrate the nine `rounded-[3px]` arbitraries** onto a scale value — they predate the token system
   and the guardrail does not flag non-colour arbitraries.
 - **Dark-mode a11y coverage for damson's own palette** — `shared-design`'s gate has only ever checked
@@ -435,3 +442,15 @@ reason about later.
 - `web/.storybook/preview.tsx` — the theme default is env-driven so the a11y suite can be run in
   light as well as dark. It is not in `task check` because the light run cannot pass until the
   Storybook vitest project actually emits Tailwind utilities.
+- `web/src/design-system/primitives/IconButton.tsx` — a re-export, not a wrapper, and the difference
+  is deliberate: `Button.tsx` next to it is a wrapper *only* because of the soft-red destructive.
+  A reader who sees the two side by side should be able to tell that this one has nothing to override.
+- `web/src/components/detail/AssetDetailPanel.tsx` (fullscreen close) — `hover:text-white` is not
+  redundant with `text-white`. The registry's `ghost` variant carries `hover:text-foreground`, which
+  survives `tailwind-merge` because it is a different modifier, and in light theme that is near-black
+  on a black/80 overlay.
+- `web/src/components/detail/AssetDetailPanel.tsx` (version row) — the two `Input`s moved `h-6` → `h-7`
+  to stay level with the `IconButton`s beside them, which are now 28px rather than 24px.
+- Call sites generally — the `size={n}` props were dropped from Lucide icons inside `IconButton`
+  because the size variant sets the icon via `[&_svg:not([class*='size-'])]`, so the prop was being
+  overridden by CSS and lying about what rendered.

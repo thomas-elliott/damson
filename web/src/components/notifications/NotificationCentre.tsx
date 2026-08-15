@@ -61,8 +61,8 @@ export function NotificationCentre() {
     >
       <header className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <h2 className="text-ui font-semibold text-foreground">Notifications</h2>
-        <IconButton aria-label="Minimise notifications" onClick={() => setOpen(false)}>
-          <Minus size={15} />
+        <IconButton aria-label="Minimise notifications" size="sm" onClick={() => setOpen(false)}>
+          <Minus />
         </IconButton>
       </header>
 
