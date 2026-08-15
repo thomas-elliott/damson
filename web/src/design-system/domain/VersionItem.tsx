@@ -48,12 +48,12 @@ export function VersionItem({
               <span className="font-mono text-list-row font-medium text-foreground">
                 {storeVersion}
               </span>
-              <span className="text-label text-subtle-foreground">{version}</span>
+              <span className="text-overline text-subtle-foreground">{version}</span>
             </>
           ) : (
             <span className="font-mono text-list-row font-medium text-foreground">{version}</span>
           )}
-          {current && <span className="text-label text-primary">Current</span>}
+          {current && <span className="text-overline text-primary">Current</span>}
           {action && <span className="ml-auto">{action}</span>}
         </div>
         {notes && <div className="mt-0.5 text-muted-foreground">{notes}</div>}
