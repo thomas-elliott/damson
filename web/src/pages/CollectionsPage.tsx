@@ -48,7 +48,7 @@ export function CollectionsPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading collections…
             </div>
           ) : collections.length === 0 ? (
@@ -138,7 +138,7 @@ function NewCollectionDialog({
               rows={2}
             />
           </FieldRow>
-          {error && <div className="text-small text-err">{error}</div>}
+          {error && <div className="text-small text-destructive">{error}</div>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

@@ -57,8 +57,8 @@ export const Queue: Story = {
         }
         progress={42}
         actions={
-          <IconButton aria-label="Cancel upload">
-            <X size={14} />
+          <IconButton size="sm" aria-label="Cancel upload">
+            <X />
           </IconButton>
         }
       />
@@ -74,7 +74,9 @@ export const Queue: Story = {
         }
         actions={
           <>
-            <Button size="sm">Review</Button>
+            <Button variant="secondary" size="sm">
+              Review
+            </Button>
             <Button size="sm" variant="primary" leadingIcon={<Check size={12} />}>
               Confirm
             </Button>
@@ -157,7 +159,7 @@ export const Versions: Story = {
 export const Activity: Story = {
   parameters: { layout: "padded" },
   render: () => (
-    <div className="overflow-hidden rounded-md border border-line bg-bg">
+    <div className="overflow-hidden rounded-md border border-border bg-background">
       <ActivityRow
         timestamp="2026-04-24 14:12"
         actor="librarian@example.com"

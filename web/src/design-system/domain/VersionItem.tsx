@@ -20,7 +20,7 @@ export interface VersionItemProps extends HTMLAttributes<HTMLDivElement> {
 
 const baseClasses =
   "flex w-full items-start gap-2.5 rounded-sm border-l-2 border-transparent px-2 py-2 text-left text-small transition-colors duration-std ease";
-const currentClasses = "border-accent bg-accent-tint";
+const currentClasses = "border-primary bg-primary-soft";
 
 /**
  * Timeline entry in an asset's version history. Current version gets an
@@ -45,20 +45,22 @@ export function VersionItem({
         <div className="flex items-center gap-2">
           {storeVersion ? (
             <>
-              <span className="font-mono text-list-row font-medium text-text">{storeVersion}</span>
-              <span className="text-label text-text-3">{version}</span>
+              <span className="font-mono text-list-row font-medium text-foreground">
+                {storeVersion}
+              </span>
+              <span className="text-label text-subtle-foreground">{version}</span>
             </>
           ) : (
-            <span className="font-mono text-list-row font-medium text-text">{version}</span>
+            <span className="font-mono text-list-row font-medium text-foreground">{version}</span>
           )}
-          {current && <span className="text-label text-accent">Current</span>}
+          {current && <span className="text-label text-primary">Current</span>}
           {action && <span className="ml-auto">{action}</span>}
         </div>
-        {notes && <div className="mt-0.5 text-text-2">{notes}</div>}
+        {notes && <div className="mt-0.5 text-muted-foreground">{notes}</div>}
       </div>
       <div className="flex flex-col items-end gap-0.5 text-right">
-        <span className="text-mono tabular-nums text-text-3">{date}</span>
-        {meta && <span className="text-mono tabular-nums text-text-3">{meta}</span>}
+        <span className="text-mono tabular-nums text-subtle-foreground">{date}</span>
+        {meta && <span className="text-mono tabular-nums text-subtle-foreground">{meta}</span>}
       </div>
     </>
   );
@@ -70,7 +72,7 @@ export function VersionItem({
         onClick={onSelect}
         className={cn(
           baseClasses,
-          "cursor-pointer hover:bg-surface focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
+          "cursor-pointer hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           current && currentClasses,
           className,
         )}

@@ -13,12 +13,12 @@ export const Slider = forwardRef<React.ElementRef<typeof RadixSlider.Root>, Slid
         className={cn("relative flex w-full touch-none select-none items-center", className)}
         {...props}
       >
-        <RadixSlider.Track className="relative h-[3px] grow overflow-hidden rounded-full bg-line">
-          <RadixSlider.Range className="absolute h-full bg-accent" />
+        <RadixSlider.Track className="relative h-[3px] grow overflow-hidden rounded-full bg-border">
+          <RadixSlider.Range className="absolute h-full bg-primary" />
         </RadixSlider.Track>
         <RadixSlider.Thumb
           aria-label="Value"
-          className="block h-3 w-3 rounded-full border-2 border-panel bg-accent outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring"
+          className="block h-3 w-3 rounded-full border-2 border-card bg-primary outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         />
       </RadixSlider.Root>
     );

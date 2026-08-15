@@ -86,8 +86,8 @@ export function Waveform({ seed = 1, className, style }: { seed?: number } & Thu
     >
       <defs>
         <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="var(--ds-accent)" stopOpacity="0.85" />
-          <stop offset="1" stopColor="var(--ds-accent-2)" stopOpacity="0.55" />
+          <stop offset="0" stopColor="var(--primary)" stopOpacity="0.85" />
+          <stop offset="1" stopColor="var(--primary-hover)" stopOpacity="0.55" />
         </linearGradient>
       </defs>
       {heights.map((ht, i) => {
@@ -306,7 +306,7 @@ export function FontThumb({
     <div
       aria-hidden
       className={cn(
-        "grid h-full w-full place-items-center bg-surface text-[44px] font-bold leading-none text-text",
+        "grid h-full w-full place-items-center bg-muted text-[44px] font-bold leading-none text-foreground",
         className,
       )}
       style={{ fontFamily: family, ...style }}
@@ -320,7 +320,10 @@ export function UnknownThumb({ className, style }: ThumbChildProps) {
   return (
     <div
       aria-hidden
-      className={cn("grid h-full w-full place-items-center bg-surface text-text-3", className)}
+      className={cn(
+        "grid h-full w-full place-items-center bg-muted text-subtle-foreground",
+        className,
+      )}
       style={style}
     >
       <File size={28} strokeWidth={1.25} />

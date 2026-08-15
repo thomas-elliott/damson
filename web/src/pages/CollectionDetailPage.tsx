@@ -50,7 +50,7 @@ export function CollectionDetailPage() {
             </Breadcrumb>
             <ToolbarSpacer />
             <Button
-              variant="danger"
+              variant="destructive"
               leadingIcon={<Trash2 size={12} />}
               onClick={async () => {
                 if (!collection) return;
@@ -58,7 +58,7 @@ export function CollectionDetailPage() {
                   title: `Delete collection "${collection.name}"?`,
                   description: "Assets stay in your library — only the collection is removed.",
                   confirmLabel: "Delete collection",
-                  tone: "danger",
+                  tone: "destructive",
                 });
                 if (ok) {
                   del.mutate(collection.id, {
@@ -72,7 +72,7 @@ export function CollectionDetailPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-text-3">
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading…
             </div>
           ) : !collection ? (

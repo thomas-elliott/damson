@@ -68,7 +68,7 @@ export function BulkAssetBar({ assetIds, onClear }: { assetIds: number[]; onClea
       title: `Delete ${count} asset${count === 1 ? "" : "s"}?`,
       description: "This removes the assets and their versions. Stored blobs are reclaimed later.",
       confirmLabel: "Delete",
-      tone: "danger",
+      tone: "destructive",
     });
     if (ok) run({ action: "delete" }, "Deleted");
   };
@@ -99,7 +99,7 @@ export function BulkAssetBar({ assetIds, onClear }: { assetIds: number[]; onClea
             <Button size="sm" variant="ghost" onClick={() => setDialog("licence")}>
               Licence
             </Button>
-            <Button size="sm" variant="danger" onClick={() => void deleteSelected()}>
+            <Button size="sm" variant="destructive" onClick={() => void deleteSelected()}>
               Delete
             </Button>
             <Button size="sm" variant="ghost" onClick={onClear}>

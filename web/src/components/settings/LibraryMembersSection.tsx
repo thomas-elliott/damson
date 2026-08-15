@@ -76,10 +76,10 @@ export function LibraryMembersSection({
             return (
               <div
                 key={m.user_id}
-                className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
+                className="flex items-center gap-3 border-b border-border py-2 last:border-b-0"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-ui text-text">{m.display_name}</div>
+                  <div className="truncate text-ui text-foreground">{m.display_name}</div>
                   <div className="truncate text-caption">{m.email}</div>
                 </div>
                 {m.global_role === "sysadmin" && (
@@ -151,7 +151,7 @@ export function LibraryMembersSection({
                           title: `Remove ${m.display_name}?`,
                           description: "They'll lose access to this library.",
                           confirmLabel: "Remove",
-                          tone: "danger",
+                          tone: "destructive",
                         });
                         if (ok) remove.mutate({ libraryId, userId: m.user_id });
                       }}
@@ -263,7 +263,7 @@ function InviteMemberDialog({
               identities in your provider.
             </p>
           )}
-          {error && <p className="text-small text-err">{error}</p>}
+          {error && <p className="text-small text-destructive">{error}</p>}
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

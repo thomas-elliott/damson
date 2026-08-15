@@ -70,14 +70,14 @@ export default function ZipPreview({ node }: { node: FileNode }) {
 
   if (!ready) {
     return (
-      <div className="grid h-full w-full place-items-center text-ui text-text-3">
+      <div className="grid h-full w-full place-items-center text-ui text-subtle-foreground">
         Reading archive…
       </div>
     );
   }
   if (ready.error) {
     return (
-      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-text-3">
+      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-subtle-foreground">
         {ready.error}
       </div>
     );
@@ -85,22 +85,25 @@ export default function ZipPreview({ node }: { node: FileNode }) {
 
   const entries = ready.entries ?? [];
   return (
-    <div className="flex h-full w-full flex-col overflow-auto bg-surface text-left">
-      <div className="sticky top-0 border-b border-line bg-surface px-3 py-2 text-small text-text-3">
+    <div className="flex h-full w-full flex-col overflow-auto bg-muted text-left">
+      <div className="sticky top-0 border-b border-border bg-muted px-3 py-2 text-small text-subtle-foreground">
         {entries.length} {entries.length === 1 ? "file" : "files"} — listing only, nothing extracted
       </div>
-      <ul className="divide-y divide-line">
+      <ul className="divide-y divide-border">
         {entries.map((e) => (
           <li key={e.name} className="flex items-center gap-2 px-3 py-1.5 text-small">
-            <span className="min-w-0 flex-1 truncate font-mono text-text-2" title={e.name}>
+            <span
+              className="min-w-0 flex-1 truncate font-mono text-muted-foreground"
+              title={e.name}
+            >
               {e.name}
             </span>
             {e.ratio > SUSPICIOUS_RATIO && (
-              <span className="shrink-0 rounded-sm bg-warn-tint px-1.5 text-[10px] text-warn">
+              <span className="shrink-0 rounded-sm bg-warning-soft px-1.5 text-[10px] text-warning">
                 {Math.round(e.ratio)}× ratio
               </span>
             )}
-            <span className="shrink-0 font-mono tabular-nums text-text-4">
+            <span className="shrink-0 font-mono tabular-nums text-faint-foreground">
               {formatBytes(e.size)}
             </span>
           </li>

@@ -10,7 +10,7 @@ const meta: Meta<typeof Button> = {
   argTypes: {
     variant: {
       control: { type: "select" },
-      options: ["primary", "secondary", "ghost", "danger"],
+      options: ["primary", "secondary", "ghost", "destructive"],
     },
     size: {
       control: { type: "inline-radio" },
@@ -27,7 +27,7 @@ export const Primary: Story = { args: { variant: "primary" } };
 export const Secondary: Story = { args: { variant: "secondary" } };
 export const Ghost: Story = { args: { variant: "ghost" } };
 export const Danger: Story = {
-  args: { variant: "danger", children: "Delete" },
+  args: { variant: "destructive", children: "Delete" },
 };
 
 export const Variants: Story = {
@@ -36,7 +36,7 @@ export const Variants: Story = {
       <Button variant="primary">Primary</Button>
       <Button variant="secondary">Secondary</Button>
       <Button variant="ghost">Ghost</Button>
-      <Button variant="danger">Danger</Button>
+      <Button variant="destructive">Danger</Button>
     </div>
   ),
 };
@@ -47,8 +47,10 @@ export const WithIcons: Story = {
       <Button variant="primary" leadingIcon={<Plus size={12} />}>
         Create
       </Button>
-      <Button leadingIcon={<Download size={12} />}>Export</Button>
-      <Button variant="danger" leadingIcon={<Trash2 size={12} />}>
+      <Button variant="secondary" leadingIcon={<Download size={12} />}>
+        Export
+      </Button>
+      <Button variant="destructive" leadingIcon={<Trash2 size={12} />}>
         Delete
       </Button>
     </div>
@@ -58,8 +60,12 @@ export const WithIcons: Story = {
 export const Sizes: Story = {
   render: () => (
     <div className="flex items-center gap-2">
-      <Button size="sm">Small</Button>
-      <Button size="md">Medium</Button>
+      <Button variant="secondary" size="sm">
+        Small
+      </Button>
+      <Button variant="secondary" size="md">
+        Medium
+      </Button>
       <Button size="sm" variant="primary">
         Small primary
       </Button>
@@ -75,19 +81,19 @@ type StateRowProps = { label: string; pseudoClass?: string };
 function StateRow({ label, pseudoClass, children }: React.PropsWithChildren<StateRowProps>) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-20 font-mono text-label text-text-3">{label}</span>
+      <span className="w-20 font-mono text-label text-subtle-foreground">{label}</span>
       <div className={pseudoClass}>{children}</div>
     </div>
   );
 }
 
 const ROW_VARIANTS: Array<{
-  variant: "primary" | "secondary" | "ghost" | "danger";
+  variant: "primary" | "secondary" | "ghost" | "destructive";
 }> = [
   { variant: "primary" },
   { variant: "secondary" },
   { variant: "ghost" },
-  { variant: "danger" },
+  { variant: "destructive" },
 ];
 
 /**

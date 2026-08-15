@@ -13,7 +13,7 @@ export const Separator = forwardRef<React.ElementRef<typeof RadixSeparator.Root>
         orientation={orientation}
         decorative={decorative}
         className={cn(
-          "shrink-0 bg-line",
+          "shrink-0 bg-border",
           orientation === "horizontal" ? "h-px w-full" : "h-[18px] w-px",
           className,
         )}

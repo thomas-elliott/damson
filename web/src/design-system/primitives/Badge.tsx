@@ -5,16 +5,16 @@ import { cn, cva, type VariantProps } from "@/design-system/utils";
 const badge = cva("inline-flex items-center gap-1 whitespace-nowrap border font-medium", {
   variants: {
     tone: {
-      neutral: "bg-surface text-text-2 border-line",
-      accent: "bg-accent-tint text-accent border-transparent",
-      ok: "bg-ok-tint text-ok border-transparent",
-      warn: "bg-warn-tint text-warn border-transparent",
-      err: "bg-err-tint text-err border-transparent",
-      unk: "bg-unk-tint text-unk border-transparent",
+      neutral: "bg-muted text-muted-foreground border-border",
+      accent: "bg-primary-soft text-primary border-transparent",
+      ok: "bg-success-soft text-success border-transparent",
+      warn: "bg-warning-soft text-warning border-transparent",
+      err: "bg-destructive-soft text-destructive border-transparent",
+      unk: "bg-unknown-soft text-unknown border-transparent",
     },
     shape: {
       rect: "rounded-sm",
-      pill: "rounded-pill",
+      pill: "rounded-full",
     },
     size: {
       sm: "h-[20px] px-1.5 text-small",

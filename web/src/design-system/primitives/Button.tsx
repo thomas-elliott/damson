@@ -1,87 +1,28 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import {
+  Button as RegistryButton,
+  buttonVariants,
+  type ButtonProps as RegistryButtonProps,
+} from "@/components/ui/button";
+import { cn } from "@/design-system/utils";
 
-import { cn, cva, type VariantProps } from "@/design-system/utils";
+// A wrapper rather than an edit to components/ui/button.tsx, which the next
+// `shadcn add` overwrites. Button.test.tsx fails if a call site bypasses this.
+const SOFT_DESTRUCTIVE = [
+  "bg-destructive-soft text-destructive border-destructive/40",
+  "hover:bg-destructive/20 hover:border-destructive/60",
+  "active:bg-destructive/25",
+  "data-[pressed=true]:bg-destructive/25",
+].join(" ");
 
-const button = cva(
-  [
-    "inline-flex items-center justify-center gap-1.5 rounded-sm font-medium whitespace-nowrap",
-    "transition-colors duration-std ease",
-    "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent-ring",
-    "disabled:cursor-not-allowed disabled:opacity-40",
-  ],
-  {
-    variants: {
-      variant: {
-        // Filled — primary call to action.
-        primary: [
-          "bg-accent text-accent-fg border border-transparent",
-          "hover:bg-accent-2",
-          "active:bg-accent-2",
-          "data-[pressed=true]:bg-accent-2",
-        ],
-        // Bordered neutral — visible weight at rest.
-        secondary: [
-          "bg-surface text-text-2 border border-line",
-          "hover:bg-surface-2 hover:text-text hover:border-line-2",
-          "active:bg-surface-2",
-          "data-[pressed=true]:bg-surface-2 data-[pressed=true]:text-text data-[pressed=true]:border-line-2",
-        ],
-        // Minimal — transparent at rest, reveals on hover.
-        ghost: [
-          "bg-transparent text-text-3 border border-transparent",
-          "hover:bg-surface hover:text-text",
-          "active:bg-surface",
-          "data-[pressed=true]:bg-surface data-[pressed=true]:text-text",
-        ],
-        // Destructive — muted red tint with red text.
-        danger: [
-          "bg-err-tint text-err border border-err/40",
-          "hover:bg-err/20 hover:border-err/60",
-          "active:bg-err/25",
-          "data-[pressed=true]:bg-err/25",
-        ],
-      },
-      size: {
-        sm: "h-6 px-2 text-small",
-        md: "h-7 px-2.5 text-ui",
-      },
-    },
-    defaultVariants: { variant: "secondary", size: "md" },
-  },
-);
+export type ButtonProps = RegistryButtonProps;
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof button> & {
-    leadingIcon?: ReactNode;
-    trailingIcon?: ReactNode;
-    pressed?: boolean;
-  };
+export function Button({ variant, className, ...props }: ButtonProps) {
+  if (variant === "destructive") {
+    return (
+      <RegistryButton variant="secondary" className={cn(SOFT_DESTRUCTIVE, className)} {...props} />
+    );
+  }
+  return <RegistryButton variant={variant} className={className} {...props} />;
+}
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  {
-    className,
-    variant,
-    size,
-    leadingIcon,
-    trailingIcon,
-    pressed,
-    children,
-    type = "button",
-    ...props
-  },
-  ref,
-) {
-  return (
-    <button
-      ref={ref}
-      type={type}
-      data-pressed={pressed ? "true" : undefined}
-      className={cn(button({ variant, size }), className)}
-      {...props}
-    >
-      {leadingIcon}
-      {children}
-      {trailingIcon}
-    </button>
-  );
-});
+export { buttonVariants };

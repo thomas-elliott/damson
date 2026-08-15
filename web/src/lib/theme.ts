@@ -1,9 +1,8 @@
-// Theme state management — lives in localStorage so the user's choice
-// survives reloads and isn't blocked on /api/settings. The library's
-// `theme_default` is the seed when there's no stored preference yet.
 import { applyTheme, type ThemeMode } from "@/design-system/tokens";
 
 const STORAGE_KEY = "damson.theme";
+
+const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 export function readStoredTheme(): ThemeMode | null {
   try {
@@ -27,19 +26,31 @@ export function writeStoredTheme(mode: ThemeMode | null) {
   }
 }
 
-// applyAndStore is the single mutation entrypoint used by the toggle and the
-// initial bootstrap so both follow the same path.
+export function systemTheme(): ThemeMode {
+  try {
+    return window.matchMedia(DARK_QUERY).matches ? "dark" : "light";
+  } catch {
+    return "dark";
+  }
+}
+
+export function watchSystemTheme(onChange: (mode: ThemeMode) => void): () => void {
+  let mql: MediaQueryList;
+  try {
+    mql = window.matchMedia(DARK_QUERY);
+  } catch {
+    return () => {};
+  }
+  const handler = (e: MediaQueryListEvent) => onChange(e.matches ? "dark" : "light");
+  mql.addEventListener("change", handler);
+  return () => mql.removeEventListener("change", handler);
+}
+
 export function applyAndStore(mode: ThemeMode) {
   applyTheme(mode);
   writeStoredTheme(mode);
 }
 
-// resolveInitialTheme picks an effective theme on app boot. Stored value
-// wins; otherwise we apply the library default (which becomes a no-op `dark`
-// when no library is selected yet).
-export function resolveInitialTheme(libraryDefault?: ThemeMode | null): ThemeMode {
-  const stored = readStoredTheme();
-  if (stored) return stored;
-  if (libraryDefault === "light") return "light";
-  return "dark";
+export function resolveInitialTheme(): ThemeMode {
+  return readStoredTheme() ?? systemTheme();
 }

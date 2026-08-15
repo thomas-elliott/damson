@@ -43,14 +43,16 @@ export function FileSelectionBar({
               <Plus size={12} /> New subset
             </Button>
           )}
-          <IconButton aria-label="Clear selection" onClick={onClear}>
-            <X size={13} />
+          <IconButton aria-label="Clear selection" size="sm" onClick={onClear}>
+            <X />
           </IconButton>
         </>
       }
     >
       {dragHint && (
-        <span className="whitespace-nowrap font-mono text-small text-text-4">{dragHint}</span>
+        <span className="whitespace-nowrap font-mono text-small text-faint-foreground">
+          {dragHint}
+        </span>
       )}
     </SelectionBar>
   );

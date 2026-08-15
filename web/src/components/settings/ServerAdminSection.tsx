@@ -107,7 +107,7 @@ function ServerSettingsFormBody({ settings }: { settings: ServerSettings }) {
       </FieldRow>
       <div className="flex items-center justify-between gap-4 py-2">
         <div className="flex flex-col">
-          <span className="text-ui text-text">Auto-update licence knowledge base</span>
+          <span className="text-ui text-foreground">Auto-update licence knowledge base</span>
           <span className="text-caption">
             When supported, periodically refresh the SPDX overlay from upstream.
           </span>
@@ -148,10 +148,10 @@ function UsersSection() {
             return (
               <div
                 key={u.id}
-                className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
+                className="flex items-center gap-3 border-b border-border py-2 last:border-b-0"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-ui text-text">{u.display_name}</div>
+                  <div className="truncate text-ui text-foreground">{u.display_name}</div>
                   <div className="truncate text-caption">{u.email}</div>
                 </div>
                 {isLastSysadmin ? (
@@ -244,7 +244,7 @@ function ResetPasswordForm({
         <DialogTitle>Reset password</DialogTitle>
       </DialogHeader>
       <DialogBody>
-        <p className="text-ui text-text-2">
+        <p className="text-ui text-muted-foreground">
           Set a new password for <span className="font-mono">{user.email}</span>. Their existing
           sessions will be invalidated.
         </p>

@@ -1,4 +1,4 @@
-/** Shared fixtures for domain-component stories. Shapes mirror docs/mockup/src/data.jsx. */
+/** Shared fixtures for domain-component stories. Shapes mirror docs/archive/mockup/src/data.jsx. */
 import type { ThumbDescriptor } from "./AssetThumb";
 import type { LicenceStatus } from "@/design-system/tokens";
 
@@ -153,7 +153,7 @@ export interface ProjectFixture {
   updated: string;
 }
 
-/* Project glyph colours: OKLCH L<=0.4 so --ds-text (L=0.93) is comfortably
+/* Project glyph colours: OKLCH L<=0.4 so --foreground (L=0.93) is comfortably
  * over WCAG AA (≥5:1) on top. */
 export const PROJECT_FIXTURES: ProjectFixture[] = [
   {

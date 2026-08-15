@@ -51,14 +51,14 @@ export default function AudioPreview({ node }: { node: FileNode }) {
 
   if (failed) {
     return (
-      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-text-3">
+      <div className="grid h-full w-full place-items-center p-4 text-center text-ui text-subtle-foreground">
         Couldn’t decode this audio file.
       </div>
     );
   }
 
   return (
-    <div className="flex h-full w-full flex-col justify-center gap-4 bg-surface p-4">
+    <div className="flex h-full w-full flex-col justify-center gap-4 bg-muted p-4">
       <div ref={containerRef} className="w-full" />
       <div className="flex items-center justify-center">
         <button
@@ -66,12 +66,14 @@ export default function AudioPreview({ node }: { node: FileNode }) {
           aria-label={playing ? "Pause" : "Play"}
           disabled={!ready}
           onClick={() => wsRef.current?.playPause()}
-          className="grid h-11 w-11 place-items-center rounded-full bg-accent text-accent-fg transition hover:bg-accent-2 disabled:opacity-40"
+          className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground transition hover:bg-primary-hover disabled:opacity-40"
         >
           {playing ? <Pause size={18} /> : <Play size={18} className="translate-x-0.5" />}
         </button>
       </div>
-      {!ready && <div className="text-center text-small text-text-4">Decoding audio…</div>}
+      {!ready && (
+        <div className="text-center text-small text-faint-foreground">Decoding audio…</div>
+      )}
     </div>
   );
 }

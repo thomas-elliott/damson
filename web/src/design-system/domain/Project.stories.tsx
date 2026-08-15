@@ -36,7 +36,7 @@ export const Cards: Story = {
           engine={p.engine}
         >
           <LicenceBar counts={{ ok: 110, warn: 12, err: 0, unk: 6 }} />
-          <div className="flex justify-between text-mono text-text-3">
+          <div className="flex justify-between text-mono text-subtle-foreground">
             <span>{p.assets} assets</span>
             <span>{p.updated}</span>
           </div>
@@ -50,7 +50,7 @@ export const Cards: Story = {
 export const List: Story = {
   parameters: { layout: "padded" },
   render: () => (
-    <div className="overflow-hidden rounded-md border border-line bg-bg">
+    <div className="overflow-hidden rounded-md border border-border bg-background">
       {PROJECT_FIXTURES.map((p) => (
         <ProjectListRow
           key={p.id}
@@ -61,9 +61,9 @@ export const List: Story = {
             gridTemplateColumns: "2fr 1fr 1.5fr 1fr",
           }}
           cells={[
-            <span className="text-mono text-text-3">{p.engine}</span>,
-            <span className="truncate text-mono text-text-3">{p.path}</span>,
-            <span className="text-mono text-text-3">
+            <span className="text-mono text-subtle-foreground">{p.engine}</span>,
+            <span className="truncate text-mono text-subtle-foreground">{p.path}</span>,
+            <span className="text-mono text-subtle-foreground">
               {p.assets} assets · {p.updated}
             </span>,
           ]}

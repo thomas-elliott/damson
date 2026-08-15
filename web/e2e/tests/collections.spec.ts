@@ -56,8 +56,10 @@ test.describe("Collection create + asset add/remove", () => {
     const collectionId = Number(url.pathname.split("/").pop());
     expect(collectionId).toBeGreaterThan(0);
 
-    // Empty collection — detail page shows the "no assets" state.
-    await expect(page.getByRole("heading", { name: "No assets in this collection" })).toBeVisible();
+    // Empty collection — detail page shows the "no assets" state. The
+    // registry EmptyState titles with a <p>, so the status role the damson
+    // wrapper adds is what identifies it.
+    await expect(page.getByRole("status")).toContainText("No assets in this collection");
 
     // Hydrate via API: add A and B. Detail panel UI for collections doesn't
     // exist yet (per CollectionDetailPage's "Add assets from their detail

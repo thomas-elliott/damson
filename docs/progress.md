@@ -436,23 +436,23 @@ Deploys are ArgoCD-reconciled kustomize tag bumps: `k8s/test/damson` on every
 
 ## Known gaps
 
-Deliberate, not forgotten.
+**Decisions to not build something, with the reason.** This is the rejection log, so the same idea
+does not get re-proposed, re-analysed and re-rejected — the analysis is the expensive step. Work
+that is merely *not done yet* lives in [`roadmap.md`](roadmap.md), not here.
 
-| Gap | Note |
+| Gap | Why it stays a gap |
 |---|---|
-| Dead `LIKE` search branch | `applyAssetFilters` dispatches on `db.Dialector.Name()`; the non-Postgres branch is unreachable now SQLite is gone. Remove on next touch. |
-| Server-level audit retention | `library_settings.audit_retention_days` purges per-library rows; `library_id IS NULL` events are never purged — `server_settings` has no retention column. |
-| Subset source version | The scoped file browser only loads the asset's *current* version, so a subset can only be cut from that. |
-| No `useInfiniteQuery` | Lists are `limit`/`offset` server-side and the grid virtualises a single page. Add paging when a list actually needs it. |
-| Preview format coverage | Pure-Go raster only so far. PSD/EXR/TGA, SVG rasterisation and PDF posters are staged behind it — see the file-previews spec. |
-| e2e tiers 2 and 3 | Tier 1 is implemented; see [`e2e-flows.md`](e2e-flows.md). |
+| No `useInfiniteQuery` | Lists are `limit`/`offset` server-side and the grid virtualises a single page. Add paging when a list actually needs it, not before. |
 | No e2e for chunked uploads | Triggering it needs a 256 MiB file; generating one per run blows the suite's runtime budget. Covered by unit and handler tests instead — see [`e2e-flows.md`](e2e-flows.md). |
-| Chunk size is a Go constant | Advertised per session so it can change without a client release, but changing it still needs a server release. `server_settings` is the natural home if it ever needs runtime tuning. |
-| Terminal upload sessions are never purged | `completed` / `aborted` / `expired` rows accumulate. Small and useful as history; add retention if it ever matters. |
-| Orphan sweep ignores incomplete multiparts | The janitor covers sessions damson knows about. A multipart orphaned some other way is invisible to `FindOrphans`, which lists objects only. |
+| Chunk size is a Go constant | Advertised per session so it can change without a client release, but changing it still needs a server release. `server_settings` is the natural home *if* it ever needs runtime tuning. |
+| Terminal upload sessions are never purged | `completed` / `aborted` / `expired` rows accumulate. Small, and useful as history; add retention only if it ever matters. |
 | No CLI distribution | `task build:cli` only — no cross-compile matrix, no release artefacts. `dmsn setup` does the discovery work with no install story behind it. Deliberate; revisit if the CLI gets external users. |
-| Name-only preflight without a source hint | The Unity slice closed this for cache imports: `(source_kind, source_relative_path)` + size answers `already_imported` / `updated` precisely. An entry carrying no source hint still falls back to `name_match` on normalised title alone, which cannot tell a duplicate from a genuine new version — so `--skip-existing` skips both, and `--adopt-versions` (off by default) is what opts into treating a name match as a new version. |
-| Local auth hardening | In-memory rate limiting only (no shared store across replicas), no MFA, minimum-length password floor only. Documented as dev / small-install only. |
+| Heavyweight preview formats | `.blend` rendering, Unity scene/prefab visual reconstruction, AIFF transcoding and rtf/doc conversion each need an external binary (Blender, ffmpeg, LibreOffice). Download-only is the documented default. Re-open only if a library turns out to be dominated by one of them. |
+| Storybook a11y gate runs unstyled — **cause and fix now known, not applied** | The `storybook` Vitest project emits **no Tailwind utilities**: `p-4 rounded-md bg-card` computes `padding: 0px` and a transparent background, while custom properties resolve fine. The *built* Storybook is styled; only the test environment is not, so `a11y.test = "error"` has been checking unstyled components. **Diagnosed 2026-08-15 in `shared-design`, which had the identical bug**: `vitest.config.ts` replaces `vite.config.ts` rather than extending it, and `@tailwindcss/vite` is only in the latter — so `@import "tailwindcss"` produces nothing under test. The fix is one line, `tailwindcss()` in the `storybook` project's `plugins` (`web/vitest.config.ts`), and it is proven in `shared-design` (`4135476`). **Deliberately not applied here**, because it turns the suite red: measured on 2026-08-15 it yields **9 failures across 4 story files**, reducing to three decisions — `--subtle-foreground` used for 10–12px labels on `--card` (3.96–4.34:1, and the tier is documented as sub-AA decorative), a `destructive`-on-`destructive-soft` pairing at 4.42:1, and a Markdown link at 1.13:1 against surrounding body text. Those are palette decisions, not a config fix. Queued in [`roadmap.md`](roadmap.md). |
+
+Two former entries — *preview format coverage* and *e2e tiers 2 and 3* — were never rejections;
+they are staged work and now sit in [`roadmap.md`](roadmap.md) under **Shaped**. Six others moved
+to that file's **Ideas**.
 
 ---
 

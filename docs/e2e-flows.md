@@ -190,8 +190,10 @@ landed. Notes kept for the rationale:
   Postgres `tsvector` index. (The original "only when running against
   Postgres" caveat no longer applies — Postgres is the only backend.)
 - **Admin audit log visibility** — sysadmin role gating.
-- **Settings persistence** — change theme/library setting, reload, value
-  sticks.
+- **Settings persistence** — change a library setting (grid density
+  default), reload, value sticks. It used to drive the theme default; that
+  control left the Settings page when the theme became a browser-only
+  concern.
 
 ---
 
