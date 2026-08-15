@@ -176,7 +176,7 @@
 }
 
 /* Composed semantic type. `@utility` rather than `@layer components` so these
- * participate in Tailwind's own ordering and `cn()` can dedupe them — all 22
+ * participate in Tailwind's own ordering and `cn()` can dedupe them — all 19
  * names below are registered with tailwind-merge in design-system/utils/cn.ts. */
 @utility text-title-reg {
   /* Headings — title (22), heading (20), subhead (18). Each has
@@ -200,11 +200,6 @@
   line-height: 1.25;
   font-weight: 700;
 }
-@utility text-title {
-  font-size: 22px;
-  line-height: 1.25;
-  font-weight: 600;
-}
 @utility text-heading-reg {
   font-size: 20px;
   line-height: 1.3;
@@ -224,11 +219,6 @@
   font-size: 20px;
   line-height: 1.3;
   font-weight: 700;
-}
-@utility text-heading {
-  font-size: 20px;
-  line-height: 1.3;
-  font-weight: 600;
 }
 @utility text-subhead-reg {
   font-size: 18px;
@@ -250,12 +240,7 @@
   line-height: 1.35;
   font-weight: 700;
 }
-@utility text-subhead {
-  font-size: 18px;
-  line-height: 1.35;
-  font-weight: 600;
-}
-@utility text-label {
+@utility text-overline {
   /* Generic role tokens. */
   @apply text-small font-medium uppercase tracking-wide;
 }

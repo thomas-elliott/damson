@@ -40,7 +40,7 @@ export function LoginPage() {
           <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-primary to-primary-hover font-mono text-ui font-bold text-primary-foreground">
             D
           </div>
-          <h1 className="text-subhead text-foreground">Damson</h1>
+          <h1 className="text-subhead-semibold text-foreground">Damson</h1>
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
           <FieldRow label="Email">

@@ -100,7 +100,7 @@ export const SelectLabel = forwardRef<
   return (
     <RadixSelect.Label
       ref={ref}
-      className={cn("px-2 py-1 text-label text-faint-foreground", className)}
+      className={cn("px-2 py-1 text-overline text-faint-foreground", className)}
       {...props}
     />
   );

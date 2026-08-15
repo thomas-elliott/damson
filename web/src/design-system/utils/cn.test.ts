@@ -24,6 +24,7 @@ describe("cn", () => {
 
   it("keeps a damson-local composed role beside a text colour", () => {
     for (const role of [
+      "text-overline",
       "text-mono",
       "text-caption",
       "text-num",
@@ -44,6 +45,7 @@ describe("cn", () => {
     expect(cn("text-ui", "text-body")).toBe("text-body");
     expect(cn("text-mono", "text-caption")).toBe("text-caption");
     expect(cn("text-body", "text-mono")).toBe("text-mono");
+    expect(cn("text-overline", "text-label")).toBe("text-label");
   });
 
   it("still treats two text colours as one group", () => {

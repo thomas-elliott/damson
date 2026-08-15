@@ -35,7 +35,7 @@ export function ProfileSetupPage({ me }: { me: Me }) {
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-elevated">
-        <h1 className="text-subhead text-foreground">Finish setting up your profile</h1>
+        <h1 className="text-subhead-semibold text-foreground">Finish setting up your profile</h1>
         <p className="mt-1 text-caption">
           Your sign-in didn't include an email address. Add one so teammates can recognise you.
         </p>

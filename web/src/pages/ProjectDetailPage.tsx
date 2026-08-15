@@ -114,7 +114,7 @@ export function ProjectDetailPage() {
                   color={project.glyph_color || "oklch(0.4 0.14 260)"}
                 />
                 <div className="flex-1">
-                  <h1 className="text-heading text-foreground">{project.name}</h1>
+                  <h1 className="text-heading-semibold text-foreground">{project.name}</h1>
                   <div className="mt-1 flex items-center gap-2 text-caption">
                     <Badge size="sm" mono>
                       {project.target_distribution}
@@ -135,7 +135,7 @@ export function ProjectDetailPage() {
               </header>
 
               <section className="rounded-md border border-border bg-card p-3">
-                <div className="mb-2 text-label text-subtle-foreground">Licence mix</div>
+                <div className="mb-2 text-overline text-subtle-foreground">Licence mix</div>
                 <LicenceBar counts={counts} size="md" />
                 <div className="mt-1 flex gap-3 text-small text-subtle-foreground">
                   <span>
