@@ -2,7 +2,10 @@ FROM node:24-alpine AS spa
 WORKDIR /app/web
 RUN corepack enable
 # pnpm version is pinned via the "packageManager" field in package.json.
-COPY web/package.json web/pnpm-lock.yaml ./
+# .npmrc maps @telliott to the Forgejo registry (anonymous reads); no token.
+# pnpm-workspace.yaml carries pnpm 11's build-script approvals. Both must land
+# before the install, not with the `COPY web/ ./` below.
+COPY web/package.json web/pnpm-lock.yaml web/.npmrc web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm run build

@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && touch static/.gitkeep",
-    "lint": "node scripts/check-tokens.mjs && eslint .",
+    "lint": "node scripts/check-tokens.mjs && check-tailwind-source src/styles/globals.css && eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest --project=unit",
@@ -47,6 +47,7 @@
     "@radix-ui/react-tooltip": "^1.2.12",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-virtual": "^3.14.6",
+    "@telliott/shared-ui": "0.0.0-main.b3d4f6c",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "fflate": "^0.8.3",
