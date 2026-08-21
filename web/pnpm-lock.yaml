@@ -81,8 +81,8 @@ importers:
         specifier: ^3.14.6
         version: 3.14.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@telliott/shared-ui':
-        specifier: 0.0.0-main.b3d4f6c
-        version: 0.0.0-main.b3d4f6c(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.2)
+        specifier: 0.2.0
+        version: 0.2.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.2)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2080,8 +2080,8 @@ packages:
   '@tanstack/virtual-core@3.17.4':
     resolution: {integrity: sha512-nGm5KteqxasUdThLc2izl6dHUqLv0LQj7Nuyo5gYalTPf/U8a9ermvsl7reT+6ioBW1l8WfpP/mcU338nLXpqw==}
 
-  '@telliott/shared-ui@0.0.0-main.b3d4f6c':
-    resolution: {integrity: sha512-Ck1+AZ9/d/qH+HX/QkMi1Qa8MUSyBhvyppRXvNxjwweJBg+EamGSU2MjNgpCgYNqyi6JhYpjSSmIdihLYTkluw==, tarball: https://git.smol.cloud/api/packages/telliott/npm/%40telliott%2Fshared-ui/-/0.0.0-main.b3d4f6c/shared-ui-0.0.0-main.b3d4f6c.tgz}
+  '@telliott/shared-ui@0.2.0':
+    resolution: {integrity: sha512-HhjIqhtmjnRLEuXraXX7bZ9Az/zibslDP/8YVgL6Ua4KxRhQdeS0MJJw4/M0Cy4ppTx6b0T9bcli5FlFZaN/Qg==, tarball: https://git.smol.cloud/api/packages/telliott/npm/%40telliott%2Fshared-ui/-/0.2.0/shared-ui-0.2.0.tgz}
     hasBin: true
     peerDependencies:
       react: ^19
@@ -5402,7 +5402,7 @@ snapshots:
 
   '@tanstack/virtual-core@3.17.4': {}
 
-  '@telliott/shared-ui@0.0.0-main.b3d4f6c(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.2)':
+  '@telliott/shared-ui@0.2.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.2)':
     dependencies:
       '@radix-ui/react-dialog': 1.1.19(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@radix-ui/react-popover': 1.1.23(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
