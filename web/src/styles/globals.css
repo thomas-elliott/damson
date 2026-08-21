@@ -14,9 +14,8 @@
    missing classes are silent — the dialog just snaps. */
 @import "tw-animate-css";
 
-/* Tailwind never scans node_modules, so without this every @telliott/shared-ui
-   component renders unstyled — no error, no failed build. `task lint:web`
-   guards it. */
+/* Tailwind never scans node_modules: without this every @telliott/shared-ui
+   component renders unstyled, with no error. `task lint:web` guards it. */
 @source "../../node_modules/@telliott/shared-ui/dist";
 
 @plugin '@tailwindcss/typography';
