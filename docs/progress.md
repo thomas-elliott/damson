@@ -46,6 +46,46 @@ the one stretch goal (a zip-format extractor).
 
 Newest first. Each heading links the spec that scoped it.
 
+### `@telliott/shared-ui` as a package — 2026-08-22
+
+Scoped by a trial brief rather than a spec, since the question was whether the
+package path held at all. Trialled against `shared-design`'s prerelease channel,
+then adopted at its first release, `0.2.0`. The four registry components damson had copied in
+(`button`, `dialog`, `empty-state`, `icon-button`) are now a dependency, and
+`web/src/components/ui/` is gone. Every unit and story test passed unchanged
+across the swap, so the copy-in files and their package equivalents behave
+identically. The live shape is in
+[`design-system.md`](design-system.md#where-primitives-come-from).
+
+**Installs anonymously.** The Forgejo packument is world-readable, so `web/.npmrc`
+needs only the scope mapping — no token in CI or in the image. Confirmed in a clean
+container, where a developer's ambient credential can't mask a missing one.
+
+**`Dockerfile:5` broke exactly as predicted**, with a 404 against npmjs.com: the
+install layer copied neither `.npmrc` nor (new on pnpm 11) `pnpm-workspace.yaml`.
+
+**damson imports no CSS from the package.** Its `styles.css` carries the contract's
+reference palette unlayered, which beats damson's layered `tokens.css` — measured,
+`--primary` flipped from damson's amber to a reference grey. Nothing is lost by
+leaving it out: all 200 classes the package's components use already resolve through
+the generated `@theme inline` block.
+
+**Two `cn` is the real cost, and it is latent, not live.** A package component merges
+`className` with its own bundled `cn`, which knows none of damson's 19 role sizes. On
+the prerelease that dropped a role outright when it met a colour; `0.2.0` closes
+tailwind-merge's colour group so it passes through instead. What remains is
+unresolved rather than dropped — a role and the component's own size both land, and
+stylesheet order decides, per pair. Zero call sites do this today.
+`cn.package-boundary.test.tsx` pins it; the fix is `shared-design`'s.
+
+Three things `shared-design`'s own docs had wrong, all now fixed there: pnpm 11 has
+**no** default release-age cooldown (`minimumReleaseAge` is unset in 11.13 and
+11.21), its `check-tailwind-source` gate rejected a valid `@source` naming a
+subdirectory and suggested the unusable content-hashed `.pnpm` path, and `@source`
+must sit after the last `@import` or postcss rejects the imports below it.
+
+Frontend only — no Go, no SQL.
+
 ### `shared-design` 0.1.7 — radius, type, motion, elevation — 2026-08-15
 
 Scoped by [`specs/history/2026-08-15-shared-design-0-1-7.md`](specs/history/2026-08-15-shared-design-0-1-7.md).
