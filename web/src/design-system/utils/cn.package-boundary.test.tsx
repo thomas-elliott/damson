@@ -2,13 +2,11 @@ import { render } from "@testing-library/react";
 import { Button, cn as packageCn } from "@telliott/shared-ui";
 import { describe, expect, it } from "vitest";
 
-import { cn } from "@/design-system/utils";
-
-// A component from @telliott/shared-ui merges className with the `cn` bundled in
-// the package, which knows the contract's names and none of damson's. Since
-// 0.2.0 an unrecognised `text-*` passes through instead of being read as a
-// conflicting colour, so nothing is dropped — but nothing is resolved either.
-// These assertions pin what that leaves.
+// A package component composes `className` with the `cn` bundled in the package,
+// which knows the contract's role sizes and none of damson's. An unrecognised
+// `text-*` passes through rather than being read as a conflicting colour, so
+// nothing is dropped — and nothing is resolved either. `cn.test.ts` covers the
+// same ground for damson's own `cn`, which does resolve these.
 const ROLE = "text-mono";
 const CONTRACT_ROLE = "text-ui";
 const DAMSON_COLOUR = "text-unknown";
@@ -20,7 +18,6 @@ describe("damson tokens across the package boundary", () => {
 
     expect(classes).toContain(ROLE);
     expect(classes).toContain(CONTRACT_ROLE);
-    expect(cn(CONTRACT_ROLE, ROLE)).toBe(ROLE);
   });
 
   it("keeps a role alongside a colour", () => {
@@ -34,6 +31,5 @@ describe("damson tokens across the package boundary", () => {
       `${DAMSON_COLOUR} text-muted-foreground`,
     );
     expect(packageCn("text-foreground", "text-muted-foreground")).toBe("text-muted-foreground");
-    expect(cn(DAMSON_COLOUR, "text-muted-foreground")).toBe("text-muted-foreground");
   });
 });

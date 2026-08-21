@@ -1,6 +1,6 @@
 # Damson Design System
 
-**Status:** v2 — on the shared `@shared` registry **Last updated:** 2026-08-15
+**Status:** v3 — primitives from the `@telliott/shared-ui` package **Last updated:** 2026-08-22
 
 The authoritative implementation contract for Damson's frontend. **Storybook is the
 visual reference** (`task storybook`); this document is what the code actually does.
@@ -10,10 +10,11 @@ The token vocabulary is the shared contract's
 (`design.smol.cloud/r/tokens.json`); the values are Damson's. See
 `docs/specs/history/2026-08-15-shared-design-system.md` for how it got here.
 
-**Two directories, two owners.** `web/src/components/ui/` holds files installed by
-`shadcn add` — re-running the CLI overwrites them, so never edit them. Damson's own
-primitives stay in `web/src/design-system/primitives/`. A per-project difference
-belongs in a token override or a wrapper, never in an installed file.
+**Contract components arrive as a dependency.** `@telliott/shared-ui` is a normal
+npm package; nothing is copied into the tree, so `web/src/components/ui/` no longer
+exists. Damson's own primitives stay in `web/src/design-system/primitives/` and wrap
+or re-export what the package exports. A per-project difference belongs in a token
+override or a wrapper, never in a fork. See **Where primitives come from**.
 
 Companions: `docs/architecture.md` (architecture, data model, API),
 `docs/CONVENTIONS.md` (stack, developer commands),
@@ -59,11 +60,10 @@ Two entries in `web/components.json` are worth knowing, because JSON cannot expl
 itself and both look wrong at a glance:
 
 - **`aliases.utils` points at `@/design-system/utils`, not the conventional
-  `@/lib/utils`.** Damson's `cn()` registers 25 custom `text-*` names (3 size
-  primitives + the 22 composed utilities) with `tailwind-merge`, so its font
-  sizes aren't deduplicated against colour classes.
-  Installed registry files import `@/lib/utils` and the CLI rewrites that to this
-  alias on install, so the extended `cn` is what they get. A re-export at
+  `@/lib/utils`.** Damson's `cn()` registers its 19 composed `text-*` names with
+  `tailwind-merge`, so its font sizes aren't deduplicated against colour classes.
+  The alias is what a file copied in by `shadcn add` gets rewritten to import, so
+  it lands on the extended `cn` rather than the stock one. A re-export at
   `lib/utils` would work and would invite someone to "simplify" it back to the
   stock two-liner, silently breaking every custom text size.
 - **`tailwind.baseColor: "neutral"` is inert.** Only `init` and base-colour
@@ -80,6 +80,48 @@ Components:
   composition).
 - Set `data-*` attributes for state so stories can exercise them without
   real interaction (e.g. `data-pressed`, `data-active`).
+
+---
+
+## Where primitives come from
+
+`@telliott/shared-ui`, pinned in `web/package.json`. Four things make that work, and
+three of them fail silently.
+
+**`web/.npmrc`** maps the `@telliott` scope to the Forgejo registry. Reads are
+anonymous — no token, in CI or in the image. Without the mapping the scope resolves
+against npmjs.com, where `@telliott` is unclaimed: a 404 today, and someone else's
+code the day anyone registers it.
+
+**`@source` in `globals.css`** is what makes the package's classes reach the CSS.
+Tailwind does not scan `node_modules`, so without it every package component renders
+unstyled and the build still exits 0. `pnpm run lint` runs the package's own
+`check-tailwind-source` against the stylesheet, which resolves the specifier rather
+than matching it as a string. The directive sits **after** the last `@import` —
+placed among them, postcss rejects the imports that follow.
+
+**No CSS comes from the package.** `@telliott/shared-ui/styles.css` carries the
+contract's reference palette *unlayered*, so importing it beats Damson's layered
+`tokens.css` and repaints the app in reference greys. Nothing is lost by leaving it
+out: every utility the package's components use resolves through the generated
+`@theme inline` block, and the `prefers-reduced-motion` block the package would
+supply is already in `globals.css`.
+
+**`Dockerfile`'s install layer** copies `.npmrc` and `pnpm-workspace.yaml` alongside
+`package.json`, before `pnpm install`. The `COPY web/ ./` below it lands too late.
+
+### The `cn` on the far side of the boundary
+
+A package component composes `className` with the `cn` bundled *in the package*, not
+Damson's. It knows the contract's eight role sizes and none of Damson's 19, so
+passing a role into one resolves nothing: `<Button className="text-mono">` keeps both
+`text-mono` and the component's own `text-ui`, and which applies is stylesheet order
+— per pair, not systematic. Damson's own colour tokens (`text-unknown`,
+`text-unknown-soft`, `text-primary-hover`, `text-swatch-foreground`) duplicate rather
+than dedupe there for the same reason. Neither is a drop, and no call site does
+either today; `cn.package-boundary.test.tsx` pins both. Letting a consumer register
+its roles with the package's `cn` is `shared-design`'s agreed follow-up — **don't
+work around it by widening Damson's `cn`**, which is not the one running.
 
 ---
 
@@ -289,7 +331,7 @@ Atomic components with no domain knowledge. All live under
 
 ### Action
 
-- **`Button`** — a **wrapper** around the installed `components/ui/button.tsx`.
+- **`Button`** — a **wrapper** around the package's `Button`.
   `variant: primary|secondary|ghost|destructive` (plus `outline`/`default`
   compatibility aliases for pasted upstream blocks), `size: sm|md|lg` (28/32/36px).
   **Defaults to `primary`.** `leadingIcon`/`trailingIcon`, `loading`, `fullWidth`,
@@ -297,11 +339,10 @@ Atomic components with no domain knowledge. All live under
 
   The wrapper exists for exactly one reason: `destructive` renders the registry's
   `secondary` with Damson's soft red tint over it, because a filled red reads fine in
-  a confirm dialog and shouts in a toolbar. **That override lives in the wrapper, not
-  in the installed file** — editing `components/ui/button.tsx` would be silently
-  undone by the next `shadcn add`. This is the estate's worked example of copy-in
-  ownership; see `Button.test.tsx`, which fails if the wrapper is bypassed.
-- **`IconButton`** — `@shared/icon-button`, and a **pure re-export** rather than a
+  a confirm dialog and shouts in a toolbar. **That override lives in the wrapper**,
+  which is the only place a package component can be changed at all; see
+  `Button.test.tsx`, which fails if the wrapper is bypassed.
+- **`IconButton`** — the package's, and a **pure re-export** rather than a
   wrapper: unlike `Button`, Damson has nothing to override. Square `size: sm|md|lg`
   (28/32/36px), matching `Button`'s heights so the two line up in a toolbar; same four
   variants, defaulting to `ghost`; `pressed` via `data-pressed`. `aria-label` is
@@ -321,8 +362,8 @@ Atomic components with no domain knowledge. All live under
 All three typing surfaces render at `text-field` (16px) and the token guardrail
 enforces it — see **Typography**.
 
-**`@shared/input` and `@shared/textarea` are deliberately not installed.** This is
-a divergence from the usual "install what the registry has" stance, alongside the
+**The package's `Input` and `Textarea` are deliberately unused.** This is a
+divergence from the usual "take what the contract has" stance, alongside the
 `Button` wrapper precedent, and it is a decision rather than an oversight. The
 registry's `Input` is a bare `<input>` carrying its own border and background;
 Damson's is a wrapping `<div>` that carries them, so nesting the two double-borders,
@@ -587,17 +628,17 @@ explain the rationale in a comment.
 Follow the pattern of the nearest existing component.
 
 **First: does it belong here at all?** The estate's order of preference is
-upstream shadcn/ui → the `@shared` registry → Damson. If shadcn has it, install it
+upstream shadcn/ui → `@telliott/shared-ui` → Damson. If shadcn has it, install it
 rather than writing one. If it is primitive-shaped and *not* Damson-specific, it
-belongs in `shared-design` so every consumer gets it — the registry's inventory
+belongs in `shared-design` so every consumer gets it — the package's inventory
 grows when a consumer needs something. Only genuinely Damson-specific components
 are written here.
 
-**Never edit `web/src/components/ui/`.** Those files are installed by the CLI and
-the next `shadcn add` overwrites them. A per-project difference goes in a token
-override (survives everything) or a wrapper (survives everything). Editing the
-installed file is a third option and it is a decision, not an accident — record it
-if you take it.
+**Never fork a package component into the tree.** A per-project difference goes in
+a token override or a wrapper, both of which survive a version bump; a copy does
+not. `shadcn add @shared/<name>` still works and remains the escape hatch for a
+one-off, but it takes the component off the upgrade path — a decision, not an
+accident, so record it if you take it.
 
 1. Choose the tier: primitive (atomic, no domain), composition (reusable
    shell), or domain (Damson-specific). If it could live in multiple
