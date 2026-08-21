@@ -2,11 +2,11 @@ import {
   Button as RegistryButton,
   buttonVariants,
   type ButtonProps as RegistryButtonProps,
-} from "@/components/ui/button";
+} from "@telliott/shared-ui";
 import { cn } from "@/design-system/utils";
 
-// A wrapper rather than an edit to components/ui/button.tsx, which the next
-// `shadcn add` overwrites. Button.test.tsx fails if a call site bypasses this.
+// A wrapper rather than a fork of the package Button. Button.test.tsx fails if
+// a call site bypasses this.
 const SOFT_DESTRUCTIVE = [
   "bg-destructive-soft text-destructive border-destructive/40",
   "hover:bg-destructive/20 hover:border-destructive/60",
