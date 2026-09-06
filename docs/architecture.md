@@ -75,7 +75,7 @@ variants; `clsx` + `tailwind-merge` via a `cn()` helper.
 `@tanstack/react-virtual` for the asset grid. `@fontsource/inter` +
 `@fontsource/jetbrains-mono` self-hosted fonts.
 
-**Tooling.** Task (`Taskfile.yml`) for all developer workflows. `air`
+**Tooling.** [just](https://just.systems) (`justfile` + `tools/*.just`) for all developer workflows. `air`
 for Go hot-reload. Vitest 4 with two projects: `unit` (jsdom) and
 `storybook` (Playwright Chromium running every `*.stories.tsx` with
 axe-core a11y checks). Storybook 10. Multi-stage Dockerfile (Node →
@@ -89,7 +89,8 @@ Module path: `github.com/thomas-elliott/damson`.
 
 ```
 damson/
-├── Taskfile.yml
+├── justfile
+├── tools/                    # just modules (build, check, format, lint, release, test)
 ├── Dockerfile
 ├── damson.go                 # //go:embed for migrations + SPA (see below)
 ├── cmd/
@@ -1425,7 +1426,7 @@ existing `extract.ZipExtractor` unpacks it with relative paths preserved. The
 cost accepted: temp disk equal to the compressed folder, and a retained
 "original package" that is a CLI-synthesised archive.
 
-**Build.** `task build:cli`. There is deliberately no cross-compile matrix,
+**Build.** `just build cli`. There is deliberately no cross-compile matrix,
 no Woodpecker step and no release artefacts — see §19.13.
 
 ## 18b. Importing the Unity Asset Store cache
@@ -1522,6 +1523,6 @@ the code diverges:
 13. The CLI is named `dmsn`, not `damsonctl`: an agent types it on
     every call, and the server binary keeps `damson` so the Dockerfile
     and manifests are untouched. It ships with **no distribution
-    plumbing** — `task build:cli` and `dmsn setup`, nothing else. The
+    plumbing** — `just build cli` and `dmsn setup`, nothing else. The
     accepted consequence is that the binary exists only where someone
     builds it.

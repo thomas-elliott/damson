@@ -15,7 +15,7 @@
 @import "tw-animate-css";
 
 /* Tailwind never scans node_modules: without this every @telliott/shared-ui
-   component renders unstyled, with no error. `task lint:web` guards it. */
+   component renders unstyled, with no error. `just lint frontend` guards it. */
 @source "../../node_modules/@telliott/shared-ui/dist";
 
 @plugin '@tailwindcss/typography';

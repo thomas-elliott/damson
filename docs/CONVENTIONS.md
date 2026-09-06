@@ -33,7 +33,7 @@ This document complements:
 - CodeMirror 6 (`@codemirror/*`) for markdown editing and `@lezer/markdown` for the matching read-only renderer — see the `MarkdownEditor` / `Markdown` primitives
 
 **Tooling**
-- Task (`Taskfile.yml`) for all developer workflows
+- [just](https://just.systems) (`justfile` + `tools/*.just`) for all developer workflows
 - `air` for Go hot-reload
 - Vitest 4 with two projects: `unit` (jsdom) for component unit tests and `storybook` (Playwright Chromium) that runs every `*.stories.tsx` as a real-browser test with axe-core a11y checks
 - Storybook 10 (`@storybook/react-vite`) for the component gallery, with `@storybook/addon-a11y`, `@storybook/addon-vitest`, and `storybook-addon-pseudo-states`
@@ -45,65 +45,66 @@ This document complements:
 
 ## Developer Commands
 
-All workflows run through `task` (see `Taskfile.yml`) — don't invoke `go`, `pnpm` or
-`docker compose` directly for build/test/lint. `task --list` discovers everything.
+All workflows run through `just` (see `justfile` and `tools/*.just`) — don't invoke
+`go`, `pnpm` or `docker` directly for build/test/lint. Bare `just` lists everything.
 
 Names follow a canonical vocabulary — `build`, `test`, `lint`, `format`, `check`,
-`clean`, `run`/`dev`, `install` — with `:` for subtasks and a per-language split
-below each umbrella (`lint:go` / `lint:web`). Reach for the umbrella when in doubt.
+`clean`, `dev`, `install` — with the backend/frontend split as the second word
+(`lint backend` / `lint frontend`). Reach for the umbrella when in doubt.
 
-| Task | Purpose |
+| Recipe | Purpose |
 |---|---|
-| `task` | alias for `task --list` |
-| `task install` | Go modules + pnpm + Playwright browsers (fresh clone) |
-| `task dev` | Go API only, `air` hot-reload |
-| `task dev:spa` | Backend + Vite SPA in parallel |
-| `task dev:web` | Vite dev server only |
-| `task build` | SPA + Go production binary |
-| `task build:web` | Build SPA into `web/static` |
-| `task check` | read-only preflight: lint + format:check + mod:tidy:check |
-| `task lint` | `go vet` + eslint (`lint:go`, `lint:web`) |
-| `task format` | `go fmt` + prettier --write (`format:go`, `format:web`) |
-| `task format:check` | verify formatting without writing |
-| `task mod:tidy:check` | `go mod tidy` + fail on `go.mod` / `go.sum` drift |
-| `task test` | everything: unit + e2e |
-| `task test:unit` | Go (Postgres-backed) + Vitest unit |
-| `task test:unit:go` | Go tests only |
-| `task test:unit:web` | Vitest unit project (jsdom, fast) |
-| `task test:stories` | Vitest storybook project — every `*.stories.tsx` in real Chromium with axe a11y |
-| `task test:e2e` | Playwright (boots Postgres + e2e-server + vite internally) |
-| `task test:e2e:ui` | Playwright interactive runner |
-| `task test:e2e:install` | Playwright browser binaries (once, after install) |
-| `task test:watch` | Vitest watch mode |
-| `task test:coverage` | Coverage report |
-| `task storybook` | Storybook dev server (port 6006) |
-| `task storybook:build` | Static Storybook build (smoke test) |
-| `task ci` | full preflight: check + test:unit + test:e2e |
-| `task clean` | remove build artefacts |
-| `task docker:build` | Container image |
-| `task release:{patch,minor,major}` | Tag a release |
+| `just` | lists every recipe |
+| `just install` | Go modules + pnpm + Playwright browsers (fresh clone) |
+| `just dev` | Go API + Vite SPA in parallel |
+| `just backend` | Go API only, `air` hot-reload |
+| `just frontend` | Vite dev server only |
+| `just build` | SPA + Go production binary |
+| `just build frontend` | Build SPA into `web/static` (`tsc -b` + vite build) |
+| `just build cli` | Build the `dmsn` CLI |
+| `just check` | full preflight: `check fast` + build frontend + unit + e2e |
+| `just check fast` | read-only, no database: lint + format check + tidy |
+| `just check tidy` | `go mod tidy` + fail on `go.mod` / `go.sum` drift |
+| `just lint` | `go vet` + eslint (`lint backend`, `lint frontend`) |
+| `just format` | `go fmt` + prettier --write (`format backend`, `format frontend`) |
+| `just format check` | verify formatting without writing |
+| `just test` | everything: unit + e2e |
+| `just test unit` | Go (Postgres-backed) + Vitest unit |
+| `just test backend [ARGS]` | Go tests; ARGS narrows to a package or a test |
+| `just test frontend [FILE]` | Vitest unit project (jsdom, fast); FILE runs one file |
+| `just test stories` | Vitest storybook project — every `*.stories.tsx` in real Chromium with axe a11y |
+| `just test e2e [ARGS]` | Playwright (boots Postgres + e2e-server + vite internally); ARGS goes to Playwright, so `--ui` gets the interactive runner |
+| `just test watch` | Vitest watch mode |
+| `just test coverage` | Coverage report |
+| `just storybook` | Storybook dev server (port 6006) |
+| `just storybook-build` | Static Storybook build (smoke test) |
+| `just clean` | remove build artefacts |
+| `just image-build` | Container image |
+| `just release {patch,minor,major}` | Tag a release |
 
-Go tests need Postgres. `task test:unit:go` defaults to the shared local instance on
-5432 via the `damson_test` database; to run one test directly, set the DSN yourself:
+**`just check` is the full preflight.** It replaced `task ci`; what `task check` used
+to do is now `just check fast`. The full one is what CI gates on, so reaching for the
+fast one before a push is what lets a red build through.
+
+Go tests need Postgres. `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` itself,
+defaulting to the shared local instance on 5432 via the `damson_test` database, and
+its arguments go straight to `go test`:
 
 ```
-DAMSON_TEST_POSTGRES_DSN=postgres://postgres:postgres@localhost:5432/damson_test?sslmode=disable \
-  go test ./internal/handlers/api -run '^TestName$'
-go test ./internal/handlers/api -run '^TestName$/SubtestName$'
+just test backend ./internal/handlers/api -run '^TestName$'
+just test backend ./internal/handlers/api -run '^TestName$/SubtestName$'
 ```
 
-> `Taskfile.yml` runs under mvdan/sh, Task's embedded interpreter — not bash.
-> `trap INT TERM`, process substitution and `set -o pipefail` fail silently or
-> confusingly; wrap them in `bash -c '...'`.
+Playwright browsers come from `just install`; there is no separate recipe for them.
 
 ---
 
 ## Go Backend Conventions
 
 ### Formatting & linting
-- Always run `task format` (or `task format:go`) before committing. No hand-formatting.
-- `task lint` must pass — `go vet` on the Go side. No additional Go linter is configured.
-- `task check` is the read-only gate: lint + format check + `go mod tidy` drift. CI fails on `go.mod` / `go.sum` drift, so run it before pushing.
+- Always run `just format` (or `just format backend`) before committing. No hand-formatting.
+- `just lint` must pass — `go vet` on the Go side. No additional Go linter is configured.
+- `just check fast` is the read-only gate: lint + format check + `go mod tidy` drift. CI fails on `go.mod` / `go.sum` drift, so run it before pushing.
 - Standard gofmt import grouping: stdlib, third-party, local.
 - Package names: lowercase, short, descriptive. File names snake_case when needed.
 
@@ -184,7 +185,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - The token **vocabulary** is the shared contract's (`design.smol.cloud/r/tokens.json`); the **values** are Damson's. OKLCH colour values live in `src/design-system/tokens/tokens.css`. Light is the base (`:root`); dark opts in via a `.dark` class on `<html>` (`applyTheme` in `design-system/tokens/`). There is no `data-theme` attribute.
 - The size, radius, motion and elevation scales are **not** in `tokens.css` — they are literals in the second `@theme inline` block of `src/styles/globals.css`, the one block `shadcn add` will not regenerate. `docs/design-system.md` explains why; the short version is that the CLI's generated `--radius-md: var(--radius-md)` is a self-reference that destroys any declaration of that name.
 - Tailwind's theme exposes the tokens as utility classes (`bg-background`, `bg-card`, `text-muted-foreground`, `text-subtle-foreground`, `border-border`, `bg-primary-soft`, `text-success`, `rounded-md`, `shadow-lg`, …) — prefer these over raw `var(--token)`.
-- `web/scripts/check-tokens.mjs` fails the build on a retired token name, a raw colour outside `tokens.css`, or a typing surface below the 16px floor. It runs as part of `task lint:web`.
+- `web/scripts/check-tokens.mjs` fails the build on a retired token name, a raw colour outside `tokens.css`, or a typing surface below the 16px floor. It runs as part of `just lint frontend`.
 - `@tailwindcss/typography` for markdown content.
 - Use the design-system primitives (`Button`, `Input`, `Dialog`, `Pill`, `Tabs`, …) from `@/design-system` rather than hand-rolling equivalents. New components go in `src/design-system/{primitives,compositions,domain}/` alongside a `*.stories.tsx` with variants + states; see `docs/design-system.md`.
 - `cn()` composes classes: `clsx` for conditional joins, `tailwind-merge` for dedup. The role-named font sizes are registered with `tailwind-merge` in `utils/cn.ts` — the contract's eight via `@shared/type-scale`, Damson's 19 composed roles (`text-mono`, `text-caption`, the weight variants, …) via a local group merged onto it. A new size utility belongs in that local group, or it is silently dropped when it meets a text colour. See `docs/design-system.md`.
@@ -192,8 +193,8 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 
 ### Frontend tests (Vitest)
 - Config: `vitest.config.ts` defines two projects:
-  - **`unit`** — `jsdom`, globals enabled, setup file `src/test/setupTests.ts`, pattern `src/**/*.{test,spec}.{ts,tsx}`. Run with `task test:unit:web`.
-  - **`storybook`** — real Chromium via Playwright and `@storybook/addon-vitest/vitest-plugin`; every `*.stories.tsx` runs as a test with axe-core a11y checks (`a11y.test = "error"`). Run with `task test:stories`.
+  - **`unit`** — `jsdom`, globals enabled, setup file `src/test/setupTests.ts`, pattern `src/**/*.{test,spec}.{ts,tsx}`. Run with `just test frontend`.
+  - **`storybook`** — real Chromium via Playwright and `@storybook/addon-vitest/vitest-plugin`; every `*.stories.tsx` runs as a test with axe-core a11y checks (`a11y.test = "error"`). Run with `just test stories`.
 - Libraries: `@testing-library/react`, `@testing-library/user-event` for the unit project; `storybook/test` helpers for story interactions.
 - Browsers are installed via `npx playwright install chromium`; the cache lives at `~/Library/Caches/ms-playwright/` on macOS.
 
@@ -219,7 +220,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 
 **CI/CD is Woodpecker** (`.woodpecker.yml`), not GitHub Actions. A push to `main` runs the full suite then builds and pushes `ghcr.io/thomas-elliott/damson:main-<sha>` and bumps the test environment's kustomize tag. Pushing a `v*.*.*` tag does **not** rebuild — it promotes that already-tested `main-<sha>` image to the `{version}`, `{major}.{minor}` and `{major}` tags with `crane`, then bumps prod. So a tag is only releasable if its commit was previously built on `main`.
 
-`task release:{patch,minor,major}` cuts the tag from an up-to-date `main`; they don't re-run checks locally. Run `task ci` yourself first. Note that the Playwright step's image tag must match `@playwright/test` in `web/package.json` exactly — bumping one means bumping the other.
+`just release {patch,minor,major}` cuts the tag from an up-to-date `main`; they don't re-run checks locally. Run `just check` yourself first. Note that the Playwright step's image tag must match `@playwright/test` in `web/package.json` exactly — bumping one means bumping the other.
 
 Don't commit `web/static/` build output — it's gitignored except for the `.gitkeep` placeholder that lets `//go:embed` succeed when the SPA hasn't been built yet.
 

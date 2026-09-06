@@ -23,7 +23,7 @@ const frontendCommand =
     : `npx vite --port ${FRONTEND_PORT} --strictPort`;
 
 // The Go binary is built once into web/e2e/.bin so CI doesn't pay the
-// compile cost per Playwright run. Locally, `task web:e2e` does the same.
+// compile cost per Playwright run. Locally, `just test e2e` does the same.
 const backendBinary = path.join(dirname, "e2e", ".bin", "damson-e2e");
 const backendCommand = `${backendBinary} `; // empty arg list — env-driven
 
@@ -70,7 +70,7 @@ export default defineConfig({
         E2E_BASE_URL: BACKEND_URL,
         // The e2e binary is Postgres-only and requires this DSN; it opens
         // Postgres and runs the SQL migrations. Forwarded from the process
-        // env (set by `task test:e2e`, which defaults it to the shared local
+        // env (set by `just test e2e`, which defaults it to the shared local
         // Postgres on 5432).
         DAMSON_TEST_POSTGRES_DSN: process.env.DAMSON_TEST_POSTGRES_DSN ?? "",
       },

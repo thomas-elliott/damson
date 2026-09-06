@@ -3,7 +3,7 @@
 **Status:** v3 — primitives from the `@telliott/shared-ui` package **Last updated:** 2026-08-22
 
 The authoritative implementation contract for Damson's frontend. **Storybook is the
-visual reference** (`task storybook`); this document is what the code actually does.
+visual reference** (`just storybook`); this document is what the code actually does.
 The old mockup now lives at `docs/archive/mockup/` and is consulted only for the *why*.
 
 The token vocabulary is the shared contract's
@@ -603,8 +603,8 @@ matrices).
 
 Two Vitest projects:
 
-- **`unit`** (`task test:unit:web`) — jsdom, component unit tests.
-- **`storybook`** (`task test:stories`) — Playwright Chromium, every
+- **`unit`** (`just test frontend`) — jsdom, component unit tests.
+- **`storybook`** (`just test stories`) — Playwright Chromium, every
   `*.stories.tsx` runs as a browser test with axe-core checks. Requires
   `npx playwright install chromium` once.
 
@@ -650,8 +650,8 @@ accident, so record it if you take it.
    states. Add a "States" matrix story wrapping sections in
    `pseudo-<state>-all` when `:hover`/`:focus-visible`/`:active` matter.
 4. Export from the tier's `index.ts` barrel.
-5. Run `task test:unit:web` and `task test:stories` — the storybook project must pass with
-   `a11y.test = "error"`. `task lint:web` runs the token guardrail
+5. Run `just test frontend` and `just test stories` — the storybook project must pass with
+   `a11y.test = "error"`. `just lint frontend` runs the token guardrail
    (`web/scripts/check-tokens.mjs`), which fails on a retired token name, a raw hex
    outside `tokens.css`, an arbitrary colour utility, or a `:root`/`.dark` block
    left in `globals.css` by `shadcn add`.
@@ -661,6 +661,6 @@ tier (e.g. `subtle-foreground` instead of `faint-foreground`) before adding a
 story-level exception. Exceptions should be the exception.
 
 **Check both themes.** `STORYBOOK_THEME=light pnpm run test:stories` runs the suite
-in light. It is not in `task check` yet — see the note in
+in light. It is not in `just check` yet — see the note in
 `docs/progress.md` about the Storybook vitest project not emitting Tailwind
 utilities, which makes its contrast checks weaker than they look.

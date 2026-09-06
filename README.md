@@ -55,7 +55,7 @@ For OIDC and S3 see [Configuration](#configuration) below.
 - [pnpm](https://pnpm.io) — frontend package manager (run `corepack enable` to
   use the version pinned in `web/package.json`)
 - Postgres 14+ (or higher)
-- [Task](https://taskfile.dev) — workflow runner
+- [just](https://just.systems) — workflow runner
 - [air](https://github.com/air-verse/air) — Go hot-reload
 - For the Storybook test project: a Chromium install via
   `npx playwright install chromium`
@@ -64,51 +64,51 @@ For OIDC and S3 see [Configuration](#configuration) below.
 
 ```sh
 # 1. clone, then install all deps (Go modules, web deps via pnpm, Playwright browsers):
-task install
+just install
 
 # 2. point at a Postgres
 cp .env.example .env
 $EDITOR .env       # set DAMSON_POSTGRES_DSN
 
 # 3. dev loop — backend + Vite SPA in parallel
-task dev:spa
+just dev
 ```
 
 Migrations apply on startup. The SPA's first request will hit
 `GET /api/auth/mode` and route you to `/bootstrap` — submit an email +
 password and you're in.
 
-`task dev` runs the backend only (no Vite). Useful when you don't need
-SPA changes or you're running Vite separately via `task dev:web`.
+`just backend` runs the backend only (no Vite). Useful when you don't need
+SPA changes or you're running Vite separately via `just frontend`.
 
 ### Tests
 
 ```sh
-task test:unit:go        # Go unit tests (go test ./...)
-task test:unit:web       # Vitest unit project (jsdom)
-task test:stories        # Vitest storybook project (Playwright Chromium)
-task test                # Full suite: Go unit + Postgres integration + Playwright e2e
-task ci                  # Preflight: lint + format check + go.mod tidy + unit tests + e2e
+just test backend        # Go unit tests (go test ./...)
+just test frontend       # Vitest unit project (jsdom)
+just test stories        # Vitest storybook project (Playwright Chromium)
+just test                # Full suite: Go unit + Postgres integration + Playwright e2e
+just check               # Preflight: lint + format check + go.mod tidy + SPA build + tests + e2e
 ```
 
-Single Go test:
+Single Go test (the recipe supplies the Postgres DSN):
 
 ```sh
-go test ./internal/handlers/api -run '^TestName$'
-go test ./internal/handlers/api -run '^TestName$/SubtestName$'
+just test backend ./internal/handlers/api -run '^TestName$'
+just test backend ./internal/handlers/api -run '^TestName$/SubtestName$'
 ```
 
 Single Vitest file:
 
 ```sh
-cd web && pnpm run test -- src/path/to/file.test.tsx --run
+just test frontend src/path/to/file.test.tsx
 ```
 
 ### Build
 
 ```sh
-task build           # SPA + Go binary (CGO_ENABLED=0) → ./damson
-task docker:build    # multi-stage container image → damson:local
+just build           # SPA + Go binary (CGO_ENABLED=0) → ./damson
+just image-build     # multi-stage container image → damson:local
 ```
 
 ## Configuration
@@ -189,5 +189,5 @@ CI runs on [Woodpecker](https://woodpecker-ci.org) (`.woodpecker.yml`):
   image to the `{version}`, `{major}.{minor}`, and `{major}` tags (a retag, no
   rebuild) → bump the `damson` (prod) gitops deployment.
 
-Locally, `task ci` runs the same preflight (lint + format check + go.mod tidy +
-unit tests + e2e) before you push.
+Locally, `just check` runs the same preflight (lint + format check + go.mod tidy +
+SPA build + unit tests + e2e) before you push.
