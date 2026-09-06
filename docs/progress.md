@@ -310,7 +310,7 @@ Unity cache-import spec because a local CLI is its own piece of work.
   expiry) so `dmsn whoami` can report its own scope without reaching `/api/me/tokens`.
   `GET /api/health` reports the build identifier.
 
-Build with `task build:cli`. Deliberately **no** cross-compile matrix, Woodpecker step or
+Build with `just build cli`. Deliberately **no** cross-compile matrix, Woodpecker step or
 release artefacts — the binary exists where someone builds it.
 
 ### Richer storefront metadata fields — 2026-07-31 → 08-01
@@ -577,7 +577,7 @@ that is merely *not done yet* lives in [`roadmap.md`](roadmap.md), not here.
 | No e2e for chunked uploads | Triggering it needs a 256 MiB file; generating one per run blows the suite's runtime budget. Covered by unit and handler tests instead — see [`e2e-flows.md`](e2e-flows.md). |
 | Chunk size is a Go constant | Advertised per session so it can change without a client release, but changing it still needs a server release. `server_settings` is the natural home *if* it ever needs runtime tuning. |
 | Terminal upload sessions are never purged | `completed` / `aborted` / `expired` rows accumulate. Small, and useful as history; add retention only if it ever matters. |
-| No CLI distribution | `task build:cli` only — no cross-compile matrix, no release artefacts. `dmsn setup` does the discovery work with no install story behind it. Deliberate; revisit if the CLI gets external users. |
+| No CLI distribution | `just build cli` only — no cross-compile matrix, no release artefacts. `dmsn setup` does the discovery work with no install story behind it. Deliberate; revisit if the CLI gets external users. |
 | Heavyweight preview formats | `.blend` rendering, Unity scene/prefab visual reconstruction, AIFF transcoding and rtf/doc conversion each need an external binary (Blender, ffmpeg, LibreOffice). Download-only is the documented default. Re-open only if a library turns out to be dominated by one of them. |
 | Storybook a11y gate runs unstyled — **cause and fix now known, not applied** | The `storybook` Vitest project emits **no Tailwind utilities**: `p-4 rounded-md bg-card` computes `padding: 0px` and a transparent background, while custom properties resolve fine. The *built* Storybook is styled; only the test environment is not, so `a11y.test = "error"` has been checking unstyled components. **Diagnosed 2026-08-15 in `shared-design`, which had the identical bug**: `vitest.config.ts` replaces `vite.config.ts` rather than extending it, and `@tailwindcss/vite` is only in the latter — so `@import "tailwindcss"` produces nothing under test. The fix is one line, `tailwindcss()` in the `storybook` project's `plugins` (`web/vitest.config.ts`), and it is proven in `shared-design` (`4135476`). **Deliberately not applied here**, because it turns the suite red: measured on 2026-08-15 it yields **9 failures across 4 story files**, reducing to three decisions — `--subtle-foreground` used for 10–12px labels on `--card` (3.96–4.34:1, and the tier is documented as sub-AA decorative), a `destructive`-on-`destructive-soft` pairing at 4.42:1, and a Markdown link at 1.13:1 against surrounding body text. Those are palette decisions, not a config fix. Queued in [`roadmap.md`](roadmap.md). |
 

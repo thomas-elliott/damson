@@ -41,7 +41,7 @@ func Mount(r *gin.Engine) error {
 		if err != nil {
 			// SPA not built yet — serve a helpful placeholder.
 			c.Data(http.StatusOK, "text/html; charset=utf-8",
-				[]byte(`<!doctype html><meta charset="utf-8"><title>Damson</title><body style="font-family:system-ui;padding:2rem"><p>SPA not built. Run <code>task web:build</code> or <code>task dev:spa</code>.</p></body>`))
+				[]byte(`<!doctype html><meta charset="utf-8"><title>Damson</title><body style="font-family:system-ui;padding:2rem"><p>SPA not built. Run <code>just build frontend</code> or <code>just dev</code>.</p></body>`))
 			return
 		}
 		c.Data(http.StatusOK, "text/html; charset=utf-8", index)

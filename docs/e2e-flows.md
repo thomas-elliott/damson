@@ -13,9 +13,9 @@ because it still explains *why* each flow earned a slot.
 - **Real-backend harness:** `cmd/e2e-server` — a test-only Go binary backed
   by **Postgres** (SQLite was dropped in the River migration), adding
   `/api/test/reset` to drop and re-migrate between tests and `/api/test/users`
-  to seed. Built with `task test:e2e:build`; Playwright launches it alongside
+  to seed. Built as a dependency of `just test e2e`; Playwright launches it alongside
   `vite dev` via the `webServer` array. Needs `DAMSON_TEST_POSTGRES_DSN` at
-  runtime — `task test:e2e` defaults it to the shared local Postgres on 5432
+  runtime — `just test e2e` defaults it to the shared local Postgres on 5432
   via the `damson_test` database.
 - **All three tiers are implemented**: 22 tests across 12 spec files in
   `web/e2e/tests/`.
@@ -221,7 +221,7 @@ genuine retries are needed.
 **A11y and visual regression deferred here.** Both are valuable but lower
 priority than flow coverage in *this* suite. Note that a11y is not
 uncovered: every `*.stories.tsx` runs in real Chromium under Vitest with
-axe-core checks at `a11y.test = "error"` (`task test:stories`). Visual
+axe-core checks at `a11y.test = "error"` (`just test stories`). Visual
 regression remains unowned.
 
 ---

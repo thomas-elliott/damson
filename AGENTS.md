@@ -22,30 +22,31 @@ Before making non-trivial changes, read the docs in `docs/`. They describe the c
 
 ## Development commands
 
-All workflows go through Task (`Taskfile.yml`) — do not invoke `go`, `npm`, `docker compose` directly for build/test/lint operations. Run `task --list` to discover targets. Naming follows a canonical vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `run`/`dev`, `install`) with `:` for subtasks, and subdomain tasks split by language (`lint:go` / `lint:web`, …) — use the umbrella when in doubt.
+All workflows go through [just](https://just.systems) (`justfile`, plus modules in `tools/`) — do not invoke `go`, `pnpm` or `docker` directly for build/test/lint operations. Run `just` to list everything. Names follow a canonical vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `dev`, `install`), with the backend/frontend split as the second word (`lint backend` / `lint frontend`) — use the umbrella when in doubt.
 
-Run one Go test (Go tests need Postgres — set `DAMSON_TEST_POSTGRES_DSN`, or run under `task test:unit:go`, which defaults to the shared local Postgres on 5432 via the `damson_test` database):
+**`just check` is the full preflight, not a quick one.** It was `task ci`; the old `task check` is now `just check fast`. Run `just check` before pushing — it is what CI gates on, so the weaker gate is the one that lets a red build through.
+
+Run one Go test — `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` for you, defaulting to the shared local Postgres on 5432 via the `damson_test` database:
 
 ```
-DAMSON_TEST_POSTGRES_DSN=postgres://postgres:postgres@localhost:5432/damson_test?sslmode=disable \
-  go test ./internal/handlers/api -run '^TestName$'
-go test ./internal/handlers/api -run '^TestName$/SubtestName$'
+just test backend ./internal/handlers/api -run '^TestName$'
+just test backend ./internal/handlers/api -run '^TestName$/SubtestName$'
 ```
 
 Build the CLI (`dmsn`) and install its Claude Code skill:
 
 ```
-task build:cli
+just build cli
 ./dmsn setup
 ```
 
 Vitest single-file:
 
 ```
-cd web && pnpm run test -- src/path/to/file.test.tsx --run
+just test frontend src/path/to/file.test.tsx
 ```
 
-Local dev sign-in (`task dev:spa`, local auth mode) uses a throwaway account — email `dev@example.com`, password `password1`. Not a real credential; it exists so the SPA can be driven end-to-end against the dev server.
+Local dev sign-in (`just dev`, local auth mode) uses a throwaway account — email `dev@example.com`, password `password1`. Not a real credential; it exists so the SPA can be driven end-to-end against the dev server.
 
 ## Conventions
 
@@ -53,12 +54,11 @@ The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in
 
 - **Error responses.** `400` includes `err.Error()`; `404` / `409` used where they fit; `500` always returns the generic `"internal error"` string — don't leak internals. Shape: `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`. Inside a `Transaction(func)` use the sentinel constructors (`errBadRequestf`, `errConflictf`) and let the outer handler call `respondGORM(c, err, "<entity> not found")` once — single source of truth for the status mapping.
 - **Migration shape.** `NNN_descriptive_name.sql` (zero-padded 3-digit sequence), wrapped in `BEGIN; … COMMIT;`, `IF NOT EXISTS` throughout. Timestamps are `timestamptz NOT NULL DEFAULT now()`. Any schema change must land in BOTH a new SQL migration AND the model struct tags (see "Migrations vs tests" below for why).
-- **Never fork a component out of `@telliott/shared-ui` into the tree.** A Damson-specific difference goes in a token override or a wrapper — `design-system/primitives/Button.tsx` is the worked example. `shadcn add` still works as a one-off escape hatch, but it takes that component off the upgrade path, and every install re-appends the contract's reference palette to `globals.css`; delete it, and `task lint:web` will tell you if you forget.
+- **Never fork a component out of `@telliott/shared-ui` into the tree.** A Damson-specific difference goes in a token override or a wrapper — `design-system/primitives/Button.tsx` is the worked example. `shadcn add` still works as a one-off escape hatch, but it takes that component off the upgrade path, and every install re-appends the contract's reference palette to `globals.css`; delete it, and `just lint frontend` will tell you if you forget.
 - **Frontend API discipline.** Never call `fetch` directly from components — go through `fetchJson` / `fetchMaybeJson` in `src/api.ts` so bearer-token attachment, 401 renewal, and `ApiError` shape stay uniform. Query keys live in `lib/queryKeys.ts` only. Data-fetching hooks wrap TanStack Query in `hooks/useDataQueries.ts` and return the normalized `{ data, loading, error, reload }` shape.
 - **Never log tokens or raw session values.** Applies to `slog` debug output, error wraps, anything that might end up in a log collector.
 - **Mirror existing patterns; don't refactor unrelated code.** Focused changes only. Read `docs/` before architectural changes.
-- **Taskfile shell.** `Taskfile.yml` commands run under mvdan/sh (Task's embedded interpreter), not bash. Bash-isms like `trap INT TERM`, process substitution, and `set -o pipefail` fail silently or with confusing errors — wrap in `bash -c '...'` when you need them.
-- **`go mod tidy` is enforced in CI.** CI is Woodpecker (`.woodpecker.yml`, not GitHub Actions). It runs `go mod tidy` then `git diff --exit-code -- go.mod go.sum` and fails the build on any drift. Whenever you add an import — especially when a previously-indirect dep becomes a direct require because new code uses it — run `task mod:tidy:check` (or `go mod tidy` + diff) before committing. `task check` (and `task ci`) include this step; running either locally before pushing avoids CI-only failures.
+- **`go mod tidy` is enforced in CI.** CI is Woodpecker (`.woodpecker.yml`, not GitHub Actions). It runs `go mod tidy` then `git diff --exit-code -- go.mod go.sum` and fails the build on any drift. Whenever you add an import — especially when a previously-indirect dep becomes a direct require because new code uses it — run `just check tidy` (or `go mod tidy` + diff) before committing. `just check` and `just check fast` both include this step; running either locally before pushing avoids CI-only failures.
 
 ## Architecture
 
