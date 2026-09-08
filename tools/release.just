@@ -1,6 +1,6 @@
 # Cutting a release.
 #
-# A release promotes current main to prod by publishing a vX.Y.Z tag, which
+# A release promotes current main to prod by pushing a vX.Y.Z tag, which
 # triggers the Woodpecker tag pipeline (.woodpecker.yml): it re-runs the full
 # test suite, then promotes the existing main-<sha> image (no rebuild). Nothing
 # is gated locally — run `just check` yourself first.
@@ -12,7 +12,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 set default-list
 
 # Tag a release — `just release tag v1.2.3`
-[confirm("Publish this version, promoting main to prod? [y/N]")]
+[confirm("Tag and push this version, promoting main to prod? [y/N]")]
 [no-cd]
 tag VERSION:
     #!/usr/bin/env bash
@@ -20,8 +20,6 @@ tag VERSION:
 
     [[ "{{ VERSION }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
       || { echo "VERSION must be vX.Y.Z (for example v1.2.3)." >&2; exit 1; }
-    command -v gh >/dev/null \
-      || { echo "GitHub CLI (gh) is required: https://cli.github.com" >&2; exit 1; }
     [[ "$(git rev-parse --abbrev-ref HEAD)" == "main" ]] \
       || { echo "Releases are cut from main. Switch to main first." >&2; exit 1; }
 
@@ -38,13 +36,18 @@ tag VERSION:
       exit 1
     fi
 
-    # No local CI gate: GitHub Actions was retired in favour of Woodpecker on
-    # my CI host. The tag pipeline re-runs the full test suite, and release-promote
-    # guards itself with `crane manifest` on the main-<sha> image — so tagging a
-    # commit with no tested image fails safe (no promotion).
-    echo "Publishing release {{ VERSION }} for $SHA ..."
-    gh release create "{{ VERSION }}" --target "$SHA" --title "{{ VERSION }}" --generate-notes
-    echo "Released {{ VERSION }}. The Woodpecker tag pipeline will test and promote the image to prod."
+    # No local CI gate: the tag pipeline re-runs the full test suite, and
+    # release-promote guards itself with `crane manifest` on the main-<sha> image —
+    # so tagging a commit with no tested image fails safe (no promotion).
+    #
+    # An ANNOTATED tag: the message is what
+    # Forgejo shows on the releases page. The pipeline resolves the commit from
+    # CI_COMMIT_REF for exactly this reason — on an annotated tag CI_COMMIT_SHA is
+    # the tag object, not the commit.
+    echo "Tagging {{ VERSION }} at $SHA ..."
+    git tag -a "{{ VERSION }}" -m "{{ VERSION }}" "$SHA"
+    git push origin "refs/tags/{{ VERSION }}"
+    echo "Released {{ VERSION }}. The Woodpecker tag pipeline will test and promote main-$(echo "$SHA" | cut -c1-7) to prod."
 
 # Release the next patch version (vX.Y.Z+1) from the latest tag
 [no-cd]
