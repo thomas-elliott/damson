@@ -38,7 +38,7 @@ docker run -d --name damson-pg \
 docker run --rm -p 8080:8080 \
   -e DAMSON_POSTGRES_DSN='postgres://damson:damson@host.docker.internal:5432/damson?sslmode=disable' \
   -v damson-data:/data \
-  ghcr.io/thomas-elliott/damson:main
+  ghcr.io/thomas-elliott/damson:latest
 ```
 
 Visit <http://localhost:8080>; the SPA lands on `/bootstrap` so you can
@@ -183,7 +183,7 @@ Alternatives:
 CI runs on [Woodpecker](https://woodpecker-ci.org) (`.woodpecker.yml`):
 
 - **push to `main`** — tests → build & push
-  `ghcr.io/<owner>/damson:main-<sha>` + `:latest` → bump the `damson-test`
+  `ghcr.io/thomas-elliott/damson:main-<sha>` + `:latest` → bump the `damson-test`
   gitops deployment.
 - **tag `v*.*.*`** — promotes the already-built, already-tested `main-<sha>`
   image to the `{version}`, `{major}.{minor}`, and `{major}` tags (a retag, no
