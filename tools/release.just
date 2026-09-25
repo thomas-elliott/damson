@@ -12,7 +12,6 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 set default-list
 
 # Tag a release — `just release tag v1.2.3`
-[confirm("Tag and push this version, promoting main to prod? [y/N]")]
 [no-cd]
 tag VERSION:
     #!/usr/bin/env bash
