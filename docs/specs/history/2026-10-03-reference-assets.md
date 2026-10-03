@@ -2,7 +2,7 @@
 
 Covers DAM-2
 
-**Status:** implemented — all seven stages, cleaned up 2026-10-03 (PR not yet opened; add `PR #N` here when it is).
+**Status:** implemented — all seven stages, cleaned up 2026-10-03 (PR #1).
 
 ## Steering
 
