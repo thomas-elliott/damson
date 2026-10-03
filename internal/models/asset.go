@@ -32,9 +32,14 @@ type Asset struct {
 	ThumbnailContentType string
 	ThumbnailFromStore   bool `gorm:"not null;default:false"`
 	NeedsReview          bool `gorm:"not null;default:true"`
-	CreatedByUserID      *uint
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	// IsReference marks an asset recorded by its location (LocationPath and/or
+	// SourceURL) with no versions or files. Only a reference asset carries a
+	// LocationPath; the database enforces both rules (migration 024).
+	IsReference     bool `gorm:"not null;default:false"`
+	LocationPath    *string
+	CreatedByUserID *uint
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func (Asset) TableName() string { return "assets" }
