@@ -1,0 +1,51 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within } from "storybook/test";
+
+import type { AssetRow } from "@/hooks/useDataQueries";
+
+import { AssetGrid } from "./AssetGrid";
+
+const meta: Meta<typeof AssetGrid> = {
+  title: "App/AssetGrid",
+  component: AssetGrid,
+  parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <div className="h-[600px] w-full bg-background">
+        <Story />
+      </div>
+    ),
+  ],
+};
+export default meta;
+type Story = StoryObj<typeof AssetGrid>;
+
+const STORED: AssetRow = {
+  id: 1,
+  name: "POLYGON - Fantasy Kingdom",
+  file_count: 1284,
+  size_bytes: 734_003_200,
+  needs_review: false,
+  created_at: "2026-04-20T11:00:00Z",
+};
+
+const REFERENCE: AssetRow = {
+  id: 2,
+  name: "POLYGON_Fantasy_Characters",
+  file_count: 0,
+  size_bytes: 0,
+  needs_review: false,
+  created_at: "2026-04-20T11:00:00Z",
+  is_reference: true,
+};
+
+/** A stored pack beside a reference asset: the reference shows its mark, never "0 B". */
+export const WithReferenceAsset: Story = {
+  args: { assets: [STORED, REFERENCE] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Reference")).toBeVisible();
+    await expect(canvas.getByText("1284 files")).toBeVisible();
+    await expect(canvas.queryByText("0 B")).not.toBeInTheDocument();
+  },
+};

@@ -159,15 +159,20 @@ function GridCard({
         selected={selected || checked}
         onSelect={() => onOpen?.(a.id)}
         sub={
-          <>
-            <span className="font-mono">{formatBytes(a.size_bytes)}</span>
-            {a.file_count > 1 && (
-              <>
-                <span className="text-faint-foreground">·</span>
-                <span className="font-mono">{a.file_count} files</span>
-              </>
-            )}
-          </>
+          a.is_reference ? (
+            // A reference asset holds no files, so a size would read "0 B".
+            <span className="font-mono text-subtle-foreground">Reference</span>
+          ) : (
+            <>
+              <span className="font-mono">{formatBytes(a.size_bytes)}</span>
+              {a.file_count > 1 && (
+                <>
+                  <span className="text-faint-foreground">·</span>
+                  <span className="font-mono">{a.file_count} files</span>
+                </>
+              )}
+            </>
+          )
         }
         needsReview={a.needs_review}
         updateAvailable={a.update_available}
