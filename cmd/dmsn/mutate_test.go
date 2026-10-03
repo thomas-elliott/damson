@@ -608,6 +608,11 @@ func TestAssetRecord_RequiresALocationAndAskedNamesAreUsage(t *testing.T) {
 		t.Fatalf("no location: exit = %d\n%s", code, out)
 	}
 
+	out, code = exec(t, "asset", "record", "--location-path", "/mnt/p", "--description", "d")
+	if code != axi.ExitUsage || !strings.Contains(out, "--description does not apply to asset record") {
+		t.Fatalf("an edit-only flag should be refused: exit = %d\n%s", code, out)
+	}
+
 	out, code = exec(t, "asset", "record", "--source-url", "https://example.com/broken")
 	if code != axi.ExitUsage || !strings.Contains(out, "name is required") || !strings.Contains(out, "--name") {
 		t.Fatalf("nameless record should be a usage error pointing at --name: exit = %d\n%s", code, out)
