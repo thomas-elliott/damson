@@ -546,3 +546,84 @@ func TestAssetTag_MatchesTheServersNormalisation(t *testing.T) {
 		}
 	}
 }
+
+func TestAssetRecord_SendsLocationAndReportsTheOutcome(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/references": cap.record(`{"outcome":"updated","asset_id":41,
+		  "name":"Kingdom","location_path":"/mnt/nfs/Kingdom"}`),
+	})
+
+	out, code := exec(t, "asset", "record", "--location-path", "/mnt/nfs/Kingdom", "--needs-review")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	calls := cap.matching(http.MethodPost, "/api/assets/references")
+	if len(calls) != 1 {
+		t.Fatalf("expected one POST, got %+v", cap.calls)
+	}
+	body := calls[0].Body
+	if body["location_path"] != "/mnt/nfs/Kingdom" || body["needs_review"] != true {
+		t.Fatalf("body = %v", body)
+	}
+	if _, sent := body["source_url"]; sent {
+		t.Fatalf("an unset link was sent: %v", body)
+	}
+	if !strings.Contains(out, "outcome: updated") || strings.Contains(out, "added") {
+		t.Fatalf("a known path must read as updated, not added:\n%s", out)
+	}
+}
+
+func TestAssetRecord_DefaultsNeedsReviewOffAndNamesAnExistingAsset(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/references": cap.record(`{"outcome":"exists","asset_id":9,"name":"Imported Kingdom"}`),
+	})
+
+	out, code := exec(t, "asset", "record", "--source-url", "https://assetstore.unity.com/packages/k-1")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	if body := cap.matching(http.MethodPost, "/api/assets/references")[0].Body; body["needs_review"] != false {
+		t.Fatalf("needs_review should default off: %v", body)
+	}
+	if !strings.Contains(out, "already_in_library") || !strings.Contains(out, "Imported Kingdom") {
+		t.Fatalf("output should name the existing asset:\n%s", out)
+	}
+}
+
+func TestAssetRecord_RequiresALocationAndAskedNamesAreUsage(t *testing.T) {
+	isolate(t)
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/references": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"error":"name is required: the path and store link give no name"}`))
+		},
+	})
+
+	out, code := exec(t, "asset", "record", "--name", "x")
+	if code != axi.ExitUsage || !strings.Contains(out, "--location-path, --source-url, or both") {
+		t.Fatalf("no location: exit = %d\n%s", code, out)
+	}
+
+	out, code = exec(t, "asset", "record", "--source-url", "https://example.com/broken")
+	if code != axi.ExitUsage || !strings.Contains(out, "name is required") || !strings.Contains(out, "--name") {
+		t.Fatalf("nameless record should be a usage error pointing at --name: exit = %d\n%s", code, out)
+	}
+}
+
+func TestAssetEdit_LocationPath(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{"/api/assets/511": cap.record(assetDetail)})
+
+	if out, code := exec(t, "asset", "edit", "511", "--clear", "location-path"); code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	body := cap.matching(http.MethodPatch, "/api/assets/511")[0].Body
+	if v, ok := body["location_path"]; !ok || v != "" {
+		t.Fatalf("--clear location-path should send an empty location_path: %v", body)
+	}
+}
