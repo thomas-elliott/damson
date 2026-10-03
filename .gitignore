@@ -2,6 +2,7 @@
 /tmp/
 /damson
 /dmsn
+/cmd/dmsn/dmsn
 /coverage.out
 /coverage.html
 *.test
