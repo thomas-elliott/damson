@@ -3,6 +3,8 @@ package api
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"gorm.io/gorm"
@@ -277,10 +279,10 @@ func TestRecordReference_RejectsEmptyAndBadInput(t *testing.T) {
 func TestNameFromLocationPath(t *testing.T) {
 	for in, want := range map[string]string{
 		"/mnt/nfs/Synty/POLYGON_Fantasy_Kingdom.unitypackage": "POLYGON_Fantasy_Kingdom",
-		"/nfs/Packs/Pack v1.2":                                 "Pack v1.2",
-		"/nfs/Packs/Forest":                                    "Forest",
-		`D:\Assets\Trees.zip`:                                  "Trees",
-		"/":                                                    "",
+		"/nfs/Packs/Pack v1.2":                                "Pack v1.2",
+		"/nfs/Packs/Forest":                                   "Forest",
+		`D:\Assets\Trees.zip`:                                 "Trees",
+		"/":                                                   "",
 	} {
 		if got := nameFromLocationPath(in); got != want {
 			t.Errorf("nameFromLocationPath(%q) = %q, want %q", in, got, want)
@@ -288,3 +290,128 @@ func TestNameFromLocationPath(t *testing.T) {
 	}
 }
 
+func seedReference(t *testing.T, db *gorm.DB, libID uint, name, path, link string) *models.Asset {
+	t.Helper()
+	a := models.Asset{LibraryID: libID, Name: name, IsReference: true, SourceURL: link}
+	if path != "" {
+		a.LocationPath = &path
+	}
+	if err := db.Create(&a).Error; err != nil {
+		t.Fatalf("seed reference: %v", err)
+	}
+	return &a
+}
+
+func TestReferenceAsset_ListAndDetailCarryTheLocation(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	ref := seedReference(t, db, lib.ID, "Kingdom", "/nfs/Kingdom", "https://example.com/k")
+	stored := seedAsset(t, db, lib.ID, "Stored")
+	r := setupRouter(h, u)
+
+	w := performGET(r, "/api/assets")
+	requireStatus(t, w, http.StatusOK)
+	byID := map[uint]assetGridRow{}
+	for _, row := range jsonResponse[assetListResponse](t, w).Assets {
+		byID[row.ID] = row
+	}
+	if !byID[ref.ID].IsReference || byID[stored.ID].IsReference {
+		t.Fatalf("grid is_reference: ref=%v stored=%v", byID[ref.ID].IsReference, byID[stored.ID].IsReference)
+	}
+
+	w = performGET(r, "/api/assets/"+itoa(ref.ID))
+	requireStatus(t, w, http.StatusOK)
+	d := jsonResponse[assetDetailView](t, w)
+	if !d.IsReference || d.LocationPath != "/nfs/Kingdom" || d.SourceURL != "https://example.com/k" {
+		t.Fatalf("detail: %+v", d)
+	}
+}
+
+func TestReferenceAsset_PatchLocation(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	ref := seedReference(t, db, lib.ID, "Kingdom", "/nfs/Kingdom", "https://example.com/k")
+	other := seedReference(t, db, lib.ID, "Forest", "/nfs/Forest", "")
+	stored := seedAsset(t, db, lib.ID, "Stored")
+	r := setupRouter(h, u)
+	patch := func(id uint, body map[string]any) *httptest.ResponseRecorder {
+		return performRequest(r, http.MethodPatch, "/api/assets/"+itoa(id), body)
+	}
+
+	w := patch(ref.ID, map[string]any{"location_path": "/nfs/Kingdom-v2/"})
+	requireStatus(t, w, http.StatusOK)
+	if got := jsonResponse[assetPatchResponse](t, w).LocationPath; got != "/nfs/Kingdom-v2" {
+		t.Errorf("edited path: got %q", got)
+	}
+
+	w = patch(ref.ID, map[string]any{"location_path": "/nfs/Forest"})
+	requireStatus(t, w, http.StatusConflict)
+	if !strings.Contains(w.Body.String(), "Forest") {
+		t.Errorf("refusal should name the other asset: %s", w.Body.String())
+	}
+
+	// Clearing the path is fine while the link remains; clearing both is not.
+	requireStatus(t, patch(ref.ID, map[string]any{"location_path": ""}), http.StatusOK)
+	requireStatus(t, patch(ref.ID, map[string]any{"source_url": ""}), http.StatusBadRequest)
+	requireStatus(t, patch(other.ID, map[string]any{"location_path": "", "source_url": ""}), http.StatusBadRequest)
+
+	var a models.Asset
+	if err := db.First(&a, ref.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if a.LocationPath != nil || a.SourceURL != "https://example.com/k" {
+		t.Fatalf("after edits: path=%v url=%q", a.LocationPath, a.SourceURL)
+	}
+
+	requireStatus(t, patch(stored.ID, map[string]any{"location_path": "/nfs/x"}), http.StatusBadRequest)
+}
+
+func TestReferenceAsset_RefusesFilesAndMerge(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+	ref := seedReference(t, db, lib.ID, "Kingdom", "/nfs/Kingdom", "")
+	stored := seedAsset(t, db, lib.ID, "Stored")
+	r := setupRouter(h, u)
+
+	body, ctype := buildMultipartWithFields(t, "file", "tex.png", []byte("png"),
+		map[string]string{"asset_id": itoa(ref.ID)})
+	requireStatus(t, postMultipart(r, "/api/imports", body, ctype), http.StatusConflict)
+
+	w := performRequest(r, http.MethodPost, "/api/imports/uploads", map[string]any{
+		"filename": "Kingdom.unitypackage", "size_bytes": 64,
+		"sha256": hexSum([]byte("bytes")), "asset_id": ref.ID,
+	})
+	requireStatus(t, w, http.StatusConflict)
+
+	var versions int64
+	if err := db.Model(&models.AssetVersion{}).Where("asset_id = ?", ref.ID).Count(&versions).Error; err != nil {
+		t.Fatal(err)
+	}
+	if versions != 0 {
+		t.Fatalf("a refused upload left %d versions on the reference asset", versions)
+	}
+
+	for _, pair := range [][2]uint{{ref.ID, stored.ID}, {stored.ID, ref.ID}} {
+		w := performRequest(r, http.MethodPost, "/api/assets/"+itoa(pair[0])+"/merge",
+			map[string]any{"source_asset_id": pair[1]})
+		requireStatus(t, w, http.StatusConflict)
+	}
+}
+
+func TestReferenceAsset_IsNeverSuggestedAsAnUploadMatch(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+	seedReference(t, db, lib.ID, "grass texture", "/nfs/grass", "")
+	r := setupRouter(h, u)
+
+	body, ctype := buildMultipart(t, "file", "grass-texture.png", []byte("fake png bytes"))
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	if m := jsonResponse[importEnqueueResponse](t, w).SuggestedMatch; m != nil {
+		t.Fatalf("a reference asset was offered as the version match: %+v", m)
+	}
+}

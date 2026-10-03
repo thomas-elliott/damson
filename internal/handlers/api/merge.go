@@ -58,6 +58,11 @@ func (h *Handler) postAssetMerge(c *gin.Context) {
 		if err := tx.Where("id = ? AND library_id = ?", req.SourceAssetID, lib.ID).First(&source).Error; err != nil {
 			return err
 		}
+		// Merging moves versions, which a reference asset neither has nor
+		// takes; folding one into the other is the deferred conversion step.
+		if target.IsReference || source.IsReference {
+			return errConflictf("reference assets can't be merged")
+		}
 
 		targetByStore := map[string]uint{}
 		var targetVersions []models.AssetVersion

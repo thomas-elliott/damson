@@ -26,6 +26,8 @@ type assetDetailView struct {
 	Description          string    `json:"description"`
 	SourceURL            string    `json:"source_url"`
 	NeedsReview          bool      `json:"needs_review"`
+	IsReference          bool      `json:"is_reference"`
+	LocationPath         string    `json:"location_path,omitempty"`
 	CurrentVersionID     *uint     `json:"current_version_id,omitempty"`
 	ThumbnailObjectKey   string    `json:"thumbnail_object_key,omitempty"`
 	ThumbnailContentType string    `json:"thumbnail_content_type,omitempty"`
@@ -112,6 +114,8 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 		Description:             asset.Description,
 		SourceURL:               asset.SourceURL,
 		NeedsReview:             asset.NeedsReview,
+		IsReference:             asset.IsReference,
+		LocationPath:            derefString(asset.LocationPath),
 		CurrentVersionID:        asset.CurrentVersionID,
 		ThumbnailObjectKey:      asset.ThumbnailObjectKey,
 		ThumbnailContentType:    asset.ThumbnailContentType,
@@ -328,6 +332,8 @@ type assetPatchRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	SourceURL   *string `json:"source_url,omitempty"`
+	// LocationPath edits a reference asset's path; an empty string clears it.
+	LocationPath *string `json:"location_path,omitempty"`
 	assetMetadataFieldsPatch
 }
 
@@ -357,6 +363,14 @@ func (h *Handler) patchAsset(c *gin.Context) {
 			req.SourceURL = &cleaned
 		}
 	}
+	if req.LocationPath != nil {
+		cleaned, err := normaliseLocationPath(*req.LocationPath)
+		if err != nil {
+			respond400(c, err)
+			return
+		}
+		req.LocationPath = &cleaned
+	}
 
 	var out models.Asset
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
@@ -383,6 +397,14 @@ func (h *Handler) patchAsset(c *gin.Context) {
 			asset.SourceURL = strings.TrimSpace(*req.SourceURL)
 			updates["source_url"] = asset.SourceURL
 		}
+		if req.LocationPath != nil {
+			if err := applyLocationPathPatch(tx, &asset, *req.LocationPath, before, updates); err != nil {
+				return err
+			}
+		}
+		if asset.IsReference && asset.LocationPath == nil && asset.SourceURL == "" {
+			return errBadRequestf("a reference asset keeps a path or a store link; set one before clearing the other")
+		}
 		if err := req.assetMetadataFieldsPatch.apply(&asset, before, updates); err != nil {
 			return errBadRequestf("%s", err)
 		}
@@ -404,6 +426,10 @@ func (h *Handler) patchAsset(c *gin.Context) {
 			Diff:       audit.Updated(before, updates),
 		})
 	})
+	if isUniqueViolation(err) {
+		respond409(c, "that path is already recorded on another asset")
+		return
+	}
 	if err != nil {
 		respondGORM(c, err, "asset not found")
 		return
@@ -413,17 +439,50 @@ func (h *Handler) patchAsset(c *gin.Context) {
 		Name:                    out.Name,
 		Description:             out.Description,
 		SourceURL:               out.SourceURL,
+		LocationPath:            derefString(out.LocationPath),
 		assetMetadataFieldsView: assetMetadataFieldsViewFrom(&out),
 	})
 }
 
 // assetPatchResponse echoes the asset's editable fields after a PATCH.
 type assetPatchResponse struct {
-	ID          uint   `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	SourceURL   string `json:"source_url"`
+	ID           uint   `json:"id"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	SourceURL    string `json:"source_url"`
+	LocationPath string `json:"location_path,omitempty"`
 	assetMetadataFieldsView
+}
+
+// applyLocationPathPatch sets or clears a reference asset's path. Only a
+// reference asset carries one, and a path already recorded on another asset is
+// refused with that asset named.
+func applyLocationPathPatch(tx *gorm.DB, asset *models.Asset, path string, before, updates map[string]any) error {
+	current := derefString(asset.LocationPath)
+	if path == current {
+		return nil
+	}
+	if !asset.IsReference {
+		return errBadRequestf("only reference assets carry a path")
+	}
+	before["location_path"] = asset.LocationPath
+	if path == "" {
+		asset.LocationPath = nil
+		updates["location_path"] = nil
+		return nil
+	}
+	var other models.Asset
+	err := tx.Where("library_id = ? AND location_path = ? AND id <> ?", asset.LibraryID, path, asset.ID).
+		First(&other).Error
+	if err == nil {
+		return errConflictf("that path is already recorded on %q (asset %d)", other.Name, other.ID)
+	}
+	if !isNotFound(err) {
+		return err
+	}
+	asset.LocationPath = &path
+	updates["location_path"] = path
+	return nil
 }
 
 func (h *Handler) deleteAssetVersion(c *gin.Context) {
