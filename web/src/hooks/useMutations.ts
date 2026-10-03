@@ -35,6 +35,8 @@ export function usePatchAsset() {
       name?: string;
       description?: string;
       source_url?: string;
+      /** A reference asset's path; an empty string clears it. */
+      location_path?: string;
       // Storefront fields are all sent as strings: an empty string clears the
       // column, which a typed nullable field cannot express over JSON.
       publisher?: string;

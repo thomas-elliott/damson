@@ -26,6 +26,7 @@ import {
   LicencePill,
   Markdown,
   MarkdownEditor,
+  Pill,
   Section,
   StatusDot,
   Tag,
@@ -65,6 +66,7 @@ import {
 
 import { DetailsSection } from "./DetailsSection";
 import { LicenceEditor } from "./LicenceEditor";
+import { LocationSection } from "./LocationSection";
 import { MergeDialog } from "./MergeDialog";
 import { EnrichmentReview, MetadataActions } from "./MetadataActions";
 
@@ -265,16 +267,26 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   return (
     <div className="@container flex flex-col gap-3 p-3">
       {/* The name lives in the panel header; only status chips sit here. */}
-      {asset.needs_review && (
+      {(asset.needs_review || asset.is_reference) && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => review.mutate(asset.id)}
-            className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-soft px-2 py-0.5 text-mono text-warning"
-          >
-            <StatusDot tone="warn" /> Needs review
-            <Check size={11} />
-          </button>
+          {asset.needs_review && (
+            <button
+              type="button"
+              onClick={() => review.mutate(asset.id)}
+              className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-soft px-2 py-0.5 text-mono text-warning"
+            >
+              <StatusDot tone="warn" /> Needs review
+              <Check size={11} />
+            </button>
+          )}
+          {asset.is_reference && (
+            <>
+              {asset.publisher && (
+                <span className="text-label text-muted-foreground">{asset.publisher}</span>
+              )}
+              <Pill tone="neutral">Reference · not stored</Pill>
+            </>
+          )}
         </div>
       )}
 
@@ -316,83 +328,23 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         </div>
       </Section>
 
-      {/* Versions */}
-      <Section title="Versions" accessory={`${asset.versions.length}`} defaultOpen>
-        <div className="flex flex-col gap-0.5">
-          {asset.versions.map((v) => (
-            <VersionRow key={v.id} assetId={asset.id} version={v} />
-          ))}
-        </div>
-      </Section>
-
-      {/* Files (current version) */}
-      <Section title="Files" accessory={`${asset.files.length}`} defaultOpen={false}>
-        {isBrowsable(asset.files.length) && onBrowse && (
-          <Button
-            size="sm"
-            variant="secondary"
-            leadingIcon={<FolderOpen size={12} />}
-            className="mb-2 w-full justify-center"
-            onClick={onBrowse}
-          >
-            Browse all {asset.files.length} files
-          </Button>
-        )}
-        {onDownloadOriginal && (
-          <Button
-            size="sm"
-            variant="secondary"
-            leadingIcon={<Download size={12} />}
-            className="mb-2 w-full justify-center"
-            onClick={onDownloadOriginal}
-          >
-            Download original
-          </Button>
-        )}
-        {onReExtract && (
-          <Button
-            size="sm"
-            variant="secondary"
-            leadingIcon={<RotateCw size={12} />}
-            className="mb-2 w-full justify-center"
-            disabled={reExtractPending}
-            onClick={onReExtract}
-          >
-            {reExtractPending ? "Re-extracting…" : "Re-extract files"}
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="secondary"
-          leadingIcon={<RefreshCw size={12} />}
-          className="mb-2 w-full justify-center"
-          disabled={rescan.isPending}
-          onClick={onRescan}
-        >
-          {rescan.isPending ? "Rescanning…" : "Rescan package"}
-        </Button>
-        {rescanNote && (
-          <div className="mb-2 px-1 text-label text-subtle-foreground">{rescanNote}</div>
-        )}
-        <Button
-          size="sm"
-          variant="ghost"
-          leadingIcon={<RefreshCw size={12} />}
-          className="mb-2 w-full justify-center"
-          disabled={requeuePreviews.isPending}
-          onClick={() => requeuePreviews.mutate(asset.id)}
-        >
-          Regenerate previews only
-        </Button>
-        <div className="flex items-center justify-between rounded-sm border border-border bg-muted px-2.5 py-2 text-label text-muted-foreground">
-          <span>
-            {asset.files.length} {asset.files.length === 1 ? "file" : "files"}
-          </span>
-          <span className="text-mono tabular-nums text-subtle-foreground">
-            {formatBytes(asset.files.reduce((sum, f) => sum + f.size_bytes, 0))}
-          </span>
-        </div>
-      </Section>
+      {/* A reference asset holds a location in place of versions and files. */}
+      {asset.is_reference ? (
+        <LocationSection asset={asset} />
+      ) : (
+        <StoredContent
+          asset={asset}
+          onBrowse={onBrowse}
+          onDownloadOriginal={onDownloadOriginal}
+          onReExtract={onReExtract}
+          reExtractPending={reExtractPending}
+          onRescan={onRescan}
+          rescanPending={rescan.isPending}
+          rescanNote={rescanNote}
+          onRequeuePreviews={() => requeuePreviews.mutate(asset.id)}
+          requeuePending={requeuePreviews.isPending}
+        />
+      )}
 
       {/* Licence */}
       <Section
@@ -450,7 +402,9 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
             onClick={async () => {
               const ok = await confirm({
                 title: `Delete "${asset.name}"?`,
-                description: "This removes all versions and files.",
+                description: asset.is_reference
+                  ? "This removes the record. Nothing at its path is touched."
+                  : "This removes all versions and files.",
                 confirmLabel: "Delete asset",
                 tone: "destructive",
               });
@@ -459,13 +413,16 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           >
             Delete asset
           </Button>
-          <Button
-            variant="ghost"
-            leadingIcon={<GitMerge size={12} />}
-            onClick={() => setMergeOpen(true)}
-          >
-            Merge…
-          </Button>
+          {/* Merging moves versions, which a reference asset has none of. */}
+          {!asset.is_reference && (
+            <Button
+              variant="ghost"
+              leadingIcon={<GitMerge size={12} />}
+              onClick={() => setMergeOpen(true)}
+            >
+              Merge…
+            </Button>
+          )}
         </div>
       </div>
       <MergeDialog
@@ -476,6 +433,113 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
       />
       {confirmDialog}
     </div>
+  );
+}
+
+// StoredContent is the versions and files of an asset whose data was imported.
+function StoredContent({
+  asset,
+  onBrowse,
+  onDownloadOriginal,
+  onReExtract,
+  reExtractPending,
+  onRescan,
+  rescanPending,
+  rescanNote,
+  onRequeuePreviews,
+  requeuePending,
+}: {
+  asset: AssetDetailView;
+  onBrowse?: () => void;
+  onDownloadOriginal?: () => void;
+  onReExtract?: () => void;
+  reExtractPending: boolean;
+  onRescan: () => void;
+  rescanPending: boolean;
+  rescanNote: string | null;
+  onRequeuePreviews: () => void;
+  requeuePending: boolean;
+}) {
+  return (
+    <>
+      {/* Versions */}
+      <Section title="Versions" accessory={`${asset.versions.length}`} defaultOpen>
+        <div className="flex flex-col gap-0.5">
+          {asset.versions.map((v) => (
+            <VersionRow key={v.id} assetId={asset.id} version={v} />
+          ))}
+        </div>
+      </Section>
+
+      {/* Files (current version) */}
+      <Section title="Files" accessory={`${asset.files.length}`} defaultOpen={false}>
+        {isBrowsable(asset.files.length) && onBrowse && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leadingIcon={<FolderOpen size={12} />}
+            className="mb-2 w-full justify-center"
+            onClick={onBrowse}
+          >
+            Browse all {asset.files.length} files
+          </Button>
+        )}
+        {onDownloadOriginal && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leadingIcon={<Download size={12} />}
+            className="mb-2 w-full justify-center"
+            onClick={onDownloadOriginal}
+          >
+            Download original
+          </Button>
+        )}
+        {onReExtract && (
+          <Button
+            size="sm"
+            variant="secondary"
+            leadingIcon={<RotateCw size={12} />}
+            className="mb-2 w-full justify-center"
+            disabled={reExtractPending}
+            onClick={onReExtract}
+          >
+            {reExtractPending ? "Re-extracting…" : "Re-extract files"}
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="secondary"
+          leadingIcon={<RefreshCw size={12} />}
+          className="mb-2 w-full justify-center"
+          disabled={rescanPending}
+          onClick={onRescan}
+        >
+          {rescanPending ? "Rescanning…" : "Rescan package"}
+        </Button>
+        {rescanNote && (
+          <div className="mb-2 px-1 text-label text-subtle-foreground">{rescanNote}</div>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          leadingIcon={<RefreshCw size={12} />}
+          className="mb-2 w-full justify-center"
+          disabled={requeuePending}
+          onClick={onRequeuePreviews}
+        >
+          Regenerate previews only
+        </Button>
+        <div className="flex items-center justify-between rounded-sm border border-border bg-muted px-2.5 py-2 text-label text-muted-foreground">
+          <span>
+            {asset.files.length} {asset.files.length === 1 ? "file" : "files"}
+          </span>
+          <span className="text-mono tabular-nums text-subtle-foreground">
+            {formatBytes(asset.files.reduce((sum, f) => sum + f.size_bytes, 0))}
+          </span>
+        </div>
+      </Section>
+    </>
   );
 }
 
@@ -643,7 +707,7 @@ function OverviewForm({
         id: asset.id,
         name: name.trim() || asset.name,
         description,
-        source_url: sourceURL.trim(),
+        ...(asset.is_reference ? {} : { source_url: sourceURL.trim() }),
       },
       { onSuccess: onDone },
     );
@@ -670,16 +734,20 @@ function OverviewForm({
           autoFocus={autoFocus}
         />
       </FieldRow>
-      <FieldRow label="Source URL">
-        <Input
-          value={sourceURL}
-          onChange={(e) => setSourceURL(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSave();
-          }}
-          placeholder="https://…"
-        />
-      </FieldRow>
+      {/* A reference asset's store link is edited in Location, which keeps it
+          and the path from both being cleared. */}
+      {!asset.is_reference && (
+        <FieldRow label="Source URL">
+          <Input
+            value={sourceURL}
+            onChange={(e) => setSourceURL(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSave();
+            }}
+            placeholder="https://…"
+          />
+        </FieldRow>
+      )}
       <EnrichmentReview asset={asset} />
       <div className="flex items-center justify-end gap-1.5">
         <Button variant="ghost" size="sm" onClick={onDone} disabled={patch.isPending}>
