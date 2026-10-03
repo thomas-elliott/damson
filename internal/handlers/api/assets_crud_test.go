@@ -214,7 +214,7 @@ func TestDeleteAssetVersion_BlockedWhenPinned(t *testing.T) {
 	if err := db.Create(&proj).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Create(&models.ProjectAssetPin{ProjectID: proj.ID, AssetID: asset.ID, PinnedVersionID: v1.ID}).Error; err != nil {
+	if err := db.Create(&models.ProjectAssetPin{ProjectID: proj.ID, AssetID: asset.ID, PinnedVersionID: &v1.ID}).Error; err != nil {
 		t.Fatal(err)
 	}
 	r := setupRouter(h, u)

@@ -101,6 +101,8 @@ export interface AssetRow {
   publisher?: string;
   released_at?: string;
   update_available?: boolean;
+  /** Recorded by its location with no files; size and file count mean nothing. */
+  is_reference?: boolean;
 }
 
 interface AssetListResponse {
@@ -235,7 +237,8 @@ export interface LicenceView {
 export interface ProjectPinRef {
   project_id: number;
   project_name: string;
-  pinned_version_id: number;
+  /** Null for a reference asset, which has no versions. */
+  pinned_version_id: number | null;
   version_label: string;
 }
 
@@ -319,6 +322,10 @@ export interface AssetDetailView {
   description: string;
   source_url: string;
   needs_review: boolean;
+  /** Recorded by its location (path and/or store link) with no versions or files. */
+  is_reference: boolean;
+  /** Where a reference asset lives on the NFS store. Damson never reads it. */
+  location_path?: string;
   current_version_id?: number;
   thumbnail_object_key?: string;
   thumbnail_content_type?: string;
@@ -430,8 +437,10 @@ export interface ProjectPinDetail {
   pin_id: number;
   asset_id: number;
   asset_name: string;
-  pinned_version_id: number;
+  /** Null for a reference asset, which has no versions. */
+  pinned_version_id: number | null;
   version_label: string;
+  is_reference?: boolean;
   latest_version_id?: number;
   latest_label?: string;
   has_update: boolean;

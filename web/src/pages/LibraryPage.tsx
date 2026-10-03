@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { SlidersHorizontal, UploadCloud } from "lucide-react";
 
+import { AddByLocationButton } from "@/components/AddByLocationDialog";
 import { AssetGrid } from "@/components/AssetGrid";
 import { BulkAssetBar } from "@/components/BulkAssetBar";
 import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
@@ -238,6 +239,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                   Browse files
                 </Button>
               )}
+              <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
             {loading ? (

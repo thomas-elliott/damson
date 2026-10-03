@@ -18,10 +18,11 @@ type Project struct {
 func (Project) TableName() string { return "projects" }
 
 type ProjectAssetPin struct {
-	ID              uint `gorm:"primarykey;auto_increment;not_null"`
-	ProjectID       uint `gorm:"not null;uniqueIndex:idx_pin_project_asset"`
-	AssetID         uint `gorm:"not null;uniqueIndex:idx_pin_project_asset;index"`
-	PinnedVersionID uint `gorm:"not null"`
+	ID        uint `gorm:"primarykey;auto_increment;not_null"`
+	ProjectID uint `gorm:"not null;uniqueIndex:idx_pin_project_asset"`
+	AssetID   uint `gorm:"not null;uniqueIndex:idx_pin_project_asset;index"`
+	// PinnedVersionID is nil for a reference asset, which has no versions.
+	PinnedVersionID *uint
 	PinnedAt        time.Time
 	PinnedByUserID  *uint
 }

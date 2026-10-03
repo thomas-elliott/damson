@@ -484,3 +484,20 @@ func TestFlagsMayFollowPositionalArguments(t *testing.T) {
 		}
 	})
 }
+
+func TestAsset_DetailShowsAReferenceAssetsLocation(t *testing.T) {
+	isolate(t)
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/41": func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"id":41,"name":"Kingdom","is_reference":true,
+			  "location_path":"/mnt/nfs/Synty/Kingdom","tags":[],"versions":[],"collections":[]}`))
+		},
+	})
+	out, code := exec(t, "asset", "41")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	if !strings.Contains(out, "reference: true") || !strings.Contains(out, "/mnt/nfs/Synty/Kingdom") {
+		t.Fatalf("detail should show the location:\n%s", out)
+	}
+}

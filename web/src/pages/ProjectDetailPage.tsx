@@ -222,7 +222,9 @@ function ProjectPinRow({
   return (
     <tr className="border-b border-border/60 hover:bg-muted">
       <td className="py-2 text-foreground">{pin.asset_name}</td>
-      <td className="py-2 font-mono text-muted-foreground">{pin.version_label}</td>
+      <td className="py-2 font-mono text-muted-foreground">
+        {pin.is_reference ? "Reference" : pin.version_label}
+      </td>
       <td
         className={"py-2 font-mono " + (pin.has_update ? "text-warning" : "text-subtle-foreground")}
       >
@@ -236,7 +238,7 @@ function ProjectPinRow({
         )}
       </td>
       <td className="py-2 text-right font-mono text-muted-foreground">
-        {formatBytes(pin.size_bytes)}
+        {pin.is_reference ? "—" : formatBytes(pin.size_bytes)}
       </td>
       <td className="py-2 text-label">
         {pin.has_update ? (
@@ -347,7 +349,9 @@ function PinAssetDialog({
             Cancel
           </Button>
           <Button variant="primary" onClick={submit} disabled={!selected || pin.isPending}>
-            Pin current version
+            {assets.find((a) => String(a.id) === selected)?.is_reference
+              ? "Pin asset"
+              : "Pin current version"}
           </Button>
         </DialogFooter>
       </DialogContent>
