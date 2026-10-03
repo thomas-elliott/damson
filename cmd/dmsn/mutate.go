@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"slices"
@@ -17,7 +18,7 @@ import (
 // editableFields are the asset fields `asset edit` can set, in the order they
 // appear in --help. Each maps to a PATCH /api/assets/:id body key.
 var editableFields = []string{
-	"name", "description", "source-url",
+	"name", "description", "source-url", "location-path",
 	"publisher", "publisher-url", "store", "store-product-id",
 	"released-at", "store-updated-at", "latest-store-version",
 	"engine", "min-engine-version", "price", "price-currency",
@@ -77,23 +78,31 @@ func (f *editFlags) body(e *Env) (map[string]any, error) {
 
 func init() {
 	edit := newEditFlags()
-	var assetYes bool
+	var assetYes, needsReview bool
 	register(&command{
 		name:    "asset",
 		summary: "show or modify one asset",
 		usage: "usage: dmsn asset <id>\n" +
 			"       dmsn asset edit <id> [--name …] [--clear FIELD,…]\n" +
+			"       dmsn asset record [--location-path PATH] [--source-url URL] [--name NAME] [--needs-review]\n" +
 			"       dmsn asset review|unreview <id>\n" +
 			"       dmsn asset tag|untag <id> <path>...\n" +
 			"       dmsn asset rm <id> --yes\n\n" +
 			"editable: " + strings.Join(editableFields, ", ") + "\n\n" +
 			"review, tag and untag are idempotent and report whether anything\n" +
-			"changed. rm is destructive and requires --yes.",
+			"changed. rm is destructive and requires --yes.\n\n" +
+			"record adds an asset by where it lives, with nothing imported: a path,\n" +
+			"a store link, or both. Recording a known path updates that asset; a\n" +
+			"store link already in the library names the asset that has it.",
 		flags: func(fs *flag.FlagSet) {
 			edit.register(fs)
 			fs.BoolVar(&assetYes, "yes", false, "confirm a destructive action")
+			fs.BoolVar(&needsReview, "needs-review", false, "record: mark the asset Needs review")
 		},
 		run: func(ctx context.Context, e *Env) error {
+			if len(e.Args) > 0 && e.Args[0] == "record" {
+				return runAssetRecord(ctx, e, edit, needsReview)
+			}
 			return runAssetVerb(ctx, e, edit, assetYes)
 		},
 	})
@@ -210,6 +219,58 @@ func runAssetEdit(ctx context.Context, e *Env, edit *editFlags, args []string) e
 		{Key: "changed", Value: len(changed)},
 		{Key: "fields", Value: toon.Text(strings.Join(changed, ","))},
 	}, []string{fmt.Sprintf("dmsn asset %d", out.ID)})
+}
+
+// recordOutcomes names each record result for the reader: a known path is
+// updated, never added again.
+var recordOutcomes = map[string]string{
+	"created": "added",
+	"updated": "updated",
+	"exists":  "already_in_library",
+}
+
+func runAssetRecord(ctx context.Context, e *Env, edit *editFlags, needsReview bool) error {
+	usage := []string{
+		"dmsn asset record --location-path /mnt/assets/Publisher/Pack",
+		"dmsn asset record --source-url https://assetstore.unity.com/packages/… --name <name>",
+	}
+	if len(e.Args) > 1 {
+		return axi.Usagef(usage, "asset record takes flags, not arguments; got %q", e.Args[1])
+	}
+	body := map[string]any{"needs_review": needsReview}
+	for _, name := range []string{"location-path", "source-url", "name"} {
+		if v := strings.TrimSpace(*edit.values[name]); v != "" {
+			body[bodyKey(name)] = v
+		}
+	}
+	if body["location_path"] == nil && body["source_url"] == nil {
+		return axi.Usagef(usage, "asset record needs --location-path, --source-url, or both")
+	}
+	client, err := e.Client()
+	if err != nil {
+		return err
+	}
+	var out struct {
+		Outcome      string `json:"outcome"`
+		AssetID      uint   `json:"asset_id"`
+		Name         string `json:"name"`
+		LocationPath string `json:"location_path"`
+		SourceURL    string `json:"source_url"`
+	}
+	if err := client.PostJSON(ctx, "/api/assets/references", body, &out); err != nil {
+		var ae *axi.Error
+		if errors.As(err, &ae) && ae.Code == axi.CodeUsage && len(ae.Help) == 0 {
+			ae.Help = usage
+		}
+		return err
+	}
+	return e.Block("record", []toon.KV{
+		{Key: "outcome", Value: firstNonEmpty(recordOutcomes[out.Outcome], out.Outcome)},
+		{Key: "asset_id", Value: out.AssetID},
+		{Key: "name", Value: out.Name},
+		{Key: "location_path", Value: blankToNil(out.LocationPath)},
+		{Key: "source_url", Value: blankToNil(out.SourceURL)},
+	}, []string{fmt.Sprintf("dmsn asset %d", out.AssetID)})
 }
 
 func runAssetReview(ctx context.Context, e *Env, verb string, args []string) error {

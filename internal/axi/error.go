@@ -80,11 +80,14 @@ func AsError(err error) *Error {
 // statusCodes maps the statuses the API actually returns onto codes. Anything
 // absent — every 5xx included — reports as CodeServer.
 var statusCodes = map[int]Code{
-	http.StatusBadRequest:            CodeUsage,
-	http.StatusUnauthorized:          CodeAuth,
-	http.StatusForbidden:             CodeForbidden,
-	http.StatusNotFound:              CodeNotFound,
-	http.StatusConflict:              CodeConflict,
+	http.StatusBadRequest:   CodeUsage,
+	http.StatusUnauthorized: CodeAuth,
+	http.StatusForbidden:    CodeForbidden,
+	http.StatusNotFound:     CodeNotFound,
+	http.StatusConflict:     CodeConflict,
+	// 422: the request was understood but needs something the caller must
+	// supply, e.g. a name when nothing else gives one.
+	http.StatusUnprocessableEntity:   CodeUsage,
 	http.StatusRequestEntityTooLarge: CodeTooLarge,
 	http.StatusTooManyRequests:       CodeRateLimited,
 }

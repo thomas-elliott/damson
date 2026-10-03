@@ -41,6 +41,8 @@ type assetDetailResponse struct {
 	Description        string     `json:"description"`
 	SourceURL          string     `json:"source_url"`
 	NeedsReview        bool       `json:"needs_review"`
+	IsReference        bool       `json:"is_reference"`
+	LocationPath       string     `json:"location_path"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	Publisher          string     `json:"publisher"`
@@ -313,6 +315,8 @@ func runAsset(ctx context.Context, e *Env) error {
 		{Key: "needs_review", Value: a.NeedsReview},
 		{Key: "description", Value: blankToNil(a.Description)},
 		{Key: "source_url", Value: blankToNil(a.SourceURL)},
+		{Key: "reference", Value: a.IsReference},
+		{Key: "location_path", Value: blankToNil(a.LocationPath)},
 		{Key: "engine", Value: blankToNil(a.Engine)},
 		{Key: "min_engine_version", Value: blankToNil(a.MinEngineVersion)},
 		{Key: "latest_store_version", Value: blankToNil(a.LatestStoreVersion)},
