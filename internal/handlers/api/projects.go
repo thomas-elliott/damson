@@ -167,8 +167,9 @@ type projectPinDetail struct {
 	PinID           uint      `json:"pin_id"`
 	AssetID         uint      `json:"asset_id"`
 	AssetName       string    `json:"asset_name"`
-	PinnedVersionID uint      `json:"pinned_version_id"`
+	PinnedVersionID *uint     `json:"pinned_version_id"`
 	VersionLabel    string    `json:"version_label"`
+	IsReference     bool      `json:"is_reference,omitempty"`
 	LatestVersionID *uint     `json:"latest_version_id,omitempty"`
 	LatestLabel     string    `json:"latest_label,omitempty"`
 	HasUpdate       bool      `json:"has_update"`
@@ -200,8 +201,9 @@ func (h *Handler) getProject(c *gin.Context) {
 		PinID           uint
 		AssetID         uint
 		AssetName       string
-		PinnedVersionID uint
+		PinnedVersionID *uint
 		VersionLabel    string
+		IsReference     bool
 		CurrentVersion  *uint
 		CurrentLabel    string
 		LicenceType     string
@@ -212,13 +214,14 @@ func (h *Handler) getProject(c *gin.Context) {
 	err := h.db.WithContext(c.Request.Context()).
 		Table("project_asset_pins AS pin").
 		Select(`pin.id AS pin_id, pin.asset_id, a.name AS asset_name,
-			pin.pinned_version_id, v.version_label, a.current_version_id AS current_version,
+			pin.pinned_version_id, COALESCE(v.version_label, '') AS version_label, a.is_reference,
+			a.current_version_id AS current_version,
 			cv.version_label AS current_label,
 			l.detected_type AS licence_type,
 			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = pin.pinned_version_id), 0) AS size_bytes,
 			pin.pinned_at`).
 		Joins("JOIN assets a ON a.id = pin.asset_id").
-		Joins("JOIN asset_versions v ON v.id = pin.pinned_version_id").
+		Joins("LEFT JOIN asset_versions v ON v.id = pin.pinned_version_id").
 		Joins("LEFT JOIN asset_versions cv ON cv.id = a.current_version_id").
 		Joins("LEFT JOIN licences l ON l.id = a.licence_id").
 		Where("pin.project_id = ?", p.ID).
@@ -249,13 +252,15 @@ func (h *Handler) getProject(c *gin.Context) {
 			AssetName:       r.AssetName,
 			PinnedVersionID: r.PinnedVersionID,
 			VersionLabel:    r.VersionLabel,
+			IsReference:     r.IsReference,
 			LatestVersionID: r.CurrentVersion,
 			LatestLabel:     r.CurrentLabel,
-			HasUpdate:       r.CurrentVersion != nil && *r.CurrentVersion != r.PinnedVersionID,
-			LicenceSPDX:     r.LicenceType,
-			LicenceStatus:   "unk",
-			SizeBytes:       r.SizeBytes,
-			PinnedAt:        r.PinnedAt,
+			HasUpdate: r.CurrentVersion != nil && r.PinnedVersionID != nil &&
+				*r.CurrentVersion != *r.PinnedVersionID,
+			LicenceSPDX:   r.LicenceType,
+			LicenceStatus: "unk",
+			SizeBytes:     r.SizeBytes,
+			PinnedAt:      r.PinnedAt,
 		}
 		if r.LicenceType != "" {
 			// Minimal status inference without loading attrs — call the
@@ -431,6 +436,12 @@ func (h *Handler) postProjectPin(c *gin.Context) {
 		if err := tx.Where("id = ? AND library_id = ?", req.AssetID, lib.ID).First(&asset).Error; err != nil {
 			return err
 		}
+		if asset.IsReference {
+			if req.VersionID != nil {
+				return errBadRequestf("a reference asset has no versions to pin")
+			}
+			return pinReferenceTx(tx, lib.ID, u.ID, &p, &asset, &pin)
+		}
 		versionID := req.VersionID
 		if versionID == nil {
 			if asset.CurrentVersionID == nil {
@@ -453,7 +464,7 @@ func (h *Handler) postProjectPin(c *gin.Context) {
 			pin = models.ProjectAssetPin{
 				ProjectID:       p.ID,
 				AssetID:         asset.ID,
-				PinnedVersionID: *versionID,
+				PinnedVersionID: versionID,
 				PinnedAt:        time.Now().UTC(),
 				PinnedByUserID:  &u.ID,
 			}
@@ -470,11 +481,11 @@ func (h *Handler) postProjectPin(c *gin.Context) {
 			})
 		}
 		pin = existing
-		if pin.PinnedVersionID == *versionID {
+		if pin.PinnedVersionID != nil && *pin.PinnedVersionID == *versionID {
 			return nil // idempotent no-op
 		}
 		prev := pin.PinnedVersionID
-		pin.PinnedVersionID = *versionID
+		pin.PinnedVersionID = versionID
 		pin.PinnedAt = time.Now().UTC()
 		pin.PinnedByUserID = &u.ID
 		if err := tx.Save(&pin).Error; err != nil {
@@ -500,6 +511,35 @@ func (h *Handler) postProjectPin(c *gin.Context) {
 		"project_id":        pin.ProjectID,
 		"asset_id":          pin.AssetID,
 		"pinned_version_id": pin.PinnedVersionID,
+	})
+}
+
+// pinReferenceTx pins a reference asset, which has no versions, so the pin
+// carries none. Pinning it again is a no-op.
+func pinReferenceTx(tx *gorm.DB, libID, userID uint, p *models.Project, asset *models.Asset, pin *models.ProjectAssetPin) error {
+	err := tx.Where("project_id = ? AND asset_id = ?", p.ID, asset.ID).First(pin).Error
+	if err == nil {
+		return nil
+	}
+	if !isNotFound(err) {
+		return err
+	}
+	*pin = models.ProjectAssetPin{
+		ProjectID:      p.ID,
+		AssetID:        asset.ID,
+		PinnedAt:       time.Now().UTC(),
+		PinnedByUserID: &userID,
+	}
+	if err := tx.Create(pin).Error; err != nil {
+		return err
+	}
+	return audit.Write(tx, audit.Entry{
+		LibraryID:  &libID,
+		UserID:     &userID,
+		ActionType: "project.pin",
+		TargetType: "project",
+		TargetID:   &p.ID,
+		Diff:       audit.Created(map[string]any{"asset_id": asset.ID, "version_id": nil}),
 	})
 }
 

@@ -78,7 +78,7 @@ type assetFileView struct {
 type projectPinView struct {
 	ProjectID       uint   `json:"project_id"`
 	ProjectName     string `json:"project_name"`
-	PinnedVersionID uint   `json:"pinned_version_id"`
+	PinnedVersionID *uint  `json:"pinned_version_id"`
 	VersionLabel    string `json:"version_label"`
 }
 
@@ -280,15 +280,15 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	type pRow struct {
 		ProjectID       uint
 		ProjectName     string
-		PinnedVersionID uint
+		PinnedVersionID *uint
 		VersionLabel    string
 	}
 	var pins []pRow
 	if err := h.db.WithContext(c.Request.Context()).
 		Table("project_asset_pins AS pin").
-		Select("pin.project_id, p.name AS project_name, pin.pinned_version_id, v.version_label").
+		Select("pin.project_id, p.name AS project_name, pin.pinned_version_id, COALESCE(v.version_label, '') AS version_label").
 		Joins("JOIN projects p ON p.id = pin.project_id").
-		Joins("JOIN asset_versions v ON v.id = pin.pinned_version_id").
+		Joins("LEFT JOIN asset_versions v ON v.id = pin.pinned_version_id").
 		Where("pin.asset_id = ? AND p.library_id = ?", asset.ID, lib.ID).
 		Scan(&pins).Error; err != nil {
 		respond500(c, err)
