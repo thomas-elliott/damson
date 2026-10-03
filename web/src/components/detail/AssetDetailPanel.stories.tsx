@@ -296,5 +296,8 @@ export const Reference: Story = {
     await expect(canvas.queryByRole("button", { name: /^Versions/ })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: /^Files/ })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "Merge…" })).not.toBeInTheDocument();
+    // A reference asset's pin has no version, so it reads as Reference, not blank.
+    await userEvent.click(canvas.getByRole("button", { name: /^Projects/ }));
+    await expect(await canvas.findByText("Reference")).toBeVisible();
   },
 };

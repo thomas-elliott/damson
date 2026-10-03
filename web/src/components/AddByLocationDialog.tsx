@@ -140,7 +140,11 @@ export function AddByLocationDialog({
               <FieldRow label="Path">
                 <Input
                   value={path}
-                  onChange={(e) => setPath(e.currentTarget.value)}
+                  onChange={(e) => {
+                    setPath(e.currentTarget.value);
+                    // The server decides afresh whether a name is needed.
+                    setNeedsName(false);
+                  }}
                   placeholder="/mnt/assets/Publisher/Pack.unitypackage"
                   aria-label="Path"
                   className="font-mono"
@@ -150,7 +154,10 @@ export function AddByLocationDialog({
               <FieldRow label="Store link">
                 <Input
                   value={link}
-                  onChange={(e) => setLink(e.currentTarget.value)}
+                  onChange={(e) => {
+                    setLink(e.currentTarget.value);
+                    setNeedsName(false);
+                  }}
                   placeholder="https://assetstore.unity.com/packages/…"
                   aria-label="Store link"
                 />

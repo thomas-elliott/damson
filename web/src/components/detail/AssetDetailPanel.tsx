@@ -368,7 +368,12 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           <KeyValueList
             entries={asset.projects.map((p) => ({
               key: p.project_name,
-              value: <span className="font-mono text-muted-foreground">{p.version_label}</span>,
+              value: (
+                <span className="font-mono text-muted-foreground">
+                  {/* A reference asset's pin carries no version. */}
+                  {asset.is_reference ? "Reference" : p.version_label}
+                </span>
+              ),
               mono: false,
             }))}
           />

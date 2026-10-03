@@ -103,6 +103,10 @@ func init() {
 			if len(e.Args) > 0 && e.Args[0] == "record" {
 				return runAssetRecord(ctx, e, edit, needsReview)
 			}
+			if e.flagWasSet("needs-review") {
+				return axi.Usagef([]string{"dmsn asset review <id>"},
+					"--needs-review only applies to asset record")
+			}
 			return runAssetVerb(ctx, e, edit, assetYes)
 		},
 	})

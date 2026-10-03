@@ -154,4 +154,20 @@ describe("AddByLocationDialog", () => {
       name: "Hand Named",
     });
   });
+
+  it("stops requiring a name once the path changes", async () => {
+    routes["/api/metadata/preview"] = () => ({});
+    routes["/api/assets/references"] = () => {
+      throw new ApiError(422, {}, "name is required");
+    };
+    renderDialog();
+    fireEvent.change(screen.getByLabelText("Store link"), {
+      target: { value: "https://example.com/broken" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByLabelText("Name");
+    fireEvent.change(screen.getByLabelText("Path"), { target: { value: "/mnt/nfs/Pack" } });
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+  });
 });

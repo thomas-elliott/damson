@@ -627,3 +627,17 @@ func TestAssetEdit_LocationPath(t *testing.T) {
 		t.Fatalf("--clear location-path should send an empty location_path: %v", body)
 	}
 }
+
+func TestAsset_NeedsReviewOutsideRecordIsRefused(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{"/api/assets/511": cap.record(assetDetail)})
+
+	out, code := exec(t, "asset", "edit", "511", "--name", "x", "--needs-review")
+	if code != axi.ExitUsage || !strings.Contains(out, "only applies to asset record") {
+		t.Fatalf("exit = %d\n%s", code, out)
+	}
+	if len(cap.calls) != 0 {
+		t.Fatalf("a refused command still reached the server: %+v", cap.calls)
+	}
+}
