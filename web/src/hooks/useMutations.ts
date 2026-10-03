@@ -68,6 +68,41 @@ export function usePatchAsset() {
   });
 }
 
+export type ReferenceOutcome = "created" | "updated" | "exists";
+
+export interface ReferenceRecordResult {
+  outcome: ReferenceOutcome;
+  asset_id: number;
+  name: string;
+  location_path?: string;
+  source_url?: string;
+}
+
+// useRecordReference records an asset by its location: a path, a store link,
+// or both. A known path updates its asset; a link already in the library comes
+// back as "exists" with that asset. A 422 means no name could be derived.
+export function useRecordReference() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      location_path?: string;
+      source_url?: string;
+      name?: string;
+      needs_review?: boolean;
+    }) =>
+      fetchJson<ReferenceRecordResult>("/api/assets/references", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (res) => {
+      if (res.outcome === "exists") return;
+      qc.invalidateQueries({ queryKey: queryKeys.asset(res.asset_id) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.assetFacets });
+    },
+  });
+}
+
 export function usePatchVersion() {
   const qc = useQueryClient();
   return useMutation({
