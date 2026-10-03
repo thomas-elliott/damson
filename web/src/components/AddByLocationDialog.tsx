@@ -170,19 +170,19 @@ export function AddByLocationDialog({
                 cover={preview.data?.cover_url}
               />
               {needsName && (
-                <FieldRow label="Name">
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.currentTarget.value)}
-                    aria-label="Name"
-                    autoFocus
-                  />
-                </FieldRow>
-              )}
-              {needsName && (
-                <p className="text-label text-subtle-foreground">
-                  Neither the path nor the store link gives a name, so name it here.
-                </p>
+                <>
+                  <FieldRow label="Name">
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.currentTarget.value)}
+                      aria-label="Name"
+                      autoFocus
+                    />
+                  </FieldRow>
+                  <p className="text-label text-subtle-foreground">
+                    Neither the path nor the store link gives a name, so name it here.
+                  </p>
+                </>
               )}
               {showError && <p className="text-label text-destructive">{error.message}</p>}
               {/* Lets Enter submit from any field. */}

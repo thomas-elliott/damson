@@ -93,13 +93,11 @@ func referenceName(given, path string, meta *metadata.Metadata) string {
 		return given
 	}
 	var title string
-	storeTitle := false
 	if meta != nil {
 		title = strings.TrimSpace(meta.Title)
-		storeTitle = meta.Store != metadata.StoreGeneric
-	}
-	if title != "" && storeTitle {
-		return title
+		if title != "" && meta.Store != metadata.StoreGeneric {
+			return title
+		}
 	}
 	if n := nameFromLocationPath(path); n != "" {
 		return n
@@ -173,16 +171,29 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		outcome string
 	)
 	err = db.Transaction(func(tx *gorm.DB) error {
-		var ferr error
 		if path != "" {
-			ferr = tx.Where("library_id = ? AND location_path = ?", lib.ID, path).First(&asset).Error
-			if ferr != nil && !isNotFound(ferr) {
-				return ferr
+			err := tx.Where("library_id = ? AND location_path = ?", lib.ID, path).First(&asset).Error
+			if err == nil {
+				outcome = referenceUpdated
+				return updateReferenceTx(tx, lib.ID, u.ID, &asset, link, req.NeedsReview)
 			}
-		}
-		if path != "" && ferr == nil {
-			outcome = referenceUpdated
-			return updateReferenceTx(tx, lib.ID, u.ID, &asset, link, req.NeedsReview)
+			if !isNotFound(err) {
+				return err
+			}
+		} else {
+			// Serialise link-only records of the same link, then check again, so
+			// two at once can't both pass the check above and create two assets.
+			if err := tx.Exec("SELECT pg_advisory_xact_lock(?, hashtext(?))", int32(lib.ID), link).Error; err != nil {
+				return err
+			}
+			err := tx.Where("library_id = ? AND source_url = ?", lib.ID, link).Order("id").First(&asset).Error
+			if err == nil {
+				outcome = referenceExists
+				return nil
+			}
+			if !isNotFound(err) {
+				return err
+			}
 		}
 		name := referenceName(strings.TrimSpace(req.Name), path, meta)
 		if name == "" {
@@ -239,7 +250,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		return
 	}
 
-	if meta != nil {
+	if meta != nil && outcome != referenceExists {
 		h.applyMetadata(c, lib.ID, &asset, meta, nil, false, "", u.ID)
 		h.persistSourceRecord(c, &asset, metadata.SourceRecord{
 			Store:      meta.Store,

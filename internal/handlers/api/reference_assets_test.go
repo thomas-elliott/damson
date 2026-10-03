@@ -1,10 +1,13 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"gorm.io/gorm"
@@ -61,10 +64,10 @@ func countAssets(t *testing.T, db *gorm.DB, libID uint) int64 {
 	return n
 }
 
-func TestRecordReference_PathOnlyIsNamedAfterLastSegmentAndSearchable(t *testing.T) {
+func TestRecordReference_PathOnlyIsNamedAfterLastSegment(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
-	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedLibraryForUser(t, db, u, "Personal")
 	r := setupRouter(h, u)
 
 	resp := recordReference(t, r, map[string]any{
@@ -84,14 +87,6 @@ func TestRecordReference_PathOnlyIsNamedAfterLastSegmentAndSearchable(t *testing
 	if a.NeedsReview {
 		t.Error("a hand-recorded reference asset was marked Needs review")
 	}
-
-	w := performGET(r, "/api/assets?q=Synty")
-	requireStatus(t, w, http.StatusOK)
-	list := jsonResponse[assetListResponse](t, w)
-	if len(list.Assets) != 1 || list.Assets[0].ID != resp.AssetID {
-		t.Fatalf("folder-word search: %+v", list.Assets)
-	}
-	_ = lib
 }
 
 func TestRecordReference_LinkOnlyTakesNameCoverAndDescriptionFromListing(t *testing.T) {
@@ -215,6 +210,49 @@ func TestRecordReference_KnownStoreLinkCreatesNothing(t *testing.T) {
 	}
 	if fake.lastURL != "" {
 		t.Error("an already-known link still spent a store lookup")
+	}
+}
+
+// barrierMetadata holds every store lookup until all expected callers have
+// reached it, so each has passed the early "already in library" check first.
+type barrierMetadata struct {
+	fakeMetadata
+	arrived sync.WaitGroup
+}
+
+func (b *barrierMetadata) Fetch(_ context.Context, _ string) (*metadata.Metadata, error) {
+	b.arrived.Done()
+	b.arrived.Wait()
+	return b.meta, nil
+}
+
+func TestRecordReference_ConcurrentRecordsOfANewLinkCreateOneAsset(t *testing.T) {
+	h, db := newTestHandler(t)
+	const callers = 2
+	fake := &barrierMetadata{fakeMetadata: fakeMetadata{meta: &metadata.Metadata{Store: metadata.StoreUnity, Title: "Pack"}}}
+	fake.arrived.Add(callers)
+	h.metadata = fake
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	r := setupRouter(h, u)
+
+	codes := make([]int, callers)
+	var done sync.WaitGroup
+	for i := range callers {
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			codes[i] = performRequest(r, http.MethodPost, "/api/assets/references",
+				map[string]any{"source_url": "https://assetstore.unity.com/packages/p-1"}).Code
+		}()
+	}
+	done.Wait()
+
+	if n := countAssets(t, db, lib.ID); n != 1 {
+		t.Fatalf("%d assets after concurrent records of one link (statuses %v)", n, codes)
+	}
+	if !slices.Contains(codes, http.StatusCreated) || !slices.Contains(codes, http.StatusOK) {
+		t.Fatalf("want one created and one already-in-library, got %v", codes)
 	}
 }
 

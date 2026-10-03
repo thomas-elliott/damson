@@ -233,3 +233,24 @@ func TestPatchLibrarySettings_AuditDiffExcludesMaxUploadBytes(t *testing.T) {
 		t.Fatalf("audit diff records a field this endpoint cannot change: %s", entry.DiffJSON)
 	}
 }
+
+// A reference asset takes no files, so an upload never matches one — even when
+// it was recorded before a stored asset with the same title.
+func TestPreflight_NeverMatchesAReferenceAsset(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "ref@example.com")
+	lib := seedLibraryForUser(t, db, u, "Main")
+	ref := models.Asset{LibraryID: lib.ID, Name: "Fantasy Kingdom", IsReference: true, SourceURL: "https://example.com/fk"}
+	if err := db.Create(&ref).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if got := preflight(t, h, u, "Fantasy Kingdom.unitypackage"); got.Results[0].Status != preflightNew {
+		t.Fatalf("matched the reference asset: %+v", got.Results[0])
+	}
+
+	stored := seedAsset(t, db, lib.ID, "Fantasy Kingdom")
+	if got := preflight(t, h, u, "Fantasy Kingdom.unitypackage"); got.Results[0].AssetID != stored.ID {
+		t.Fatalf("want the stored asset %d, got %+v", stored.ID, got.Results[0])
+	}
+}

@@ -38,19 +38,16 @@ export function LocationSection({ asset }: { asset: AssetDetailView }) {
 }
 
 function LocationRead({ path, link }: { path: string; link: string }) {
-  const [copied, setCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
+  const [copyState, setCopyState] = useState<"copied" | "failed" | null>(null);
 
   // navigator.clipboard is undefined outside a secure context, which plain
   // http on a LAN is, so a failure says what to do rather than no-op.
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(path);
-      setCopied(true);
-      setCopyFailed(false);
+      setCopyState("copied");
     } catch {
-      setCopied(false);
-      setCopyFailed(true);
+      setCopyState("failed");
     }
   };
 
@@ -70,13 +67,13 @@ function LocationRead({ path, link }: { path: string; link: string }) {
                 aria-label="Copy path"
                 onClick={copy}
               >
-                {copied ? "Copied" : "Copy"}
+                {copyState === "copied" ? "Copied" : "Copy"}
               </Button>
             </div>
           ) : (
             <span className="text-label text-faint-foreground">No path</span>
           )}
-          {copyFailed && (
+          {copyState === "failed" && (
             <p className="mt-1 text-label text-destructive">
               Couldn&rsquo;t reach the clipboard. Select the path and copy it by hand.
             </p>

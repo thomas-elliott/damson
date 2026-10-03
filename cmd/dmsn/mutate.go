@@ -241,8 +241,14 @@ func runAssetRecord(ctx context.Context, e *Env, edit *editFlags, needsReview bo
 	if len(e.Args) > 1 {
 		return axi.Usagef(usage, "asset record takes flags, not arguments; got %q", e.Args[1])
 	}
+	recordFlags := []string{"location-path", "source-url", "name"}
+	for _, name := range append(slices.Clone(editableFields), "clear", "yes") {
+		if e.flagWasSet(name) && !slices.Contains(recordFlags, name) {
+			return axi.Usagef(usage, "--%s does not apply to asset record; set it afterwards with asset edit", name)
+		}
+	}
 	body := map[string]any{"needs_review": needsReview}
-	for _, name := range []string{"location-path", "source-url", "name"} {
+	for _, name := range recordFlags {
 		if v := strings.TrimSpace(*edit.values[name]); v != "" {
 			body[bodyKey(name)] = v
 		}

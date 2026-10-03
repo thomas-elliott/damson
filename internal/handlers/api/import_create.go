@@ -235,13 +235,6 @@ func (h *Handler) suggestMatch(ctx context.Context, s importSpec, assetID uint) 
 	if err != nil || m == nil {
 		return nil
 	}
-	// Accepting the suggestion re-targets the upload, which a reference asset
-	// refuses, so it is never offered.
-	var isRef bool
-	if err := h.db.WithContext(ctx).Model(&models.Asset{}).Where("id = ?", m.ID).
-		Pluck("is_reference", &isRef).Error; err != nil || isRef {
-		return nil
-	}
 	return &matchSuggestion{AssetID: m.ID, Name: m.Name}
 }
 
