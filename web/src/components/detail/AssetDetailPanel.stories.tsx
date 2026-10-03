@@ -43,6 +43,7 @@ const ASSET: AssetDetailView = {
   description: DESCRIPTION,
   source_url: LISTING_URL,
   needs_review: true,
+  is_reference: false,
   current_version_id: 21,
   created_at: "2026-03-12T09:14:00Z",
   updated_at: "2026-04-20T11:02:00Z",
@@ -157,7 +158,22 @@ const SPARSE: AssetDetailView = {
 
 const EDITING: AssetDetailView = { ...ASSET, id: 4 };
 
-const ASSETS = new Map([ASSET, NO_DESCRIPTION, SPARSE, EDITING].map((a) => [a.id, a]));
+const REFERENCE: AssetDetailView = {
+  ...ASSET,
+  id: 5,
+  name: "POLYGON_Fantasy_Kingdom",
+  is_reference: true,
+  location_path: "/mnt/nfs/Synty/POLYGON_Fantasy_Kingdom.unitypackage",
+  needs_review: false,
+  current_version_id: undefined,
+  versions: [],
+  files: [],
+  projects: [
+    { project_id: 1, project_name: "Ashfall", pinned_version_id: null, version_label: "" },
+  ],
+};
+
+const ASSETS = new Map([ASSET, NO_DESCRIPTION, SPARSE, EDITING, REFERENCE].map((a) => [a.id, a]));
 
 const AUDIT: AuditEntry[] = [
   {
@@ -267,4 +283,21 @@ export const EditingOverview: Story = {
 /** Reviewed, unlicensed, one version, no gallery — the sparse end of the panel. */
 export const Sparse: Story = {
   render: () => <PanelHarness assetId={SPARSE.id} />,
+};
+
+/** Recorded by its location: the badge and Location block replace versions and files. */
+export const Reference: Story = {
+  render: () => <PanelHarness assetId={REFERENCE.id} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Reference · not stored")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Copy path" })).toBeVisible();
+    await expect(canvas.getByRole("link", { name: "Open store link" })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: /^Versions/ })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: /^Files/ })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "Merge…" })).not.toBeInTheDocument();
+    // A reference asset's pin has no version, so it reads as Reference, not blank.
+    await userEvent.click(canvas.getByRole("button", { name: /^Projects/ }));
+    await expect(await canvas.findByText("Reference")).toBeVisible();
+  },
 };

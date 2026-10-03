@@ -67,3 +67,30 @@ func TestSearch_TsvectorMatchesTagPaths(t *testing.T) {
 		t.Fatalf("tag-path tsvector query returned wrong rows: %+v", body.Assets)
 	}
 }
+
+// TestSearch_TsvectorMatchesLocationPathWords proves a word that appears only
+// in a reference asset's folder path finds it. The simple parser would read the
+// whole path as one file token, so this fails if the path is not split into
+// words before it reaches the vector.
+func TestSearch_TsvectorMatchesLocationPathWords(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	path := "/mnt/nfs/Synty/POLYGON_Fantasy_Kingdom.unitypackage"
+	ref := models.Asset{LibraryID: lib.ID, Name: "Kingdom", IsReference: true, LocationPath: &path}
+	if err := db.Create(&ref).Error; err != nil {
+		t.Fatalf("seed reference asset: %v", err)
+	}
+	_ = seedAsset(t, db, lib.ID, "unrelated")
+
+	r := setupRouter(h, u)
+	for _, q := range []string{"synty", "nfs", "POLYGON"} {
+		w := performGET(r, "/api/assets?q="+q)
+		requireStatus(t, w, http.StatusOK)
+		body := jsonResponse[assetListResponse](t, w)
+		if len(body.Assets) != 1 || body.Assets[0].ID != ref.ID {
+			t.Fatalf("q=%s: path-word query returned wrong rows: %+v", q, body.Assets)
+		}
+	}
+}

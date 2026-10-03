@@ -26,6 +26,7 @@ import {
   LicencePill,
   Markdown,
   MarkdownEditor,
+  Pill,
   Section,
   StatusDot,
   Tag,
@@ -65,6 +66,7 @@ import {
 
 import { DetailsSection } from "./DetailsSection";
 import { LicenceEditor } from "./LicenceEditor";
+import { LocationSection } from "./LocationSection";
 import { MergeDialog } from "./MergeDialog";
 import { EnrichmentReview, MetadataActions } from "./MetadataActions";
 
@@ -265,16 +267,26 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
   return (
     <div className="@container flex flex-col gap-3 p-3">
       {/* The name lives in the panel header; only status chips sit here. */}
-      {asset.needs_review && (
+      {(asset.needs_review || asset.is_reference) && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => review.mutate(asset.id)}
-            className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-soft px-2 py-0.5 text-mono text-warning"
-          >
-            <StatusDot tone="warn" /> Needs review
-            <Check size={11} />
-          </button>
+          {asset.needs_review && (
+            <button
+              type="button"
+              onClick={() => review.mutate(asset.id)}
+              className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-soft px-2 py-0.5 text-mono text-warning"
+            >
+              <StatusDot tone="warn" /> Needs review
+              <Check size={11} />
+            </button>
+          )}
+          {asset.is_reference && (
+            <>
+              {asset.publisher && (
+                <span className="text-label text-muted-foreground">{asset.publisher}</span>
+              )}
+              <Pill tone="neutral">Reference · not stored</Pill>
+            </>
+          )}
         </div>
       )}
 
@@ -316,6 +328,145 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
         </div>
       </Section>
 
+      {/* A reference asset holds a location in place of versions and files. */}
+      {asset.is_reference ? (
+        <LocationSection asset={asset} />
+      ) : (
+        <StoredContent
+          asset={asset}
+          onBrowse={onBrowse}
+          onDownloadOriginal={onDownloadOriginal}
+          onReExtract={onReExtract}
+          reExtractPending={reExtractPending}
+          onRescan={onRescan}
+          rescanPending={rescan.isPending}
+          rescanNote={rescanNote}
+          onRequeuePreviews={() => requeuePreviews.mutate(asset.id)}
+          requeuePending={requeuePreviews.isPending}
+        />
+      )}
+
+      {/* Licence */}
+      <Section
+        title="Licence"
+        open={licenceOpen}
+        onOpenChange={setLicenceOpen}
+        accessory={licenceOpen ? null : <LicenceSummary licence={asset.licence ?? null} />}
+      >
+        <LicenceEditor
+          assetId={asset.id}
+          existing={asset.licence ?? null}
+          onReviewed={() => reviewLicence.mutate(asset.id)}
+        />
+      </Section>
+
+      {/* Projects using this asset */}
+      <Section title="Projects" accessory={`${asset.projects.length}`} defaultOpen={false}>
+        {asset.projects.length === 0 ? (
+          <div className="text-label text-faint-foreground">Not pinned to any project yet</div>
+        ) : (
+          <KeyValueList
+            entries={asset.projects.map((p) => ({
+              key: p.project_name,
+              value: (
+                <span className="font-mono text-muted-foreground">
+                  {/* A reference asset's pin carries no version. */}
+                  {asset.is_reference ? "Reference" : p.version_label}
+                </span>
+              ),
+              mono: false,
+            }))}
+          />
+        )}
+      </Section>
+
+      {/* Collections */}
+      <Section title="Collections" accessory={`${asset.collections.length}`} defaultOpen={false}>
+        {asset.collections.length === 0 ? (
+          <div className="text-label text-faint-foreground">Not in any collections</div>
+        ) : (
+          <ul className="flex flex-col gap-0.5 text-label text-muted-foreground">
+            {asset.collections.map((c) => (
+              <li key={c.collection_id}>{c.collection_name}</li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      {/* Audit */}
+      <Section title="Audit" defaultOpen={false}>
+        <AssetAuditSection assetId={asset.id} />
+      </Section>
+
+      {/* Footer actions */}
+      <div className="mt-2 flex items-center justify-between border-t border-border pt-3">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="destructive"
+            leadingIcon={<Trash2 size={12} />}
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Delete "${asset.name}"?`,
+                description: asset.is_reference
+                  ? "This removes the record. Nothing at its path is touched."
+                  : "This removes all versions and files.",
+                confirmLabel: "Delete asset",
+                tone: "destructive",
+              });
+              if (ok) del.mutate(asset.id);
+            }}
+          >
+            Delete asset
+          </Button>
+          {/* Merging moves versions, which a reference asset has none of. */}
+          {!asset.is_reference && (
+            <Button
+              variant="ghost"
+              leadingIcon={<GitMerge size={12} />}
+              onClick={() => setMergeOpen(true)}
+            >
+              Merge…
+            </Button>
+          )}
+        </div>
+      </div>
+      <MergeDialog
+        targetId={asset.id}
+        targetName={asset.name}
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+      />
+      {confirmDialog}
+    </div>
+  );
+}
+
+// StoredContent is the versions and files of an asset whose data was imported.
+function StoredContent({
+  asset,
+  onBrowse,
+  onDownloadOriginal,
+  onReExtract,
+  reExtractPending,
+  onRescan,
+  rescanPending,
+  rescanNote,
+  onRequeuePreviews,
+  requeuePending,
+}: {
+  asset: AssetDetailView;
+  onBrowse?: () => void;
+  onDownloadOriginal?: () => void;
+  onReExtract?: () => void;
+  reExtractPending: boolean;
+  onRescan: () => void;
+  rescanPending: boolean;
+  rescanNote: string | null;
+  onRequeuePreviews: () => void;
+  requeuePending: boolean;
+}) {
+  return (
+    <>
       {/* Versions */}
       <Section title="Versions" accessory={`${asset.versions.length}`} defaultOpen>
         <div className="flex flex-col gap-0.5">
@@ -366,10 +517,10 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           variant="secondary"
           leadingIcon={<RefreshCw size={12} />}
           className="mb-2 w-full justify-center"
-          disabled={rescan.isPending}
+          disabled={rescanPending}
           onClick={onRescan}
         >
-          {rescan.isPending ? "Rescanning…" : "Rescan package"}
+          {rescanPending ? "Rescanning…" : "Rescan package"}
         </Button>
         {rescanNote && (
           <div className="mb-2 px-1 text-label text-subtle-foreground">{rescanNote}</div>
@@ -379,8 +530,8 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           variant="ghost"
           leadingIcon={<RefreshCw size={12} />}
           className="mb-2 w-full justify-center"
-          disabled={requeuePreviews.isPending}
-          onClick={() => requeuePreviews.mutate(asset.id)}
+          disabled={requeuePending}
+          onClick={onRequeuePreviews}
         >
           Regenerate previews only
         </Button>
@@ -393,89 +544,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
           </span>
         </div>
       </Section>
-
-      {/* Licence */}
-      <Section
-        title="Licence"
-        open={licenceOpen}
-        onOpenChange={setLicenceOpen}
-        accessory={licenceOpen ? null : <LicenceSummary licence={asset.licence ?? null} />}
-      >
-        <LicenceEditor
-          assetId={asset.id}
-          existing={asset.licence ?? null}
-          onReviewed={() => reviewLicence.mutate(asset.id)}
-        />
-      </Section>
-
-      {/* Projects using this asset */}
-      <Section title="Projects" accessory={`${asset.projects.length}`} defaultOpen={false}>
-        {asset.projects.length === 0 ? (
-          <div className="text-label text-faint-foreground">Not pinned to any project yet</div>
-        ) : (
-          <KeyValueList
-            entries={asset.projects.map((p) => ({
-              key: p.project_name,
-              value: <span className="font-mono text-muted-foreground">{p.version_label}</span>,
-              mono: false,
-            }))}
-          />
-        )}
-      </Section>
-
-      {/* Collections */}
-      <Section title="Collections" accessory={`${asset.collections.length}`} defaultOpen={false}>
-        {asset.collections.length === 0 ? (
-          <div className="text-label text-faint-foreground">Not in any collections</div>
-        ) : (
-          <ul className="flex flex-col gap-0.5 text-label text-muted-foreground">
-            {asset.collections.map((c) => (
-              <li key={c.collection_id}>{c.collection_name}</li>
-            ))}
-          </ul>
-        )}
-      </Section>
-
-      {/* Audit */}
-      <Section title="Audit" defaultOpen={false}>
-        <AssetAuditSection assetId={asset.id} />
-      </Section>
-
-      {/* Footer actions */}
-      <div className="mt-2 flex items-center justify-between border-t border-border pt-3">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="destructive"
-            leadingIcon={<Trash2 size={12} />}
-            onClick={async () => {
-              const ok = await confirm({
-                title: `Delete "${asset.name}"?`,
-                description: "This removes all versions and files.",
-                confirmLabel: "Delete asset",
-                tone: "destructive",
-              });
-              if (ok) del.mutate(asset.id);
-            }}
-          >
-            Delete asset
-          </Button>
-          <Button
-            variant="ghost"
-            leadingIcon={<GitMerge size={12} />}
-            onClick={() => setMergeOpen(true)}
-          >
-            Merge…
-          </Button>
-        </div>
-      </div>
-      <MergeDialog
-        targetId={asset.id}
-        targetName={asset.name}
-        open={mergeOpen}
-        onOpenChange={setMergeOpen}
-      />
-      {confirmDialog}
-    </div>
+    </>
   );
 }
 
@@ -643,7 +712,7 @@ function OverviewForm({
         id: asset.id,
         name: name.trim() || asset.name,
         description,
-        source_url: sourceURL.trim(),
+        ...(asset.is_reference ? {} : { source_url: sourceURL.trim() }),
       },
       { onSuccess: onDone },
     );
@@ -670,16 +739,20 @@ function OverviewForm({
           autoFocus={autoFocus}
         />
       </FieldRow>
-      <FieldRow label="Source URL">
-        <Input
-          value={sourceURL}
-          onChange={(e) => setSourceURL(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSave();
-          }}
-          placeholder="https://…"
-        />
-      </FieldRow>
+      {/* A reference asset's store link is edited in Location, which keeps it
+          and the path from both being cleared. */}
+      {!asset.is_reference && (
+        <FieldRow label="Source URL">
+          <Input
+            value={sourceURL}
+            onChange={(e) => setSourceURL(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSave();
+            }}
+            placeholder="https://…"
+          />
+        </FieldRow>
+      )}
       <EnrichmentReview asset={asset} />
       <div className="flex items-center justify-end gap-1.5">
         <Button variant="ghost" size="sm" onClick={onDone} disabled={patch.isPending}>

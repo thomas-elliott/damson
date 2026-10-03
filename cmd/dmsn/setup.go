@@ -171,6 +171,7 @@ alternatives in its help block.
     ` + binaryName + ` upload <path>... [--as ...]  import files or folders
     ` + binaryName + ` sync scan|push               import the Unity Store cache
     ` + binaryName + ` asset edit|review|tag|rm     modify one asset
+    ` + binaryName + ` asset record --location-path record an asset by where it lives
     ` + binaryName + ` bulk tag|review|rm --assets  modify many at once
     ` + binaryName + ` collection new|add|remove    curate
 
@@ -187,6 +188,9 @@ include ` + "`--q --tag --publisher --needs-review --updates-available --sort`" 
   Store cache against the library; ` + "`sync push`" + ` uploads only what is missing or
   changed, and is safe to re-run. A package the library already holds by name
   but not by cache path is skipped until ` + "`--adopt-versions`" + `.
+- **Reference assets hold no files.** ` + "`asset record`" + ` adds one by its path
+  and/or store link (` + "`--source-url`" + `), importing nothing. Recording a known path
+  updates that asset; ` + "`--needs-review`" + ` flags it for review.
 - **Destructive verbs need ` + "`--yes`" + `.** ` + "`asset rm`, `tag rm`, `collection rm`, `bulk rm`" + `.
 - **Mutations are idempotent** where the API allows, and report ` + "`changed`" + ` or
   ` + "`affected`" + ` so you can tell a no-op from a real change.

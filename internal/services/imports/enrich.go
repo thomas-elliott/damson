@@ -369,10 +369,12 @@ func NewNameMatcher(db *gorm.DB, libraryID uint) (*NameMatcher, error) {
 
 // newNameMatcher builds the index, optionally excluding one asset — the
 // just-created row, when the caller is asking what its own name collides with.
+// Reference assets are left out: they take no files, so an upload can never
+// land in one.
 func newNameMatcher(db *gorm.DB, libraryID, excludeID uint) (*NameMatcher, error) {
 	q := db.Model(&models.Asset{}).
 		Select("id", "name").
-		Where("library_id = ?", libraryID)
+		Where("library_id = ? AND is_reference = false", libraryID)
 	if excludeID != 0 {
 		q = q.Where("id <> ?", excludeID)
 	}

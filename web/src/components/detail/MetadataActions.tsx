@@ -34,7 +34,9 @@ function candidateSubtitle(c: MetadataCandidate): string {
   return [c.store, c.publisher, price].filter(Boolean).join(" · ");
 }
 
-function ProxiedImage({ src, className }: { src: string; className?: string }) {
+// ProxiedImage renders a remote listing image through the SSRF-guarded proxy,
+// since the CSP forbids store CDN origins.
+export function ProxiedImage({ src, className }: { src: string; className?: string }) {
   const url = useBlobUrl(`/api/metadata/image?url=${encodeURIComponent(src)}`);
   if (!url) return <div className={cn("animate-pulse bg-background", className)} />;
   return <img src={url} alt="" loading="lazy" className={className} />;

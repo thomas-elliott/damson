@@ -100,7 +100,19 @@ func (h *Handler) checkImportConflict(ctx context.Context, s importSpec) error {
 	if err := db.Where("id = ? AND library_id = ?", s.targetAssetID, s.libraryID).First(&asset).Error; err != nil {
 		return err
 	}
+	if err := refuseReferenceTarget(&asset); err != nil {
+		return err
+	}
 	return conflictingStoreVersion(db, asset.ID, s.storeVersion())
+}
+
+// refuseReferenceTarget stops files landing in a reference asset, which holds a
+// location and no versions. Turning one into a stored asset is a separate step.
+func refuseReferenceTarget(asset *models.Asset) error {
+	if asset.IsReference {
+		return errConflictf("%q is a reference asset and holds no files", asset.Name)
+	}
+	return nil
 }
 
 func conflictingStoreVersion(db *gorm.DB, assetID uint, storeVersion string) error {
@@ -129,6 +141,9 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 		var asset models.Asset
 		if s.targetAssetID != 0 {
 			if err := tx.Where("id = ? AND library_id = ?", s.targetAssetID, s.libraryID).First(&asset).Error; err != nil {
+				return err
+			}
+			if err := refuseReferenceTarget(&asset); err != nil {
 				return err
 			}
 			if err := conflictingStoreVersion(tx, asset.ID, storeVersion); err != nil {

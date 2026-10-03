@@ -35,6 +35,7 @@ type assetGridRow struct {
 	Publisher          string     `json:"publisher,omitempty"`
 	ReleasedAt         *time.Time `json:"released_at,omitempty"`
 	UpdateAvailable    bool       `json:"update_available,omitempty"`
+	IsReference        bool       `json:"is_reference,omitempty"`
 }
 
 type assetListResponse struct {
@@ -296,6 +297,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		ReleasedAt         *time.Time
 		LatestStoreVersion *string
 		StoreVersions      string
+		IsReference        bool
 	}
 	var rows []row
 	err := base.Session(&gorm.Session{}).
@@ -305,7 +307,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		// dedup-by-value silently undercounted whenever two files shared a size.
 		// Subqueries are immune to both.
 		Select(`a.id, a.name, a.needs_review, a.created_at, a.thumbnail_object_key,
-			a.publisher, a.released_at, a.latest_store_version,
+			a.publisher, a.released_at, a.latest_store_version, a.is_reference,
 			COALESCE((SELECT string_agg(v3.store_version, ',') FROM asset_versions v3
 				WHERE v3.asset_id = a.id AND v3.store_version <> ''), '') AS store_versions,
 			COALESCE((SELECT COUNT(*) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS file_count,
@@ -348,6 +350,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 			Publisher:          derefString(r.Publisher),
 			ReleasedAt:         r.ReleasedAt,
 			UpdateAvailable:    updateAvailable,
+			IsReference:        r.IsReference,
 		})
 	}
 

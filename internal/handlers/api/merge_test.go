@@ -37,7 +37,7 @@ func TestPostAssetMerge_FoldsSourceIntoTarget(t *testing.T) {
 	if err := db.Create(&proj).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Create(&models.ProjectAssetPin{ProjectID: proj.ID, AssetID: source.ID, PinnedVersionID: sv1.ID}).Error; err != nil {
+	if err := db.Create(&models.ProjectAssetPin{ProjectID: proj.ID, AssetID: source.ID, PinnedVersionID: &sv1.ID}).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -85,7 +85,7 @@ func TestPostAssetMerge_FoldsSourceIntoTarget(t *testing.T) {
 	if pin.AssetID != target.ID {
 		t.Fatalf("pin not moved to target: asset_id=%d", pin.AssetID)
 	}
-	if pin.PinnedVersionID != tv.ID {
+	if pin.PinnedVersionID == nil || *pin.PinnedVersionID != tv.ID {
 		t.Fatalf("pin should be repointed to target's 1.0 (%d), got %d", tv.ID, pin.PinnedVersionID)
 	}
 }
