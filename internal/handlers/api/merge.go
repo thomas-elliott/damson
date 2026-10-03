@@ -187,8 +187,11 @@ func movePins(tx *gorm.DB, sourceID, targetID uint, dropRemap map[uint]uint) err
 			continue
 		}
 		updates := map[string]any{"asset_id": targetID}
-		if remapped, ok := dropRemap[p.PinnedVersionID]; ok {
-			updates["pinned_version_id"] = remapped
+		// Merges refuse reference assets, so every pin here names a version.
+		if p.PinnedVersionID != nil {
+			if remapped, ok := dropRemap[*p.PinnedVersionID]; ok {
+				updates["pinned_version_id"] = remapped
+			}
 		}
 		if err := tx.Model(&models.ProjectAssetPin{}).Where("id = ?", p.ID).
 			Updates(updates).Error; err != nil {

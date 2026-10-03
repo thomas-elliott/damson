@@ -415,3 +415,53 @@ func TestReferenceAsset_IsNeverSuggestedAsAnUploadMatch(t *testing.T) {
 		t.Fatalf("a reference asset was offered as the version match: %+v", m)
 	}
 }
+
+func TestReferenceAsset_TagsCollectsAndPinsWithoutAVersion(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	ref := seedReference(t, db, lib.ID, "Kingdom", "/nfs/Kingdom", "")
+	proj := models.Project{LibraryID: lib.ID, Name: "Ashfall"}
+	if err := db.Create(&proj).Error; err != nil {
+		t.Fatal(err)
+	}
+	r := setupRouter(h, u)
+	pinPath := "/api/projects/" + itoa(proj.ID) + "/pins"
+
+	requireStatus(t, performRequest(r, http.MethodPost, pinPath,
+		map[string]any{"asset_id": ref.ID, "version_id": 1}), http.StatusBadRequest)
+	requireStatus(t, performRequest(r, http.MethodPost, pinPath, map[string]any{"asset_id": ref.ID}), http.StatusOK)
+	requireStatus(t, performRequest(r, http.MethodPost, pinPath, map[string]any{"asset_id": ref.ID}), http.StatusOK)
+
+	w := performGET(r, "/api/projects/"+itoa(proj.ID))
+	requireStatus(t, w, http.StatusOK)
+	pd := jsonResponse[projectDetailView](t, w)
+	if len(pd.Pins) != 1 {
+		t.Fatalf("want one pin, got %+v", pd.Pins)
+	}
+	pin := pd.Pins[0]
+	if pin.AssetID != ref.ID || !pin.IsReference || pin.PinnedVersionID != nil || pin.HasUpdate {
+		t.Fatalf("reference pin: %+v", pin)
+	}
+
+	w = performGET(r, "/api/assets/"+itoa(ref.ID))
+	requireStatus(t, w, http.StatusOK)
+	if d := jsonResponse[assetDetailView](t, w); len(d.Projects) != 1 || d.Projects[0].ProjectName != "Ashfall" {
+		t.Fatalf("asset detail projects: %+v", d.Projects)
+	}
+
+	coll := models.Collection{LibraryID: lib.ID, Name: "Medieval"}
+	if err := db.Create(&coll).Error; err != nil {
+		t.Fatal(err)
+	}
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/collections/"+itoa(coll.ID)+"/assets",
+		map[string]any{"asset_id": ref.ID}), http.StatusNoContent)
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/assets/"+itoa(ref.ID)+"/tags",
+		map[string]any{"path": "environment/castles"}), http.StatusCreated)
+
+	w = performGET(r, "/api/assets/"+itoa(ref.ID))
+	requireStatus(t, w, http.StatusOK)
+	if d := jsonResponse[assetDetailView](t, w); len(d.Collections) != 1 || len(d.Tags) != 1 {
+		t.Fatalf("tag/collection not held: collections=%+v tags=%+v", d.Collections, d.Tags)
+	}
+}
