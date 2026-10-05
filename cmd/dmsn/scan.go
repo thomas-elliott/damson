@@ -292,14 +292,7 @@ func runScanMatch(ctx context.Context, e *Env, f *scanFlags) error {
 	}
 	defer file.Close()
 	w := bufio.NewWriter(file)
-	writeRow := func(cols ...string) {
-		clean := make([]string, len(cols))
-		for i, c := range cols {
-			// A tab or newline in a store's title would break the row.
-			clean[i] = strings.Join(strings.Fields(c), " ")
-		}
-		fmt.Fprintln(w, strings.Join(clean, "\t"))
-	}
+	writeRow := func(cols ...string) { fmt.Fprintln(w, tsvLine(cols...)) }
 	writeRow(matchColumns...)
 
 	counts := map[string]int{}
