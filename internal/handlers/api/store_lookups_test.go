@@ -130,6 +130,12 @@ func TestStoreLookups_FiltersSelectTheAssets(t *testing.T) {
 	// No asset IDs and no filter would be the whole library.
 	w = performRequest(r, http.MethodPost, "/api/store-lookups?sort=name_asc", map[string]any{})
 	requireStatus(t, w, http.StatusBadRequest)
+
+	// A filter that can't be read would otherwise be dropped, refreshing more
+	// assets than were asked for.
+	w = performRequest(r, http.MethodPost, "/api/store-lookups?store=unity&released_after=2024/01/01",
+		map[string]any{"refresh": true})
+	requireStatus(t, w, http.StatusBadRequest)
 }
 
 func TestStoreLookups_ScopedToTheLibrary(t *testing.T) {
@@ -446,5 +452,39 @@ func TestStoreRefresh_GenericFallbackOnlyFillsBlanks(t *testing.T) {
 	}
 	if batch.NoStoreData != 1 {
 		t.Fatalf("batch %+v, want the lookup counted as no_store_data", batch)
+	}
+
+	// The blank the scraper filled was a lookup's, not a person's, so the
+	// store's next answer replaces it.
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{Store: metadata.StoreUnity, Title: "Pack", Publisher: "The Publisher"}}
+	lookUp(t, h, setupRouter(h, u), q, a.ID, true)
+	db.First(&got, a.ID)
+	if derefString(got.Publisher) != "The Publisher" {
+		t.Fatalf("publisher %q, want the scraper's fill replaced by the store's", derefString(got.Publisher))
+	}
+}
+
+func TestStoreRefresh_ReplacesWhatAnEarlierLookupKept(t *testing.T) {
+	h, db := newTestHandler(t)
+	q := &heldLookups{}
+	h.metadata, h.storeLookups = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreUnity, Title: "Pack", Publisher: "New Listing's Publisher",
+	}}, q
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	// The publisher is the one an earlier lookup of the old listing gave.
+	last := &metadata.Metadata{Store: metadata.StoreUnity, Title: "Pack", Publisher: "Old Listing's Publisher"}
+	a := seedLinkedAsset(t, db, lib.ID, "Pack", "https://assetstore.unity.com/packages/slug/7", func(a *models.Asset) {
+		a.Publisher, a.SourceMetadataJSON = strPtr(last.Publisher), sourceRecordJSON(t, last)
+	})
+
+	// A fill-blanks lookup keeps the publisher; a refresh then replaces it,
+	// because no person wrote it.
+	lookUp(t, h, setupRouter(h, u), q, a.ID, false)
+	batch := lookUp(t, h, setupRouter(h, u), q, a.ID, true)
+	var got models.Asset
+	db.First(&got, a.ID)
+	if derefString(got.Publisher) != "New Listing's Publisher" {
+		t.Fatalf("publisher %q (batch %+v), want the earlier lookup's value replaced", derefString(got.Publisher), batch)
 	}
 }

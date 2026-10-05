@@ -3,12 +3,15 @@ package queue
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"golang.org/x/image/bmp"
 	"gorm.io/gorm"
 
@@ -297,6 +300,38 @@ func (r *concurrencyRunner) RunStoreLookup(_ context.Context, id uint) error {
 	r.ran = append(r.ran, id)
 	r.mu.Unlock()
 	return nil
+}
+
+func (r *concurrencyRunner) FailStoreLookup(context.Context, uint, string) error { return nil }
+
+// failingRunner fails every lookup and records which it was told were failed.
+type failingRunner struct{ failed []uint }
+
+func (r *failingRunner) RunStoreLookup(context.Context, uint) error {
+	return errors.New("database unreachable")
+}
+
+func (r *failingRunner) FailStoreLookup(_ context.Context, id uint, _ string) error {
+	r.failed = append(r.failed, id)
+	return nil
+}
+
+func TestStoreLookupWorker_LastAttemptMarksTheLookupFailed(t *testing.T) {
+	runner := &failingRunner{}
+	w := &storeLookupWorker{run: runner}
+	job := func(attempt int) *river.Job[StoreLookupArgs] {
+		return &river.Job[StoreLookupArgs]{
+			JobRow: &rivertype.JobRow{Attempt: attempt, MaxAttempts: 5},
+			Args:   StoreLookupArgs{LookupID: 7},
+		}
+	}
+
+	if err := w.Work(context.Background(), job(4)); err == nil || len(runner.failed) != 0 {
+		t.Fatalf("attempt 4: err %v, failed %v; want the error returned for a retry and nothing marked", err, runner.failed)
+	}
+	if err := w.Work(context.Background(), job(5)); err == nil || len(runner.failed) != 1 || runner.failed[0] != 7 {
+		t.Fatalf("attempt 5: err %v, failed %v; want lookup 7 marked failed", err, runner.failed)
+	}
 }
 
 func (r *concurrencyRunner) snapshot() (most int, ran int) {

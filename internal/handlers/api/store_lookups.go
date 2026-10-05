@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -88,6 +89,23 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 	}
 	filters := parseAssetFilters(c)
 	filters.Sort = "" // an order is not a filter
+	// The asset list drops a filter it can't read, which only widens a list.
+	// Here it would widen the lookups, and a refresh can set Needs review, so
+	// it is refused.
+	for _, f := range []struct {
+		name string
+		read bool
+	}{
+		{"released_after", filters.ReleasedAfter != nil},
+		{"tag_id", filters.TagID != nil},
+		{"project_id", filters.ProjectID != nil},
+		{"collection_id", filters.CollectionID != nil},
+	} {
+		if v := strings.TrimSpace(c.Query(f.name)); v != "" && !f.read {
+			respond400(c, fmt.Errorf("can't read %s %q", f.name, v))
+			return
+		}
+	}
 	var found []candidate
 	switch {
 	case len(req.AssetIDs) > 0:
@@ -260,11 +278,10 @@ func (h *Handler) storeLookupBatchStatus(ctx context.Context, batch models.Store
 		// Only a refresh replaces fields, so only there is a kept field news: a
 		// fill-blanks lookup keeps every value already set, by design.
 		kept := batch.Refresh && len(conflicts) > 0
-		if !kept {
-			conflicts = nil
-		}
 		if kept {
 			resp.Conflicted++
+		} else {
+			conflicts = nil
 		}
 		if r.Status == models.StoreLookupFailed || r.Result == models.StoreLookupNoStoreData || kept {
 			resp.Problems = append(resp.Problems, storeLookupProblem{
@@ -326,7 +343,7 @@ func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
 	// only fills blanks with it, and it never replaces a record a store lookup
 	// left: the next refresh would read the store's values as a person's.
 	refresh := batch.Refresh && !meta.StoreLookupFailed
-	keepRecord := meta.StoreLookupFailed && len(asset.SourceMetadataJSON) > 0
+	prev := sourceRecordOf(&asset)
 
 	// Judge what a person changed before this lookup's record replaces the
 	// last one.
@@ -344,13 +361,23 @@ func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
 			return err
 		}
 	}
-	if !keepRecord {
+	// The record must say what lookups put on the asset. A generic answer
+	// only adds the blanks it filled to the record a store lookup left, and a
+	// field this lookup kept goes on holding the last record's value.
+	if meta.StoreLookupFailed && prev != nil {
+		copyRecordFields(prev.Metadata, meta, applied)
+		h.persistSourceRecord(ctx, &asset, *prev)
+	} else {
+		saved := *meta
+		if prev != nil {
+			copyRecordFields(&saved, prev.Metadata, conflictedFields(conflicts))
+		}
 		h.persistSourceRecord(ctx, &asset, metadata.SourceRecord{
 			Store:      meta.Store,
 			ListingURL: firstNonEmptyStr(meta.ListingURL, asset.SourceURL),
 			FetchedAt:  time.Now().UTC(),
 			Matched:    true,
-			Metadata:   meta,
+			Metadata:   &saved,
 		})
 	}
 
@@ -388,6 +415,14 @@ func (h *Handler) finishStoreLookup(ctx context.Context, lk *models.StoreLookup,
 	}).Error
 }
 
+// FailStoreLookup records a still-queued lookup failed, for a job River has
+// given up retrying.
+func (h *Handler) FailStoreLookup(ctx context.Context, lookupID uint, reason string) error {
+	return h.db.WithContext(ctx).Model(&models.StoreLookup{}).
+		Where("id = ? AND status = ?", lookupID, models.StoreLookupQueued).
+		Updates(map[string]any{"status": models.StoreLookupFailed, "error": reason}).Error
+}
+
 // ResumeStoreLookups re-enqueues every lookup still queued, for one whose
 // enqueue failed or whose job was lost. River dedupes by args, so this is safe
 // on every boot.
@@ -404,4 +439,12 @@ func (h *Handler) ResumeStoreLookups(ctx context.Context) (int, error) {
 		h.storeLookups.EnqueueStoreLookup(id)
 	}
 	return len(ids), nil
+}
+
+func conflictedFields(conflicts []metadataConflict) []string {
+	fields := make([]string, len(conflicts))
+	for i, c := range conflicts {
+		fields[i] = c.Field
+	}
+	return fields
 }

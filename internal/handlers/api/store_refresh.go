@@ -48,8 +48,7 @@ func (h *Handler) changedByPerson(ctx context.Context, asset *models.Asset) (map
 		changed map[string]bool
 		err     error
 	)
-	var rec metadata.SourceRecord
-	if len(asset.SourceMetadataJSON) > 0 && json.Unmarshal(asset.SourceMetadataJSON, &rec) == nil && rec.Metadata != nil {
+	if rec := sourceRecordOf(asset); rec != nil {
 		changed = imports.ChangedSince(asset, rec.Metadata)
 		changed["licence"], err = h.licenceChangedSince(ctx, asset, rec.Metadata)
 	} else {
@@ -124,11 +123,65 @@ func withoutUnchangedCover(asset *models.Asset, meta *metadata.Metadata) *metada
 	if asset.ThumbnailObjectKey == "" || meta.CoverURL == "" {
 		return meta
 	}
-	var rec metadata.SourceRecord
-	if json.Unmarshal(asset.SourceMetadataJSON, &rec) != nil || rec.Metadata == nil || rec.Metadata.CoverURL != meta.CoverURL {
+	if rec := sourceRecordOf(asset); rec == nil || rec.Metadata.CoverURL != meta.CoverURL {
 		return meta
 	}
 	m := *meta
 	m.CoverURL = ""
 	return &m
+}
+
+// sourceRecordOf is the asset's stored source record, or nil when it has none
+// or it holds no lookup's details.
+func sourceRecordOf(asset *models.Asset) *metadata.SourceRecord {
+	var rec metadata.SourceRecord
+	if len(asset.SourceMetadataJSON) == 0 || json.Unmarshal(asset.SourceMetadataJSON, &rec) != nil || rec.Metadata == nil {
+		return nil
+	}
+	return &rec
+}
+
+// copyRecordFields copies the named fields' values from src into dst. The
+// refresh rule reads a field that differs from the stored record as a
+// person's, so the record must hold what lookups last put on the asset, not
+// what a lookup proposed and didn't write.
+func copyRecordFields(dst, src *metadata.Metadata, fields []string) {
+	for _, f := range fields {
+		switch f {
+		case "name":
+			dst.Title = src.Title
+		case "description":
+			dst.Description = src.Description
+		case "licence":
+			dst.LicenceHint, dst.LicenceText = src.LicenceHint, src.LicenceText
+		case "thumbnail":
+			dst.CoverURL = src.CoverURL
+		case "publisher":
+			dst.Publisher = src.Publisher
+		case "publisher_url":
+			dst.PublisherURL = src.PublisherURL
+		case "store":
+			dst.Store = src.Store
+		case "store_product_id":
+			dst.StoreID = src.StoreID
+		case "latest_store_version":
+			dst.LatestStoreVersion = src.LatestStoreVersion
+		case "engine":
+			dst.Engine = src.Engine
+		case "min_engine_version":
+			dst.MinEngineVersion = src.MinEngineVersion
+		case "price":
+			dst.Price = src.Price
+		case "price_currency":
+			dst.Currency = src.Currency
+		case "released_at":
+			dst.ReleasedAt = src.ReleasedAt
+		case "store_updated_at":
+			dst.StoreUpdatedAt = src.StoreUpdatedAt
+		case "rating":
+			dst.Rating = src.Rating
+		case "rating_count":
+			dst.RatingCount = src.RatingCount
+		}
+	}
 }

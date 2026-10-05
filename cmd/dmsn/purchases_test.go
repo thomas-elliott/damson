@@ -104,9 +104,11 @@ func TestUnityListingID(t *testing.T) {
 type fakeLibrary struct {
 	exists map[string]bool // links the library already holds, answered "exists"
 	slow   map[string]bool // links whose record answers after the client gives up
-	mu     sync.Mutex      // a slow answer can overlap the next request
-	calls  []string
-	bodies []map[string]any
+	// failLookups makes every request to queue a lookup answer 500.
+	failLookups bool
+	mu          sync.Mutex // a slow answer can overlap the next request
+	calls       []string
+	bodies      []map[string]any
 }
 
 func (l *fakeLibrary) serve(t *testing.T, links string) {
@@ -147,6 +149,11 @@ func (l *fakeLibrary) serve(t *testing.T, links string) {
 		},
 		"POST /api/store-lookups": func(w http.ResponseWriter, r *http.Request) {
 			log(r)
+			if l.failLookups {
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprint(w, `{"error":"internal error"}`)
+				return
+			}
 			w.WriteHeader(http.StatusAccepted)
 			fmt.Fprint(w, `{"batch_id":40,"total":1,"queued":1}`)
 		},
@@ -282,6 +289,25 @@ func TestPurchasesRecord_TimedOutRowSaysToRerun(t *testing.T) {
 		t.Fatalf("a failed row must set the exit code:\n%s", out)
 	}
 	if !strings.Contains(out, "may have been recorded; rerun the plan") || !strings.Contains(out, "added: 1") {
+		t.Fatalf("output:\n%s", out)
+	}
+}
+
+// A row linked but not looked up can't be fixed by a rerun, which would answer
+// unchanged, so it says how to look the asset up.
+func TestPurchasesRecord_LinkedRowWithoutLookupSaysToRefresh(t *testing.T) {
+	isolate(t)
+	captureProgress(t)
+	lib := &fakeLibrary{failLookups: true}
+	lib.serve(t, recordLinks)
+	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
+		"102\tNo link\t"+unityListingLink("102")+"\tmatched\t1\t\t\t")
+
+	out, code := exec(t, "purchases", "record", plan)
+	if code == axi.ExitOK {
+		t.Fatalf("a failed row must set the exit code:\n%s", out)
+	}
+	if !strings.Contains(out, "run dmsn bulk refresh --assets 1") || strings.Contains(out, "rerun the plan") {
 		t.Fatalf("output:\n%s", out)
 	}
 }
