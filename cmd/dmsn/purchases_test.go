@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/thomas-elliott/damson/internal/axi"
 )
@@ -87,10 +90,156 @@ func TestUnityListingID(t *testing.T) {
 		"https://assetstore.unity.com/packages/slug/11020/":                                 "11020",
 		"https://assetstore.unity.com/packages/tools/my-tool-v2":                            "",
 		"https://example.itch.io/pack-11020":                                                "",
-		"": "",
+		"":                                                                                  "",
 	} {
 		if got := unityListingID(link); got != want {
 			t.Errorf("unityListingID(%q) = %q, want %q", link, got, want)
+		}
+	}
+}
+
+// fakeLibrary serves the routes `purchases record` calls, logging each call as
+// "METHOD path" with its JSON body and when it arrived.
+type fakeLibrary struct {
+	calls  []string
+	bodies []map[string]any
+	at     []time.Time
+}
+
+func (l *fakeLibrary) serve(t *testing.T, links string, failLookupFor string) {
+	t.Helper()
+	log := func(r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		l.calls = append(l.calls, r.Method+" "+r.URL.Path)
+		l.bodies = append(l.bodies, body)
+		l.at = append(l.at, time.Now())
+	}
+	withServer(t, map[string]http.HandlerFunc{
+		"GET /api/assets/links": func(w http.ResponseWriter, r *http.Request) {
+			log(r)
+			fmt.Fprint(w, links)
+		},
+		"POST /api/assets/references": func(w http.ResponseWriter, r *http.Request) {
+			log(r)
+			failed := l.bodies[len(l.bodies)-1]["source_url"] == failLookupFor
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprintf(w, `{"outcome":"created","asset_id":90,"metadata_failed":%t}`, failed)
+		},
+		"PATCH /api/assets/{id}": func(w http.ResponseWriter, r *http.Request) {
+			log(r)
+			fmt.Fprint(w, `{}`)
+		},
+		"POST /api/assets/bulk": func(w http.ResponseWriter, r *http.Request) {
+			log(r)
+			fmt.Fprint(w, `{"affected":1}`)
+		},
+		"POST /api/assets/{id}/metadata/fetch": func(w http.ResponseWriter, r *http.Request) {
+			log(r)
+			fmt.Fprint(w, `{}`)
+		},
+	})
+}
+
+const recordLinks = `{"assets":[
+  {"asset_id":1,"name":"No link","source_url":""},
+  {"asset_id":2,"name":"Same listing","source_url":"https://assetstore.unity.com/packages/3d/same-200"},
+  {"asset_id":3,"name":"Other link","source_url":"https://someone.itch.io/other"},
+  {"asset_id":4,"name":"Swap me","source_url":"https://someone.itch.io/swap"}]}`
+
+// An approved plan records exactly what each row says: a new purchase as a
+// Needs-review reference asset; a matched asset with no link gains it and is
+// marked Needs review; one already on the listing, or matched with another
+// link, is not touched; swap replaces the link; a dropped row does nothing.
+func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
+	isolate(t)
+	lib := &fakeLibrary{}
+	lib.serve(t, recordLinks, unityListingLink("101"))
+	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
+		"100\tBrand New\t"+unityListingLink("100")+"\tnew\t\t\t\t",
+		"101\tLookup Fails\t"+unityListingLink("101")+"\tnew\t\t\t\t",
+		"102\tNo link\t"+unityListingLink("102")+"\tmatched\t1\t\t\t",
+		"200\tSame listing\t"+unityListingLink("200")+"\tmatched\t2\t\t\t",
+		"103\tOther link\t"+unityListingLink("103")+"\tmatched\t3\t\t\t",
+		"104\tSwap me\t"+unityListingLink("104")+"\tswap\t4\t\t\t",
+		"105\tNot wanted\t"+unityListingLink("105")+"\tdropped\t\t\t\t")
+
+	out, code := exec(t, "purchases", "record", plan, "--interval", "0s")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	want := []string{
+		"GET /api/assets/links",
+		"POST /api/assets/references", "POST /api/assets/references",
+		"PATCH /api/assets/1", "POST /api/assets/bulk", "POST /api/assets/1/metadata/fetch",
+		"PATCH /api/assets/4", "POST /api/assets/bulk", "POST /api/assets/4/metadata/fetch",
+	}
+	if !slices.Equal(lib.calls, want) {
+		t.Fatalf("calls =\n%s\nwant\n%s", strings.Join(lib.calls, "\n"), strings.Join(want, "\n"))
+	}
+	if b := lib.bodies[1]; b["needs_review"] != true || b["name"] != "Brand New" || b["source_url"] != unityListingLink("100") {
+		t.Errorf("new purchase body = %v", b)
+	}
+	if b := lib.bodies[3]; b["source_url"] != unityListingLink("102") {
+		t.Errorf("link body = %v", b)
+	}
+	if b := lib.bodies[4]; b["action"] != "unreview" || fmt.Sprint(b["asset_ids"]) != "[1]" {
+		t.Errorf("Needs review body = %v", b)
+	}
+	for _, s := range []string{"added: 2", "linked: 1", "swapped: 1", "unchanged: 1", "kept_own_link: 1",
+		"dropped: 1", "no_store_data: 1"} {
+		if !strings.Contains(out, s) {
+			t.Errorf("summary lacks %q:\n%s", s, out)
+		}
+	}
+}
+
+// A name-only match is never applied without the operator's say-so: a plan
+// still holding an unsure row records nothing.
+func TestPurchasesRecord_RefusesAnUnsureRow(t *testing.T) {
+	isolate(t)
+	lib := &fakeLibrary{}
+	lib.serve(t, recordLinks, "")
+	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
+		"100\tBrand New\t"+unityListingLink("100")+"\tnew\t\t\t\t",
+		"102\tNo link\t"+unityListingLink("102")+"\tunsure\t1\t\t\t")
+
+	out, code := exec(t, "purchases", "record", plan)
+	if code != axi.ExitUsage || !strings.Contains(out, "still unsure: 1") {
+		t.Fatalf("exit = %d\n%s", code, out)
+	}
+	if len(lib.calls) != 0 {
+		t.Fatalf("the server was called: %v", lib.calls)
+	}
+}
+
+// Every call that makes the server look a listing up waits the interval after
+// the one before, whether it records a new purchase or links a matched asset.
+func TestPurchasesRecord_SpacesStoreLookups(t *testing.T) {
+	isolate(t)
+	lib := &fakeLibrary{}
+	lib.serve(t, recordLinks, "")
+	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
+		"100\tA\t"+unityListingLink("100")+"\tnew\t\t\t\t",
+		"102\tNo link\t"+unityListingLink("102")+"\tmatched\t1\t\t\t",
+		"101\tB\t"+unityListingLink("101")+"\tnew\t\t\t\t")
+
+	interval := 60 * time.Millisecond
+	if out, code := exec(t, "purchases", "record", plan, "--interval", interval.String()); code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	var lookups []time.Time
+	for i, c := range lib.calls {
+		if c == "POST /api/assets/references" || strings.HasSuffix(c, "/metadata/fetch") {
+			lookups = append(lookups, lib.at[i])
+		}
+	}
+	if len(lookups) != 3 {
+		t.Fatalf("%d lookups, want 3: %v", len(lookups), lib.calls)
+	}
+	for i := 1; i < len(lookups); i++ {
+		if gap := lookups[i].Sub(lookups[i-1]); gap < interval {
+			t.Errorf("lookup %d came %v after the one before, want at least %v", i+1, gap, interval)
 		}
 	}
 }
