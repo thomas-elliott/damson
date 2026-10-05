@@ -157,6 +157,7 @@ Mode: committing — branch `store-refresh`, one commit per stage (AGENTS.md: "/
 - `cmd/dmsn/purchases.go`: a row times out when the request does (`--timeout`, default 30 s), and only then says it may have been recorded.
 - `internal/handlers/api/assets.go`: the update badge, in the list and the detail view, leaves deprecated listings out too, so it still agrees with the Updates available filter and the overview count.
 - `cmd/dmsn/assets.go`: `--store-deprecated` only selects deprecated assets, as `--needs-review` only selects unreviewed ones; `GET /api/assets` also takes `store_deprecated=false`. `POST /api/store-lookups` refuses a `store_deprecated` it can't read, as it does the other filters.
+- `docs/specs/history/2026-10-05-purchase-catalogue.md`: it already had a `## What implementation found` section, so the Toony Skies note is a dated subsection at its end rather than a second heading.
 
 ### Review — stages 1…7
 
