@@ -138,6 +138,7 @@ type assetFilters struct {
 	sort             string
 	needsReview      bool
 	updatesAvailable bool
+	storeDeprecated  bool
 	releasedAfter    string
 }
 
@@ -163,6 +164,7 @@ func (f *assetFilters) registerSelection(fs *flag.FlagSet) {
 	fs.StringVar(&f.sourceHost, "source-host", "", "host of the source URL")
 	fs.BoolVar(&f.needsReview, "needs-review", false, "only assets awaiting review")
 	fs.BoolVar(&f.updatesAvailable, "updates-available", false, "only assets with a newer store version")
+	fs.BoolVar(&f.storeDeprecated, "store-deprecated", false, "only assets whose listing the store has deprecated")
 	fs.StringVar(&f.releasedAfter, "released-after", "", "YYYY-MM-DD or RFC3339")
 }
 
@@ -225,6 +227,7 @@ func (f *assetFilters) selectionQuery() (url.Values, error) {
 	setIf(q, "released_after", f.releasedAfter)
 	setBoolIf(q, "needs_review", f.needsReview)
 	setBoolIf(q, "updates_available", f.updatesAvailable)
+	setBoolIf(q, "store_deprecated", f.storeDeprecated)
 	return q, nil
 }
 
@@ -236,7 +239,8 @@ func init() {
 		usage: "usage: dmsn assets [filters]\n\n" +
 			"filters: --q --tag --collection --project --publisher --store\n" +
 			"         --package-kind --licence --licence-status --source-host\n" +
-			"         --needs-review --updates-available --released-after --sort\n" +
+			"         --needs-review --updates-available --store-deprecated\n" +
+			"         --released-after --sort\n" +
 			"         --limit --offset\n\n" +
 			"Default fields: id,name,publisher,needs_review.\n" +
 			"Widen with --fields; see the error from an unknown name for the full set.",

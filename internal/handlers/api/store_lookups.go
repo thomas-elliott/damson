@@ -100,6 +100,7 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 		{"tag_id", filters.TagID != nil},
 		{"project_id", filters.ProjectID != nil},
 		{"collection_id", filters.CollectionID != nil},
+		{"store_deprecated", filters.Deprecated != nil},
 	} {
 		if v := strings.TrimSpace(c.Query(f.name)); v != "" && !f.read {
 			respond400(c, fmt.Errorf("can't read %s %q", f.name, v))

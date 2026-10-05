@@ -75,7 +75,7 @@ func TestAssets_FiltersMapToQueryParams(t *testing.T) {
 		"--q", "rpg", "--publisher", "Blink", "--store", "unity",
 		"--package-kind", "zip", "--licence", "MIT", "--licence-status", "ok",
 		"--source-host", "assetstore.unity.com", "--needs-review",
-		"--updates-available", "--released-after", "2026-01-01",
+		"--updates-available", "--store-deprecated", "--released-after", "2026-01-01",
 		"--sort", "name_asc", "--collection", "3", "--project", "4",
 		"--limit", "10", "--offset", "20")
 	if code != axi.ExitOK {
@@ -85,7 +85,7 @@ func TestAssets_FiltersMapToQueryParams(t *testing.T) {
 		"q": "rpg", "publisher": "Blink", "store": "unity", "package_kind": "zip",
 		"licence_spdx": "MIT", "licence_status": "ok",
 		"source_host": "assetstore.unity.com", "needs_review": "true",
-		"updates_available": "true", "released_after": "2026-01-01",
+		"updates_available": "true", "store_deprecated": "true", "released_after": "2026-01-01",
 		"sort": "name_asc", "collection_id": "3", "project_id": "4",
 		"limit": "10", "offset": "20",
 	} {
@@ -121,7 +121,7 @@ func TestAssets_UnsetFiltersAreAbsent(t *testing.T) {
 
 	exec(t, "assets")
 	for _, key := range []string{"q", "publisher", "store", "tag_path", "tag_id",
-		"needs_review", "updates_available", "sort", "offset"} {
+		"needs_review", "updates_available", "store_deprecated", "sort", "offset"} {
 		if _, present := seen[key]; present {
 			t.Errorf("unset filter %q was sent as %q", key, seen.Get(key))
 		}

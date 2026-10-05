@@ -71,6 +71,7 @@ type assetListFilters struct {
 	CollectionID  *uint  // asset is a member of this collection
 	SourceHost    string // exact-match host portion of source_url
 	NeedsReview   *bool  // unreviewed-only when true
+	Deprecated    *bool  // store_deprecated matches this when set
 	PackageKind   string
 	Publisher     string     // exact publisher match
 	Store         string     // exact store match
@@ -94,9 +95,10 @@ func storeVersionArraySQL(column string) string {
 // updatesAvailableSQL matches assets whose latest known store version is newer
 // than the highest version they hold. A NULL on either side — nothing fetched,
 // or no orderable version held — yields NULL, so the asset is not matched.
-// Mirrors imports.StoreUpdateAvailable, which drives the badge.
+// A deprecated listing is left out: the store won't publish a newer version.
+// Mirrors storeUpdateAvailable, which drives the badge.
 func updatesAvailableSQL() string {
-	return storeVersionArraySQL("a.latest_store_version") + ` > (
+	return `NOT a.store_deprecated AND ` + storeVersionArraySQL("a.latest_store_version") + ` > (
 		SELECT MAX(` + storeVersionArraySQL("v.store_version") + `)
 		FROM asset_versions v WHERE v.asset_id = a.id)`
 }
@@ -177,7 +179,26 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 			f.NeedsReview = &fl
 		}
 	}
+	if s := c.Query("store_deprecated"); s != "" {
+		if s == "true" || s == "1" {
+			t := true
+			f.Deprecated = &t
+		} else if s == "false" || s == "0" {
+			fl := false
+			f.Deprecated = &fl
+		}
+	}
 	return f
+}
+
+// storeUpdateAvailable is the badge's half of updatesAvailableSQL: a newer
+// store version than any held, unless the listing is deprecated.
+func storeUpdateAvailable(deprecated bool, latestStoreVersion string, heldVersions []string) bool {
+	if deprecated {
+		return false
+	}
+	available, _ := imports.StoreUpdateAvailable(latestStoreVersion, heldVersions)
+	return available
 }
 
 // applyAssetFilters builds the shared WHERE/JOIN shape used by both the
@@ -189,6 +210,9 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 
 	if f.NeedsReview != nil {
 		q = q.Where("a.needs_review = ?", *f.NeedsReview)
+	}
+	if f.Deprecated != nil {
+		q = q.Where("a.store_deprecated = ?", *f.Deprecated)
 	}
 	if f.PackageKind != "" {
 		q = q.Joins("JOIN asset_versions cv ON cv.id = a.current_version_id").
@@ -349,7 +373,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		if r.StoreVersions != "" {
 			held = strings.Split(r.StoreVersions, ",")
 		}
-		updateAvailable, _ := imports.StoreUpdateAvailable(derefString(r.LatestStoreVersion), held)
+		updateAvailable := storeUpdateAvailable(r.StoreDeprecated, derefString(r.LatestStoreVersion), held)
 		out = append(out, assetGridRow{
 			ID:                 r.ID,
 			Name:               r.Name,
