@@ -30,6 +30,12 @@ type PreviewEnqueuer interface {
 	EnqueueVersion(libraryID, versionID uint)
 }
 
+// StoreLookupEnqueuer queues one background store lookup by its
+// store_lookups row. Production injects River's; tests run the lookup inline.
+type StoreLookupEnqueuer interface {
+	EnqueueStoreLookup(lookupID uint)
+}
+
 // Handler carries dependencies used by every API handler. Construct with
 // New(Deps{...}); register routes with AddRoutes. Exported so cmd/server (and
 // out-of-tree tests) can hold a typed handle without leaking the field set.
@@ -44,6 +50,7 @@ type Handler struct {
 	previewPool        PreviewEnqueuer
 	previewBroadcaster *preview.Broadcaster
 	metadata           metadataService // nil in tests that don't exercise enrichment
+	storeLookups       StoreLookupEnqueuer
 	orphanMinAge       time.Duration
 	chunkSize          int64
 	// oidcAuthority / oidcClientID are the non-secret OIDC client config
@@ -78,6 +85,9 @@ type Deps struct {
 	// Metadata fetches + searches storefront listing metadata. Optional — a
 	// nil service disables the enrichment endpoints (they return 503).
 	Metadata metadataService
+	// StoreLookups queues background store lookups. Optional — nil disables
+	// the endpoints that queue them (they return 503).
+	StoreLookups StoreLookupEnqueuer
 	// OrphanMinAge is the minimum object age the storage-cleanup sweep respects.
 	// Zero means "use the built-in default" so tests need not set it.
 	OrphanMinAge time.Duration
@@ -115,6 +125,7 @@ func New(d Deps) *Handler {
 		previewPool:        d.PreviewPool,
 		previewBroadcaster: d.PreviewBroadcaster,
 		metadata:           d.Metadata,
+		storeLookups:       d.StoreLookups,
 		orphanMinAge:       minAge,
 		chunkSize:          chunk,
 
@@ -204,6 +215,8 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/assets/:id/metadata/fetch", h.postAssetMetadataFetch)
 	scoped.POST("/assets/:id/metadata/apply", h.postAssetMetadataApply)
 	scoped.POST("/assets/:id/metadata/gallery/backfill", h.postAssetGalleryBackfill)
+	scoped.POST("/store-lookups", h.postStoreLookups)
+	scoped.GET("/store-lookups/batches/:id", h.getStoreLookupBatch)
 	scoped.GET("/metadata/preview", h.getMetadataPreview)
 	scoped.GET("/metadata/image", h.getMetadataImage)
 	scoped.GET("/metadata/search", h.getMetadataSearch)
