@@ -1,6 +1,6 @@
 # Catalogue the NFS library by agent scan
 
-**Status:** implemented — all five stages, cleaned up 2026-10-05 (PR not yet open: fill in its number when it is).
+**Status:** implemented — all five stages, cleaned up 2026-10-05 (PR #2).
 
 Covers DAM-1
 
