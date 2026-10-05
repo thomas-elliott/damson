@@ -93,6 +93,11 @@ type Config struct {
 	// deleting in-flight uploads whose DB rows have not yet committed. Defaults
 	// to 7 days; an unparseable or non-positive value falls back to the default.
 	OrphanMinAge time.Duration
+
+	// StoreLookupInterval is the least time between two lookups to one store,
+	// for every caller. Defaults to 2s; an unparseable or non-positive value
+	// falls back to the default.
+	StoreLookupInterval time.Duration
 }
 
 func Load() Config {
@@ -129,6 +134,7 @@ func Load() Config {
 		AuditPurgeInterval:    parseAuditPurgeInterval(os.Getenv("DAMSON_AUDIT_PURGE_INTERVAL")),
 		OrphanMinAge:          parseOrphanMinAge(os.Getenv("DAMSON_ORPHAN_MIN_AGE")),
 		UploadJanitorInterval: parseInterval(os.Getenv("DAMSON_UPLOAD_JANITOR_INTERVAL"), defaultUploadJanitorInterval),
+		StoreLookupInterval:   parseInterval(os.Getenv("DAMSON_STORE_LOOKUP_INTERVAL"), defaultStoreLookupInterval),
 	}
 
 	switch authMode {
@@ -240,6 +246,10 @@ func parseJobTimeout(raw string) time.Duration {
 }
 
 const defaultUploadJanitorInterval = time.Hour
+
+// defaultStoreLookupInterval is the gap dmsn kept between lookups before the
+// server took the pacing over.
+const defaultStoreLookupInterval = 2 * time.Second
 
 // parseInterval reads a Go duration string ("1h", "30m"). Empty, unparseable
 // and non-positive values fall back to fallback.

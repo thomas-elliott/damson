@@ -112,7 +112,7 @@ func main() {
 
 	previewBroadcaster := preview.NewBroadcaster()
 	broadcaster := imports.NewBroadcaster()
-	metaRegistry := metadata.Default(metadata.ClientOptions{})
+	metaRegistry := metadata.Default(metadata.ClientOptions{StoreLookupInterval: cfg.StoreLookupInterval})
 
 	// River-backed job queue. queue.New wires the import→preview handoff through
 	// River internally, so imports enqueue preview work on the preview queue.

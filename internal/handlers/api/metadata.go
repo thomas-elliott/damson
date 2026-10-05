@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -227,7 +231,7 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 	meta, err := h.metadata.Fetch(c.Request.Context(), target)
 	if err != nil {
 		slog.Warn("metadata fetch failed", "url", target, "err", err)
-		respond502(c, "could not fetch metadata from source")
+		respondLookupFailed(c, err, "could not fetch metadata from source")
 		return
 	}
 
@@ -336,7 +340,7 @@ func (h *Handler) getMetadataPreview(c *gin.Context) {
 	meta, err := h.metadata.Fetch(c.Request.Context(), cleaned)
 	if err != nil {
 		slog.Warn("metadata preview failed", "url", cleaned, "err", err)
-		respond502(c, "could not fetch listing")
+		respondLookupFailed(c, err, "could not fetch listing")
 		return
 	}
 	c.JSON(http.StatusOK, metadataViewFrom(meta))
@@ -749,6 +753,20 @@ func firstNonEmptyStr(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// respondLookupFailed answers a store lookup that failed. A store that asked
+// for a pause is a 503 with Retry-After, so the person waiting knows to try
+// again later rather than that the link is bad; anything else is a 502.
+func respondLookupFailed(c *gin.Context, err error, msg string) {
+	var limited *metadata.RateLimitedError
+	if errors.As(err, &limited) {
+		secs := max(1, int(math.Ceil(time.Until(limited.Until).Seconds())))
+		c.Header("Retry-After", strconv.Itoa(secs))
+		respond503(c, fmt.Sprintf("the store asked for a pause; try again in %d s", secs))
+		return
+	}
+	respond502(c, msg)
 }
 
 func respond502(c *gin.Context, msg string) {

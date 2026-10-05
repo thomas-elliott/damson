@@ -52,7 +52,7 @@ func (s stubSearcher) Search(_ context.Context, _ *Client, _ string) ([]Candidat
 }
 
 func TestRegistrySearch_MergesAndTolerates(t *testing.T) {
-	r := NewRegistry(nil)
+	r := NewRegistry(nil, 0)
 	r.RegisterSearcher(stubSearcher{store: "a", cands: []Candidate{{Title: "A1", ListingURL: "u1", Store: "a"}}})
 	r.RegisterSearcher(stubSearcher{store: "b", err: errors.New("boom")}) // failing store must not sink the search
 	r.RegisterSearcher(stubSearcher{store: "c", cands: []Candidate{{Title: "C1", ListingURL: "u2", Store: "c"}}})
@@ -68,7 +68,7 @@ func TestRegistrySearch_MergesAndTolerates(t *testing.T) {
 }
 
 func TestRegistrySearchStores_NamesTheStoresThatFailed(t *testing.T) {
-	r := NewRegistry(nil)
+	r := NewRegistry(nil, 0)
 	r.RegisterSearcher(stubSearcher{store: "unity", err: errors.New("429 too many requests")})
 	r.RegisterSearcher(stubSearcher{store: "itch", cands: []Candidate{{Title: "I1", ListingURL: "u1", Store: "itch"}}})
 	r.RegisterSearcher(stubSearcher{store: "sketchfab"})
@@ -80,7 +80,7 @@ func TestRegistrySearchStores_NamesTheStoresThatFailed(t *testing.T) {
 }
 
 func TestRegistrySearch_EmptyQuery(t *testing.T) {
-	r := NewRegistry(nil)
+	r := NewRegistry(nil, 0)
 	r.RegisterSearcher(stubSearcher{store: "a", cands: []Candidate{{Title: "x"}}})
 	got, _ := r.Search(context.Background(), "   ")
 	if len(got) != 0 {
