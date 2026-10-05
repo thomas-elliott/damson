@@ -339,6 +339,23 @@ func TestAssetFilters_PublisherStoreAndReleasedAfter(t *testing.T) {
 	}
 }
 
+func TestAssetFilters_StoreDeprecated(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	deprecated := seedAssetWithFields(t, db, lib.ID, "deprecated", map[string]any{"store_deprecated": true})
+	live := seedAssetWithFields(t, db, lib.ID, "live", nil)
+
+	r := setupRouter(h, u)
+	if got := listAssetIDs(t, r, "/api/assets?store_deprecated=true"); len(got) != 1 || got[0] != deprecated.ID {
+		t.Fatalf("store_deprecated=true = %v, want [%d]", got, deprecated.ID)
+	}
+	if got := listAssetIDs(t, r, "/api/assets?store_deprecated=false"); len(got) != 1 || got[0] != live.ID {
+		t.Fatalf("store_deprecated=false = %v, want [%d]", got, live.ID)
+	}
+}
+
 func TestAssetSort_ByReleaseDate(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
@@ -483,12 +500,20 @@ func TestUpdatesAvailableFilterAgreesWithTheBadge(t *testing.T) {
 		{"latest unorderable", "1.24-beta", []string{"1.23"}, false},
 		{"held unorderable", "1.24", []string{"nightly"}, false},
 		{"mixed orderability", "1.24", []string{"nightly", "1.23"}, true},
+		{"outdated but deprecated", "1.24", []string{"1.23"}, false},
 	}
+	// The store won't publish a newer version of a deprecated listing.
+	deprecated := map[string]bool{"outdated but deprecated": true}
 
 	byID := map[uint]spec{}
 	wantIDs := map[uint]bool{}
 	for _, sp := range specs {
 		a := seedAssetWithVersions(t, db, lib.ID, sp.name, sp.latest, sp.held...)
+		if deprecated[sp.name] {
+			if err := db.Model(a).Update("store_deprecated", true).Error; err != nil {
+				t.Fatalf("set store_deprecated: %v", err)
+			}
+		}
 		byID[a.ID] = sp
 		if sp.want {
 			wantIDs[a.ID] = true
@@ -531,6 +556,21 @@ func TestUpdatesAvailableFilterAgreesWithTheBadge(t *testing.T) {
 		if !wantIDs[id] {
 			t.Errorf("filter matched %q, which the badge says is up to date", byID[id].name)
 		}
+	}
+
+	// The overview counts with the same SQL as the filter.
+	ow := performGET(r, "/api/overview")
+	requireStatus(t, ow, http.StatusOK)
+	var overview struct {
+		Counts struct {
+			UpdatesAvailable int `json:"updates_available"`
+		} `json:"counts"`
+	}
+	if err := json.Unmarshal(ow.Body.Bytes(), &overview); err != nil {
+		t.Fatal(err)
+	}
+	if overview.Counts.UpdatesAvailable != len(wantIDs) {
+		t.Errorf("overview updates_available = %d, want %d", overview.Counts.UpdatesAvailable, len(wantIDs))
 	}
 
 	// And the detail view, which derives it a third way from the version rows.

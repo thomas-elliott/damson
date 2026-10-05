@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +31,9 @@ import (
 // don't perform real outbound HTTP (which the SSRF guard would block anyway).
 type metadataService interface {
 	Fetch(ctx context.Context, rawURL string) (*metadata.Metadata, error)
+	// FetchWaiting is Fetch for background lookups: it sits out a store's
+	// request to pause instead of failing.
+	FetchWaiting(ctx context.Context, rawURL string) (*metadata.Metadata, error)
 	FetchImage(ctx context.Context, rawURL string) ([]byte, string, error)
 	SearchStores(ctx context.Context, query string) ([]metadata.Candidate, []string)
 }
@@ -161,6 +168,9 @@ type metadataFetchResponse struct {
 	Fetched    *metadataView      `json:"fetched"`
 	Applied    []string           `json:"applied"`
 	Conflicts  []metadataConflict `json:"conflicts"`
+	// StoreLookupFailed says the store's adapter failed and the generic
+	// scraper answered; what it read is applied all the same.
+	StoreLookupFailed bool `json:"store_lookup_failed,omitempty"`
 }
 
 type metadataFetchRequest struct {
@@ -224,27 +234,24 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 	meta, err := h.metadata.Fetch(c.Request.Context(), target)
 	if err != nil {
 		slog.Warn("metadata fetch failed", "url", target, "err", err)
-		respond502(c, "could not fetch metadata from source")
+		respondLookupFailed(c, err, "could not fetch metadata from source")
 		return
 	}
 
-	applied, conflicts := h.applyMetadata(c, lib.ID, &asset, meta, nil, setSourceURL, target, u.ID)
-
-	rec := metadata.SourceRecord{
-		Store:      meta.Store,
-		ListingURL: firstNonEmptyStr(meta.ListingURL, target),
-		FetchedAt:  time.Now().UTC(),
-		Matched:    true,
-		Metadata:   meta,
-	}
-	h.persistSourceRecord(c, &asset, rec)
+	prev := sourceRecordOf(&asset)
+	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, meta, nil, setSourceURL, target, u.ID)
+	// The record keeps the conflicts' fetched values, which the person can
+	// still choose to apply.
+	h.saveLookupRecord(c.Request.Context(), &asset, prev, meta, target, applied, nil)
 
 	c.JSON(http.StatusOK, metadataFetchResponse{
 		Store:      meta.Store,
-		ListingURL: rec.ListingURL,
+		ListingURL: firstNonEmptyStr(meta.ListingURL, target),
 		Fetched:    metadataViewFrom(meta),
 		Applied:    applied,
 		Conflicts:  conflicts,
+
+		StoreLookupFailed: meta.StoreLookupFailed,
 	})
 }
 
@@ -331,7 +338,7 @@ func (h *Handler) getMetadataPreview(c *gin.Context) {
 	meta, err := h.metadata.Fetch(c.Request.Context(), cleaned)
 	if err != nil {
 		slog.Warn("metadata preview failed", "url", cleaned, "err", err)
-		respond502(c, "could not fetch listing")
+		respondLookupFailed(c, err, "could not fetch listing")
 		return
 	}
 	c.JSON(http.StatusOK, metadataViewFrom(meta))
@@ -448,7 +455,7 @@ func (h *Handler) postAssetMetadataApply(c *gin.Context) {
 	for _, f := range req.Fields {
 		confirm[f] = true
 	}
-	applied, conflicts := h.applyMetadata(c, lib.ID, &asset, rec.Metadata, confirm, false, "", u.ID)
+	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, rec.Metadata, confirm, false, "", u.ID)
 
 	c.JSON(http.StatusOK, metadataFetchResponse{
 		Store:      rec.Store,
@@ -463,8 +470,7 @@ func (h *Handler) postAssetMetadataApply(c *gin.Context) {
 // fills blank fields only and reports the rest as conflicts; with confirm set
 // it overwrites exactly the confirmed fields. setSourceURL/target set the
 // source URL when the fetch was triggered by a body URL.
-func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool, setSourceURL bool, target string, userID uint) ([]string, []metadataConflict) {
-	ctx := c.Request.Context()
+func (h *Handler) applyMetadata(ctx context.Context, libID uint, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool, setSourceURL bool, target string, userID uint) ([]string, []metadataConflict) {
 	applied := []string{}
 	conflicts := []metadataConflict{}
 	updates := map[string]any{}
@@ -528,7 +534,7 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 		}
 	}
 
-	if applied2, prevType, newType, conflict := h.applyLicenceFromMeta(c, asset, meta, confirm); conflict != nil {
+	if applied2, prevType, newType, conflict := h.applyLicenceFromMeta(ctx, asset, meta, confirm); conflict != nil {
 		conflicts = append(conflicts, *conflict)
 	} else if applied2 {
 		applied = append(applied, "licence")
@@ -537,7 +543,7 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 	}
 
 	prevThumb := asset.ThumbnailObjectKey
-	if applied3, conflict := h.applyThumbnailFromMeta(c, asset, meta, confirm); conflict != nil {
+	if applied3, conflict := h.applyThumbnailFromMeta(ctx, asset, meta, confirm); conflict != nil {
 		conflicts = append(conflicts, *conflict)
 	} else if applied3 {
 		applied = append(applied, "thumbnail")
@@ -552,7 +558,7 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 	}
 
 	if len(auditAfter) > 0 {
-		h.auditMetadata(c, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)
+		h.auditMetadata(ctx, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)
 	}
 
 	return applied, conflicts
@@ -562,7 +568,7 @@ func (h *Handler) applyMetadata(c *gin.Context, libID uint, asset *models.Asset,
 // asset has none, or reports a conflict when one exists and differs (unless
 // confirmed). A reviewed licence is only ever replaced on explicit confirm.
 // On apply it returns the previous and new detected types for the audit diff.
-func (h *Handler) applyLicenceFromMeta(c *gin.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, string, string, *metadataConflict) {
+func (h *Handler) applyLicenceFromMeta(ctx context.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, string, string, *metadataConflict) {
 	lic := buildLicenceFromMeta(meta)
 	if lic == nil {
 		return false, "", "", nil
@@ -570,7 +576,7 @@ func (h *Handler) applyLicenceFromMeta(c *gin.Context, asset *models.Asset, meta
 	prevType := ""
 	if asset.LicenceID != nil {
 		var existing models.Licence
-		if err := h.db.WithContext(c.Request.Context()).First(&existing, *asset.LicenceID).Error; err == nil {
+		if err := h.db.WithContext(ctx).First(&existing, *asset.LicenceID).Error; err == nil {
 			prevType = existing.DetectedType
 			if existing.DetectedType == lic.DetectedType {
 				return false, "", "", nil
@@ -580,7 +586,7 @@ func (h *Handler) applyLicenceFromMeta(c *gin.Context, asset *models.Asset, meta
 			}
 		}
 	}
-	if err := h.persistLicence(c, asset, lic); err != nil {
+	if err := h.persistLicence(ctx, asset, lic); err != nil {
 		slog.Warn("metadata: persist licence", "err", err, "asset_id", asset.ID)
 		return false, "", "", nil
 	}
@@ -591,20 +597,20 @@ func (h *Handler) applyLicenceFromMeta(c *gin.Context, asset *models.Asset, meta
 // thumbnail via the raster thumbnail pipeline, whose decode + re-encode
 // rejects non-image bodies rather than storing them. Fills when no thumbnail
 // exists; conflicts otherwise unless confirmed.
-func (h *Handler) applyThumbnailFromMeta(c *gin.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, *metadataConflict) {
+func (h *Handler) applyThumbnailFromMeta(ctx context.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, *metadataConflict) {
 	if meta.CoverURL == "" {
 		return false, nil
 	}
 	if asset.ThumbnailObjectKey != "" && !confirm["thumbnail"] {
 		return false, &metadataConflict{Field: "thumbnail", Current: "existing thumbnail", Proposed: meta.CoverURL}
 	}
-	imgBytes, contentType, err := h.metadata.FetchImage(c.Request.Context(), meta.CoverURL)
+	imgBytes, contentType, err := h.metadata.FetchImage(ctx, meta.CoverURL)
 	if err != nil {
 		slog.Warn("metadata: fetch cover", "err", err, "url", meta.CoverURL)
 		return false, nil
 	}
 	gen := &thumbnail.Generator{Storage: h.storage}
-	res, err := gen.Generate(c.Request.Context(), thumbnail.Input{
+	res, err := gen.Generate(ctx, thumbnail.Input{
 		Reader:      bytes.NewReader(imgBytes),
 		Filename:    "cover",
 		ContentType: contentType,
@@ -615,7 +621,7 @@ func (h *Handler) applyThumbnailFromMeta(c *gin.Context, asset *models.Asset, me
 		}
 		return false, nil
 	}
-	if !h.setThumbnail(c, asset, res.ObjectKey, res.ContentType, true) {
+	if !h.setThumbnail(ctx, asset, res.ObjectKey, res.ContentType, true) {
 		return false, nil
 	}
 	return true, nil
@@ -667,8 +673,8 @@ func storeLabel(store string) string {
 
 // persistLicence replaces the asset's licence row with lic in one transaction,
 // mirroring rescanLicence's create-then-point pattern.
-func (h *Handler) persistLicence(c *gin.Context, asset *models.Asset, lic *models.Licence) error {
-	return h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+func (h *Handler) persistLicence(ctx context.Context, asset *models.Asset, lic *models.Licence) error {
+	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if asset.LicenceID != nil {
 			if err := tx.Where("id = ?", *asset.LicenceID).Delete(&models.Licence{}).Error; err != nil {
 				return err
@@ -684,13 +690,13 @@ func (h *Handler) persistLicence(c *gin.Context, asset *models.Asset, lic *model
 }
 
 // persistSourceRecord writes the enrichment envelope to source_metadata.
-func (h *Handler) persistSourceRecord(c *gin.Context, asset *models.Asset, rec metadata.SourceRecord) {
+func (h *Handler) persistSourceRecord(ctx context.Context, asset *models.Asset, rec metadata.SourceRecord) {
 	blob, err := json.Marshal(rec)
 	if err != nil {
 		slog.Warn("metadata: marshal source record", "err", err, "asset_id", asset.ID)
 		return
 	}
-	if err := h.db.WithContext(c.Request.Context()).Model(asset).
+	if err := h.db.WithContext(ctx).Model(asset).
 		Where("id = ?", asset.ID).
 		Update("source_metadata_json", json.RawMessage(blob)).Error; err != nil {
 		slog.Warn("metadata: persist source record", "err", err, "asset_id", asset.ID)
@@ -724,8 +730,8 @@ func (h *Handler) attachMetadataTags(ctx context.Context, libID, assetID, userID
 	return linked
 }
 
-func (h *Handler) auditMetadata(c *gin.Context, libID, assetID, userID uint, action string, before, after map[string]any) {
-	if err := audit.Write(h.db.WithContext(c.Request.Context()), audit.Entry{
+func (h *Handler) auditMetadata(ctx context.Context, libID, assetID, userID uint, action string, before, after map[string]any) {
+	if err := audit.Write(h.db.WithContext(ctx), audit.Entry{
 		LibraryID:  &libID,
 		UserID:     &userID,
 		ActionType: action,
@@ -744,6 +750,20 @@ func firstNonEmptyStr(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// respondLookupFailed answers a store lookup that failed. A store that asked
+// for a pause is a 503 with Retry-After, so the person waiting knows to try
+// again later rather than that the link is bad; anything else is a 502.
+func respondLookupFailed(c *gin.Context, err error, msg string) {
+	var limited *metadata.RateLimitedError
+	if errors.As(err, &limited) {
+		secs := max(1, int(math.Ceil(time.Until(limited.Until).Seconds())))
+		c.Header("Retry-After", strconv.Itoa(secs))
+		respond503(c, fmt.Sprintf("the store asked for a pause; try again in %d s", secs))
+		return
+	}
+	respond502(c, msg)
 }
 
 func respond502(c *gin.Context, msg string) {

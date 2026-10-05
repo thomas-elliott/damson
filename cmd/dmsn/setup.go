@@ -188,6 +188,8 @@ alternatives in its help block.
     ` + binaryName + ` scan known|match|record      catalogue a folder of packs (damson-scan skill)
     ` + binaryName + ` purchases read|plan|record   catalogue Unity Asset Store purchases (damson-purchases skill)
     ` + binaryName + ` bulk tag|review|rm --assets  modify many at once
+    ` + binaryName + ` asset refresh <id>           look one asset's store details up again
+    ` + binaryName + ` bulk refresh [filters]       look many up again, paced by the server
     ` + binaryName + ` collection new|add|remove    curate
 
 Every subcommand takes ` + "`--help`" + `, which is one screen. Filters on ` + "`assets`" + `
@@ -206,6 +208,10 @@ include ` + "`--q --tag --publisher --needs-review --updates-available --sort`" 
 - **Reference assets hold no files.** ` + "`asset record`" + ` adds one by its path
   and/or store link (` + "`--source-url`" + `), importing nothing. Recording a known path
   updates that asset; ` + "`--needs-review`" + ` flags it for review.
+- **Refresh keeps a person's edits.** ` + "`asset refresh`" + ` and ` + "`bulk refresh`" + ` fill
+  blanks and replace what the last store lookup wrote, but keep and report
+  any field a person changed. The server runs the lookups one at a time;
+  ` + "`bulk refresh --no-wait`" + ` returns a batch to follow with ` + "`--batch <id>`" + `.
 - **Destructive verbs need ` + "`--yes`" + `.** ` + "`asset rm`, `tag rm`, `collection rm`, `bulk rm`" + `.
 - **Mutations are idempotent** where the API allows, and report ` + "`changed`" + ` or
   ` + "`affected`" + ` so you can tell a no-op from a real change.

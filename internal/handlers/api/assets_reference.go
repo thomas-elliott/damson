@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/gin-gonic/gin"
@@ -50,6 +49,11 @@ type referenceRecordRequest struct {
 	// asset; a re-record of a known path leaves them as they are.
 	Publisher string   `json:"publisher"`
 	Tags      []string `json:"tags"`
+	// QueueLookup queues the store lookup to run in the background instead of
+	// making it in the request, adding it to LookupBatchID when that is set and
+	// to a new batch otherwise. It fills blanks only, as the immediate one does.
+	QueueLookup   bool `json:"queue_lookup"`
+	LookupBatchID uint `json:"lookup_batch_id"`
 }
 
 type referenceRecordResponse struct {
@@ -59,8 +63,11 @@ type referenceRecordResponse struct {
 	LocationPath string `json:"location_path,omitempty"`
 	SourceURL    string `json:"source_url,omitempty"`
 	// MetadataFailed says the store lookup for the link failed, so the asset
-	// has its link but no store metadata or cover.
+	// has its link but not the store's details: none at all, or only what the
+	// generic scraper read from the page.
 	MetadataFailed bool `json:"metadata_failed,omitempty"`
+	// LookupBatchID is the batch a queued lookup joined, for following it.
+	LookupBatchID uint `json:"lookup_batch_id,omitempty"`
 }
 
 // normaliseLocationPath applies the spec's sameness rule: two paths are the
@@ -160,6 +167,10 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		}
 	}
 	publisher := strings.TrimSpace(req.Publisher)
+	if req.QueueLookup && (h.storeLookups == nil || h.metadata == nil) {
+		respond503(c, errStoreLookupsUnavailable)
+		return
+	}
 
 	ctx := c.Request.Context()
 	db := h.db.WithContext(ctx)
@@ -184,20 +195,28 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	// it can't read is still recorded.
 	var meta *metadata.Metadata
 	metadataFailed := false
-	if link != "" && h.metadata != nil {
+	if link != "" && h.metadata != nil && !req.QueueLookup {
 		if m, ferr := h.metadata.Fetch(ctx, link); ferr != nil {
 			slog.Warn("reference: store lookup failed", "url", link, "err", ferr, "library_id", lib.ID)
 			metadataFailed = true
 		} else {
+			// A generic-scraper answer still fills blanks, but it isn't the
+			// store's details, so it is reported as a failed lookup.
 			meta = m
+			metadataFailed = m.StoreLookupFailed
 		}
 	}
 
 	var (
-		asset   models.Asset
-		outcome string
+		asset    models.Asset
+		outcome  string
+		lookupID uint
+		batch    models.StoreLookupBatch
 	)
-	err = db.Transaction(func(tx *gorm.DB) error {
+	// recordTx records or updates the asset. It and the queued lookup commit
+	// together, so a recorded asset is never left without the lookup a rerun
+	// (which answers exists) would not queue again.
+	recordTx := func(tx *gorm.DB) error {
 		if path != "" {
 			err := tx.Where("library_id = ? AND location_path = ?", lib.ID, path).First(&asset).Error
 			if err == nil {
@@ -274,6 +293,20 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 			}
 		}
 		return nil
+	}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := recordTx(tx); err != nil {
+			return err
+		}
+		if !req.QueueLookup || link == "" || outcome == referenceExists {
+			return nil
+		}
+		var err error
+		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
+			return err
+		}
+		lookupID, err = createStoreLookupTx(tx, batch, asset.ID)
+		return err
 	})
 	switch {
 	case errors.Is(err, errReferenceNameRequired):
@@ -285,19 +318,17 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respond409(c, "that path was recorded at the same moment; record it again to update it")
 		return
 	case err != nil:
-		respondGORM(c, err, "asset not found")
+		respondGORM(c, err, "asset or lookup batch not found")
 		return
+	}
+	if lookupID != 0 {
+		h.storeLookups.EnqueueStoreLookup(lookupID)
 	}
 
 	if meta != nil && outcome != referenceExists {
-		h.applyMetadata(c, lib.ID, &asset, meta, nil, false, "", u.ID)
-		h.persistSourceRecord(c, &asset, metadata.SourceRecord{
-			Store:      meta.Store,
-			ListingURL: firstNonEmptyStr(meta.ListingURL, link),
-			FetchedAt:  time.Now().UTC(),
-			Matched:    true,
-			Metadata:   meta,
-		})
+		prev := sourceRecordOf(&asset)
+		applied, conflicts := h.applyMetadata(ctx, lib.ID, &asset, meta, nil, false, "", u.ID)
+		h.saveLookupRecord(ctx, &asset, prev, meta, link, applied, conflictedFields(conflicts))
 	}
 
 	status := http.StatusOK
@@ -308,6 +339,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	// Only an asset this record created or updated is missing what the lookup
 	// would have filled.
 	resp.MetadataFailed = metadataFailed && outcome != referenceExists
+	resp.LookupBatchID = batch.ID
 	c.JSON(status, resp)
 }
 

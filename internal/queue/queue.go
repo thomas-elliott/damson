@@ -29,9 +29,14 @@ import (
 // Queue names. Imports and previews run on separate queues so each can be sized
 // independently and, later, moved to a dedicated worker container.
 const (
-	QueueImport  = "import"
-	QueuePreview = "preview"
+	QueueImport      = "import"
+	QueuePreview     = "preview"
+	QueueStoreLookup = "store_lookup"
 )
+
+// storeLookupTimeout bounds one store lookup. A lookup may sit out up to three
+// store pauses of at most 10 minutes each, then store a gallery.
+const storeLookupTimeout = 45 * time.Minute
 
 // DefaultJobTimeout is the per-job ceiling when a queue timeout is unset.
 // Generous because imports can be multi-GB.
@@ -57,6 +62,51 @@ type PreviewArgs struct {
 
 // Kind identifies the job type in the river_job table.
 func (PreviewArgs) Kind() string { return "preview" }
+
+// StoreLookupArgs is the River payload for one background store lookup. The
+// store_lookups row carries everything else.
+type StoreLookupArgs struct {
+	LookupID uint `json:"lookup_id"`
+}
+
+// Kind identifies the job type in the river_job table.
+func (StoreLookupArgs) Kind() string { return "store_lookup" }
+
+// StoreLookupRunner runs one queued store lookup. The API handler implements
+// it, since applying a lookup to an asset is the same work Fetch metadata does.
+type StoreLookupRunner interface {
+	RunStoreLookup(ctx context.Context, lookupID uint) error
+	// FailStoreLookup records a lookup failed once River has given up on it.
+	FailStoreLookup(ctx context.Context, lookupID uint, reason string) error
+}
+
+// storeLookupWorker runs store lookups. run is set by SetStoreLookupRunner
+// before the queue starts, because the handler that implements it is built
+// after the queue it enqueues on.
+type storeLookupWorker struct {
+	river.WorkerDefaults[StoreLookupArgs]
+	run StoreLookupRunner
+}
+
+func (w *storeLookupWorker) Work(ctx context.Context, job *river.Job[StoreLookupArgs]) error {
+	if w.run == nil {
+		return fmt.Errorf("queue: no store lookup runner set")
+	}
+	err := w.run.RunStoreLookup(ctx, job.Args.LookupID)
+	// On the last attempt, mark the row failed so it doesn't stay queued, and
+	// dmsn doesn't wait on it, until the next start. The job's own context may
+	// have timed out, so the mark runs without it.
+	if err != nil && job.Attempt >= job.MaxAttempts {
+		if merr := w.run.FailStoreLookup(context.WithoutCancel(ctx), job.Args.LookupID, err.Error()); merr != nil {
+			slog.Warn("queue: mark store lookup failed on last attempt", "lookup_id", job.Args.LookupID, "err", merr)
+		}
+	}
+	return err
+}
+
+func (w *storeLookupWorker) Timeout(*river.Job[StoreLookupArgs]) time.Duration {
+	return storeLookupTimeout
+}
 
 // importWorker runs the import pipeline for one job. timeout is the per-job
 // ceiling for this queue.
@@ -127,8 +177,9 @@ type Config struct {
 
 // Queue owns the River client and its dedicated connection pool.
 type Queue struct {
-	pool   *pgxpool.Pool
-	client *river.Client[pgx.Tx]
+	pool         *pgxpool.Pool
+	client       *river.Client[pgx.Tx]
+	storeLookups *storeLookupWorker
 }
 
 // New builds the dedicated pgxpool, applies River's schema migrations, and
@@ -152,7 +203,7 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 		return nil, fmt.Errorf("queue: migrate: %w", err)
 	}
 
-	q := &Queue{pool: pool}
+	q := &Queue{pool: pool, storeLookups: &storeLookupWorker{}}
 
 	importTimeout := cfg.ImportJobTimeout
 	if importTimeout <= 0 {
@@ -178,6 +229,7 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &importWorker{deps: importDeps, timeout: importTimeout})
 	river.AddWorker(workers, &previewWorker{deps: cfg.PreviewDeps, timeout: previewTimeout})
+	river.AddWorker(workers, q.storeLookups)
 
 	client, err := river.NewClient(driver, &river.Config{
 		Logger:     cfg.Logger,
@@ -186,6 +238,9 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 		Queues: map[string]river.QueueConfig{
 			QueueImport:  {MaxWorkers: importWorkers},
 			QueuePreview: {MaxWorkers: previewWorkers},
+			// One lookup at a time, so the store sees one caller however many
+			// lookups are queued.
+			QueueStoreLookup: {MaxWorkers: 1},
 		},
 		Workers: workers,
 	})
@@ -216,6 +271,9 @@ func migrateLocked(ctx context.Context, pool *pgxpool.Pool, migrator *rivermigra
 	return err
 }
 
+// SetStoreLookupRunner sets what runs store lookup jobs. Call it before Start.
+func (q *Queue) SetStoreLookupRunner(r StoreLookupRunner) { q.storeLookups.run = r }
+
 // Start begins fetching and working jobs.
 func (q *Queue) Start(ctx context.Context) error { return q.client.Start(ctx) }
 
@@ -232,3 +290,6 @@ func (q *Queue) Imports() ImportEnqueuer { return ImportEnqueuer{q: q} }
 
 // Previews returns the River-backed preview enqueuer.
 func (q *Queue) Previews() PreviewEnqueuer { return PreviewEnqueuer{q: q} }
+
+// StoreLookups returns the River-backed store lookup enqueuer.
+func (q *Queue) StoreLookups() StoreLookupEnqueuer { return StoreLookupEnqueuer{q: q} }

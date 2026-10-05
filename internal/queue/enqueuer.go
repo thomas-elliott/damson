@@ -75,3 +75,22 @@ func (e PreviewEnqueuer) Enqueue(job preview.Job) {
 func (e PreviewEnqueuer) EnqueueVersion(libraryID, versionID uint) {
 	e.Enqueue(preview.Job{LibraryID: libraryID, VersionID: versionID})
 }
+
+// StoreLookupEnqueuer inserts store lookup jobs into River. It satisfies the
+// API handlers' StoreLookupEnqueuer.
+type StoreLookupEnqueuer struct{ q *Queue }
+
+// EnqueueStoreLookup inserts a job for one store_lookups row, deduped by args
+// across active states.
+func (e StoreLookupEnqueuer) EnqueueStoreLookup(lookupID uint) {
+	_, err := e.q.client.Insert(context.Background(), StoreLookupArgs{LookupID: lookupID},
+		&river.InsertOpts{
+			Queue:       QueueStoreLookup,
+			MaxAttempts: maxAttempts,
+			UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: activeStates},
+		},
+	)
+	if err != nil {
+		slog.Error("queue: enqueue store lookup", "lookup_id", lookupID, "err", err)
+	}
+}

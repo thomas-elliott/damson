@@ -1,6 +1,7 @@
 package imports
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -96,7 +97,9 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 	}
 
 	if meta.Rating > 0 {
-		if cur := asset.Rating; cur == nil || *cur != meta.Rating {
+		// The column keeps two decimal places, and the store may send more, so
+		// an unchanged rating must not read as a new one.
+		if cur := asset.Rating; cur == nil || roundRating(*cur) != roundRating(meta.Rating) {
 			switch {
 			case cur != nil && !confirm["rating"]:
 				conflicts = append(conflicts, FieldConflict{
@@ -133,8 +136,18 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 			}
 		}
 	}
+	// The deprecated flag is the store's state, not something a person writes,
+	// so every lookup that could tell sets it, whatever it held before.
+	if d := meta.StoreDeprecated; d != nil && *d != asset.StoreDeprecated {
+		before["store_deprecated"] = asset.StoreDeprecated
+		asset.StoreDeprecated = *d
+		updates["store_deprecated"] = *d
+	}
 	return before, updates, conflicts
 }
+
+// roundRating is a rating at the two decimal places the rating column keeps.
+func roundRating(r float64) float64 { return math.Round(r*100) / 100 }
 
 // MetadataTagList is the full tag set one fetch contributes: the store's flat
 // keyword tags plus its category as a single hierarchical path. tags.Attach
@@ -184,4 +197,39 @@ func StoreUpdateAvailable(latestStoreVersion string, heldVersions []string) (ava
 		return false, ""
 	}
 	return CompareStoreVersions(latest, best) > 0, highestHeld
+}
+
+// ChangedSince reports which of the asset's storefront columns, and its name
+// and description, no longer hold what last (the previous lookup) gave them:
+// someone changed them since. A blank column is never changed, since a lookup
+// fills it anyway; a column holding a value the lookup didn't give is.
+func ChangedSince(asset *models.Asset, last *metadata.Metadata) map[string]bool {
+	changed := map[string]bool{}
+	text := map[string]struct{ current, last string }{
+		"name":                 {asset.Name, last.Title},
+		"description":          {asset.Description, last.Description},
+		"publisher":            {derefString(asset.Publisher), last.Publisher},
+		"publisher_url":        {derefString(asset.PublisherURL), last.PublisherURL},
+		"store":                {derefString(asset.Store), last.Store},
+		"store_product_id":     {derefString(asset.StoreProductID), last.StoreID},
+		"latest_store_version": {derefString(asset.LatestStoreVersion), last.LatestStoreVersion},
+		"engine":               {derefString(asset.Engine), last.Engine},
+		"min_engine_version":   {derefString(asset.MinEngineVersion), last.MinEngineVersion},
+		"price":                {derefString(asset.Price), last.Price},
+		"price_currency":       {derefString(asset.PriceCurrency), last.Currency},
+	}
+	for column, v := range text {
+		current := strings.TrimSpace(v.current)
+		changed[column] = current != "" && current != strings.TrimSpace(v.last)
+	}
+	dates := map[string]struct{ current, last *time.Time }{
+		"released_at":      {asset.ReleasedAt, last.ReleasedAt},
+		"store_updated_at": {asset.StoreUpdatedAt, last.StoreUpdatedAt},
+	}
+	for column, v := range dates {
+		changed[column] = v.current != nil && (v.last == nil || !v.current.Equal(*v.last))
+	}
+	changed["rating"] = asset.Rating != nil && roundRating(*asset.Rating) != roundRating(last.Rating)
+	changed["rating_count"] = asset.RatingCount != nil && *asset.RatingCount != last.RatingCount
+	return changed
 }

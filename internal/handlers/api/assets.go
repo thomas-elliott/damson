@@ -36,6 +36,9 @@ type assetGridRow struct {
 	ReleasedAt         *time.Time `json:"released_at,omitempty"`
 	UpdateAvailable    bool       `json:"update_available,omitempty"`
 	IsReference        bool       `json:"is_reference,omitempty"`
+	Store              string     `json:"store,omitempty"`
+	SourceURL          string     `json:"source_url,omitempty"`
+	StoreDeprecated    bool       `json:"store_deprecated,omitempty"`
 }
 
 type assetListResponse struct {
@@ -59,22 +62,23 @@ const (
 // assetListFilters carries the decoded query params for getAssets. Empty
 // zero values mean "no filter for this dimension".
 type assetListFilters struct {
-	Query         string // full-text / LIKE fallback
-	TagID         *uint  // matches asset via asset_tags OR descendants by path
-	TagPath       string // alternative to TagID — match by `path LIKE '<p>%'`
-	LicenceStatus string // ok|warn|err|unk
-	LicenceSPDX   string // exact SPDX id
-	ProjectID     *uint  // asset is pinned in this project
-	CollectionID  *uint  // asset is a member of this collection
-	SourceHost    string // exact-match host portion of source_url
-	NeedsReview   *bool  // unreviewed-only when true
-	PackageKind   string
-	Publisher     string     // exact publisher match
-	Store         string     // exact store match
-	ReleasedAfter *time.Time // released_at >= this instant
-	UpdatesOnly   bool       // latest_store_version is newer than every version held
-	NotDownloaded bool       // Purchased, not downloaded: a reference asset with no path
-	Sort          string     // created_desc (default) | released_desc | released_asc | name_asc
+	Query           string // full-text / LIKE fallback
+	TagID           *uint  // matches asset via asset_tags OR descendants by path
+	TagPath         string // alternative to TagID — match by `path LIKE '<p>%'`
+	LicenceStatus   string // ok|warn|err|unk
+	LicenceSPDX     string // exact SPDX id
+	ProjectID       *uint  // asset is pinned in this project
+	CollectionID    *uint  // asset is a member of this collection
+	SourceHost      string // exact-match host portion of source_url
+	NeedsReview     *bool  // unreviewed-only when true
+	StoreDeprecated *bool  // store_deprecated matches this when set
+	PackageKind     string
+	Publisher       string     // exact publisher match
+	Store           string     // exact store match
+	ReleasedAfter   *time.Time // released_at >= this instant
+	UpdatesOnly     bool       // latest_store_version is newer than every version held
+	NotDownloaded   bool       // Purchased, not downloaded: a reference asset with no path
+	Sort            string     // created_desc (default) | released_desc | released_asc | name_asc
 }
 
 // storeVersionArraySQL renders a dotted-numeric store version as an int[] for
@@ -91,9 +95,10 @@ func storeVersionArraySQL(column string) string {
 // updatesAvailableSQL matches assets whose latest known store version is newer
 // than the highest version they hold. A NULL on either side — nothing fetched,
 // or no orderable version held — yields NULL, so the asset is not matched.
-// Mirrors imports.StoreUpdateAvailable, which drives the badge.
+// A deprecated listing is left out: the store won't publish a newer version.
+// Mirrors storeUpdateAvailable, which drives the badge.
 func updatesAvailableSQL() string {
-	return storeVersionArraySQL("a.latest_store_version") + ` > (
+	return `NOT a.store_deprecated AND ` + storeVersionArraySQL("a.latest_store_version") + ` > (
 		SELECT MAX(` + storeVersionArraySQL("v.store_version") + `)
 		FROM asset_versions v WHERE v.asset_id = a.id)`
 }
@@ -165,16 +170,30 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 			f.CollectionID = &v
 		}
 	}
-	if s := c.Query("needs_review"); s != "" {
-		if s == "true" || s == "1" {
-			t := true
-			f.NeedsReview = &t
-		} else if s == "false" || s == "0" {
-			fl := false
-			f.NeedsReview = &fl
-		}
-	}
+	f.NeedsReview = optionalBool(c.Query("needs_review"))
+	f.StoreDeprecated = optionalBool(c.Query("store_deprecated"))
 	return f
+}
+
+// optionalBool reads a true/false query value; anything else reads as unset.
+func optionalBool(s string) *bool {
+	switch s {
+	case "true", "1":
+		return new(true)
+	case "false", "0":
+		return new(false)
+	}
+	return nil
+}
+
+// storeUpdateAvailable is the badge's half of updatesAvailableSQL: a newer
+// store version than any held, unless the listing is deprecated.
+func storeUpdateAvailable(deprecated bool, latestStoreVersion string, heldVersions []string) bool {
+	if deprecated {
+		return false
+	}
+	available, _ := imports.StoreUpdateAvailable(latestStoreVersion, heldVersions)
+	return available
 }
 
 // applyAssetFilters builds the shared WHERE/JOIN shape used by both the
@@ -186,6 +205,9 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 
 	if f.NeedsReview != nil {
 		q = q.Where("a.needs_review = ?", *f.NeedsReview)
+	}
+	if f.StoreDeprecated != nil {
+		q = q.Where("a.store_deprecated = ?", *f.StoreDeprecated)
 	}
 	if f.PackageKind != "" {
 		q = q.Joins("JOIN asset_versions cv ON cv.id = a.current_version_id").
@@ -305,6 +327,9 @@ func (h *Handler) getAssets(c *gin.Context) {
 		LatestStoreVersion *string
 		StoreVersions      string
 		IsReference        bool
+		Store              *string
+		SourceURL          string
+		StoreDeprecated    bool
 	}
 	var rows []row
 	err := base.Session(&gorm.Session{}).
@@ -315,6 +340,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		// Subqueries are immune to both.
 		Select(`a.id, a.name, a.needs_review, a.created_at, a.thumbnail_object_key,
 			a.publisher, a.released_at, a.latest_store_version, a.is_reference,
+			a.store, a.source_url, a.store_deprecated,
 			COALESCE((SELECT string_agg(v3.store_version, ',') FROM asset_versions v3
 				WHERE v3.asset_id = a.id AND v3.store_version <> ''), '') AS store_versions,
 			COALESCE((SELECT COUNT(*) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS file_count,
@@ -342,7 +368,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		if r.StoreVersions != "" {
 			held = strings.Split(r.StoreVersions, ",")
 		}
-		updateAvailable, _ := imports.StoreUpdateAvailable(derefString(r.LatestStoreVersion), held)
+		updateAvailable := storeUpdateAvailable(r.StoreDeprecated, derefString(r.LatestStoreVersion), held)
 		out = append(out, assetGridRow{
 			ID:                 r.ID,
 			Name:               r.Name,
@@ -358,6 +384,9 @@ func (h *Handler) getAssets(c *gin.Context) {
 			ReleasedAt:         r.ReleasedAt,
 			UpdateAvailable:    updateAvailable,
 			IsReference:        r.IsReference,
+			Store:              derefString(r.Store),
+			SourceURL:          r.SourceURL,
+			StoreDeprecated:    r.StoreDeprecated,
 		})
 	}
 
