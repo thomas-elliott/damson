@@ -59,6 +59,12 @@ func runSetup(_ context.Context, e *Env, project, noHook bool) error {
 	}
 	written = append(written, map[string]any{"path": displayPath(scanPath), "kind": "skill"})
 
+	purchasesPath := filepath.Join(root, "skills", purchasesSkillDirName, skillFileName)
+	if err := writeFileAt(purchasesPath, purchasesSkillDocument(), 0o644); err != nil {
+		return err
+	}
+	written = append(written, map[string]any{"path": displayPath(purchasesPath), "kind": "skill"})
+
 	if !noHook {
 		hookPath := filepath.Join(root, "hooks", hookFileName)
 		if err := writeFileAt(hookPath, hookScript(), 0o755); err != nil {
@@ -180,6 +186,7 @@ alternatives in its help block.
     ` + binaryName + ` asset edit|review|tag|rm     modify one asset
     ` + binaryName + ` asset record --location-path record an asset by where it lives
     ` + binaryName + ` scan known|match|record      catalogue a folder of packs (damson-scan skill)
+    ` + binaryName + ` purchases read|plan|record   catalogue Unity Asset Store purchases (damson-purchases skill)
     ` + binaryName + ` bulk tag|review|rm --assets  modify many at once
     ` + binaryName + ` collection new|add|remove    curate
 
