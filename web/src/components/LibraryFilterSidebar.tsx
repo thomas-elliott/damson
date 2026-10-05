@@ -178,6 +178,14 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
         />
       </Section>
 
+      <Section title="Purchases" defaultOpen={false}>
+        <FilterRow
+          label="Purchased, not downloaded"
+          active={!!filters.not_downloaded}
+          onClick={() => setParam("not_downloaded", filters.not_downloaded ? null : "true")}
+        />
+      </Section>
+
       <Section title="Needs review" defaultOpen={false}>
         <FilterRow
           label="Unreviewed only"

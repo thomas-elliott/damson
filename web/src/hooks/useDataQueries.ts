@@ -125,6 +125,8 @@ export interface AssetFilters {
   store?: string;
   released_after?: string;
   updates_available?: boolean;
+  // Purchased, not downloaded: a reference asset with no path.
+  not_downloaded?: boolean;
   sort?: AssetSort;
 }
 
