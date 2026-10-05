@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -703,6 +704,36 @@ func TestMetadataFetch_ReportsGenericFallback(t *testing.T) {
 	requireStatus(t, w, http.StatusOK)
 	if !jsonResponse[metadataFetchResponse](t, w).StoreLookupFailed {
 		t.Fatal("a generic fallback must come back as store_lookup_failed")
+	}
+}
+
+// A generic answer is not the store's details, so the record a store lookup
+// left stays; otherwise the next refresh reads the scraper's values as a
+// person's and keeps them.
+func TestMetadataFetch_GenericFallbackKeepsTheStoreRecord(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreGeneric, Title: "Page Title", StoreLookupFailed: true,
+	}}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "pack")
+	h.persistSourceRecord(context.Background(), asset, metadata.SourceRecord{
+		Store: metadata.StoreUnity, Matched: true,
+		Metadata: &metadata.Metadata{Store: metadata.StoreUnity, Title: "pack"},
+	})
+	r := setupRouter(h, u)
+
+	w := performRequest(r, http.MethodPost, fmt.Sprintf("/api/assets/%d/metadata/fetch", asset.ID),
+		map[string]any{"url": "https://assetstore.unity.com/packages/slug/32351"})
+	requireStatus(t, w, http.StatusOK)
+	var stored models.Asset
+	if err := db.First(&stored, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec := sourceRecordOf(&stored)
+	if rec == nil || rec.Store != metadata.StoreUnity || rec.Metadata.Title != "pack" {
+		t.Fatalf("record = %+v, want the Unity record kept", rec)
 	}
 }
 

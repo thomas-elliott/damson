@@ -238,20 +238,15 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 		return
 	}
 
+	prev := sourceRecordOf(&asset)
 	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, meta, nil, setSourceURL, target, u.ID)
-
-	rec := metadata.SourceRecord{
-		Store:      meta.Store,
-		ListingURL: firstNonEmptyStr(meta.ListingURL, target),
-		FetchedAt:  time.Now().UTC(),
-		Matched:    true,
-		Metadata:   meta,
-	}
-	h.persistSourceRecord(c.Request.Context(), &asset, rec)
+	// The record keeps the conflicts' fetched values, which the person can
+	// still choose to apply.
+	h.saveLookupRecord(c.Request.Context(), &asset, prev, meta, target, applied, nil)
 
 	c.JSON(http.StatusOK, metadataFetchResponse{
 		Store:      meta.Store,
-		ListingURL: rec.ListingURL,
+		ListingURL: firstNonEmptyStr(meta.ListingURL, target),
 		Fetched:    metadataViewFrom(meta),
 		Applied:    applied,
 		Conflicts:  conflicts,

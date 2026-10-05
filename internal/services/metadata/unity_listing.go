@@ -305,16 +305,14 @@ func unityApplyListing(md *Metadata, l *unityListing, pageURL string) {
 
 	switch p.State {
 	case "deprecated":
-		md.StoreDeprecated = boolPtr(true)
+		md.StoreDeprecated = new(true)
 	case "published":
-		md.StoreDeprecated = boolPtr(false)
+		md.StoreDeprecated = new(false)
 	}
 
 	unityListingAttributes(md, l)
 	unityListingLicence(md, p)
 }
-
-func boolPtr(b bool) *bool { return &b }
 
 // unityListingAttributes records the store-specific long tail, in the order the
 // spec sheet should render it.

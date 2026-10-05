@@ -136,9 +136,11 @@ func TestStoreLookups_FiltersSelectTheAssets(t *testing.T) {
 	w = performRequest(r, http.MethodPost, "/api/store-lookups?store=unity&released_after=2024/01/01",
 		map[string]any{"refresh": true})
 	requireStatus(t, w, http.StatusBadRequest)
-	w = performRequest(r, http.MethodPost, "/api/store-lookups?store=unity&store_deprecated=yes",
-		map[string]any{"refresh": true})
-	requireStatus(t, w, http.StatusBadRequest)
+	for _, unreadable := range []string{"store_deprecated=yes", "updates_available=yes"} {
+		w = performRequest(r, http.MethodPost, "/api/store-lookups?store=unity&"+unreadable,
+			map[string]any{"refresh": true})
+		requireStatus(t, w, http.StatusBadRequest)
+	}
 }
 
 func TestStoreLookups_ScopedToTheLibrary(t *testing.T) {
