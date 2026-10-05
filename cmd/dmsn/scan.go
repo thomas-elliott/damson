@@ -91,6 +91,20 @@ func trimScanPath(p string) string {
 	return p
 }
 
+type locationsResponse struct {
+	Locations []struct {
+		AssetID      uint   `json:"asset_id"`
+		LocationPath string `json:"location_path"`
+	} `json:"locations"`
+}
+
+// failsEveryRow reports an error that would fail every remaining row the same
+// way — a bad or read-only token — so a run stops rather than report each one.
+func failsEveryRow(err error) bool {
+	code := axi.AsError(err).Code
+	return code == axi.CodeAuth || code == axi.CodeForbidden
+}
+
 func runScanKnown(ctx context.Context, e *Env, f *scanFlags) error {
 	under := trimScanPath(f.under)
 	if under == "" || len(e.Args) > 1 {
@@ -106,12 +120,7 @@ func runScanKnown(ctx context.Context, e *Env, f *scanFlags) error {
 	if err != nil {
 		return err
 	}
-	var resp struct {
-		Locations []struct {
-			AssetID      uint   `json:"asset_id"`
-			LocationPath string `json:"location_path"`
-		} `json:"locations"`
-	}
+	var resp locationsResponse
 	if err := client.GetJSON(ctx, "/api/assets/locations", url.Values{"under": {under}}, &resp); err != nil {
 		return err
 	}
@@ -306,9 +315,7 @@ func runScanMatch(ctx context.Context, e *Env, f *scanFlags) error {
 		}
 		err := client.GetJSON(ctx, "/api/metadata/search", url.Values{"q": {row.Name}}, &resp)
 		if err != nil {
-			// A bad token fails every pack the same way, so stop rather than
-			// write a file of failures.
-			if code := axi.AsError(err).Code; code == axi.CodeAuth || code == axi.CodeForbidden {
+			if failsEveryRow(err) {
 				return err
 			}
 			writeRow(row.Path, matchFailed, "", "", "", "", axi.AsError(err).Message)
@@ -386,11 +393,7 @@ func runScanRecord(ctx context.Context, e *Env) error {
 	if err != nil {
 		return err
 	}
-	var known struct {
-		Locations []struct {
-			LocationPath string `json:"location_path"`
-		} `json:"locations"`
-	}
+	var known locationsResponse
 	if err := client.GetJSON(ctx, "/api/assets/locations", nil, &known); err != nil {
 		return err
 	}
@@ -426,7 +429,7 @@ func runScanRecord(ctx context.Context, e *Env) error {
 			AssetID uint   `json:"asset_id"`
 		}
 		if err := client.PostJSON(ctx, "/api/assets/references", body, &out); err != nil {
-			if code := axi.AsError(err).Code; code == axi.CodeAuth || code == axi.CodeForbidden {
+			if failsEveryRow(err) {
 				return err
 			}
 			counts["failed"]++

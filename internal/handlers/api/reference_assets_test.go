@@ -400,7 +400,7 @@ func TestAssetLocations_ListsRecordedPathsUnderAFolder(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
 	lib := seedLibraryForUser(t, db, u, "Personal")
-	for _, p := range []string{"/mnt/nfs/3D/Synty/A_Pack", "/mnt/nfs/3D/B.zip", "/mnt/nfs/3Dx/C", "/mnt/nfs/Audio/D"} {
+	for _, p := range []string{"/mnt/nfs/3D/Synty/A_Pack", "/mnt/nfs/3D/B.zip", "/mnt/nfs/3Dx/C", "/mnt/nfs/Música/D"} {
 		seedReference(t, db, lib.ID, p, p, "")
 	}
 	seedReference(t, db, lib.ID, "link only", "", "https://example.com/p")
@@ -423,6 +423,9 @@ func TestAssetLocations_ListsRecordedPathsUnderAFolder(t *testing.T) {
 
 	if got := paths("?under=/mnt/nfs/3D/"); !slices.Equal(got, []string{"/mnt/nfs/3D/B.zip", "/mnt/nfs/3D/Synty/A_Pack"}) {
 		t.Errorf("under /mnt/nfs/3D: got %v", got)
+	}
+	if got := paths("?under=/mnt/nfs/M%C3%BAsica"); !slices.Equal(got, []string{"/mnt/nfs/Música/D"}) {
+		t.Errorf("under a non-ASCII folder: got %v", got)
 	}
 	if got := paths("?under=/mnt/nfs/3_"); len(got) != 0 {
 		t.Errorf("an underscore in under was read as a wildcard: %v", got)

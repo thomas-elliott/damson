@@ -86,7 +86,7 @@ func init() {
 		usage: "usage: dmsn asset <id>\n" +
 			"       dmsn asset edit <id> [--name …] [--clear FIELD,…]\n" +
 			"       dmsn asset record [--location-path PATH] [--source-url URL] [--name NAME]\n" +
-				"                         [--publisher NAME] [--tags A,B] [--needs-review]\n" +
+			"                         [--publisher NAME] [--tags A,B] [--needs-review]\n" +
 			"       dmsn asset review|unreview <id>\n" +
 			"       dmsn asset tag|untag <id> <path>...\n" +
 			"       dmsn asset rm <id> --yes\n\n" +
