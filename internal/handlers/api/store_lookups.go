@@ -270,7 +270,9 @@ func (h *Handler) storeLookupBatchStatus(ctx context.Context, batch models.Store
 
 // RunStoreLookup runs one queued lookup: it looks the asset's store link up,
 // waiting out any pause the store asks for, applies what it found, saves the
-// source record and records the outcome on the row. An error is returned only
+// source record and records the outcome on the row. A refresh may replace
+// fields a person hasn't changed, and marks the asset Needs review when it
+// changes one; any other lookup fills blanks only. An error is returned only
 // for what a retry could fix; a lookup the store can't answer is recorded as
 // failed and not retried.
 func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
@@ -313,7 +315,22 @@ func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
 	if batch.CreatedByUserID != nil {
 		userID = *batch.CreatedByUserID
 	}
-	applied, conflicts := h.applyMetadata(ctx, lk.LibraryID, &asset, meta, nil, false, "", userID)
+	// Judge what a person changed before this lookup's record replaces the
+	// last one.
+	var confirm map[string]bool
+	apply := meta
+	if batch.Refresh {
+		if confirm, err = h.refreshConfirm(ctx, &asset); err != nil {
+			return err
+		}
+		apply = withoutUnchangedCover(&asset, meta)
+	}
+	applied, conflicts := h.applyMetadata(ctx, lk.LibraryID, &asset, apply, confirm, false, "", userID)
+	if batch.Refresh && len(applied) > 0 && !asset.NeedsReview {
+		if err := db.Model(&asset).Update("needs_review", true).Error; err != nil {
+			return err
+		}
+	}
 	h.persistSourceRecord(ctx, &asset, metadata.SourceRecord{
 		Store:      meta.Store,
 		ListingURL: firstNonEmptyStr(meta.ListingURL, asset.SourceURL),
