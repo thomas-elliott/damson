@@ -575,6 +575,31 @@ func TestAssetRecord_SendsLocationAndReportsTheOutcome(t *testing.T) {
 	}
 }
 
+// One call records a scanned pack with everything the scan read from its path.
+func TestAssetRecord_SendsPublisherAndTags(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/references": cap.record(`{"outcome":"created","asset_id":42,"name":"Kingdom"}`),
+	})
+
+	out, code := exec(t, "asset", "record", "--location-path", "/mnt/nfs/3D/Environments/Synty/Kingdom",
+		"--publisher", "Synty", "--tags", "3D, Environments", "--needs-review")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	body := cap.matching(http.MethodPost, "/api/assets/references")[0].Body
+	tags, _ := body["tags"].([]any)
+	if body["publisher"] != "Synty" || len(tags) != 2 || tags[0] != "3D" || tags[1] != "Environments" {
+		t.Fatalf("body = %v", body)
+	}
+
+	out, code = exec(t, "asset", "edit", "42", "--name", "x", "--tags", "3D")
+	if code != axi.ExitUsage || !strings.Contains(out, "--tags only applies to asset record") {
+		t.Fatalf("--tags outside record: exit = %d\n%s", code, out)
+	}
+}
+
 func TestAssetRecord_DefaultsNeedsReviewOffAndNamesAnExistingAsset(t *testing.T) {
 	isolate(t)
 	cap := &capture{}

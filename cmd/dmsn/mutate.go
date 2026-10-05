@@ -79,12 +79,14 @@ func (f *editFlags) body(e *Env) (map[string]any, error) {
 func init() {
 	edit := newEditFlags()
 	var assetYes, needsReview bool
+	var recordTags string
 	register(&command{
 		name:    "asset",
 		summary: "show or modify one asset",
 		usage: "usage: dmsn asset <id>\n" +
 			"       dmsn asset edit <id> [--name …] [--clear FIELD,…]\n" +
-			"       dmsn asset record [--location-path PATH] [--source-url URL] [--name NAME] [--needs-review]\n" +
+			"       dmsn asset record [--location-path PATH] [--source-url URL] [--name NAME]\n" +
+				"                         [--publisher NAME] [--tags A,B] [--needs-review]\n" +
 			"       dmsn asset review|unreview <id>\n" +
 			"       dmsn asset tag|untag <id> <path>...\n" +
 			"       dmsn asset rm <id> --yes\n\n" +
@@ -98,14 +100,19 @@ func init() {
 			edit.register(fs)
 			fs.BoolVar(&assetYes, "yes", false, "confirm a destructive action")
 			fs.BoolVar(&needsReview, "needs-review", false, "record: mark the asset Needs review")
+			fs.StringVar(&recordTags, "tags", "", "record: comma-separated tag paths to attach")
 		},
 		run: func(ctx context.Context, e *Env) error {
 			if len(e.Args) > 0 && e.Args[0] == "record" {
-				return runAssetRecord(ctx, e, edit, needsReview)
+				return runAssetRecord(ctx, e, edit, needsReview, axi.ParseFields(recordTags))
 			}
 			if e.flagWasSet("needs-review") {
 				return axi.Usagef([]string{"dmsn asset review <id>"},
 					"--needs-review only applies to asset record")
+			}
+			if e.flagWasSet("tags") {
+				return axi.Usagef([]string{"dmsn asset tag <id> <path>..."},
+					"--tags only applies to asset record")
 			}
 			return runAssetVerb(ctx, e, edit, assetYes)
 		},
@@ -233,7 +240,7 @@ var recordOutcomes = map[string]string{
 	"exists":  "already_in_library",
 }
 
-func runAssetRecord(ctx context.Context, e *Env, edit *editFlags, needsReview bool) error {
+func runAssetRecord(ctx context.Context, e *Env, edit *editFlags, needsReview bool, tags []string) error {
 	usage := []string{
 		"dmsn asset record --location-path /mnt/assets/Publisher/Pack",
 		"dmsn asset record --source-url https://assetstore.unity.com/packages/… --name <name>",
@@ -241,7 +248,7 @@ func runAssetRecord(ctx context.Context, e *Env, edit *editFlags, needsReview bo
 	if len(e.Args) > 1 {
 		return axi.Usagef(usage, "asset record takes flags, not arguments; got %q", e.Args[1])
 	}
-	recordFlags := []string{"location-path", "source-url", "name"}
+	recordFlags := []string{"location-path", "source-url", "name", "publisher"}
 	for _, name := range append(slices.Clone(editableFields), "clear", "yes") {
 		if e.flagWasSet(name) && !slices.Contains(recordFlags, name) {
 			return axi.Usagef(usage, "--%s does not apply to asset record; set it afterwards with asset edit", name)
@@ -255,6 +262,9 @@ func runAssetRecord(ctx context.Context, e *Env, edit *editFlags, needsReview bo
 	}
 	if body["location_path"] == nil && body["source_url"] == nil {
 		return axi.Usagef(usage, "asset record needs --location-path, --source-url, or both")
+	}
+	if len(tags) > 0 {
+		body["tags"] = tags
 	}
 	client, err := e.Client()
 	if err != nil {

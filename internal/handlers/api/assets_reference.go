@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -17,6 +18,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 )
 
 // Outcomes of recording an asset by its location.
@@ -25,6 +27,10 @@ const (
 	referenceUpdated = "updated"
 	referenceExists  = "exists"
 )
+
+// maxReferenceTags bounds the tags one record attaches. A scan gives one per
+// folder between its root and the pack, so this is far above any real depth.
+const maxReferenceTags = 32
 
 // maxLocationPathLen bounds a recorded path. Damson never reads it, so the cap
 // only keeps a pasted mistake from landing in the search vector.
@@ -40,6 +46,11 @@ type referenceRecordRequest struct {
 	SourceURL    string `json:"source_url"`
 	Name         string `json:"name"`
 	NeedsReview  bool   `json:"needs_review"`
+	// Publisher and Tags are what a scan reads from the folders around a pack.
+	// Like Name, they apply only when the record creates the asset, so a rerun
+	// over a known path leaves them as they are.
+	Publisher string   `json:"publisher"`
+	Tags      []string `json:"tags"`
 }
 
 type referenceRecordResponse struct {
@@ -135,6 +146,18 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respond400(c, asError("give a location_path, a source_url, or both"))
 		return
 	}
+	if len(req.Tags) > maxReferenceTags {
+		respond400(c, asError("too many tags"))
+		return
+	}
+	// Check the tags before a store lookup is spent on a record that would fail.
+	for _, t := range req.Tags {
+		if tags.NormalisePath(t) == "" {
+			respond400(c, fmt.Errorf("tag %q is blank or longer than %d bytes", t, tags.MaxPathLength))
+			return
+		}
+	}
+	publisher := strings.TrimSpace(req.Publisher)
 
 	ctx := c.Request.Context()
 	db := h.db.WithContext(ctx)
@@ -211,6 +234,9 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		if path != "" {
 			asset.LocationPath = &path
 		}
+		if publisher != "" {
+			asset.Publisher = &publisher
+		}
 		if err := tx.Create(&asset).Error; err != nil {
 			return err
 		}
@@ -222,7 +248,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 				return err
 			}
 		}
-		return audit.Write(tx, audit.Entry{
+		if err := audit.Write(tx, audit.Entry{
 			LibraryID:  &lib.ID,
 			UserID:     &u.ID,
 			ActionType: "asset.reference.create",
@@ -232,9 +258,18 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 				"name":          asset.Name,
 				"location_path": path,
 				"source_url":    link,
+				"publisher":     publisher,
 				"needs_review":  asset.NeedsReview,
 			}),
-		})
+		}); err != nil {
+			return err
+		}
+		for _, t := range req.Tags {
+			if _, _, err := tags.Attach(tx, lib.ID, &u.ID, asset.ID, t); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	switch {
 	case errors.Is(err, errReferenceNameRequired):
