@@ -46,9 +46,8 @@ type referenceRecordRequest struct {
 	SourceURL    string `json:"source_url"`
 	Name         string `json:"name"`
 	NeedsReview  bool   `json:"needs_review"`
-	// Publisher and Tags are what a scan reads from the folders around a pack.
-	// Like Name, they apply only when the record creates the asset, so a rerun
-	// over a known path leaves them as they are.
+	// Publisher and Tags, like Name, apply only when the record creates the
+	// asset; a re-record of a known path leaves them as they are.
 	Publisher string   `json:"publisher"`
 	Tags      []string `json:"tags"`
 }
@@ -59,6 +58,9 @@ type referenceRecordResponse struct {
 	Name         string `json:"name"`
 	LocationPath string `json:"location_path,omitempty"`
 	SourceURL    string `json:"source_url,omitempty"`
+	// MetadataFailed says the store lookup for the link failed, so the asset
+	// has its link but no store metadata or cover.
+	MetadataFailed bool `json:"metadata_failed,omitempty"`
 }
 
 // normaliseLocationPath applies the spec's sameness rule: two paths are the
@@ -181,9 +183,11 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	// The lookup runs outside the transaction: it is network-bound, and a link
 	// it can't read is still recorded.
 	var meta *metadata.Metadata
+	metadataFailed := false
 	if link != "" && h.metadata != nil {
 		if m, ferr := h.metadata.Fetch(ctx, link); ferr != nil {
 			slog.Warn("reference: store lookup failed", "url", link, "err", ferr, "library_id", lib.ID)
+			metadataFailed = true
 		} else {
 			meta = m
 		}
@@ -300,7 +304,11 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	if outcome == referenceCreated {
 		status = http.StatusCreated
 	}
-	c.JSON(status, referenceResponseFrom(outcome, &asset))
+	resp := referenceResponseFrom(outcome, &asset)
+	// Only an asset this record created or updated is missing what the lookup
+	// would have filled.
+	resp.MetadataFailed = metadataFailed && outcome != referenceExists
+	c.JSON(status, resp)
 }
 
 type recordedLocation struct {
@@ -308,11 +316,10 @@ type recordedLocation struct {
 	LocationPath string `json:"location_path"`
 }
 
-// getAssetLocations lists every path recorded in the library, so a scan can
-// sort what it found into new and known, and spot recorded paths that are
-// gone. ?under= keeps only that folder and what lies beneath it, so a scan of
-// one folder never reports another's paths as gone. The list is unpaged: one
-// short row per reference asset is small even for thousands of packs.
+// getAssetLocations lists every path recorded in the library, unpaged: one
+// short row per asset stays small even for thousands of packs. ?under= keeps
+// only that folder and what lies beneath it, so a scan of one folder never
+// reports another's paths as gone.
 func (h *Handler) getAssetLocations(c *gin.Context) {
 	lib := getLibrary(c)
 	if lib == nil {

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -110,6 +111,11 @@ func runScanKnown(ctx context.Context, e *Env, f *scanFlags) error {
 	if under == "" || len(e.Args) > 1 {
 		return axi.Usagef([]string{"dmsn scan known --under /mnt/nfs"},
 			"scan known takes --under, the folder that was scanned, and no arguments")
+	}
+	// A relative path would be recorded relative to wherever the scan ran, so a
+	// rerun from another folder would see none of it as known.
+	if !filepath.IsAbs(under) {
+		return axi.Usagef(nil, "--under %s must be an absolute path", under)
 	}
 	// Every recorded path would read as gone if the store weren't mounted, so
 	// an unreadable root is an error, not a report.
@@ -221,6 +227,9 @@ func readPlan(path string) ([]planRow, error) {
 		if row.Path == "" || row.Name == "" {
 			return nil, axi.Usagef(nil, "plan line %d needs a path and a name", n)
 		}
+		if !filepath.IsAbs(row.Path) {
+			return nil, axi.Usagef(nil, "plan line %d: path must be absolute, got %s", n, row.Path)
+		}
 		if first, dup := seen[row.Path]; dup {
 			return nil, axi.Usagef(nil, "plan line %d repeats the path on line %d: %s", n, first, row.Path)
 		}
@@ -243,7 +252,6 @@ func readPlan(path string) ([]planRow, error) {
 // listing, or a single row saying it has none or that its search failed.
 var matchColumns = []string{"path", "result", "store", "title", "publisher", "listing_url", "error"}
 
-// Match results.
 const (
 	matchCandidate   = "candidate"
 	matchNone        = "none"
@@ -425,8 +433,9 @@ func runScanRecord(ctx context.Context, e *Env) error {
 			body["source_url"] = row.Link
 		}
 		var out struct {
-			Outcome string `json:"outcome"`
-			AssetID uint   `json:"asset_id"`
+			Outcome        string `json:"outcome"`
+			AssetID        uint   `json:"asset_id"`
+			MetadataFailed bool   `json:"metadata_failed"`
 		}
 		if err := client.PostJSON(ctx, "/api/assets/references", body, &out); err != nil {
 			if failsEveryRow(err) {
@@ -439,23 +448,29 @@ func runScanRecord(ctx context.Context, e *Env) error {
 		}
 		outcome := firstNonEmpty(recordOutcomes[out.Outcome], out.Outcome)
 		counts[outcome]++
-		// Added rows are the bulk of a scan and need no attention; the table
-		// carries only the rows that do.
-		if outcome != recordOutcomes["created"] {
-			report = append(report, map[string]any{"path": row.Path, "outcome": outcome, "asset_id": out.AssetID, "detail": nil})
+		// Added rows are the bulk of a scan, so the table lists only the rest
+		// and added rows whose store lookup failed.
+		var detail any
+		if out.MetadataFailed {
+			counts["no_store_data"]++
+			detail = "store lookup failed: linked, but no store metadata or cover"
+		}
+		if outcome != recordOutcomes["created"] || out.MetadataFailed {
+			report = append(report, map[string]any{"path": row.Path, "outcome": outcome, "asset_id": out.AssetID, "detail": detail})
 		}
 	}
 
 	table := axi.Table{
-		Key: "not_added", Columns: []string{"path", "outcome", "asset_id", "detail"},
+		Key: "needs_attention", Columns: []string{"path", "outcome", "asset_id", "detail"},
 		Truncatable: []string{"detail"}, Rows: report, Total: -1,
-		EmptyNote: "every row was added",
+		EmptyNote: "every row was added with nothing to follow up",
 	}
 	summary := Block{Key: "record", Fields: []toon.KV{
 		{Key: "rows", Value: len(rows)},
 		{Key: "added", Value: counts[recordOutcomes["created"]]},
 		{Key: "known", Value: counts["known"]},
 		{Key: "failed", Value: counts["failed"]},
+		{Key: "no_store_data", Value: counts["no_store_data"]},
 	}}
 	help := []string{"dmsn assets --needs-review"}
 	if err := axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table}, help, e.Globals.options()); err != nil {

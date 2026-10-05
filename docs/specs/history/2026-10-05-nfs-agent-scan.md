@@ -1,5 +1,7 @@
 # Catalogue the NFS library by agent scan
 
+**Status:** implemented — all five stages, cleaned up 2026-10-05 (PR not yet open: fill in its number when it is).
+
 Covers DAM-1
 
 ## Steering
@@ -116,6 +118,14 @@ By: settled by DAM-1 Direction (2026-10-05)
 
 None
 
+## What implementation found
+
+For `/distil`, these docs are now out of date:
+
+- `docs/architecture.md` (route list, near line 1222) lacks `GET /api/assets/locations?under=`.
+- `docs/architecture.md` does not say that `/api/metadata/search` returns `failed_stores`, or that it no longer returns 502.
+- `docs/progress.md` (near line 304) says `dmsn setup` writes one skill. It now writes two: `damson` and `damson-scan`.
+
 ## Implementation report
 
 ### Stages
@@ -150,6 +160,17 @@ repo rules (AGENTS.md error-response shape, library_id filtering at top level, n
 possible Duplicated Code — the "stop on auth or forbidden" check is written twice; one `isFatalClientError(err)` helper would serve both (cmd/dmsn/scan.go:311, cmd/dmsn/scan.go:429) → fixed
 possible Duplicated Code — two anonymous `Locations []struct{…}` response types for the same endpoint; declare one `locationsResponse` type and use it in both (cmd/dmsn/scan.go:110, cmd/dmsn/scan.go:390) → fixed
 
+### Review — cleanup
+
+#### Verdict
+LOW · introduced — nothing requires an absolute path: `scan known --under .` passes `os.Stat`, the server's `normaliseLocationPath` accepts `./3D/x`, and `readPlan` takes whatever `find .` printed, so a scan the agent runs from inside the store records relative paths; a rerun from another working folder then sees none of them as known (duplicates, breaking "adds no duplicates"), and `pathExists` checks them against the wrong folder. Fix: refuse a non-absolute `--under` in `runScanKnown` and a non-absolute row path in `readPlan` (`filepath.IsAbs`), and say "absolute path" in the skill's step 1 (cmd/dmsn/scan.go:110, cmd/dmsn/scan.go:216, cmd/dmsn/scan_skill.go:30) → fixed: `scan known` and `readPlan` refuse a relative path, the skill asks for the root's absolute path, and `TestReadPlan_RefusesAMalformedPlan` has a relative case
+LOW · introduced — the plan's `tags` column is split on commas, so a folder named `Sci-Fi, Space` becomes two tags `sci-fi` and `space`, against the decision "Each folder … becomes its own tag"; nothing warns. Fix: tell the agent in the skill's step 1 to drop or replace commas in a folder name when it writes the tag, or split the column on a character a folder name can't hold (cmd/dmsn/scan.go:219, cmd/dmsn/scan_skill.go:78) → fixed: the skill's step 3 says to leave the comma out of such a folder's tag
+LOW · widened — `scan record` counts a linked row as `added` even when the server's store lookup failed (`postReferenceAsset` only logs it and returns `created`, with nothing in `referenceRecordResponse` to say so), so in a bulk run a throttled or failed Asset Store lookup leaves a linked pack without its store metadata or cover, and neither the `record` report nor the skill's step 7 names it. Fix: add a `metadata_failed` flag (or outcome detail) to the response when `Fetch` errors, and have `scan record` list those rows in `not_added`-style output (internal/handlers/api/assets_reference.go:185, cmd/dmsn/scan.go:440) → left for cleanup: it changes the record response and the CLI report together, more than a local edit
+LOW · introduced — AGENTS.md:17 says "Do not write into `docs/` during a run — record what the change made untrue in the spec and leave the docs to `/distil`", but the spec records none of it: `docs/architecture.md:1222`'s route list lacks `GET /api/assets/locations` and doesn't mention `failed_stores` or that `/api/metadata/search` no longer returns 502, and `docs/progress.md:304` describes `dmsn setup` as writing one skill. Fix: add a `## What implementation found` note listing these for `/distil` (docs/specs/2026-10-05-nfs-agent-scan.md:153) → fixed: `## What implementation found` lists them
+
+#### Checked
+repo rules (AGENTS.md error-response shape, library_id filtering, never log tokens, mirror existing patterns, go mod tidy — no new imports outside the module), documented hazards (library tenancy on `/assets/locations` — scoped group, top-level `library_id` filter, other-library test; 500 stays generic; tags go through `tags.Attach`, library-scoped), mechanical shape conformance (`recordedLocation` ↔ `locationsResponse`, `metadataSearchResponse.failed_stores` ↔ `scan match`'s response struct, `referenceRecordRequest` ↔ `scan record` and `asset record` bodies), completeness honesty (unpaged locations by stated choice; `maxMatchesPerStore` is curation), coverage, cross-boundary contract across stages (route and query names, `publisher`/`tags`/`needs_review`, path sameness rule `trimScanPath` = `normaliseLocationPath`, plan header shared via `planColumns` in both `readPlan` and the skill text, matches results `candidate|none|store_failed|search_failed` in skill = constants, `--json` is a real global flag, `permute` makes `plan.tsv --out x` parse, `assets --needs-review` exists, setup writes `damson-scan/SKILL.md` and lists `scan known|match|record`), shared-library precedence, logic, error handling, silent failure, input validation, idempotency and resilience, credentials, security, concurrency, external contracts (server's per-host limiter, 500 ms, paces both search and record lookups), resource management, logging, performance, web-endpoint block, data-access block, co-change sweep (sole `Search` interface consumer updated; `Search` kept for the enricher), backward compatibility (`failed_stores` omitempty, additive), tests; tests run: `go test ./cmd/dmsn ./internal/services/metadata` pass, `go vet` clean on the three packages; DB-backed `./internal/handlers/api` tests not run — no Postgres on 5432 or 55432 · issues in: input validation, silent failure, repo rules · n/a: shared-library precedence (no UI added), credentials (no secrets touched), deployment (no schema change) · overlap: the non-ASCII `under` MED and both smells from `### Review — stages 1…5` are fixed and not re-reported · validation: none needed, 0 candidates, 0 confirmed, 0 refuted · unconfirmed: whether Numbers or Excel quote a comma-holding `tags` cell when the operator saves the plan, which `readPlan` would read as tags with literal quotes
+
 ### Results
 
 | Item | Status | Notes |
@@ -171,3 +192,13 @@ possible Duplicated Code — two anonymous `Locations []struct{…}` response ty
 | gate | passed | `just format`, then `just check` with `DAMSON_TEST_POSTGRES_DSN` on 55432. The recipe stops at its first failure, and its last step (e2e) ran: 17 passed. |
 
 Environment notes: there was no Postgres on 5432 and OrbStack wasn't running, so every Postgres-backed run used a throwaway `fergusstrange/embedded-postgres` on 55432, started from `/tmp/damson-pg`, not a repo dependency. The per-stage commits skipped `/simplify`, because the implement flow leaves it to `/cleanup`.
+
+### Cleanup — 2026-10-05
+
+- Review coverage: `### Review — stages 1…5` covers every built stage once. `### Review — cleanup` found 4 LOWs, all fixed. The operator chose "Fix now" for the store-lookup one.
+- Store-lookup fix: `POST /api/assets/references` returns `metadata_failed: true` when the store lookup for a created or updated asset failed. `scan record` counts those rows as `no_store_data` and lists them, and the skill's step 7 reports them. The table `not_added` is renamed `needs_attention`, because it now also lists added rows.
+- Simplify: comment edits only, in `search.go`, `assets_reference.go` and `scan.go`.
+- Test gate: no test cut. Added `TestScanRecord_ListsAddedRowsWhoseStoreLookupFailed`, a relative-path case in `TestReadPlan_RefusesAMalformedPlan`, and `metadata_failed` checks in two server tests.
+- Gate: `just check` exit 0 with `DAMSON_TEST_POSTGRES_DSN` on a throwaway `postgres:17-alpine` container on 55432: Go suite (including `./internal/handlers/api`), 206 Vitest tests and 17 e2e tests passed.
+- Still `unproven`, both needing a live Claude Code session: that the agent waits for approval before recording, and that "scan my asset library" starts the scan.
+- Unconfirmed from review: whether Numbers or Excel puts quotes around a `tags` cell holding a comma when the operator saves the plan. If they do, the tags are stored with the quote marks in them.

@@ -172,6 +172,9 @@ func TestRecordReference_SamePathTwiceUpdatesAndKeepsEditedName(t *testing.T) {
 	if second.Outcome != referenceUpdated || second.AssetID != first.AssetID {
 		t.Fatalf("second record: %+v, want updated asset %d", second, first.AssetID)
 	}
+	if second.MetadataFailed {
+		t.Errorf("a store lookup that worked was reported as failed: %+v", second)
+	}
 	if n := countAssets(t, db, lib.ID); n != 1 {
 		t.Fatalf("recording the same path twice left %d assets", n)
 	}
@@ -277,6 +280,9 @@ func TestRecordReference_UnreadableLinkIsStillRecorded(t *testing.T) {
 	}
 	if a.SourceURL != link || a.Name != "Hand Named" {
 		t.Fatalf("got source_url=%q name=%q", a.SourceURL, a.Name)
+	}
+	if !resp.MetadataFailed {
+		t.Errorf("a failed store lookup must be reported as metadata_failed: %+v", resp)
 	}
 }
 

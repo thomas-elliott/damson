@@ -29,9 +29,8 @@ func (r *Registry) Search(ctx context.Context, query string) ([]Candidate, error
 	return cands, nil
 }
 
-// SearchStores is Search that also names each store that errored or timed
-// out, so a caller searching many packs can tell "no listing" from "the store
-// didn't answer" and report the packs it couldn't search.
+// SearchStores is Search that also names, sorted, each store that errored or
+// timed out, so a caller can tell "no listing" from "the store didn't answer".
 func (r *Registry) SearchStores(ctx context.Context, query string) ([]Candidate, []string) {
 	query = strings.TrimSpace(query)
 	if query == "" {
