@@ -186,6 +186,17 @@ repo rules and documented hazards (library scoping on store_lookup_batches, stor
 #### Smells
 possible Duplicated Code — unmarshalling the source record and checking `rec.Metadata != nil` appears in `changedByPerson`, `withoutUnchangedCover` and twice in metadata.go; one `sourceRecordOf(asset)` helper would serve all four (internal/handlers/api/store_refresh.go:52) → fixed for the branch's code: `sourceRecordOf` serves `changedByPerson`, `withoutUnchangedCover` and `RunStoreLookup`; the two metadata.go sites predate the branch and give their own 409s, so they stay
 
+### Review — stages 8…9
+
+#### Verdict
+No blockers
+
+#### Checked
+repo rules and documented hazards (library scoping: the new filter rides `applyAssetFilters`, which is already scoped by `library_id`; no migration, `store_deprecated` is `NOT NULL DEFAULT false` from 025, so `NOT a.store_deprecated` never turns NULL; a spec in `history/` is only appended to under `## What implementation found`, as AGENTS.md allows), mechanical (client/server contract: `--store-deprecated` sends `store_deprecated=true`, which the server reads; `/api/search` shares `getAssets`, so it gets the filter and the badge rule too), logic (filter SQL, overview count and list badge all go through `updatesAvailableSQL`/`storeUpdateAvailable`; the detail badge uses `storeUpdateAvailable`; project pins' `HasUpdate` is a pinned-version comparison, not a store one, so it is rightly untouched), error handling, silent failure (an unreadable `store_deprecated` is ignored by `GET /api/assets`, as `needs_review` is, but refused by `POST /api/store-lookups`), input validation, smells, Toony Skies note against the purchase-catalogue proof row and the store-refresh results row for 11020 · issues in: none · n/a: concurrency — no shared state; credentials — none touched; performance — one boolean predicate on an already scoped query · validation: in-context, 0 candidates, 0 confirmed, 0 refuted · tests run on the 55432 Postgres: `TestAssetFilters_StoreDeprecated`, `TestUpdatesAvailableFilterAgreesWithTheBadge`, `TestStoreLookups_FiltersSelectTheAssets` and `./cmd/dmsn -run '^TestAssets_'` pass
+
+#### Smells
+possible inconsistent name — the filter field is `Deprecated`, while the column, the model, the query parameter and the dmsn flag all say store deprecated; rename it `StoreDeprecated`, as `NeedsReview` and `SourceHost` match theirs (internal/handlers/api/assets.go:74) → fixed: renamed `StoreDeprecated`
+
 ### Results
 
 | Item | Status | Notes |
@@ -204,6 +215,18 @@ possible Duplicated Code — unmarshalling the source record and checking `rec.M
 | gate | passed | `just check`, exit 0: 19 Go packages ok, vitest 209 passed in 39 files, Playwright 17 passed |
 | review: stages 1…7 | passed | `### Review — stages 1…7`: 2 MED and 2 LOW, all fixed |
 | real proof | passed | Scratch server from this branch on a throwaway Docker Postgres (port 55432), live Unity lookups, dmsn against it; `main`'s server built in a temporary worktree for the reproduction. Server stopped, worktree removed. Stages 1, 4, 5, 6 and 7 reached the real store and database; stage 2's fallback and stage 3's 429 were not triggered live. |
+
+### Results — stages 8…9
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| decision: `GET /api/assets` and `dmsn assets` gain a `store_deprecated` filter | passed | `TestAssetFilters_StoreDeprecated` (Postgres) fails if the filter is dropped from `applyAssetFilters`; `TestAssets_FiltersMapToQueryParams` fails if `--store-deprecated` stops sending `store_deprecated=true`. `TestStoreLookups_FiltersSelectTheAssets` fails if a refresh accepts `store_deprecated=yes`. |
+| decision: Updates available leaves deprecated listings out | passed | `TestUpdatesAvailableFilterAgreesWithTheBadge` (Postgres) now has an outdated deprecated asset and checks the filter, the list badge, the detail badge and the overview count. Taking `NOT a.store_deprecated` out of `updatesAvailableSQL` makes it fail (checked: the filter matched the deprecated asset). |
+| decision: Toony Skies note on the purchase-catalogue spec | passed | Dated subsection at the end of that spec's `## What implementation found`. No test warranted: it is a note. |
+| build | passed | `just build`, exit 0 |
+| review: stages 8…9 | passed | `### Review — stages 8…9`: no defects, 1 smell, fixed |
+| real proof | passed | Stage 8: the two Postgres tests above run against the real database. Stage 9 has no dependency to reach. No other stage was built this session. |
+| gate | passed | `just format`, then `just check`, exit 0, against a throwaway Postgres on 55432 (5432 was down): 19 Go packages ok, Vitest 209 passed in 39 files, Playwright 17 passed |
 
 ### Cleanup — 2026-10-05
 

@@ -62,23 +62,23 @@ const (
 // assetListFilters carries the decoded query params for getAssets. Empty
 // zero values mean "no filter for this dimension".
 type assetListFilters struct {
-	Query         string // full-text / LIKE fallback
-	TagID         *uint  // matches asset via asset_tags OR descendants by path
-	TagPath       string // alternative to TagID — match by `path LIKE '<p>%'`
-	LicenceStatus string // ok|warn|err|unk
-	LicenceSPDX   string // exact SPDX id
-	ProjectID     *uint  // asset is pinned in this project
-	CollectionID  *uint  // asset is a member of this collection
-	SourceHost    string // exact-match host portion of source_url
-	NeedsReview   *bool  // unreviewed-only when true
-	Deprecated    *bool  // store_deprecated matches this when set
-	PackageKind   string
-	Publisher     string     // exact publisher match
-	Store         string     // exact store match
-	ReleasedAfter *time.Time // released_at >= this instant
-	UpdatesOnly   bool       // latest_store_version is newer than every version held
-	NotDownloaded bool       // Purchased, not downloaded: a reference asset with no path
-	Sort          string     // created_desc (default) | released_desc | released_asc | name_asc
+	Query           string // full-text / LIKE fallback
+	TagID           *uint  // matches asset via asset_tags OR descendants by path
+	TagPath         string // alternative to TagID — match by `path LIKE '<p>%'`
+	LicenceStatus   string // ok|warn|err|unk
+	LicenceSPDX     string // exact SPDX id
+	ProjectID       *uint  // asset is pinned in this project
+	CollectionID    *uint  // asset is a member of this collection
+	SourceHost      string // exact-match host portion of source_url
+	NeedsReview     *bool  // unreviewed-only when true
+	StoreDeprecated *bool  // store_deprecated matches this when set
+	PackageKind     string
+	Publisher       string     // exact publisher match
+	Store           string     // exact store match
+	ReleasedAfter   *time.Time // released_at >= this instant
+	UpdatesOnly     bool       // latest_store_version is newer than every version held
+	NotDownloaded   bool       // Purchased, not downloaded: a reference asset with no path
+	Sort            string     // created_desc (default) | released_desc | released_asc | name_asc
 }
 
 // storeVersionArraySQL renders a dotted-numeric store version as an int[] for
@@ -182,10 +182,10 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 	if s := c.Query("store_deprecated"); s != "" {
 		if s == "true" || s == "1" {
 			t := true
-			f.Deprecated = &t
+			f.StoreDeprecated = &t
 		} else if s == "false" || s == "0" {
 			fl := false
-			f.Deprecated = &fl
+			f.StoreDeprecated = &fl
 		}
 	}
 	return f
@@ -211,8 +211,8 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 	if f.NeedsReview != nil {
 		q = q.Where("a.needs_review = ?", *f.NeedsReview)
 	}
-	if f.Deprecated != nil {
-		q = q.Where("a.store_deprecated = ?", *f.Deprecated)
+	if f.StoreDeprecated != nil {
+		q = q.Where("a.store_deprecated = ?", *f.StoreDeprecated)
 	}
 	if f.PackageKind != "" {
 		q = q.Joins("JOIN asset_versions cv ON cv.id = a.current_version_id").
