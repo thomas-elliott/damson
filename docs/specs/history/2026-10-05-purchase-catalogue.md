@@ -1,5 +1,7 @@
 # Catalogue my purchases
 
+**Status:** implemented — all seven stages, cleaned up 2026-10-05 (PR not yet open: fill in its number when it is).
+
 Covers DAM-3
 
 ## Steering
@@ -132,6 +134,18 @@ repo rules (AGENTS.md: library scoping, 500 shape, query keys and fetchJson, go 
 #### Smells
 possible Primitive Obsession — `draftPurchaseRow` returns a `[]string` that the caller reads by position (`row[3]`, `row[6]`); return a small struct and convert it to TSV at write time (cmd/dmsn/purchases.go:310) → fixed: `draftRow` struct with a `line()` method
 
+### Review — cleanup
+
+#### Verdict
+LOW · introduced — a `swap` row changes only `source_url`, and the lookup that follows fills blanks only (`imports.MetadataFieldUpdates` reports a differing `store`/`store_product_id`/`latest_store_version` as a conflict), while `linkAsset` discards the fetch response. Swap only reaches assets with no Unity listing ID, so an asset enriched from another store (say `store: itch`) ends up with a Unity link but its old store, product ID and latest version: `?store=unity` misses it, and its update state compares against the old store. Nothing in the record output says so. Fix: send `"store": "", "store_product_id": "", "latest_store_version": ""` in the swap's PATCH (the patch blanks a field given as `""`), so the Unity lookup fills them (cmd/dmsn/purchases.go:561) → fixed: a swap's PATCH blanks the three fields, and `TestPurchasesRecord_RecordsWhatEachRowSays` checks the swap body
+LOW · introduced — `pace()` runs before every `new` row's `POST /api/assets/references`, but the server answers a link it already holds as `exists` before any store lookup (internal/handlers/api/assets_reference.go:168). Recording the same plan again (after an auth failure stops a run at purchases.go:471, or a Ctrl-C) waits `--interval` for each row already recorded: about 14 minutes for 429 purchases with no lookup made. Fix: don't count an `exists` answer as a lookup, so the next call doesn't wait for it (cmd/dmsn/purchases.go:461) → fixed: `pace` waits from the last call that made a lookup, and an `exists` answer is not one; `TestPurchasesRecord_DoesNotWaitOnRecordedPurchases`
+
+#### Checked
+repo rules (AGENTS.md and docs/CONVENTIONS.md: library scoping, `respond500` shape, fetchJson and query keys (no new fetch or key), go mod tidy, never log tokens, no `docs/` writes outside the spec), documented hazards (tenancy: `/assets/links` filters `library_id` under `scoped` and its test checks another library is excluded; Unity cache credentials: only `url` and `response_data` are selected, never the header table; `CurlRequestCache.db` was not opened), shape conformance (`assetLink` ↔ `recordedAsset`, `referenceResponse` ↔ the `new` row's `out`), completeness honesty (found/total/shortfall), coverage, cross-boundary contract (`not_downloaded` across sidebar, `parseAssetFilters`, the generic query serialisation and the Go filter; `unreview` is `bulkSetReview(..., true)`), shared-library precedence, logic, error handling, silent failure (an unparseable cache page is skipped on purpose; a 502 lookup becomes `no_store_data`, and `failsEveryRow` stops only on auth/forbidden), input validation, idempotency and resilience, credentials and secrets, security, concurrency, external contracts, resource management, logging, performance, web endpoint, data access, co-change sweep (web filter sites, `dmsn setup` help line, `TestSetup`), side effects (`scan.go`'s `writeRow` now goes through `tsvLine`, same behaviour), backward compatibility, deployment, tests, dependencies, structural risk, widened flaws · across stages: stage 3's `/assets/links` against stage 5's `listingID` and name-skip rule; stage 5's plan columns against stage 6's `readPurchasePlan` and stage 7's skill text; stage 6's link/swap against the server's PATCH and `applyMetadata` fill-if-blank rules; stage 1's `location_path IS NULL` against how paths are cleared (`applyLocationPathPatch` writes NULL) · issues in: idempotency and resilience (paced `exists`), cross-stage swap against fill-if-blank (store fields) · n/a: db migration (no schema change), concurrency (CLI is sequential), deployment (no schema or config) · overlap with `### Review — stages 1…7`: the linking order (fixed, and the fix is right: `unreview` precedes the PATCH at purchases.go:558), the stage-3 line (fixed), and its two unconfirmed points (`ec_product_id` against the link's ID; hidden purchases) are not repeated · ran: `just test backend ./cmd/dmsn` passed; the Postgres-backed API tests were not run, because nothing answers on 5432 or 55432; vitest not run · needs a human approver (as before): new dependency `modernc.org/sqlite` with its indirect bumps (`golang.org/x/sys`, `x/sync`, `go-isatty`) and the `go 1.26.0` directive, new endpoint `GET /api/assets/links` · validation: none needed, 2 candidates (both LOW, checked in context), 2 confirmed, 0 refuted
+
+#### Smells
+possible Duplicated Code — `readTSV` repeats the header check, tab split and column count of the scan plan reader; have `scan.go` call `readTSV` as it now calls `tsvLine` (cmd/dmsn/purchases.go:120, cmd/dmsn/scan.go:217) → fixed: `readPlan` calls `readTSV`, with the same error messages
+
 ### Results
 
 | Item | Status | Notes |
@@ -163,3 +177,12 @@ For `/distil`, these docs are now out of date:
 
 Not checked: whether Package Manager's unfiltered purchase list includes purchases hidden in My Assets (decision 7 includes them). If it doesn't, they are neither read nor counted in the shortfall. Settling it needs a look at the real cache.
 
+### Cleanup — 2026-10-05
+
+- Review coverage: `### Review — stages 1…7` covers every built stage once. `### Review — cleanup` found 2 LOWs and 1 smell, all fixed: a swap now blanks the old store's `store`, `store_product_id` and `latest_store_version` so the Unity lookup fills them; `record` paces from the last call that made a store lookup, so a rerun does not wait on purchases already recorded; `scan.go`'s plan reader calls `readTSV`.
+- Triage: nothing was left for cleanup and there was no open `decision:`, so the operator was not asked anything.
+- Simplify: `recordedAsset` no longer decodes `publisher`, which dmsn never read, and one comment was shortened. `GET /api/assets/links` still returns `publisher`.
+- Test gate: no test cut. Added `TestPurchasesRecord_DoesNotWaitOnRecordedPurchases` and a swap-body check in `TestPurchasesRecord_RecordsWhatEachRowSays`. Both fail on the code before the fix.
+- Gate: `just format`, then `just check` exit 0 with `DAMSON_TEST_POSTGRES_DSN` on a throwaway `postgres:17-alpine` container on 55432 (since stopped): Go suite including `./internal/handlers/api`, Vitest, and 17 e2e tests passed.
+- Still `unproven`: that the agent shows the counts and waits for approval before recording (needs a live Claude Code purchase run), and that a run over hundreds of purchases is not throttled (spacing is tested; needs `dmsn purchases record` over the full 429-row plan with no 429 in the server log).
+- Unconfirmed from review: whether `ec_product_id` always equals the listing ID in the link (if not, a purchase misses its asset and is drafted `new`, a duplicate), and whether the unfiltered My Assets list includes hidden purchases.

@@ -101,6 +101,7 @@ func TestUnityListingID(t *testing.T) {
 // fakeLibrary serves the routes `purchases record` calls, logging each call as
 // "METHOD path" with its JSON body and when it arrived.
 type fakeLibrary struct {
+	exists map[string]bool // links the library already holds, answered "exists"
 	calls  []string
 	bodies []map[string]any
 	at     []time.Time
@@ -122,7 +123,12 @@ func (l *fakeLibrary) serve(t *testing.T, links string, failLookupFor string) {
 		},
 		"POST /api/assets/references": func(w http.ResponseWriter, r *http.Request) {
 			log(r)
-			failed := l.bodies[len(l.bodies)-1]["source_url"] == failLookupFor
+			link, _ := l.bodies[len(l.bodies)-1]["source_url"].(string)
+			if l.exists[link] {
+				fmt.Fprint(w, `{"outcome":"exists","asset_id":91}`)
+				return
+			}
+			failed := link == failLookupFor
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprintf(w, `{"outcome":"created","asset_id":90,"metadata_failed":%t}`, failed)
 		},
@@ -180,8 +186,13 @@ func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
 	if b := lib.bodies[1]; b["needs_review"] != true || b["name"] != "Brand New" || b["source_url"] != unityListingLink("100") {
 		t.Errorf("new purchase body = %v", b)
 	}
-	if b := lib.bodies[4]; b["source_url"] != unityListingLink("102") {
+	if b := lib.bodies[4]; b["source_url"] != unityListingLink("102") || b["store"] != nil {
 		t.Errorf("link body = %v", b)
+	}
+	// A swap blanks the old store's identity so the Unity lookup can fill it.
+	if b := lib.bodies[7]; b["source_url"] != unityListingLink("104") || b["store"] != "" ||
+		b["store_product_id"] != "" || b["latest_store_version"] != "" {
+		t.Errorf("swap body = %v", b)
 	}
 	if b := lib.bodies[3]; b["action"] != "unreview" || fmt.Sprint(b["asset_ids"]) != "[1]" {
 		t.Errorf("Needs review body = %v", b)
@@ -241,5 +252,28 @@ func TestPurchasesRecord_SpacesStoreLookups(t *testing.T) {
 		if gap := lookups[i].Sub(lookups[i-1]); gap < interval {
 			t.Errorf("lookup %d came %v after the one before, want at least %v", i+1, gap, interval)
 		}
+	}
+}
+
+// Recording a plan again, after a run that stopped part-way, does not wait on
+// the purchases already recorded: the server answers those without a lookup.
+func TestPurchasesRecord_DoesNotWaitOnRecordedPurchases(t *testing.T) {
+	isolate(t)
+	lib := &fakeLibrary{exists: map[string]bool{
+		unityListingLink("100"): true, unityListingLink("101"): true, unityListingLink("102"): true}}
+	lib.serve(t, recordLinks, "")
+	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
+		"100	A	"+unityListingLink("100")+"	new				",
+		"101	B	"+unityListingLink("101")+"	new				",
+		"102	C	"+unityListingLink("102")+"	new				")
+
+	interval := time.Second
+	start := time.Now()
+	out, code := exec(t, "purchases", "record", plan, "--interval", interval.String())
+	if code != axi.ExitOK || !strings.Contains(out, "already_in_library: 3") {
+		t.Fatalf("exit = %d\n%s", code, out)
+	}
+	if took := time.Since(start); took >= interval {
+		t.Errorf("took %v, want under %v: it waited on rows that made no lookup", took, interval)
 	}
 }
