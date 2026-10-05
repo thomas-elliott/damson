@@ -197,31 +197,18 @@ type planRow struct {
 // readPlan parses a plan file. Every problem is reported with its line, so the
 // file can be fixed by hand and read again.
 func readPlan(path string) ([]planRow, error) {
-	raw, err := os.ReadFile(path)
+	tsv, err := readTSV(path, "plan", planColumns)
 	if err != nil {
-		return nil, axi.Wrap(axi.CodeIO, err, "cannot read plan %s", path)
-	}
-	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
-	header := strings.Join(planColumns, "\t")
-	if strings.TrimSpace(lines[0]) != header {
-		return nil, axi.Usagef([]string{"first line: " + strings.ReplaceAll(header, "\t", "<tab>")},
-			"plan %s does not start with the plan header", path)
+		return nil, err
 	}
 	var rows []planRow
 	seen := map[string]int{}
-	for i, line := range lines[1:] {
-		n := i + 2
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		cols := strings.Split(line, "\t")
-		if len(cols) != len(planColumns) {
-			return nil, axi.Usagef(nil, "plan line %d has %d columns, want %d (tab-separated)", n, len(cols), len(planColumns))
-		}
+	for _, r := range tsv {
+		n, cols := r.Line, r.Cols
 		row := planRow{
 			Path:      trimScanPath(cols[0]),
-			Name:      strings.TrimSpace(cols[1]),
-			Publisher: strings.TrimSpace(cols[2]),
+			Name:      cols[1],
+			Publisher: cols[2],
 			Tags:      axi.ParseFields(cols[3]),
 		}
 		if row.Path == "" || row.Name == "" {
@@ -234,7 +221,7 @@ func readPlan(path string) ([]planRow, error) {
 			return nil, axi.Usagef(nil, "plan line %d repeats the path on line %d: %s", n, first, row.Path)
 		}
 		seen[row.Path] = n
-		switch link := strings.TrimSpace(cols[4]); {
+		switch link := cols[4]; {
 		case link == "":
 		case strings.EqualFold(link, noMatch):
 			row.Decided = true
@@ -292,14 +279,7 @@ func runScanMatch(ctx context.Context, e *Env, f *scanFlags) error {
 	}
 	defer file.Close()
 	w := bufio.NewWriter(file)
-	writeRow := func(cols ...string) {
-		clean := make([]string, len(cols))
-		for i, c := range cols {
-			// A tab or newline in a store's title would break the row.
-			clean[i] = strings.Join(strings.Fields(c), " ")
-		}
-		fmt.Fprintln(w, strings.Join(clean, "\t"))
-	}
+	writeRow := func(cols ...string) { fmt.Fprintln(w, tsvLine(cols...)) }
 	writeRow(matchColumns...)
 
 	counts := map[string]int{}
