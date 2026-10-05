@@ -28,7 +28,8 @@ read and write local files.
 ## 1. Walk
 
 Ask which folder to scan if the user hasn't said (for example ` + "`/mnt/nfs`" + `).
-That folder is the **root**. List what is under it with ` + "`find`" + ` or ` + "`ls`" + `.
+That folder is the **root**; use its absolute path, so every pack path is
+absolute too. List what is under it with ` + "`find`" + ` or ` + "`ls`" + `.
 
 One item is one **pack**, never one asset per file:
 
@@ -75,7 +76,8 @@ Write the new packs to a plan file the user can open, for example
 
     ` + strings.Join(planColumns, "\t") + `
 
-` + "`tags`" + ` is comma-separated (` + "`3D,Environments`" + `). Leave ` + "`link`" + ` blank for now.
+` + "`tags`" + ` is comma-separated (` + "`3D,Environments`" + `), so write a folder
+whose name holds a comma with the comma left out. Leave ` + "`link`" + ` blank for now.
 
 ## 4. Store matches
 
@@ -118,7 +120,8 @@ refuses a plan with a blank link and skips any path already recorded.
 ## 7. Report
 
 Tell the user what was added, any row that failed and why, the packs recorded
-without a link because their search failed, and the gone paths. Everything from
+without a link because their search failed, the packs linked without store data
+because the store lookup failed (` + "`no_store_data`" + `), and the gone paths. Everything from
 the scan is in the review queue (` + binaryName + ` assets --needs-review) until
 they mark it reviewed.
 `

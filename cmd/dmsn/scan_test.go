@@ -195,6 +195,7 @@ func TestReadPlan_RefusesAMalformedPlan(t *testing.T) {
 		"no name":   {strings.Join(planColumns, "\t") + "\n/nfs/a\t\t\t\t\n", "needs a path and a name"},
 		"duplicate": {strings.Join(planColumns, "\t") + "\n/nfs/a\tA\t\t\t\n/nfs/a/\tB\t\t\t\n", "repeats the path on line 2"},
 		"bad link":  {strings.Join(planColumns, "\t") + "\n/nfs/a\tA\t\t\tmaybe\n", "link must be"},
+		"relative":  {strings.Join(planColumns, "\t") + "\n./3D/a\tA\t\t\t\n", "path must be absolute"},
 	} {
 		p := filepath.Join(t.TempDir(), "plan.tsv")
 		if err := os.WriteFile(p, []byte(tc.body), 0o644); err != nil {
@@ -244,6 +245,32 @@ func TestScanRecord_RecordsThePlanAndSkipsKnownPaths(t *testing.T) {
 		t.Errorf("a no-match row must carry no link and be marked for review: %v", second)
 	}
 	for _, want := range []string{"added: 2", "known: 1", "failed: 0", "/nfs/3D/Known,known"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+// A pack whose store lookup failed is still added, but is listed so the
+// operator knows it has its link and no store data or cover.
+func TestScanRecord_ListsAddedRowsWhoseStoreLookupFailed(t *testing.T) {
+	isolate(t)
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/locations": func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, `{"locations":[]}`)
+		},
+		"/api/assets/references": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{"outcome":"created","asset_id":50,"name":"A","metadata_failed":true}`)
+		},
+	})
+	plan := writePlan(t, "/nfs/a\tA\t\t\thttps://assetstore.unity.com/packages/a-1")
+
+	out, code := exec(t, "scan", "record", plan)
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	for _, want := range []string{"added: 1", "no_store_data: 1", "/nfs/a,added", "store lookup failed"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
