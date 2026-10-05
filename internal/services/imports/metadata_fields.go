@@ -133,6 +133,13 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 			}
 		}
 	}
+	// The deprecated flag is the store's state, not something a person writes,
+	// so every lookup that could tell sets it, whatever it held before.
+	if d := meta.StoreDeprecated; d != nil && *d != asset.StoreDeprecated {
+		before["store_deprecated"] = asset.StoreDeprecated
+		asset.StoreDeprecated = *d
+		updates["store_deprecated"] = *d
+	}
 	return before, updates, conflicts
 }
 

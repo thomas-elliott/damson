@@ -63,11 +63,32 @@ func (UnityAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*
 		return nil, err
 	}
 	if len(resp.Results) == 0 {
-		return nil, fmt.Errorf("unity: no product %s in coveo", id)
+		// The search index drops deprecated listings, but their pages stay up.
+		return unityFetchListingOnly(ctx, client, rawURL, id)
 	}
 	md := coveoMetadata(resp.Results[0], rawURL)
 	listing, pageURL := unityFetchListing(ctx, client, firstNonEmpty(md.ListingURL, rawURL), id)
 	unityApplyListing(md, listing, firstNonEmpty(pageURL, md.ListingURL, rawURL))
+	return md, nil
+}
+
+// unityFetchListingOnly builds the metadata from the listing page alone, for a
+// listing the search index doesn't hold. The page of a deprecated listing still
+// carries a price the store no longer sells it at, so price stays blank.
+func unityFetchListingOnly(ctx context.Context, client *Client, rawURL, id string) (*Metadata, error) {
+	listing, pageURL := unityFetchListing(ctx, client, rawURL, id)
+	if listing == nil {
+		return nil, fmt.Errorf("unity: no product %s in coveo, and its listing page could not be read", id)
+	}
+	pageURL = firstNonEmpty(pageURL, rawURL)
+	md := &Metadata{
+		Store:       StoreUnity,
+		StoreID:     id,
+		ListingURL:  pageURL,
+		LicenceHint: "unity-eula",
+	}
+	unityApplyListing(md, listing, pageURL)
+	md.Price, md.Currency = "", ""
 	return md, nil
 }
 

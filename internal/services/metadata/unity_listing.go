@@ -58,6 +58,9 @@ type unityProduct struct {
 	DownloadSize           string              `json:"downloadSize"`
 	ReviewCount            int                 `json:"reviewCount"`
 	PackageType            string              `json:"packageType"`
+	// State is "published" for a live listing and "deprecated" for one the
+	// store has withdrawn.
+	State string `json:"state"`
 	PublishNotes           string              `json:"publishNotes"`
 	LicenseText            string              `json:"licenseText"`
 	CustomLicense          bool                `json:"customLicense"`
@@ -293,9 +296,18 @@ func unityApplyListing(md *Metadata, l *unityListing, pageURL string) {
 		}
 	}
 
+	switch p.State {
+	case "deprecated":
+		md.StoreDeprecated = boolPtr(true)
+	case "published":
+		md.StoreDeprecated = boolPtr(false)
+	}
+
 	unityListingAttributes(md, l)
 	unityListingLicence(md, p)
 }
+
+func boolPtr(b bool) *bool { return &b }
 
 // unityListingAttributes records the store-specific long tail, in the order the
 // spec sheet should render it.

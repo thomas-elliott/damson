@@ -29,6 +29,7 @@ type assetMetadataFieldsView struct {
 	PriceCurrency      *string    `json:"price_currency,omitempty"`
 	Rating             *float64   `json:"rating,omitempty"`
 	RatingCount        *int       `json:"rating_count,omitempty"`
+	StoreDeprecated    bool       `json:"store_deprecated"`
 	// UpdateAvailable is true when latest_store_version is newer than every
 	// store version the asset holds. Derived, never stored: it depends on the
 	// asset's versions, which change independently of the metadata fetch.
@@ -50,6 +51,7 @@ func assetMetadataFieldsViewFrom(a *models.Asset) assetMetadataFieldsView {
 		PriceCurrency:      a.PriceCurrency,
 		Rating:             a.Rating,
 		RatingCount:        a.RatingCount,
+		StoreDeprecated:    a.StoreDeprecated,
 	}
 }
 

@@ -68,6 +68,16 @@ describe("DetailsSection", () => {
     expect(screen.queryByText("Price")).not.toBeInTheDocument();
   });
 
+  it("says when the store has deprecated the listing", () => {
+    renderOpen(baseAsset({ store: "unity", store_deprecated: true }));
+    expect(screen.getByText("Deprecated on the store")).toBeInTheDocument();
+  });
+
+  it("says nothing about deprecation for a live listing", () => {
+    renderOpen(baseAsset({ store: "unity", store_deprecated: false }));
+    expect(screen.queryByText("Deprecated on the store")).not.toBeInTheDocument();
+  });
+
   it("shows a free asset as Free rather than 0", () => {
     renderOpen(baseAsset({ price: "0", price_currency: "USD" }));
     expect(screen.getByText("Free")).toBeInTheDocument();
