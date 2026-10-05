@@ -24,7 +24,8 @@ func init() {
 		summary: "install the Claude Code skill for this CLI",
 		usage: "usage: dmsn setup [--project] [--no-hook]\n\n" +
 			"Writes a skill describing dmsn to ~/.claude/skills/damson/, or to\n" +
-			"./.claude/skills/damson/ with --project, plus a SessionStart hook\n" +
+			"./.claude/skills/damson/ with --project, the scan instructions to\n" +
+			"damson-scan/ beside it, plus a SessionStart hook\n" +
 			"script that prints the home view. Idempotent: rerunning overwrites\n" +
 			"the same paths and prints every one it touched.\n\n" +
 			"The hook script is written but not registered — registering it\n" +
@@ -51,6 +52,12 @@ func runSetup(_ context.Context, e *Env, project, noHook bool) error {
 		return err
 	}
 	written = append(written, map[string]any{"path": displayPath(skillPath), "kind": "skill"})
+
+	scanPath := filepath.Join(root, "skills", scanSkillDirName, skillFileName)
+	if err := writeFileAt(scanPath, scanSkillDocument(), 0o644); err != nil {
+		return err
+	}
+	written = append(written, map[string]any{"path": displayPath(scanPath), "kind": "skill"})
 
 	if !noHook {
 		hookPath := filepath.Join(root, "hooks", hookFileName)
@@ -172,6 +179,7 @@ alternatives in its help block.
     ` + binaryName + ` sync scan|push               import the Unity Store cache
     ` + binaryName + ` asset edit|review|tag|rm     modify one asset
     ` + binaryName + ` asset record --location-path record an asset by where it lives
+    ` + binaryName + ` scan known|match|record      catalogue a folder of packs (damson-scan skill)
     ` + binaryName + ` bulk tag|review|rm --assets  modify many at once
     ` + binaryName + ` collection new|add|remove    curate
 
