@@ -79,15 +79,22 @@ link. Change the plan file, show the changed counts and rows again, and wait.
 
 refuses a plan with any ` + "`unsure`" + ` row. It records new purchases, links
 matched assets that have no link, swaps where the row says so, and marks
-everything it changes Needs review. Store lookups are spaced about 2 seconds
-apart, so tell the user how long a large plan will take, and run it in the
-background.
+everything it changes Needs review. Each row is one quick request, with a
+progress line on stderr; the server queues each row's store lookup in one
+batch and paces the lookups itself, so they go on after record returns. A row
+that timed out may have been recorded: run record again, and anything already
+recorded answers ` + "`already_in_library`" + `.
 
 ## 6. Report
 
-Tell the user what was added, linked, swapped and kept, any row that failed
-and why, and the purchases linked without store data because the store lookup
-failed (` + "`no_store_data`" + `). Everything a run changes is in the review queue
+Tell the user what was added, linked, swapped and kept, and any row that
+failed and why. Then follow the lookups with the command record prints,
+
+    ` + binaryName + ` bulk refresh --batch <id>
+
+which waits for the batch and reports the purchases that got no store data
+(` + "`no_store_data`" + `) or whose lookup failed. If some did, ` + binaryName + ` bulk refresh
+--assets <ids> tries them again. Everything a run changes is in the review queue
 (` + binaryName + ` assets --needs-review). Purchases that were never downloaded are
 under **Purchased, not downloaded** in the library's filters.
 `

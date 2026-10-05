@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -99,22 +100,25 @@ func TestUnityListingID(t *testing.T) {
 }
 
 // fakeLibrary serves the routes `purchases record` calls, logging each call as
-// "METHOD path" with its JSON body and when it arrived.
+// "METHOD path" with its JSON body. Every queued lookup joins batch 40.
 type fakeLibrary struct {
 	exists map[string]bool // links the library already holds, answered "exists"
+	slow   map[string]bool // links whose record answers after the client gives up
+	mu     sync.Mutex      // a slow answer can overlap the next request
 	calls  []string
 	bodies []map[string]any
-	at     []time.Time
 }
 
-func (l *fakeLibrary) serve(t *testing.T, links string, failLookupFor string) {
+func (l *fakeLibrary) serve(t *testing.T, links string) {
 	t.Helper()
-	log := func(r *http.Request) {
+	log := func(r *http.Request) map[string]any {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		l.mu.Lock()
+		defer l.mu.Unlock()
 		l.calls = append(l.calls, r.Method+" "+r.URL.Path)
 		l.bodies = append(l.bodies, body)
-		l.at = append(l.at, time.Now())
+		return body
 	}
 	withServer(t, map[string]http.HandlerFunc{
 		"GET /api/assets/links": func(w http.ResponseWriter, r *http.Request) {
@@ -122,15 +126,16 @@ func (l *fakeLibrary) serve(t *testing.T, links string, failLookupFor string) {
 			fmt.Fprint(w, links)
 		},
 		"POST /api/assets/references": func(w http.ResponseWriter, r *http.Request) {
-			log(r)
-			link, _ := l.bodies[len(l.bodies)-1]["source_url"].(string)
+			link, _ := log(r)["source_url"].(string)
+			if l.slow[link] {
+				time.Sleep(300 * time.Millisecond)
+			}
 			if l.exists[link] {
 				fmt.Fprint(w, `{"outcome":"exists","asset_id":91}`)
 				return
 			}
-			failed := link == failLookupFor
 			w.WriteHeader(http.StatusCreated)
-			fmt.Fprintf(w, `{"outcome":"created","asset_id":90,"metadata_failed":%t}`, failed)
+			fmt.Fprint(w, `{"outcome":"created","asset_id":90,"lookup_batch_id":40}`)
 		},
 		"PATCH /api/assets/{id}": func(w http.ResponseWriter, r *http.Request) {
 			log(r)
@@ -140,9 +145,14 @@ func (l *fakeLibrary) serve(t *testing.T, links string, failLookupFor string) {
 			log(r)
 			fmt.Fprint(w, `{"affected":1}`)
 		},
-		"POST /api/assets/{id}/metadata/fetch": func(w http.ResponseWriter, r *http.Request) {
+		"POST /api/store-lookups": func(w http.ResponseWriter, r *http.Request) {
 			log(r)
-			fmt.Fprint(w, `{}`)
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprint(w, `{"batch_id":40,"total":1,"queued":1}`)
+		},
+		"GET /api/store-lookups/batches/40": func(w http.ResponseWriter, r *http.Request) {
+			log(r)
+			fmt.Fprint(w, `{"batch_id":40,"total":4,"queued":2,"done":2,"no_store_data":1}`)
 		},
 	})
 }
@@ -160,7 +170,7 @@ const recordLinks = `{"assets":[
 func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
 	isolate(t)
 	lib := &fakeLibrary{}
-	lib.serve(t, recordLinks, unityListingLink("101"))
+	lib.serve(t, recordLinks)
 	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
 		"100\tBrand New\t"+unityListingLink("100")+"\tnew\t\t\t\t",
 		"101\tLookup Fails\t"+unityListingLink("101")+"\tnew\t\t\t\t",
@@ -170,21 +180,31 @@ func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
 		"104\tSwap me\t"+unityListingLink("104")+"\tswap\t4\t\t\t",
 		"105\tNot wanted\t"+unityListingLink("105")+"\tdropped\t\t\t\t")
 
-	out, code := exec(t, "purchases", "record", plan, "--interval", "0s")
+	captureProgress(t)
+	out, code := exec(t, "purchases", "record", plan)
 	if code != axi.ExitOK {
 		t.Fatalf("exit = %d: %s", code, out)
 	}
 	want := []string{
 		"GET /api/assets/links",
 		"POST /api/assets/references", "POST /api/assets/references",
-		"POST /api/assets/bulk", "PATCH /api/assets/1", "POST /api/assets/1/metadata/fetch",
-		"POST /api/assets/bulk", "PATCH /api/assets/4", "POST /api/assets/4/metadata/fetch",
+		"POST /api/assets/bulk", "PATCH /api/assets/1", "POST /api/store-lookups",
+		"POST /api/assets/bulk", "PATCH /api/assets/4", "POST /api/store-lookups",
+		"GET /api/store-lookups/batches/40",
 	}
 	if !slices.Equal(lib.calls, want) {
 		t.Fatalf("calls =\n%s\nwant\n%s", strings.Join(lib.calls, "\n"), strings.Join(want, "\n"))
 	}
-	if b := lib.bodies[1]; b["needs_review"] != true || b["name"] != "Brand New" || b["source_url"] != unityListingLink("100") {
-		t.Errorf("new purchase body = %v", b)
+	if b := lib.bodies[1]; b["needs_review"] != true || b["name"] != "Brand New" || b["source_url"] != unityListingLink("100") ||
+		b["queue_lookup"] != true || b["lookup_batch_id"] != float64(0) {
+		t.Errorf("new purchase body = %v, want its lookup queued in a new batch", b)
+	}
+	// Every later lookup joins the run's batch, whether it records or links.
+	if b := lib.bodies[2]; b["lookup_batch_id"] != float64(40) {
+		t.Errorf("second record body = %v, want batch 40", b)
+	}
+	if b := lib.bodies[5]; b["batch_id"] != float64(40) || b["refresh"] != nil || fmt.Sprint(b["asset_ids"]) != "[1]" {
+		t.Errorf("link lookup body = %v, want a fill-blanks lookup of asset 1 in batch 40", b)
 	}
 	if b := lib.bodies[4]; b["source_url"] != unityListingLink("102") || b["store"] != nil {
 		t.Errorf("link body = %v", b)
@@ -198,7 +218,8 @@ func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
 		t.Errorf("Needs review body = %v", b)
 	}
 	for _, s := range []string{"added: 2", "linked: 1", "swapped: 1", "unchanged: 1", "kept_own_link: 1",
-		"dropped: 1", "no_store_data: 1"} {
+		"dropped: 1", "store_lookups_queued: 4", "lookup_batch: 40", "no_store_data_so_far: 1",
+		"dmsn bulk refresh --batch 40"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("summary lacks %q:\n%s", s, out)
 		}
@@ -210,7 +231,7 @@ func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
 func TestPurchasesRecord_RefusesAnUnsureRow(t *testing.T) {
 	isolate(t)
 	lib := &fakeLibrary{}
-	lib.serve(t, recordLinks, "")
+	lib.serve(t, recordLinks)
 	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
 		"100\tBrand New\t"+unityListingLink("100")+"\tnew\t\t\t\t",
 		"102\tNo link\t"+unityListingLink("102")+"\tunsure\t1\t\t\t")
@@ -224,56 +245,43 @@ func TestPurchasesRecord_RefusesAnUnsureRow(t *testing.T) {
 	}
 }
 
-// Every call that makes the server look a listing up waits the interval after
-// the one before, whether it records a new purchase or links a matched asset.
-func TestPurchasesRecord_SpacesStoreLookups(t *testing.T) {
+// A row is one quick request whatever the store is doing, and a progress line
+// goes to stderr for each, so a long plan shows where it is.
+func TestPurchasesRecord_PrintsEachRowAsItGoes(t *testing.T) {
 	isolate(t)
-	lib := &fakeLibrary{}
-	lib.serve(t, recordLinks, "")
+	progress := captureProgress(t)
+	lib := &fakeLibrary{exists: map[string]bool{unityListingLink("100"): true}}
+	lib.serve(t, recordLinks)
 	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
 		"100\tA\t"+unityListingLink("100")+"\tnew\t\t\t\t",
-		"102\tNo link\t"+unityListingLink("102")+"\tmatched\t1\t\t\t",
 		"101\tB\t"+unityListingLink("101")+"\tnew\t\t\t\t")
 
-	interval := 60 * time.Millisecond
-	if out, code := exec(t, "purchases", "record", plan, "--interval", interval.String()); code != axi.ExitOK {
+	out, code := exec(t, "purchases", "record", plan)
+	if code != axi.ExitOK {
 		t.Fatalf("exit = %d: %s", code, out)
 	}
-	var lookups []time.Time
-	for i, c := range lib.calls {
-		if c == "POST /api/assets/references" || strings.HasSuffix(c, "/metadata/fetch") {
-			lookups = append(lookups, lib.at[i])
-		}
-	}
-	if len(lookups) != 3 {
-		t.Fatalf("%d lookups, want 3: %v", len(lookups), lib.calls)
-	}
-	for i := 1; i < len(lookups); i++ {
-		if gap := lookups[i].Sub(lookups[i-1]); gap < interval {
-			t.Errorf("lookup %d came %v after the one before, want at least %v", i+1, gap, interval)
-		}
+	want := "record 1 of 2: 100 A: already_in_library\nrecord 2 of 2: 101 B: added\n"
+	if progress.String() != want {
+		t.Fatalf("progress =\n%s\nwant\n%s", progress, want)
 	}
 }
 
-// Recording a plan again, after a run that stopped part-way, does not wait on
-// the purchases already recorded: the server answers those without a lookup.
-func TestPurchasesRecord_DoesNotWaitOnRecordedPurchases(t *testing.T) {
+// A row that times out may have been recorded, so it says so and points at a
+// rerun, which answers exists for anything already recorded.
+func TestPurchasesRecord_TimedOutRowSaysToRerun(t *testing.T) {
 	isolate(t)
-	lib := &fakeLibrary{exists: map[string]bool{
-		unityListingLink("100"): true, unityListingLink("101"): true, unityListingLink("102"): true}}
-	lib.serve(t, recordLinks, "")
+	captureProgress(t)
+	lib := &fakeLibrary{slow: map[string]bool{unityListingLink("100"): true}}
+	lib.serve(t, recordLinks)
 	plan := writeTSV(t, "plan.tsv", purchasePlanColumns,
-		"100	A	"+unityListingLink("100")+"	new				",
-		"101	B	"+unityListingLink("101")+"	new				",
-		"102	C	"+unityListingLink("102")+"	new				")
+		"100\tSlow\t"+unityListingLink("100")+"\tnew\t\t\t\t",
+		"101\tFast\t"+unityListingLink("101")+"\tnew\t\t\t\t")
 
-	interval := time.Second
-	start := time.Now()
-	out, code := exec(t, "purchases", "record", plan, "--interval", interval.String())
-	if code != axi.ExitOK || !strings.Contains(out, "already_in_library: 3") {
-		t.Fatalf("exit = %d\n%s", code, out)
+	out, code := exec(t, "purchases", "record", plan, "--timeout", "100ms")
+	if code == axi.ExitOK {
+		t.Fatalf("a failed row must set the exit code:\n%s", out)
 	}
-	if took := time.Since(start); took >= interval {
-		t.Errorf("took %v, want under %v: it waited on rows that made no lookup", took, interval)
+	if !strings.Contains(out, "may have been recorded; rerun the plan") || !strings.Contains(out, "added: 1") {
+		t.Fatalf("output:\n%s", out)
 	}
 }
