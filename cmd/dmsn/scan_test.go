@@ -205,3 +205,91 @@ func TestReadPlan_RefusesAMalformedPlan(t *testing.T) {
 		}
 	}
 }
+
+// The approved plan is what gets recorded: each new row in one call carrying
+// its name, publisher, tags and link, marked Needs review, and a path the
+// library already records is left alone.
+func TestScanRecord_RecordsThePlanAndSkipsKnownPaths(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/locations": func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, `{"locations":[{"asset_id":7,"location_path":"/nfs/3D/Known"}]}`)
+		},
+		"/api/assets/references": cap.record(`{"outcome":"created","asset_id":50,"name":"x"}`),
+	})
+	plan := writePlan(t,
+		"/nfs/3D/Environments/Synty/Kingdom.unitypackage\tPOLYGON Fantasy Kingdom\tSynty\t3D,Environments\thttps://assetstore.unity.com/packages/k-1",
+		"/nfs/Audio/Rain.zip\tRain\t\tAudio\tno match",
+		"/nfs/3D/Known/\tRenamed By Mistake\t\t3D\tno match",
+	)
+
+	out, code := exec(t, "scan", "record", plan)
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	calls := cap.matching(http.MethodPost, "/api/assets/references")
+	if len(calls) != 2 {
+		t.Fatalf("want two records (the known path skipped), got %+v", calls)
+	}
+	first, second := calls[0].Body, calls[1].Body
+	tags, _ := first["tags"].([]any)
+	if first["location_path"] != "/nfs/3D/Environments/Synty/Kingdom.unitypackage" ||
+		first["name"] != "POLYGON Fantasy Kingdom" || first["publisher"] != "Synty" ||
+		first["source_url"] != "https://assetstore.unity.com/packages/k-1" || first["needs_review"] != true ||
+		len(tags) != 2 || tags[0] != "3D" || tags[1] != "Environments" {
+		t.Errorf("first record: %v", first)
+	}
+	if _, linked := second["source_url"]; linked || second["needs_review"] != true {
+		t.Errorf("a no-match row must carry no link and be marked for review: %v", second)
+	}
+	for _, want := range []string{"added: 2", "known: 1", "failed: 0", "/nfs/3D/Known,known"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+// Recording before every link is decided would record something the approved
+// plan didn't show, so it's refused before anything is written.
+func TestScanRecord_RefusesAPlanWithBlankLinks(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{"/api/assets/references": cap.record(`{}`)})
+	plan := writePlan(t, "/nfs/a\tA\t\t\tno match", "/nfs/b\tB\t\t\t")
+
+	out, code := exec(t, "scan", "record", plan)
+	if code != axi.ExitUsage || !strings.Contains(out, "blank link: 1") {
+		t.Fatalf("exit = %d\n%s", code, out)
+	}
+	if len(cap.calls) != 0 {
+		t.Fatalf("a refused plan still reached the server: %+v", cap.calls)
+	}
+}
+
+// One row the server refuses doesn't stop the rest, and is named with why.
+func TestScanRecord_ReportsAFailedRowAndCarriesOn(t *testing.T) {
+	isolate(t)
+	var posts int
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/locations": func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, `{"locations":[]}`) },
+		"/api/assets/references": func(w http.ResponseWriter, _ *http.Request) {
+			posts++
+			if posts == 1 {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"tag \"x\" is blank"}`)
+				return
+			}
+			fmt.Fprint(w, `{"outcome":"created","asset_id":51,"name":"B"}`)
+		},
+	})
+	plan := writePlan(t, "/nfs/a\tA\t\t\tno match", "/nfs/b\tB\t\t\tno match")
+
+	out, code := exec(t, "scan", "record", plan)
+	if code == axi.ExitOK || posts != 2 {
+		t.Fatalf("exit = %d, posts = %d\n%s", code, posts, out)
+	}
+	if !strings.Contains(out, "added: 1") || !strings.Contains(out, "/nfs/a,failed") || !strings.Contains(out, "is blank") {
+		t.Fatalf("the failed row should be reported with its reason:\n%s", out)
+	}
+}

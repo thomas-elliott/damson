@@ -43,11 +43,14 @@ func init() {
 		name:    "scan",
 		summary: "catalogue a folder of packs as reference assets",
 		usage: "usage: dmsn scan known --under PATH [--gone]\n" +
-			"       dmsn scan match <plan.tsv> --out <matches.tsv> [--interval 2s]\n\n" +
+			"       dmsn scan match <plan.tsv> --out <matches.tsv> [--interval 2s]\n" +
+			"       dmsn scan record <plan.tsv>\n\n" +
 			"  known  every path the library records under PATH, and whether it\n" +
 			"         still exists here; --gone keeps only the ones that don't\n" +
 			"  match  search the stores for each plan row with a blank link, one\n" +
-			"         pack at a time, and write the possible matches to --out\n\n" +
+			"         pack at a time, and write the possible matches to --out\n" +
+			"  record record every plan row as a reference asset marked Needs\n" +
+			"         review; a path already recorded is skipped, never changed\n\n" +
 			"A plan is a tab-separated file with the header\n" +
 			"  " + strings.Join(planColumns, "\t") + "\n" +
 			"one row per pack. tags is comma-separated; link is a store URL,\n" +
@@ -61,15 +64,18 @@ func init() {
 }
 
 func runScan(ctx context.Context, e *Env, f *scanFlags) error {
-	usage := []string{"dmsn scan known --under /mnt/nfs", "dmsn scan match plan.tsv --out matches.tsv"}
+	usage := []string{"dmsn scan known --under /mnt/nfs", "dmsn scan match plan.tsv --out matches.tsv",
+		"dmsn scan record plan.tsv"}
 	if len(e.Args) == 0 {
-		return axi.Usagef(usage, "scan needs a subcommand: known or match")
+		return axi.Usagef(usage, "scan needs a subcommand: known, match or record")
 	}
 	switch e.Args[0] {
 	case "known":
 		return runScanKnown(ctx, e, f)
 	case "match":
 		return runScanMatch(ctx, e, f)
+	case "record":
+		return runScanRecord(ctx, e)
 	default:
 		return axi.Usagef(usage, "unknown scan subcommand %q", e.Args[0])
 	}
@@ -349,4 +355,112 @@ func runScanMatch(ctx context.Context, e *Env, f *scanFlags) error {
 		{Key: "search_failed", Value: counts[matchFailed]},
 		{Key: "already_decided", Value: counts["skipped"]},
 	}, nil)
+}
+
+// runScanRecord records an approved plan: every row as a reference asset with
+// its name, publisher, tags and link, marked Needs review. A path the library
+// already records is skipped rather than re-recorded, because re-recording a
+// known path would replace its store link; a rerun leaves known packs alone.
+func runScanRecord(ctx context.Context, e *Env) error {
+	if len(e.Args) != 2 {
+		return axi.Usagef([]string{"dmsn scan record plan.tsv"}, "scan record takes one plan file")
+	}
+	rows, err := readPlan(e.Args[1])
+	if err != nil {
+		return err
+	}
+	// A blank link means the match step never ran for that pack, so the plan
+	// shown for approval didn't say what would be linked.
+	undecided := 0
+	for _, row := range rows {
+		if !row.Decided {
+			undecided++
+		}
+	}
+	if undecided > 0 {
+		return axi.Usagef([]string{"dmsn scan match " + e.Args[1] + " --out matches.tsv"},
+			"plan rows with a blank link: %d; set a store URL or %q in each first", undecided, noMatch)
+	}
+
+	client, err := e.Client()
+	if err != nil {
+		return err
+	}
+	var known struct {
+		Locations []struct {
+			LocationPath string `json:"location_path"`
+		} `json:"locations"`
+	}
+	if err := client.GetJSON(ctx, "/api/assets/locations", nil, &known); err != nil {
+		return err
+	}
+	recorded := map[string]bool{}
+	for _, l := range known.Locations {
+		recorded[l.LocationPath] = true
+	}
+
+	counts := map[string]int{}
+	report := []map[string]any{}
+	for _, row := range rows {
+		if recorded[row.Path] {
+			counts["known"]++
+			report = append(report, map[string]any{"path": row.Path, "outcome": "known", "asset_id": nil, "detail": nil})
+			continue
+		}
+		body := map[string]any{
+			"location_path": row.Path,
+			"name":          row.Name,
+			"needs_review":  true,
+		}
+		if row.Publisher != "" {
+			body["publisher"] = row.Publisher
+		}
+		if len(row.Tags) > 0 {
+			body["tags"] = row.Tags
+		}
+		if row.Link != "" {
+			body["source_url"] = row.Link
+		}
+		var out struct {
+			Outcome string `json:"outcome"`
+			AssetID uint   `json:"asset_id"`
+		}
+		if err := client.PostJSON(ctx, "/api/assets/references", body, &out); err != nil {
+			if code := axi.AsError(err).Code; code == axi.CodeAuth || code == axi.CodeForbidden {
+				return err
+			}
+			counts["failed"]++
+			report = append(report, map[string]any{"path": row.Path, "outcome": "failed", "asset_id": nil,
+				"detail": axi.AsError(err).Message})
+			continue
+		}
+		outcome := firstNonEmpty(recordOutcomes[out.Outcome], out.Outcome)
+		counts[outcome]++
+		// Added rows are the bulk of a scan and need no attention; the table
+		// carries only the rows that do.
+		if outcome != recordOutcomes["created"] {
+			report = append(report, map[string]any{"path": row.Path, "outcome": outcome, "asset_id": out.AssetID, "detail": nil})
+		}
+	}
+
+	table := axi.Table{
+		Key: "not_added", Columns: []string{"path", "outcome", "asset_id", "detail"},
+		Truncatable: []string{"detail"}, Rows: report, Total: -1,
+		EmptyNote: "every row was added",
+	}
+	summary := Block{Key: "record", Fields: []toon.KV{
+		{Key: "rows", Value: len(rows)},
+		{Key: "added", Value: counts[recordOutcomes["created"]]},
+		{Key: "known", Value: counts["known"]},
+		{Key: "failed", Value: counts["failed"]},
+	}}
+	help := []string{"dmsn assets --needs-review"}
+	if err := axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table}, help, e.Globals.options()); err != nil {
+		return err
+	}
+	if counts["failed"] > 0 {
+		// The table above is the result; this only sets the exit code.
+		return axi.Errorf(axi.CodeIO, "%s failed", axi.Count(counts["failed"], "row"))
+	}
+	return nil
 }
