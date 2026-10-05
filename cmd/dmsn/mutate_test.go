@@ -473,6 +473,23 @@ func TestSetup(t *testing.T) {
 		t.Error("the skill must not contain a token")
 	}
 
+	// The scan instructions sit beside it and are what "scan my asset library"
+	// matches, and they must hold the approval gate and the paced search.
+	scan, err := os.ReadFile(filepath.Join(home, ".claude", "skills", "damson-scan", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("scan skill not written: %v", err)
+	}
+	for _, want := range []string{
+		"---\nname: damson-scan", "scan their asset library",
+		"Record nothing until the user explicitly approves",
+		"scan known --under", "scan match", "scan record",
+		strings.Join(planColumns, "\t"),
+	} {
+		if !strings.Contains(string(scan), want) {
+			t.Errorf("scan skill omits %q", want)
+		}
+	}
+
 	hook := filepath.Join(home, ".claude", "hooks", "damson-session-start.sh")
 	info, err := os.Stat(hook)
 	if err != nil {
