@@ -451,13 +451,15 @@ func TestSetup(t *testing.T) {
 	isolate(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	project := t.TempDir()
+	t.Chdir(project)
 
 	out, code := exec(t, "setup")
 	if code != axi.ExitOK {
 		t.Fatalf("exit = %d: %s", code, out)
 	}
 
-	skill := filepath.Join(home, ".claude", "skills", "damson", "SKILL.md")
+	skill := filepath.Join(project, ".claude", "skills", "damson", "SKILL.md")
 	body, err := os.ReadFile(skill)
 	if err != nil {
 		t.Fatalf("skill not written: %v", err)
@@ -475,7 +477,7 @@ func TestSetup(t *testing.T) {
 
 	// The scan instructions sit beside it and are what "scan my asset library"
 	// matches, and they must hold the approval gate and the paced search.
-	scan, err := os.ReadFile(filepath.Join(home, ".claude", "skills", "damson-scan", "SKILL.md"))
+	scan, err := os.ReadFile(filepath.Join(project, ".claude", "skills", "damson-scan", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("scan skill not written: %v", err)
 	}
@@ -492,7 +494,7 @@ func TestSetup(t *testing.T) {
 
 	// The purchase-run instructions sit beside them, with the approval gate,
 	// the complete-list rule and the plan header record reads.
-	purchases, err := os.ReadFile(filepath.Join(home, ".claude", "skills", "damson-purchases", "SKILL.md"))
+	purchases, err := os.ReadFile(filepath.Join(project, ".claude", "skills", "damson-purchases", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("purchases skill not written: %v", err)
 	}
@@ -507,13 +509,17 @@ func TestSetup(t *testing.T) {
 		}
 	}
 
-	hook := filepath.Join(home, ".claude", "hooks", "damson-session-start.sh")
+	hook := filepath.Join(project, ".claude", "hooks", "damson-session-start.sh")
 	info, err := os.Stat(hook)
 	if err != nil {
 		t.Fatalf("hook not written: %v", err)
 	}
 	if info.Mode().Perm()&0o100 == 0 {
 		t.Fatalf("hook is not executable: %04o", info.Mode().Perm())
+	}
+	// The skills are about one library, so nothing goes into every session.
+	if _, err := os.Stat(filepath.Join(home, ".claude")); !os.IsNotExist(err) {
+		t.Fatal("setup wrote into ~/.claude")
 	}
 
 	t.Run("idempotent", func(t *testing.T) {
@@ -528,27 +534,12 @@ func TestSetup(t *testing.T) {
 
 	t.Run("--no-hook", func(t *testing.T) {
 		fresh := t.TempDir()
-		t.Setenv("HOME", fresh)
+		t.Chdir(fresh)
 		if _, code := exec(t, "setup", "--no-hook"); code != axi.ExitOK {
 			t.Fatal("setup failed")
 		}
 		if _, err := os.Stat(filepath.Join(fresh, ".claude", "hooks", "damson-session-start.sh")); !os.IsNotExist(err) {
 			t.Fatal("--no-hook still wrote a hook")
-		}
-	})
-
-	t.Run("--project writes beside the working directory", func(t *testing.T) {
-		wd := t.TempDir()
-		prev, _ := os.Getwd()
-		if err := os.Chdir(wd); err != nil {
-			t.Fatalf("chdir: %v", err)
-		}
-		defer os.Chdir(prev)
-		if _, code := exec(t, "setup", "--project"); code != axi.ExitOK {
-			t.Fatal("setup failed")
-		}
-		if _, err := os.Stat(filepath.Join(wd, ".claude", "skills", "damson", "SKILL.md")); err != nil {
-			t.Fatalf("project skill not written: %v", err)
 		}
 	})
 }
