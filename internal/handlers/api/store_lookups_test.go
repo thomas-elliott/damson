@@ -391,3 +391,19 @@ func TestStoreRefresh_NoChangeLeavesNeedsReview(t *testing.T) {
 		t.Fatalf("needs_review %v thumbnail %q batch %+v, want the asset untouched", got.NeedsReview, got.ThumbnailObjectKey, batch)
 	}
 }
+
+func TestListAssets_CarriesStoreFields(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedLinkedAsset(t, db, lib.ID, "Standard Assets", "https://assetstore.unity.com/packages/slug/32351", func(a *models.Asset) {
+		a.Store, a.StoreDeprecated = strPtr(metadata.StoreUnity), true
+	})
+	w := performRequest(setupRouter(h, u), http.MethodGet, "/api/assets", nil)
+	requireStatus(t, w, http.StatusOK)
+	rows := jsonResponse[assetListResponse](t, w).Assets
+	if len(rows) != 1 || rows[0].Store != "unity" || !rows[0].StoreDeprecated ||
+		rows[0].SourceURL != "https://assetstore.unity.com/packages/slug/32351" {
+		t.Fatalf("list rows = %+v, want store, source_url and store_deprecated", rows)
+	}
+}
