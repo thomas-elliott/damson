@@ -1,6 +1,6 @@
 # Catalogue my purchases
 
-**Status:** implemented — all seven stages, cleaned up 2026-10-05 (PR not yet open: fill in its number when it is).
+**Status:** implemented — all seven stages, cleaned up 2026-10-05 (PR #3).
 
 Covers DAM-3
 
