@@ -685,3 +685,19 @@ func TestMetadataFetch_SetsAndClearsStoreDeprecated(t *testing.T) {
 		t.Fatal("a lookup with no deprecated state must leave the flag as it was")
 	}
 }
+
+func TestMetadataFetch_ReportsGenericFallback(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{Store: metadata.StoreGeneric, StoreLookupFailed: true}}
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedAsset(t, db, lib.ID, "pack")
+	r := setupRouter(h, u)
+
+	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch",
+		map[string]any{"url": "https://assetstore.unity.com/packages/slug/32351"})
+	requireStatus(t, w, http.StatusOK)
+	if !jsonResponse[metadataFetchResponse](t, w).StoreLookupFailed {
+		t.Fatal("a generic fallback must come back as store_lookup_failed")
+	}
+}

@@ -575,11 +575,17 @@ func linkAsset(ctx context.Context, client *Client, assetID uint, link string, s
 	if err := pace(); err != nil {
 		return "", err
 	}
-	if err := client.PostJSON(ctx, "/api/assets/"+id+"/metadata/fetch", nil, nil); err != nil {
+	var fetched struct {
+		StoreLookupFailed bool `json:"store_lookup_failed"`
+	}
+	if err := client.PostJSON(ctx, "/api/assets/"+id+"/metadata/fetch", nil, &fetched); err != nil {
 		if failsEveryRow(err) {
 			return "", err
 		}
 		return axi.AsError(err).Message, nil
+	}
+	if fetched.StoreLookupFailed {
+		return "only the page's generic details were read", nil
 	}
 	return "", nil
 }

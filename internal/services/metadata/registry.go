@@ -84,8 +84,9 @@ func (r *Registry) FetcherFor(rawURL string) Fetcher {
 }
 
 // Fetch resolves the adapter for rawURL and fetches. On adapter failure it
-// degrades to the generic scraper, per the layered-fetcher design; if that
-// also fails the error is returned.
+// degrades to the generic scraper, per the layered-fetcher design, and marks
+// the result StoreLookupFailed so callers report it; if that also fails the
+// error is returned.
 func (r *Registry) Fetch(ctx context.Context, rawURL string) (*Metadata, error) {
 	f := r.FetcherFor(rawURL)
 	m, err := f.Fetch(ctx, r.client, rawURL)
@@ -96,5 +97,10 @@ func (r *Registry) Fetch(ctx context.Context, rawURL string) (*Metadata, error) 
 		return nil, err
 	}
 	slog.Warn("metadata: adapter failed, falling back to generic scraper", "url", rawURL, "err", err)
-	return r.generic.Fetch(ctx, r.client, rawURL)
+	m, gerr := r.generic.Fetch(ctx, r.client, rawURL)
+	if gerr != nil {
+		return nil, gerr
+	}
+	m.StoreLookupFailed = true
+	return m, nil
 }

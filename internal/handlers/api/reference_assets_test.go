@@ -663,3 +663,29 @@ func TestAssetLinks_ListsEveryAssetsStoreLink(t *testing.T) {
 		t.Fatalf("links = %+v, want %+v", got, want)
 	}
 }
+
+// A store adapter that failed over to the generic scraper still fills blanks
+// from the page, but the record says the store lookup failed.
+func TestRecordReference_GenericFallbackReportedAsFailed(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreGeneric, Description: "From the page.", StoreLookupFailed: true,
+	}}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+	r := setupRouter(h, u)
+
+	resp := recordReference(t, r, map[string]any{
+		"source_url": "https://assetstore.unity.com/packages/slug/32351", "name": "Standard Assets",
+	}, http.StatusCreated)
+	if !resp.MetadataFailed {
+		t.Fatalf("a generic fallback must be reported as metadata_failed: %+v", resp)
+	}
+	var a models.Asset
+	if err := db.First(&a, resp.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if a.Description != "From the page." {
+		t.Fatalf("description = %q, want the scraped fields kept", a.Description)
+	}
+}
