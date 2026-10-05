@@ -67,6 +67,18 @@ func TestRegistrySearch_MergesAndTolerates(t *testing.T) {
 	}
 }
 
+func TestRegistrySearchStores_NamesTheStoresThatFailed(t *testing.T) {
+	r := NewRegistry(nil)
+	r.RegisterSearcher(stubSearcher{store: "unity", err: errors.New("429 too many requests")})
+	r.RegisterSearcher(stubSearcher{store: "itch", cands: []Candidate{{Title: "I1", ListingURL: "u1", Store: "itch"}}})
+	r.RegisterSearcher(stubSearcher{store: "sketchfab"})
+
+	got, failed := r.SearchStores(context.Background(), "query")
+	if len(got) != 1 || len(failed) != 1 || failed[0] != "unity" {
+		t.Fatalf("got %+v, failed %v; want itch's one candidate and unity named as failed", got, failed)
+	}
+}
+
 func TestRegistrySearch_EmptyQuery(t *testing.T) {
 	r := NewRegistry(nil)
 	r.RegisterSearcher(stubSearcher{store: "a", cands: []Candidate{{Title: "x"}}})

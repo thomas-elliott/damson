@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -17,6 +18,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/tags"
 )
 
 // Outcomes of recording an asset by its location.
@@ -25,6 +27,10 @@ const (
 	referenceUpdated = "updated"
 	referenceExists  = "exists"
 )
+
+// maxReferenceTags bounds the tags one record attaches. A scan gives one per
+// folder between its root and the pack, so this is far above any real depth.
+const maxReferenceTags = 32
 
 // maxLocationPathLen bounds a recorded path. Damson never reads it, so the cap
 // only keeps a pasted mistake from landing in the search vector.
@@ -40,6 +46,10 @@ type referenceRecordRequest struct {
 	SourceURL    string `json:"source_url"`
 	Name         string `json:"name"`
 	NeedsReview  bool   `json:"needs_review"`
+	// Publisher and Tags, like Name, apply only when the record creates the
+	// asset; a re-record of a known path leaves them as they are.
+	Publisher string   `json:"publisher"`
+	Tags      []string `json:"tags"`
 }
 
 type referenceRecordResponse struct {
@@ -48,6 +58,9 @@ type referenceRecordResponse struct {
 	Name         string `json:"name"`
 	LocationPath string `json:"location_path,omitempty"`
 	SourceURL    string `json:"source_url,omitempty"`
+	// MetadataFailed says the store lookup for the link failed, so the asset
+	// has its link but no store metadata or cover.
+	MetadataFailed bool `json:"metadata_failed,omitempty"`
 }
 
 // normaliseLocationPath applies the spec's sameness rule: two paths are the
@@ -135,6 +148,18 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respond400(c, asError("give a location_path, a source_url, or both"))
 		return
 	}
+	if len(req.Tags) > maxReferenceTags {
+		respond400(c, asError("too many tags"))
+		return
+	}
+	// Check the tags before a store lookup is spent on a record that would fail.
+	for _, t := range req.Tags {
+		if tags.NormalisePath(t) == "" {
+			respond400(c, fmt.Errorf("tag %q is blank or longer than %d bytes", t, tags.MaxPathLength))
+			return
+		}
+	}
+	publisher := strings.TrimSpace(req.Publisher)
 
 	ctx := c.Request.Context()
 	db := h.db.WithContext(ctx)
@@ -158,9 +183,11 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	// The lookup runs outside the transaction: it is network-bound, and a link
 	// it can't read is still recorded.
 	var meta *metadata.Metadata
+	metadataFailed := false
 	if link != "" && h.metadata != nil {
 		if m, ferr := h.metadata.Fetch(ctx, link); ferr != nil {
 			slog.Warn("reference: store lookup failed", "url", link, "err", ferr, "library_id", lib.ID)
+			metadataFailed = true
 		} else {
 			meta = m
 		}
@@ -211,6 +238,9 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		if path != "" {
 			asset.LocationPath = &path
 		}
+		if publisher != "" {
+			asset.Publisher = &publisher
+		}
 		if err := tx.Create(&asset).Error; err != nil {
 			return err
 		}
@@ -222,7 +252,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 				return err
 			}
 		}
-		return audit.Write(tx, audit.Entry{
+		if err := audit.Write(tx, audit.Entry{
 			LibraryID:  &lib.ID,
 			UserID:     &u.ID,
 			ActionType: "asset.reference.create",
@@ -232,9 +262,18 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 				"name":          asset.Name,
 				"location_path": path,
 				"source_url":    link,
+				"publisher":     publisher,
 				"needs_review":  asset.NeedsReview,
 			}),
-		})
+		}); err != nil {
+			return err
+		}
+		for _, t := range req.Tags {
+			if _, _, err := tags.Attach(tx, lib.ID, &u.ID, asset.ID, t); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	switch {
 	case errors.Is(err, errReferenceNameRequired):
@@ -265,7 +304,47 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	if outcome == referenceCreated {
 		status = http.StatusCreated
 	}
-	c.JSON(status, referenceResponseFrom(outcome, &asset))
+	resp := referenceResponseFrom(outcome, &asset)
+	// Only an asset this record created or updated is missing what the lookup
+	// would have filled.
+	resp.MetadataFailed = metadataFailed && outcome != referenceExists
+	c.JSON(status, resp)
+}
+
+type recordedLocation struct {
+	AssetID      uint   `json:"asset_id"`
+	LocationPath string `json:"location_path"`
+}
+
+// getAssetLocations lists every path recorded in the library, unpaged: one
+// short row per asset stays small even for thousands of packs. ?under= keeps
+// only that folder and what lies beneath it, so a scan of one folder never
+// reports another's paths as gone.
+func (h *Handler) getAssetLocations(c *gin.Context) {
+	lib := getLibrary(c)
+	if lib == nil {
+		respond500(c, errRequestContextIncomplete)
+		return
+	}
+	under, err := normaliseLocationPath(c.Query("under"))
+	if err != nil {
+		respond400(c, err)
+		return
+	}
+	q := h.db.WithContext(c.Request.Context()).Model(&models.Asset{}).
+		Select("id AS asset_id, location_path").
+		Where("library_id = ? AND location_path IS NOT NULL", lib.ID)
+	if under != "" && under != "/" {
+		// starts_with rather than LIKE, so the `_` common in pack names isn't
+		// read as a wildcard.
+		q = q.Where("(location_path = ? OR starts_with(location_path, ?))", under, under+"/")
+	}
+	locations := []recordedLocation{}
+	if err := q.Order("location_path").Scan(&locations).Error; err != nil {
+		respond500(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"locations": locations})
 }
 
 // updateReferenceTx applies a re-record of a known path: a store link given now

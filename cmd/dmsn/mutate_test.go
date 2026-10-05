@@ -473,6 +473,23 @@ func TestSetup(t *testing.T) {
 		t.Error("the skill must not contain a token")
 	}
 
+	// The scan instructions sit beside it and are what "scan my asset library"
+	// matches, and they must hold the approval gate and the paced search.
+	scan, err := os.ReadFile(filepath.Join(home, ".claude", "skills", "damson-scan", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("scan skill not written: %v", err)
+	}
+	for _, want := range []string{
+		"---\nname: damson-scan", "scan their asset library",
+		"Record nothing until the user explicitly approves",
+		"scan known --under", "scan match", "scan record",
+		strings.Join(planColumns, "\t"),
+	} {
+		if !strings.Contains(string(scan), want) {
+			t.Errorf("scan skill omits %q", want)
+		}
+	}
+
 	hook := filepath.Join(home, ".claude", "hooks", "damson-session-start.sh")
 	info, err := os.Stat(hook)
 	if err != nil {
@@ -572,6 +589,31 @@ func TestAssetRecord_SendsLocationAndReportsTheOutcome(t *testing.T) {
 	}
 	if !strings.Contains(out, "outcome: updated") || strings.Contains(out, "added") {
 		t.Fatalf("a known path must read as updated, not added:\n%s", out)
+	}
+}
+
+// One call records a scanned pack with everything the scan read from its path.
+func TestAssetRecord_SendsPublisherAndTags(t *testing.T) {
+	isolate(t)
+	cap := &capture{}
+	withServer(t, map[string]http.HandlerFunc{
+		"/api/assets/references": cap.record(`{"outcome":"created","asset_id":42,"name":"Kingdom"}`),
+	})
+
+	out, code := exec(t, "asset", "record", "--location-path", "/mnt/nfs/3D/Environments/Synty/Kingdom",
+		"--publisher", "Synty", "--tags", "3D, Environments", "--needs-review")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	body := cap.matching(http.MethodPost, "/api/assets/references")[0].Body
+	tags, _ := body["tags"].([]any)
+	if body["publisher"] != "Synty" || len(tags) != 2 || tags[0] != "3D" || tags[1] != "Environments" {
+		t.Fatalf("body = %v", body)
+	}
+
+	out, code = exec(t, "asset", "edit", "42", "--name", "x", "--tags", "3D")
+	if code != axi.ExitUsage || !strings.Contains(out, "--tags only applies to asset record") {
+		t.Fatalf("--tags outside record: exit = %d\n%s", code, out)
 	}
 }
 

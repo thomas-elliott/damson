@@ -1,0 +1,204 @@
+# Catalogue the NFS library by agent scan
+
+**Status:** implemented — all five stages, cleaned up 2026-10-05 (PR #2).
+
+Covers DAM-1
+
+## Steering
+
+- I think it is worth looking at the workflow on how the metadata calls will be made. Thousands of assets means thousands of calls, and it may be better to spread that out or do that out-of-band, make a file with all the metadata/possible matches, rather than have it in the loop with the agent where it could be rate limited. — Session, 2026-10-05
+
+## Design
+
+Board Task DAM-1: its `## Direction` and `## Design documents` sections (the scan run: walk → known paths → plan → approve → record → report gone). It builds on reference assets (`docs/specs/history/2026-10-03-reference-assets.md`, PR #1).
+
+## Decisions
+
+### How do store searches run across thousands of packs?
+Answer: As their own step, separate from the agent's work on the plan. dmsn searches the stores for every new pack, spaced out so that no store throttles the run, and writes each pack's possible matches to a file. The agent reads that file to choose links. It does not run a search per pack in conversation.
+By: operator — "it may be better to spread that out or do that out-of-band, make a file with all the metadata/possible matches, rather than have it in the loop with the agent where it could be rate limited" (2026-10-05)
+
+### Which stores are searched?
+Answer: The ones the server already searches: Unity Asset Store, Sketchfab and itch.io, offered through dmsn. Damson itself still never searches when a path is recorded without a link.
+By: recommended, operator said "go" (2026-10-05)
+
+### What counts as a confident store match?
+Answer: The agent's judgement for each pack, from the title, the publisher and other clues in the path. A pack with no confident match is recorded by path only and is marked "no match" in the plan. Every chosen link is shown in the plan before approval.
+By: operator — chose "Agent judgement per pack from title and publisher and path clues" (2026-10-05)
+
+### How do folders become tags?
+Answer: Each folder between the scan root and the pack becomes its own tag. `/mnt/nfs/3D/Environments/Synty/POLYGON_Fantasy_Kingdom.unitypackage`, scanned from `/mnt/nfs`, gets the tags `3D` and `Environments`. The scan root and the publisher folder are not tags.
+By: operator — chose "One tag per folder: 3D and Environments" (2026-10-05)
+
+### How does the agent know what is already recorded?
+Answer: dmsn can list every path already recorded in the library, so the agent can sort the plan into new, known and gone.
+By: recommended, operator said "go" (2026-10-05)
+
+### How many calls does recording one pack take?
+Answer: One dmsn call records a pack with its name, tags, publisher, store link and Needs review.
+By: recommended, operator said "go" (2026-10-05)
+
+### How is the plan shown?
+Answer: The agent writes the full plan to a file the operator can open, with one row per pack: path, name, publisher, tags, and the store link or "no match". In chat it shows the counts (new, known, gone) and anything it is unsure about.
+By: recommended, operator said "go" (2026-10-05)
+
+### Can the plan be changed before approval?
+Answer: Yes. In conversation the operator can drop packs, fix names, tags or links, or say whether a folder is one product. The agent then shows the changed plan again. Nothing is recorded until the operator approves explicitly.
+By: recommended, operator said "go" (2026-10-05)
+
+### Who decides which folders are one product?
+Answer: The agent. The plan shows each decision so the operator can correct it. The agent never looks inside a pack folder for more items.
+By: recommended, operator said "go" (2026-10-05)
+
+### Which gone paths are reported?
+Answer: Only recorded paths under the folder that was scanned. A scan of `/mnt/nfs/3D` does not report paths under `/mnt/nfs/Audio` as gone.
+By: recommended, operator said "go" (2026-10-05)
+
+### What happens to a pack that moved folder?
+Answer: It shows as one new pack and one gone path. Moves are not detected.
+By: recommended, operator said "go" (2026-10-05)
+
+### Does a rerun change packs that are already recorded?
+Answer: No. Their names, tags and links are left as they are.
+By: recommended, operator said "go" (2026-10-05)
+
+### What if a store search fails or is throttled?
+Answer: The pack is still recorded by path only, and the end-of-run report lists it.
+By: recommended, operator said "go" (2026-10-05)
+
+### How are the scan instructions installed?
+Answer: `dmsn setup` installs them alongside the existing damson skill, so asking the agent to "scan my asset library" is enough to start a scan.
+By: recommended, operator said "go" (2026-10-05)
+
+### What does a recorded pack carry?
+Answer: A name, its folder tags, the publisher where the path shows one, and a store link where a confident match was found. It is marked Needs review. A store link fills the store metadata and cover as it does today.
+By: settled by DAM-1 Direction and `docs/specs/history/2026-10-03-reference-assets.md` ("Which fields does the store link fill?") (2026-10-05)
+
+### What is one item?
+Answer: One pack: a `.unitypackage`, an archive, or a folder that is one product. Never one asset per file.
+By: settled by DAM-1 Direction (2026-10-05)
+
+### Where does the scan run?
+Answer: Where the agent can see the NFS store. The Damson server never mounts it.
+By: settled by DAM-1 Direction (2026-10-05)
+
+## Acceptance
+
+- After one scan, the items on the NFS store are in Damson. Running the scan again adds no duplicates.
+- I see the planned list before anything is recorded, and nothing is written until I approve.
+- The plan is a file with one row per pack (path, name, publisher, tags, link or "no match"), and chat shows the counts.
+- I can drop a pack or fix its name, tags or link in conversation, and the changed plan is what gets recorded.
+- A Unity package with an Asset Store listing arrives with its store metadata and cover.
+- Store searches for a whole scan run as one paced step that writes the possible matches to a file, not as one search per pack in the agent's conversation.
+- A pack under `3D/Environments/<publisher>/` arrives tagged `3D` and `Environments`, with that publisher set.
+- A rerun after adding two packs records exactly those two and names any recorded path that no longer exists. It deletes nothing.
+- A rerun leaves names, tags and links on packs that were already recorded unchanged.
+- Everything from a scan is in the review queue until I mark it reviewed.
+- After `dmsn setup`, asking the agent to "scan my asset library" starts the scan.
+
+## Out of scope
+
+- An agent built into Damson.
+- Importing the data of any pack.
+- Purchases, and the Purchased-not-downloaded filter (DAM-3).
+- Detecting a moved pack as the same asset.
+- Updating or deleting recorded assets from a scan.
+- Store search by the Damson server for a path recorded without a link.
+- The server reading, checking or mounting the NFS store.
+
+## Start here
+
+- `docs/specs/history/2026-10-03-reference-assets.md`
+- `cmd/dmsn/mutate.go`
+- `cmd/dmsn/setup.go`
+- `internal/services/metadata/search.go`
+- `internal/handlers/api/assets_reference.go`
+
+## Deferred follow-ups
+
+None
+
+## What implementation found
+
+For `/distil`, these docs are now out of date:
+
+- `docs/architecture.md` (route list, near line 1222) lacks `GET /api/assets/locations?under=`.
+- `docs/architecture.md` does not say that `/api/metadata/search` returns `failed_stores`, or that it no longer returns 502.
+- `docs/progress.md` (near line 304) says `dmsn setup` writes one skill. It now writes two: `damson` and `damson-scan`.
+
+## Implementation report
+
+### Stages
+
+1. **Record with publisher and tags.** `POST /api/assets/references` takes a `publisher` and a list of `tags`, applied only when the record creates the asset. `dmsn asset record` gains `--publisher` and `--tags`, so one call records a pack with its name, tags, publisher, store link and Needs review.
+2. **Known paths.** `GET /api/assets/locations?under=PATH` lists every recorded path in the library, optionally only those under a folder. `dmsn scan known --under PATH` shows them with whether each still exists on disk, so the gone paths are the ones that don't.
+3. **Paced store search.** The search response names any store that failed. `dmsn scan match <plan>` searches the stores for each pack in a plan file, one pack at a time with a pause between, and writes every pack's possible matches (or the failure) to a matches file.
+4. **Record the plan.** `dmsn scan record <plan>` records every row of the approved plan file as a Needs-review reference asset, skips any path already recorded, and reports each row's outcome.
+5. **Scan instructions.** `dmsn setup` installs a `damson-scan` skill alongside the damson skill: walk, known paths, plan file, paced match, choose links, approve, record, report gone and failed searches.
+
+### Choices made
+
+- `internal/handlers/api/assets_reference.go`: publisher and tags apply only when a record creates the asset, like the name. A given publisher is set before the store lookup, so it wins over the store's publisher, which fills blanks only.
+- `internal/handlers/api/assets_reference.go`: tags go through the existing tag rule, so `3D` and `Environments` are stored as `3d` and `environments`. A record takes at most 32 tags, and a blank tag is refused before the store lookup runs.
+- `internal/handlers/api/assets_reference.go`: `GET /api/assets/locations` is unpaged, one short row per recorded path. `?under=` matches the folder itself and anything below it by a prefix compare, so `_` in a pack name is not a wildcard and `/mnt/nfs/3Dx` is not under `/mnt/nfs/3D`.
+- `cmd/dmsn/scan.go`: `scan known` checks each recorded path on the machine it runs on. It refuses a `--under` that isn't a readable directory, and treats any stat error other than "does not exist" as an error, so an unmounted store is never reported as every pack gone.
+- `internal/services/metadata/search.go`: `SearchStores` is the store search plus the names of the stores that failed. `Search` keeps its old shape for the import enricher. `/api/metadata/search` returns them as `failed_stores`. It never returned 502 in practice, because `Search` never returned an error.
+- `cmd/dmsn/scan.go`: the plan is a tab-separated file with the header `path name publisher tags link`. `tags` is comma-separated and `link` is a store URL, `no match`, or blank. Every row needs a path and a name, and a repeated path is refused. dmsn reads this same file to search and to record, so the file the operator approves is the file that gets recorded.
+- `cmd/dmsn/scan.go`: `scan match` searches by the row's name, one pack at a time, 2 s apart by default (`--interval`). It skips rows whose link is already decided, keeps at most 3 listings per store per pack, and writes the file pack by pack, so a stopped run keeps what it found. A failing store is written as `store_failed`, and a failed request to Damson as `search_failed`. An auth or forbidden error stops the run.
+- `cmd/dmsn/scan.go`: `scan record` takes the approved plan file and makes one record call per row. The decision asked for one dmsn call per pack; this is fewer, and it keeps thousands of record calls out of the agent's conversation. It refuses a plan with any blank link, because the plan shown for approval must say what gets linked. It skips any path the library already records, because re-recording a known path would replace its store link. It always sets Needs review. Its table lists only the rows that weren't added, and it exits 1 if any row failed.
+- `cmd/dmsn/scan_skill.go`: the scan instructions are a second skill, `damson-scan`, written beside `damson` by `dmsn setup` (and under `--project`). Its description is what "scan my asset library" matches. It keeps the plan and matches files in the working folder as `damson-scan-plan.tsv` and `damson-scan-matches.tsv`.
+
+### Review — stages 1…5
+
+#### Verdict
+MED · introduced — `?under=` compares `left(location_path, len(under)+1)`, but Go `len` counts bytes and Postgres `left()` counts characters (checked on Postgres: `left('/mnt/Música/A', bytes+1) = '/mnt/Música/'` is false), so any `--under` with a non-ASCII character (`/mnt/nfs/Música`) returns no locations: `scan known` reports `recorded 0, gone 0`, the agent plans every recorded pack as new and never reports a gone path; `scan record` still skips them because it asks without `under`. Fix: `starts_with(location_path, ?)` with `under+"/"`, or `utf8.RuneCountInString(under)+1`, plus a non-ASCII case in `TestAssetLocations_ListsRecordedPathsUnderAFolder` (internal/handlers/api/assets_reference.go:333) → fixed: `starts_with(location_path, under + '/')`, and the test now covers `/mnt/nfs/Música`
+
+#### Checked
+repo rules (AGENTS.md error-response shape, library_id filtering at top level, never log tokens, mirror existing patterns, go mod tidy), documented hazards (library tenancy on the new `/assets/locations` route — scoped group, `library_id` filter, other-library test present; 500 stays generic), mechanical shape conformance (`recordedLocation` vs CLI structs, `failed_stores` vs `metadataSearchResponse`), completeness honesty (`/assets/locations` unpaged by stated choice; `maxMatchesPerStore` cap is a curation limit, not a truncated listing), coverage, cross-boundary contract (route, `under`/`q` params, `publisher`/`tags`/`needs_review` body fields, path normalisation — CLI `trimScanPath` matches server `normaliseLocationPath`), shared-library precedence, logic, error handling, silent failure, input validation, idempotency and resilience, credentials, security, concurrency, external contracts, resource management, logging, performance; tests run: `go test ./cmd/dmsn`, `./internal/services/metadata`, `./internal/handlers/api -run 'Reference|AssetLocations|MetadataSearch'` all pass · issues in: logic · n/a: shared-library precedence (no UI added), concurrency (no new shared state), credentials (no secrets touched) · validation: in-context, 1 candidates, 1 confirmed, 0 refuted
+
+#### Smells
+possible Duplicated Code — the "stop on auth or forbidden" check is written twice; one `isFatalClientError(err)` helper would serve both (cmd/dmsn/scan.go:311, cmd/dmsn/scan.go:429) → fixed
+possible Duplicated Code — two anonymous `Locations []struct{…}` response types for the same endpoint; declare one `locationsResponse` type and use it in both (cmd/dmsn/scan.go:110, cmd/dmsn/scan.go:390) → fixed
+
+### Review — cleanup
+
+#### Verdict
+LOW · introduced — nothing requires an absolute path: `scan known --under .` passes `os.Stat`, the server's `normaliseLocationPath` accepts `./3D/x`, and `readPlan` takes whatever `find .` printed, so a scan the agent runs from inside the store records relative paths; a rerun from another working folder then sees none of them as known (duplicates, breaking "adds no duplicates"), and `pathExists` checks them against the wrong folder. Fix: refuse a non-absolute `--under` in `runScanKnown` and a non-absolute row path in `readPlan` (`filepath.IsAbs`), and say "absolute path" in the skill's step 1 (cmd/dmsn/scan.go:110, cmd/dmsn/scan.go:216, cmd/dmsn/scan_skill.go:30) → fixed: `scan known` and `readPlan` refuse a relative path, the skill asks for the root's absolute path, and `TestReadPlan_RefusesAMalformedPlan` has a relative case
+LOW · introduced — the plan's `tags` column is split on commas, so a folder named `Sci-Fi, Space` becomes two tags `sci-fi` and `space`, against the decision "Each folder … becomes its own tag"; nothing warns. Fix: tell the agent in the skill's step 1 to drop or replace commas in a folder name when it writes the tag, or split the column on a character a folder name can't hold (cmd/dmsn/scan.go:219, cmd/dmsn/scan_skill.go:78) → fixed: the skill's step 3 says to leave the comma out of such a folder's tag
+LOW · widened — `scan record` counts a linked row as `added` even when the server's store lookup failed (`postReferenceAsset` only logs it and returns `created`, with nothing in `referenceRecordResponse` to say so), so in a bulk run a throttled or failed Asset Store lookup leaves a linked pack without its store metadata or cover, and neither the `record` report nor the skill's step 7 names it. Fix: add a `metadata_failed` flag (or outcome detail) to the response when `Fetch` errors, and have `scan record` list those rows in `not_added`-style output (internal/handlers/api/assets_reference.go:185, cmd/dmsn/scan.go:440) → left for cleanup: it changes the record response and the CLI report together, more than a local edit
+LOW · introduced — AGENTS.md:17 says "Do not write into `docs/` during a run — record what the change made untrue in the spec and leave the docs to `/distil`", but the spec records none of it: `docs/architecture.md:1222`'s route list lacks `GET /api/assets/locations` and doesn't mention `failed_stores` or that `/api/metadata/search` no longer returns 502, and `docs/progress.md:304` describes `dmsn setup` as writing one skill. Fix: add a `## What implementation found` note listing these for `/distil` (docs/specs/2026-10-05-nfs-agent-scan.md:153) → fixed: `## What implementation found` lists them
+
+#### Checked
+repo rules (AGENTS.md error-response shape, library_id filtering, never log tokens, mirror existing patterns, go mod tidy — no new imports outside the module), documented hazards (library tenancy on `/assets/locations` — scoped group, top-level `library_id` filter, other-library test; 500 stays generic; tags go through `tags.Attach`, library-scoped), mechanical shape conformance (`recordedLocation` ↔ `locationsResponse`, `metadataSearchResponse.failed_stores` ↔ `scan match`'s response struct, `referenceRecordRequest` ↔ `scan record` and `asset record` bodies), completeness honesty (unpaged locations by stated choice; `maxMatchesPerStore` is curation), coverage, cross-boundary contract across stages (route and query names, `publisher`/`tags`/`needs_review`, path sameness rule `trimScanPath` = `normaliseLocationPath`, plan header shared via `planColumns` in both `readPlan` and the skill text, matches results `candidate|none|store_failed|search_failed` in skill = constants, `--json` is a real global flag, `permute` makes `plan.tsv --out x` parse, `assets --needs-review` exists, setup writes `damson-scan/SKILL.md` and lists `scan known|match|record`), shared-library precedence, logic, error handling, silent failure, input validation, idempotency and resilience, credentials, security, concurrency, external contracts (server's per-host limiter, 500 ms, paces both search and record lookups), resource management, logging, performance, web-endpoint block, data-access block, co-change sweep (sole `Search` interface consumer updated; `Search` kept for the enricher), backward compatibility (`failed_stores` omitempty, additive), tests; tests run: `go test ./cmd/dmsn ./internal/services/metadata` pass, `go vet` clean on the three packages; DB-backed `./internal/handlers/api` tests not run — no Postgres on 5432 or 55432 · issues in: input validation, silent failure, repo rules · n/a: shared-library precedence (no UI added), credentials (no secrets touched), deployment (no schema change) · overlap: the non-ASCII `under` MED and both smells from `### Review — stages 1…5` are fixed and not re-reported · validation: none needed, 0 candidates, 0 confirmed, 0 refuted · unconfirmed: whether Numbers or Excel quote a comma-holding `tags` cell when the operator saves the plan, which `readPlan` would read as tags with literal quotes
+
+### Results
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| After one scan, the items on the NFS store are in Damson. Running the scan again adds no duplicates | passed | Real proof: 3 packs recorded, then a rerun added 2 and skipped the known 1, leaving 5 assets. `TestScanRecord_RecordsThePlanAndSkipsKnownPaths` fails if `scan record` stops skipping recorded paths. |
+| I see the planned list before anything is recorded, and nothing is written until I approve | unproven | The gate is in the `damson-scan` instructions (step 5, checked by `TestSetup`). `TestScanRecord_RefusesAPlanWithBlankLinks` proves a plan without its links decided records nothing. That an agent actually waits needs a live Claude Code session, which this run didn't drive. |
+| The plan is a file with one row per pack (path, name, publisher, tags, link or "no match"), and chat shows the counts | passed | The file format is `readPlan`, covered by `TestReadPlan_RefusesAMalformedPlan` and the record test. Showing the counts in chat is the instructions' step 5. |
+| I can drop a pack or fix its name, tags or link in conversation, and the changed plan is what gets recorded | passed | `scan record` reads the plan file and sends each row's values as they are. `TestScanRecord_RecordsThePlanAndSkipsKnownPaths` checks name, publisher, tags and link per row. The real proof edited the plan's links and those were recorded. |
+| A Unity package with an Asset Store listing arrives with its store metadata and cover | passed | Real proof against the live Unity Asset Store: listing 164532 gave a JPEG cover, a description and 16 store tags. |
+| Store searches for a whole scan run as one paced step that writes the possible matches to a file | passed | `TestScanMatch_WritesEveryPacksPossibleMatchesToAFile` and `TestScanMatch_PausesBetweenPacks`, which fails if the pause is removed. Live run: 3 packs in 13 s at the 2 s default, 9 listings each across the three stores. |
+| A pack under `3D/Environments/<publisher>/` arrives tagged `3D` and `Environments`, with that publisher set | passed | `TestRecordReference_PublisherAndTagsApplyOnCreateOnly` fails if the store's publisher overwrites the given one, or tags are dropped. Real proof: tags `3d` and `environments`, publisher `Synty`. Tags are lowercase, because that's the existing tag rule. |
+| A rerun after adding two packs records exactly those two and names any recorded path that no longer exists. It deletes nothing | passed | Real proof: `added: 2`, and `scan known --gone` named the moved `Platformer Pack.zip`, whose asset still exists. `TestScanKnown_ReportsRecordedPathsThatAreGone`. `TestAssetLocations_ListsRecordedPathsUnderAFolder` covers the scope to the scanned folder, including a non-ASCII one. |
+| A rerun leaves names, tags and links on packs that were already recorded unchanged | passed | Real proof: a known row in the rerun plan asked for a new name and link, and the asset kept its edited name `Kenney UI Sounds` and got no link. Covered by the CLI skip test above and the server's create-only test. |
+| Everything from a scan is in the review queue until I mark it reviewed | passed | `scan record` always sends `needs_review: true` (record test). Real proof: all 5 assets came back from `dmsn assets --needs-review`. |
+| After `dmsn setup`, asking the agent to "scan my asset library" starts the scan | unproven | `TestSetup`, and a real `dmsn setup` into a scratch home, wrote `damson-scan/SKILL.md`, whose description names "scan their asset library". Whether Claude Code picks it up from that phrase needs a live session. |
+| review: stages 1…5 | passed | `### Review — stages 1…5`: 1 MED introduced (non-ASCII `under`) and 2 smells, all fixed. |
+| real proof | passed | A scratch server built from this branch, on a throwaway embedded Postgres on 55432, with live store search, and `dmsn` against it over a scratch folder of packs. The server is stopped and its database dropped. |
+| build | passed | `go build ./...`, `go vet ./...`, `just build cli`, all exit 0 |
+| gate | passed | `just format`, then `just check` with `DAMSON_TEST_POSTGRES_DSN` on 55432. The recipe stops at its first failure, and its last step (e2e) ran: 17 passed. |
+
+Environment notes: there was no Postgres on 5432 and OrbStack wasn't running, so every Postgres-backed run used a throwaway `fergusstrange/embedded-postgres` on 55432, started from `/tmp/damson-pg`, not a repo dependency. The per-stage commits skipped `/simplify`, because the implement flow leaves it to `/cleanup`.
+
+### Cleanup — 2026-10-05
+
+- Review coverage: `### Review — stages 1…5` covers every built stage once. `### Review — cleanup` found 4 LOWs, all fixed. The operator chose "Fix now" for the store-lookup one.
+- Store-lookup fix: `POST /api/assets/references` returns `metadata_failed: true` when the store lookup for a created or updated asset failed. `scan record` counts those rows as `no_store_data` and lists them, and the skill's step 7 reports them. The table `not_added` is renamed `needs_attention`, because it now also lists added rows.
+- Simplify: comment edits only, in `search.go`, `assets_reference.go` and `scan.go`.
+- Test gate: no test cut. Added `TestScanRecord_ListsAddedRowsWhoseStoreLookupFailed`, a relative-path case in `TestReadPlan_RefusesAMalformedPlan`, and `metadata_failed` checks in two server tests.
+- Gate: `just check` exit 0 with `DAMSON_TEST_POSTGRES_DSN` on a throwaway `postgres:17-alpine` container on 55432: Go suite (including `./internal/handlers/api`), 206 Vitest tests and 17 e2e tests passed.
+- Still `unproven`, both needing a live Claude Code session: that the agent waits for approval before recording, and that "scan my asset library" starts the scan.
+- Unconfirmed from review: whether Numbers or Excel puts quotes around a `tags` cell holding a comma when the operator saves the plan. If they do, the tags are stored with the quote marks in them.
