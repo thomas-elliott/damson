@@ -604,3 +604,32 @@ func TestReferenceAsset_TagsCollectsAndPinsWithoutAVersion(t *testing.T) {
 		t.Fatalf("tag/collection not held: collections=%+v tags=%+v", d.Collections, d.Tags)
 	}
 }
+
+// TestAssetFilters_NotDownloaded proves Purchased, not downloaded is exactly
+// the reference assets with no path: a stored asset, or a reference asset on a
+// path (with or without a link), is downloaded somewhere.
+func TestAssetFilters_NotDownloaded(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	pathOnly, pathAndLink := "/mnt/nfs/a", "/mnt/nfs/b"
+
+	stored := models.Asset{LibraryID: lib.ID, Name: "stored", SourceURL: "https://example.com/stored"}
+	onPath := models.Asset{LibraryID: lib.ID, Name: "on path", IsReference: true, LocationPath: &pathOnly}
+	onPathLinked := models.Asset{LibraryID: lib.ID, Name: "on path, linked", IsReference: true,
+		LocationPath: &pathAndLink, SourceURL: "https://example.com/b"}
+	purchased := models.Asset{LibraryID: lib.ID, Name: "purchased", IsReference: true, SourceURL: "https://example.com/p"}
+	for _, a := range []*models.Asset{&stored, &onPath, &onPathLinked, &purchased} {
+		if err := db.Create(a).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	r := setupRouter(h, u)
+	if got := listAssetIDs(t, r, "/api/assets?not_downloaded=true"); len(got) != 1 || got[0] != purchased.ID {
+		t.Fatalf("not_downloaded = %v, want only the link-only reference asset %d", got, purchased.ID)
+	}
+	if got := listAssetIDs(t, r, "/api/assets"); len(got) != 4 {
+		t.Fatalf("unfiltered list = %v, want all 4", got)
+	}
+}
