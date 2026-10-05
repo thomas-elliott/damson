@@ -172,6 +172,9 @@ func TestRecordReference_SamePathTwiceUpdatesAndKeepsEditedName(t *testing.T) {
 	if second.Outcome != referenceUpdated || second.AssetID != first.AssetID {
 		t.Fatalf("second record: %+v, want updated asset %d", second, first.AssetID)
 	}
+	if second.MetadataFailed {
+		t.Errorf("a store lookup that worked was reported as failed: %+v", second)
+	}
 	if n := countAssets(t, db, lib.ID); n != 1 {
 		t.Fatalf("recording the same path twice left %d assets", n)
 	}
@@ -278,6 +281,9 @@ func TestRecordReference_UnreadableLinkIsStillRecorded(t *testing.T) {
 	if a.SourceURL != link || a.Name != "Hand Named" {
 		t.Fatalf("got source_url=%q name=%q", a.SourceURL, a.Name)
 	}
+	if !resp.MetadataFailed {
+		t.Errorf("a failed store lookup must be reported as metadata_failed: %+v", resp)
+	}
 }
 
 func TestRecordReference_NeedsReviewOnlyWhenAsked(t *testing.T) {
@@ -296,6 +302,59 @@ func TestRecordReference_NeedsReviewOnlyWhenAsked(t *testing.T) {
 	}
 }
 
+func assetTagPaths(t *testing.T, db *gorm.DB, assetID uint) []string {
+	t.Helper()
+	var paths []string
+	err := db.Table("tags").Joins("JOIN asset_tags ON asset_tags.tag_id = tags.id").
+		Where("asset_tags.asset_id = ?", assetID).Order("tags.path").Pluck("tags.path", &paths).Error
+	if err != nil {
+		t.Fatal(err)
+	}
+	return paths
+}
+
+// A scan records each pack with the publisher and folder tags read from its
+// path. The given publisher beats the store's, and a rerun over a known path
+// changes neither.
+func TestRecordReference_PublisherAndTagsApplyOnCreateOnly(t *testing.T) {
+	h, db := newTestHandler(t)
+	h.metadata = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreUnity, Title: "POLYGON Fantasy Kingdom", Publisher: "Synty Studios",
+	}}
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+	r := setupRouter(h, u)
+
+	path := "/mnt/nfs/3D/Environments/Synty/POLYGON_Fantasy_Kingdom.unitypackage"
+	first := recordReference(t, r, map[string]any{
+		"location_path": path, "source_url": "https://assetstore.unity.com/packages/k-1",
+		"publisher": "Synty", "tags": []string{"3D", "Environments"}, "needs_review": true,
+	}, http.StatusCreated)
+	var a models.Asset
+	if err := db.First(&a, first.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if derefString(a.Publisher) != "Synty" {
+		t.Errorf("publisher: got %q, want the one read from the path", derefString(a.Publisher))
+	}
+	if got := assetTagPaths(t, db, a.ID); !slices.Equal(got, []string{"3d", "environments"}) {
+		t.Errorf("tags: got %v", got)
+	}
+
+	recordReference(t, r, map[string]any{
+		"location_path": path, "publisher": "Someone Else", "tags": []string{"Audio"},
+	}, http.StatusOK)
+	if err := db.First(&a, first.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if derefString(a.Publisher) != "Synty" {
+		t.Errorf("a re-record changed the publisher to %q", derefString(a.Publisher))
+	}
+	if got := assetTagPaths(t, db, a.ID); !slices.Equal(got, []string{"3d", "environments"}) {
+		t.Errorf("a re-record changed the tags to %v", got)
+	}
+}
+
 func TestRecordReference_RejectsEmptyAndBadInput(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
@@ -306,6 +365,7 @@ func TestRecordReference_RejectsEmptyAndBadInput(t *testing.T) {
 		"neither":      {"location_path": "  "},
 		"bad scheme":   {"source_url": "file:///etc/passwd"},
 		"control char": {"location_path": "/nfs/a\nb"},
+		"blank tag":    {"location_path": "/nfs/a", "tags": []string{"3D", " / "}},
 	} {
 		w := performRequest(r, http.MethodPost, "/api/assets/references", body)
 		if w.Code != http.StatusBadRequest {
@@ -338,6 +398,47 @@ func seedReference(t *testing.T, db *gorm.DB, libID uint, name, path, link strin
 		t.Fatalf("seed reference: %v", err)
 	}
 	return &a
+}
+
+// A scan of one folder must see every path recorded under it and nothing from
+// a sibling folder, whose packs would otherwise be reported gone.
+func TestAssetLocations_ListsRecordedPathsUnderAFolder(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	for _, p := range []string{"/mnt/nfs/3D/Synty/A_Pack", "/mnt/nfs/3D/B.zip", "/mnt/nfs/3Dx/C", "/mnt/nfs/Música/D"} {
+		seedReference(t, db, lib.ID, p, p, "")
+	}
+	seedReference(t, db, lib.ID, "link only", "", "https://example.com/p")
+	other := seedLibrary(t, db, "Other")
+	seedReference(t, db, other.ID, "theirs", "/mnt/nfs/3D/Theirs", "")
+	r := setupRouter(h, u)
+
+	paths := func(query string) []string {
+		t.Helper()
+		w := performRequest(r, http.MethodGet, "/api/assets/locations"+query, nil)
+		requireStatus(t, w, http.StatusOK)
+		var out []string
+		for _, l := range jsonResponse[struct {
+			Locations []recordedLocation `json:"locations"`
+		}](t, w).Locations {
+			out = append(out, l.LocationPath)
+		}
+		return out
+	}
+
+	if got := paths("?under=/mnt/nfs/3D/"); !slices.Equal(got, []string{"/mnt/nfs/3D/B.zip", "/mnt/nfs/3D/Synty/A_Pack"}) {
+		t.Errorf("under /mnt/nfs/3D: got %v", got)
+	}
+	if got := paths("?under=/mnt/nfs/M%C3%BAsica"); !slices.Equal(got, []string{"/mnt/nfs/Música/D"}) {
+		t.Errorf("under a non-ASCII folder: got %v", got)
+	}
+	if got := paths("?under=/mnt/nfs/3_"); len(got) != 0 {
+		t.Errorf("an underscore in under was read as a wildcard: %v", got)
+	}
+	if got := paths(""); len(got) != 4 {
+		t.Errorf("no under: got %v, want this library's four paths", got)
+	}
 }
 
 func TestReferenceAsset_ListAndDetailCarryTheLocation(t *testing.T) {

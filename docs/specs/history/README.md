@@ -26,6 +26,7 @@ flight — see [`../../roadmap.md`](../../roadmap.md) for what is queued.
 | 2026-08-15 | [shared-design-system](2026-08-15-shared-design-system.md) | Moved the frontend off 57 `--ds-*` tokens onto the shared `@shared` registry and shadcn's vocabulary, in one sweep behind a token gate. Frontend only — no Go, no SQL. | PR #40 `f91d654` |
 | 2026-08-15 | [shared-design-0-1-7](2026-08-15-shared-design-0-1-7.md) | Took the contract past colour — literal radii, eight role sizes, motion, per-theme elevation, the 16px field floor. Found that the CLI's `@theme inline` self-mapping is a dependency cycle that had been silently killing tokens since before the slice. | PR #41 |
 | 2026-10-03 | [reference-assets](2026-10-03-reference-assets.md) | Record an asset by its location — a path, a store link, or both — with nothing imported: search on path words, version-less project pins, an Add by location dialog and `dmsn asset record`. | PR #1 |
+| 2026-10-05 | [nfs-agent-scan](2026-10-05-nfs-agent-scan.md) | Catalogue a folder of packs by agent scan: record with publisher and folder tags, list recorded paths to find new and gone packs, one paced store search to a matches file, record an approved plan file in one call, and a `damson-scan` skill from `dmsn setup`. | PR #2 |
 
 ## What they deferred
 
