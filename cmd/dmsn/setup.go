@@ -18,33 +18,36 @@ const (
 )
 
 func init() {
-	var project, noHook bool
+	var noHook bool
 	register(&command{
 		name:    "setup",
-		summary: "install the Claude Code skill for this CLI",
-		usage: "usage: dmsn setup [--project] [--no-hook]\n\n" +
-			"Writes a skill describing dmsn to ~/.claude/skills/damson/, or to\n" +
-			"./.claude/skills/damson/ with --project, the scan instructions to\n" +
-			"damson-scan/ beside it, plus a SessionStart hook\n" +
-			"script that prints the home view. Idempotent: rerunning overwrites\n" +
-			"the same paths and prints every one it touched.\n\n" +
+		summary: "install the Claude Code skills for this CLI in this project",
+		usage: "usage: dmsn setup [--no-hook]\n\n" +
+			"Writes a skill describing dmsn to ./.claude/skills/damson/, the scan\n" +
+			"and purchase instructions to damson-scan/ and damson-purchases/\n" +
+			"beside it, plus a SessionStart hook script that prints the home\n" +
+			"view. Run it in the folder you work on the library from: the skills\n" +
+			"are only offered in sessions started there. Idempotent: rerunning\n" +
+			"overwrites the same paths and prints every one it touched.\n\n" +
 			"The hook script is written but not registered — registering it\n" +
 			"means editing your settings.json, which is yours to edit.",
 		flags: func(fs *flag.FlagSet) {
-			fs.BoolVar(&project, "project", false, "install into ./.claude instead of ~/.claude")
 			fs.BoolVar(&noHook, "no-hook", false, "skip the SessionStart hook script")
 		},
 		run: func(ctx context.Context, e *Env) error {
-			return runSetup(ctx, e, project, noHook)
+			return runSetup(ctx, e, noHook)
 		},
 	})
 }
 
-func runSetup(_ context.Context, e *Env, project, noHook bool) error {
-	root, err := claudeRoot(project)
+func runSetup(_ context.Context, e *Env, noHook bool) error {
+	// Project scope only: the skills are about one library, so they belong
+	// where that library is worked on, not in every Claude Code session.
+	wd, err := os.Getwd()
 	if err != nil {
-		return err
+		return axi.Wrap(axi.CodeIO, err, "cannot resolve the working directory")
 	}
+	root := filepath.Join(wd, ".claude")
 
 	written := []map[string]any{}
 	skillPath := filepath.Join(root, "skills", skillDirName, skillFileName)
@@ -78,7 +81,6 @@ func runSetup(_ context.Context, e *Env, project, noHook bool) error {
 		Rows: written, Total: -1, EmptyNote: "nothing written",
 	}
 	summary := Block{Key: "setup", Fields: []toon.KV{
-		{Key: "scope", Value: scopeName(project)},
 		{Key: "root", Value: displayPath(root)},
 		{Key: "files", Value: len(written)},
 	}}
@@ -90,28 +92,6 @@ func runSetup(_ context.Context, e *Env, project, noHook bool) error {
 				displayPath(filepath.Join(root, "hooks", hookFileName))))
 	}
 	return axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table}, help, e.Globals.options())
-}
-
-func scopeName(project bool) string {
-	if project {
-		return "project"
-	}
-	return "user"
-}
-
-func claudeRoot(project bool) (string, error) {
-	if project {
-		wd, err := os.Getwd()
-		if err != nil {
-			return "", axi.Wrap(axi.CodeIO, err, "cannot resolve the working directory")
-		}
-		return filepath.Join(wd, ".claude"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", axi.Wrap(axi.CodeIO, err, "cannot resolve your home directory")
-	}
-	return filepath.Join(home, ".claude"), nil
 }
 
 func writeFileAt(path, content string, mode os.FileMode) error {
