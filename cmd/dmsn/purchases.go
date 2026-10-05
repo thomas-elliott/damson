@@ -226,15 +226,31 @@ func matchKey(name string) string {
 	return b.String()
 }
 
+// draftRow is one drafted plan row: the purchase, what to do with it, and the
+// asset it matched, if any.
+type draftRow struct {
+	Purchase purchase
+	Action   string
+	Asset    *recordedAsset
+	Note     string
+}
+
+// line is the row as it is written to the plan file.
+func (r draftRow) line() string {
+	var id, name, link string
+	if r.Asset != nil {
+		id, name, link = strconv.FormatUint(uint64(r.Asset.AssetID), 10), r.Asset.Name, r.Asset.SourceURL
+	}
+	p := r.Purchase
+	return tsvLine(p.PackageID, p.Name, p.Link, r.Action, id, name, link, r.Note)
+}
+
 // draftPurchaseRow decides one purchase's row: matched by listing ID, else
 // unsure by name, else new. A match by exact link is a match by listing ID,
 // since a purchase's link ends in its listing ID.
-func draftPurchaseRow(p purchase, byListing map[string][]recordedAsset, byName map[string][]recordedAsset) []string {
-	row := func(action string, a *recordedAsset, note string) []string {
-		if a == nil {
-			return []string{p.PackageID, p.Name, p.Link, action, "", "", "", note}
-		}
-		return []string{p.PackageID, p.Name, p.Link, action, strconv.FormatUint(uint64(a.AssetID), 10), a.Name, a.SourceURL, note}
+func draftPurchaseRow(p purchase, byListing map[string][]recordedAsset, byName map[string][]recordedAsset) draftRow {
+	row := func(action string, a *recordedAsset, note string) draftRow {
+		return draftRow{Purchase: p, Action: action, Asset: a, Note: note}
 	}
 	also := func(more []recordedAsset) string {
 		if len(more) == 0 {
@@ -307,11 +323,11 @@ func runPurchasesPlan(ctx context.Context, e *Env, f *purchasesFlags) error {
 	conflicts := 0
 	for _, p := range purchases {
 		row := draftPurchaseRow(p, byListing, byName)
-		counts[row[3]]++
-		if row[3] == actionUnsure && row[6] != "" {
+		counts[row.Action]++
+		if row.Action == actionUnsure && row.Asset.SourceURL != "" {
 			conflicts++
 		}
-		lines = append(lines, tsvLine(row...))
+		lines = append(lines, row.line())
 	}
 	if err := os.WriteFile(f.out, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
 		return axi.Wrap(axi.CodeIO, err, "cannot write %s", f.out)
@@ -530,17 +546,19 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 	return nil
 }
 
-// linkAsset sets an existing asset's store link, marks it Needs review, then
+// linkAsset marks an existing asset Needs review, sets its store link, then
 // asks the server to look the listing up and fill the asset's blank fields.
-// The link is set first so a failed lookup still leaves the asset linked, as
-// a new reference asset is; that failure comes back as noStoreData, not err.
+// Needs review comes first: an asset linked but not flagged would read as
+// unchanged on a rerun and never be flagged. The link is set before the lookup
+// so a failed lookup still leaves the asset linked, as a new reference asset
+// is; that failure comes back as noStoreData, not err.
 func linkAsset(ctx context.Context, client *Client, assetID uint, link string, pace func() error) (noStoreData string, err error) {
 	id := strconv.FormatUint(uint64(assetID), 10)
-	if err := client.PatchJSON(ctx, "/api/assets/"+id, map[string]any{"source_url": link}, nil); err != nil {
-		return "", err
-	}
 	review := map[string]any{"asset_ids": []uint{assetID}, "action": "unreview"}
 	if err := client.PostJSON(ctx, "/api/assets/bulk", review, nil); err != nil {
+		return "", err
+	}
+	if err := client.PatchJSON(ctx, "/api/assets/"+id, map[string]any{"source_url": link}, nil); err != nil {
 		return "", err
 	}
 	if err := pace(); err != nil {
