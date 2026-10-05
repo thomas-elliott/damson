@@ -100,7 +100,10 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 		{"tag_id", filters.TagID != nil},
 		{"project_id", filters.ProjectID != nil},
 		{"collection_id", filters.CollectionID != nil},
+		{"needs_review", filters.NeedsReview != nil},
 		{"store_deprecated", filters.StoreDeprecated != nil},
+		{"updates_available", optionalBool(c.Query("updates_available")) != nil},
+		{"not_downloaded", optionalBool(c.Query("not_downloaded")) != nil},
 	} {
 		if v := strings.TrimSpace(c.Query(f.name)); v != "" && !f.read {
 			respond400(c, fmt.Errorf("can't read %s %q", f.name, v))
@@ -362,25 +365,7 @@ func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
 			return err
 		}
 	}
-	// The record must say what lookups put on the asset. A generic answer
-	// only adds the blanks it filled to the record a store lookup left, and a
-	// field this lookup kept goes on holding the last record's value.
-	if meta.StoreLookupFailed && prev != nil {
-		copyRecordFields(prev.Metadata, meta, applied)
-		h.persistSourceRecord(ctx, &asset, *prev)
-	} else {
-		saved := *meta
-		if prev != nil {
-			copyRecordFields(&saved, prev.Metadata, conflictedFields(conflicts))
-		}
-		h.persistSourceRecord(ctx, &asset, metadata.SourceRecord{
-			Store:      meta.Store,
-			ListingURL: firstNonEmptyStr(meta.ListingURL, asset.SourceURL),
-			FetchedAt:  time.Now().UTC(),
-			Matched:    true,
-			Metadata:   &saved,
-		})
-	}
+	h.saveLookupRecord(ctx, &asset, prev, meta, asset.SourceURL, applied, conflictedFields(conflicts))
 
 	result := models.StoreLookupUnchanged
 	switch {
@@ -390,6 +375,29 @@ func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
 		result = models.StoreLookupChanged
 	}
 	return h.finishStoreLookup(ctx, &lk, models.StoreLookupDone, result, applied, conflicts, "")
+}
+
+// saveLookupRecord stores the source record for a lookup whose answer was
+// just applied. The record must say what lookups put on the asset. A generic
+// answer only adds the blanks it filled to the record a store lookup left, and
+// each kept field goes on holding the last record's value.
+func (h *Handler) saveLookupRecord(ctx context.Context, asset *models.Asset, prev *metadata.SourceRecord, meta *metadata.Metadata, link string, applied, kept []string) {
+	if meta.StoreLookupFailed && prev != nil {
+		copyRecordFields(prev.Metadata, meta, applied)
+		h.persistSourceRecord(ctx, asset, *prev)
+		return
+	}
+	saved := *meta
+	if prev != nil {
+		copyRecordFields(&saved, prev.Metadata, kept)
+	}
+	h.persistSourceRecord(ctx, asset, metadata.SourceRecord{
+		Store:      meta.Store,
+		ListingURL: firstNonEmptyStr(meta.ListingURL, link),
+		FetchedAt:  time.Now().UTC(),
+		Matched:    true,
+		Metadata:   &saved,
+	})
 }
 
 func (h *Handler) finishStoreLookup(ctx context.Context, lk *models.StoreLookup, status, result string, applied []string, conflicts []metadataConflict, errMsg string) error {

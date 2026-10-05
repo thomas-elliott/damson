@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/gin-gonic/gin"
@@ -327,14 +326,9 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	}
 
 	if meta != nil && outcome != referenceExists {
-		h.applyMetadata(ctx, lib.ID, &asset, meta, nil, false, "", u.ID)
-		h.persistSourceRecord(ctx, &asset, metadata.SourceRecord{
-			Store:      meta.Store,
-			ListingURL: firstNonEmptyStr(meta.ListingURL, link),
-			FetchedAt:  time.Now().UTC(),
-			Matched:    true,
-			Metadata:   meta,
-		})
+		prev := sourceRecordOf(&asset)
+		applied, conflicts := h.applyMetadata(ctx, lib.ID, &asset, meta, nil, false, "", u.ID)
+		h.saveLookupRecord(ctx, &asset, prev, meta, link, applied, conflictedFields(conflicts))
 	}
 
 	status := http.StatusOK

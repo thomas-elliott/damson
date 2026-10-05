@@ -170,25 +170,20 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 			f.CollectionID = &v
 		}
 	}
-	if s := c.Query("needs_review"); s != "" {
-		if s == "true" || s == "1" {
-			t := true
-			f.NeedsReview = &t
-		} else if s == "false" || s == "0" {
-			fl := false
-			f.NeedsReview = &fl
-		}
-	}
-	if s := c.Query("store_deprecated"); s != "" {
-		if s == "true" || s == "1" {
-			t := true
-			f.StoreDeprecated = &t
-		} else if s == "false" || s == "0" {
-			fl := false
-			f.StoreDeprecated = &fl
-		}
-	}
+	f.NeedsReview = optionalBool(c.Query("needs_review"))
+	f.StoreDeprecated = optionalBool(c.Query("store_deprecated"))
 	return f
+}
+
+// optionalBool reads a true/false query value; anything else reads as unset.
+func optionalBool(s string) *bool {
+	switch s {
+	case "true", "1":
+		return new(true)
+	case "false", "0":
+		return new(false)
+	}
+	return nil
 }
 
 // storeUpdateAvailable is the badge's half of updatesAvailableSQL: a newer
