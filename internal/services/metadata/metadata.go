@@ -43,6 +43,12 @@ type Metadata struct {
 	MinEngineVersion   string     `json:"min_engine_version,omitempty"`
 	Rating             float64    `json:"rating,omitempty"`
 	RatingCount        int        `json:"rating_count,omitempty"`
+	// StoreDeprecated is nil when the lookup couldn't tell, so a lookup that
+	// never read the listing page leaves the asset's flag as it is.
+	StoreDeprecated *bool `json:"store_deprecated,omitempty"`
+	// StoreLookupFailed says the store's own adapter failed and these fields
+	// came from the generic scraper instead: kept, but not the store's details.
+	StoreLookupFailed bool `json:"store_lookup_failed,omitempty"`
 	// Attributes is the store-specific long tail, in store-authored order.
 	Attributes []Attribute     `json:"attributes,omitempty"`
 	Raw        json.RawMessage `json:"raw,omitempty"`

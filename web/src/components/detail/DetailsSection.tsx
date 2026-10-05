@@ -38,6 +38,7 @@ function hasAnyDetail(asset: AssetDetailView): boolean {
   return Boolean(
     asset.publisher ||
     asset.store ||
+    asset.store_deprecated ||
     asset.released_at ||
     asset.store_updated_at ||
     asset.engine ||
@@ -115,6 +116,7 @@ function DetailsRead({ asset }: { asset: AssetDetailView }) {
   const rows: { label: string; value?: string; href?: string }[] = [
     { label: "Publisher", value: asset.publisher, href: asset.publisher_url },
     { label: "Store", value: storeLabel(asset.store) },
+    { label: "Listing", value: asset.store_deprecated ? "Deprecated on the store" : undefined },
     { label: "Released", value: formatDate(asset.released_at) },
     { label: "Store updated", value: formatDate(asset.store_updated_at) },
     { label: "Store version", value: asset.latest_store_version },

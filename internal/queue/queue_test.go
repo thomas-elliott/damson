@@ -3,11 +3,15 @@ package queue
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"golang.org/x/image/bmp"
 	"gorm.io/gorm"
 
@@ -275,4 +279,105 @@ func TestQueue_PreviewJobMarksFailedOnBadRender(t *testing.T) {
 	q.Previews().Enqueue(preview.Job{LibraryID: libID, VersionID: versionID, FileID: fileID})
 
 	waitForStatus(t, gdb, fileID, preview.StatusFailed)
+}
+
+// concurrencyRunner records how many lookups run at once.
+type concurrencyRunner struct {
+	mu      sync.Mutex
+	running int
+	most    int
+	ran     []uint
+}
+
+func (r *concurrencyRunner) RunStoreLookup(_ context.Context, id uint) error {
+	r.mu.Lock()
+	r.running++
+	r.most = max(r.most, r.running)
+	r.mu.Unlock()
+	time.Sleep(50 * time.Millisecond)
+	r.mu.Lock()
+	r.running--
+	r.ran = append(r.ran, id)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *concurrencyRunner) FailStoreLookup(context.Context, uint, string) error { return nil }
+
+// failingRunner fails every lookup and records which it was told were failed.
+type failingRunner struct{ failed []uint }
+
+func (r *failingRunner) RunStoreLookup(context.Context, uint) error {
+	return errors.New("database unreachable")
+}
+
+func (r *failingRunner) FailStoreLookup(_ context.Context, id uint, _ string) error {
+	r.failed = append(r.failed, id)
+	return nil
+}
+
+func TestStoreLookupWorker_LastAttemptMarksTheLookupFailed(t *testing.T) {
+	runner := &failingRunner{}
+	w := &storeLookupWorker{run: runner}
+	job := func(attempt int) *river.Job[StoreLookupArgs] {
+		return &river.Job[StoreLookupArgs]{
+			JobRow: &rivertype.JobRow{Attempt: attempt, MaxAttempts: 5},
+			Args:   StoreLookupArgs{LookupID: 7},
+		}
+	}
+
+	if err := w.Work(context.Background(), job(4)); err == nil || len(runner.failed) != 0 {
+		t.Fatalf("attempt 4: err %v, failed %v; want the error returned for a retry and nothing marked", err, runner.failed)
+	}
+	if err := w.Work(context.Background(), job(5)); err == nil || len(runner.failed) != 1 || runner.failed[0] != 7 {
+		t.Fatalf("attempt 5: err %v, failed %v; want lookup 7 marked failed", err, runner.failed)
+	}
+}
+
+func (r *concurrencyRunner) snapshot() (most int, ran int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.most, len(r.ran)
+}
+
+// However many store lookups are queued, the store sees one at a time.
+func TestStoreLookups_RunOneAtATime(t *testing.T) {
+	dsn := testdb.RequireDSN(t)
+	schema := testdb.NewSchemaName(t)
+	gdb := testdb.OpenSchema(t, dsn, schema, true)
+	q, err := New(context.Background(), Config{
+		DSN: dsn, Schema: schema, ImportWorkers: 4, PreviewWorkers: 4,
+		ImportDeps: imports.Deps{DB: gdb}, PreviewDeps: preview.Deps{DB: gdb},
+	})
+	if err != nil {
+		t.Fatalf("new queue: %v", err)
+	}
+	runner := &concurrencyRunner{}
+	q.SetStoreLookupRunner(runner)
+	if err := q.Start(context.Background()); err != nil {
+		t.Fatalf("start queue: %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = q.Stop(ctx)
+	})
+
+	for id := uint(1); id <= 5; id++ {
+		q.StoreLookups().EnqueueStoreLookup(id)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		most, ran := runner.snapshot()
+		if ran == 5 {
+			if most != 1 {
+				t.Fatalf("%d store lookups ran at once, want 1", most)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d of 5 store lookups ran", ran)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }

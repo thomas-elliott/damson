@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +20,11 @@ const (
 	defaultMaxRedirect = 5
 	defaultUserAgent   = "damson-metadata/1.0 (+https://github.com/thomas-elliott/damson)"
 	defaultHostMinGap  = 500 * time.Millisecond
+
+	// A store that answers 429 or 503 is left alone for its Retry-After, or
+	// defaultHostPause when it gives none, and never longer than maxHostPause.
+	defaultHostPause = 60 * time.Second
+	maxHostPause     = 10 * time.Minute
 )
 
 // ErrBlockedAddress is returned when a request resolves to an IP the SSRF
@@ -26,6 +33,18 @@ var ErrBlockedAddress = errors.New("metadata: destination address blocked")
 
 // ErrBodyTooLarge is returned when a response body exceeds the size cap.
 var ErrBodyTooLarge = errors.New("metadata: response body too large")
+
+// RateLimitedError is returned when a host has asked for requests to stop, with
+// a 429 or 503, until Until. Every request to that host fails this way, without
+// being sent, until then.
+type RateLimitedError struct {
+	Host  string
+	Until time.Time
+}
+
+func (e *RateLimitedError) Error() string {
+	return fmt.Sprintf("metadata: %s asked for a pause until %s", e.Host, e.Until.UTC().Format(time.RFC3339))
+}
 
 // Client is the shared outbound HTTP client for all fetchers. It screens
 // destination IPs before dialling (SSRF), caps body size, redirects, and
@@ -45,6 +64,9 @@ type ClientOptions struct {
 	MaxRedirect int
 	UserAgent   string
 	HostMinGap  time.Duration
+	// StoreLookupInterval is the least time between two Registry.Fetch calls
+	// to one store, however many requests each makes.
+	StoreLookupInterval time.Duration
 }
 
 // NewClient builds an SSRF-guarded HTTP client. The custom dialer resolves
@@ -131,7 +153,11 @@ func (c *Client) Do(ctx context.Context, method, rawURL string, body io.Reader, 
 	if req.URL.Host == "" {
 		return nil, errors.New("metadata: URL missing host")
 	}
-	c.limiter.wait(ctx, req.URL.Hostname())
+	host := req.URL.Hostname()
+	c.limiter.wait(ctx, host)
+	if until, paused := c.limiter.pausedUntil(host); paused {
+		return nil, &RateLimitedError{Host: host, Until: until}
+	}
 
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8")
@@ -144,6 +170,13 @@ func (c *Client) Do(ctx context.Context, method, rawURL string, body io.Reader, 
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+		until := time.Now().Add(retryAfter(resp.Header.Get("Retry-After")))
+		c.limiter.pause(host, until)
+		slog.Warn("metadata: host asked for a pause", "host", host, "status", resp.StatusCode, "until", until)
+		return nil, &RateLimitedError{Host: host, Until: until}
+	}
 
 	// One byte past the cap distinguishes an exactly-at-cap body from an over-cap one.
 	limited := io.LimitReader(resp.Body, c.maxBody+1)
@@ -219,16 +252,57 @@ func ipAllowed(ip net.IP) bool {
 	return true
 }
 
+// retryAfter reads a Retry-After header, in seconds or as an HTTP date, and
+// bounds it: absent or unreadable is defaultHostPause, and no pause is longer
+// than maxHostPause.
+func retryAfter(header string) time.Duration {
+	d := defaultHostPause
+	header = strings.TrimSpace(header)
+	if secs, err := strconv.Atoi(header); err == nil && secs > 0 {
+		d = time.Duration(secs) * time.Second
+	} else if at, err := http.ParseTime(header); err == nil && time.Until(at) > 0 {
+		d = time.Until(at)
+	}
+	return min(d, maxHostPause)
+}
+
 // hostLimiter enforces a minimum interval between requests to the same host,
-// shared by the manual endpoints and the import pipeline stage.
+// shared by the manual endpoints and the import pipeline stage, and holds the
+// pauses hosts have asked for.
 type hostLimiter struct {
 	minGap time.Duration
 	mu     sync.Mutex
 	last   map[string]time.Time
+	paused map[string]time.Time
 }
 
 func newHostLimiter(minGap time.Duration) *hostLimiter {
-	return &hostLimiter{minGap: minGap, last: make(map[string]time.Time)}
+	return &hostLimiter{minGap: minGap, last: make(map[string]time.Time), paused: make(map[string]time.Time)}
+}
+
+// pause stops requests to host until until. A shorter pause never cuts an
+// earlier, longer one short.
+func (l *hostLimiter) pause(host string, until time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if until.After(l.paused[host]) {
+		l.paused[host] = until
+	}
+}
+
+// pausedUntil reports whether host is paused now, and until when.
+func (l *hostLimiter) pausedUntil(host string) (time.Time, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	until, ok := l.paused[host]
+	if !ok {
+		return time.Time{}, false
+	}
+	if !time.Now().Before(until) {
+		delete(l.paused, host)
+		return time.Time{}, false
+	}
+	return until, true
 }
 
 // wait blocks until this host is allowed another request, or ctx expires. It

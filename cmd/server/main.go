@@ -112,7 +112,7 @@ func main() {
 
 	previewBroadcaster := preview.NewBroadcaster()
 	broadcaster := imports.NewBroadcaster()
-	metaRegistry := metadata.Default(metadata.ClientOptions{})
+	metaRegistry := metadata.Default(metadata.ClientOptions{StoreLookupInterval: cfg.StoreLookupInterval})
 
 	// River-backed job queue. queue.New wires the import→preview handoff through
 	// River internally, so imports enqueue preview work on the preview queue.
@@ -130,15 +130,8 @@ func main() {
 		slog.Error("queue init", "err", err)
 		os.Exit(1)
 	}
-	// Start with a long-lived context: cancelling Start's context soft-stops the
-	// client, so shutdown is driven by Stop below, not by startupCtx expiring.
-	if err := jobQueue.Start(context.Background()); err != nil {
-		slog.Error("queue start", "err", err)
-		os.Exit(1)
-	}
 	importEnqueuer := jobQueue.Imports()
 	previewEnqueuer := jobQueue.Previews()
-	slog.Info("job queue started", "import_workers", cfg.ImportQueueWorkers, "preview_workers", cfg.PreviewQueueWorkers)
 
 	// Reconcile: re-enqueue any non-terminal domain row without a live job.
 	// Idempotent (River dedupes by args), so it's safe every boot and covers the
@@ -180,12 +173,29 @@ func main() {
 		PreviewPool:        previewEnqueuer,
 		PreviewBroadcaster: previewBroadcaster,
 		Metadata:           metaRegistry,
+		StoreLookups:       jobQueue.StoreLookups(),
 		OrphanMinAge:       cfg.OrphanMinAge,
 		// Echoed to the SPA on /api/auth/mode in OIDC mode (empty in local).
 		OIDCAuthority: cfg.OIDCIssuerURL,
 		OIDCClientID:  cfg.OIDCClientID,
 	})
 	api.AddRoutes(apiGroup, auth.Middleware(authenticator, auth.NewTokenAuthenticator(gormDB)), h)
+
+	// The queue starts only now: store lookup jobs run through the handler,
+	// which is built after the queue it enqueues on. Start with a long-lived
+	// context: cancelling Start's context soft-stops the client, so shutdown is
+	// driven by Stop below, not by startupCtx expiring.
+	jobQueue.SetStoreLookupRunner(h)
+	if err := jobQueue.Start(context.Background()); err != nil {
+		slog.Error("queue start", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("job queue started", "import_workers", cfg.ImportQueueWorkers, "preview_workers", cfg.PreviewQueueWorkers)
+	if resumed, err := h.ResumeStoreLookups(startupCtx); err != nil {
+		slog.Warn("store lookup reconcile failed", "err", err)
+	} else if resumed > 0 {
+		slog.Info("store lookup reconcile", "enqueued", resumed)
+	}
 
 	if err := damsonweb.Mount(r); err != nil {
 		slog.Error("mount spa", "err", err)

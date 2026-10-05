@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/thomas-elliott/damson/internal/axi"
@@ -18,15 +19,13 @@ import (
 // purchasesFlags are the controls for `dmsn purchases`, the steps an agent runs
 // to catalogue the Unity Asset Store purchase list.
 type purchasesFlags struct {
-	cache    string
-	out      string
-	interval time.Duration
+	cache string
+	out   string
 }
 
 func (f *purchasesFlags) register(fs *flag.FlagSet) {
 	fs.StringVar(&f.cache, "cache", "", "read: the Unity Editor's HTTP cache file, when it isn't in the usual place")
 	fs.StringVar(&f.out, "out", "", "read, plan: the file to write")
-	fs.DurationVar(&f.interval, "interval", defaultSearchInterval, "record: pause between one store lookup and the next")
 }
 
 func init() {
@@ -36,12 +35,13 @@ func init() {
 		summary: "catalogue the Unity Asset Store purchase list as reference assets",
 		usage: "usage: dmsn purchases read --out <purchases.tsv> [--cache PATH]\n" +
 			"       dmsn purchases plan <purchases.tsv> --out <plan.tsv>\n" +
-			"       dmsn purchases record <plan.tsv> [--interval 2s]\n\n" +
+			"       dmsn purchases record <plan.tsv>\n\n" +
 			"  read   read the purchase list from the Unity Editor's HTTP cache, with\n" +
 			"         no network call, and report how many of its total were found\n" +
 			"  plan   match each purchase against the library and draft the plan\n" +
 			"  record record an approved plan, marking everything it changes\n" +
-			"         Needs review, with store lookups spaced --interval apart\n\n" +
+			"         Needs review. The server looks each link up in the\n" +
+			"         background; follow it with dmsn bulk refresh --batch <id>\n\n" +
 			"A plan is a tab-separated file with the header\n" +
 			"  " + strings.Join(purchasePlanColumns, "\t") + "\n" +
 			"one row per purchase. action is one of: " + strings.Join(purchaseActions, ", ") + ".\n" +
@@ -395,15 +395,12 @@ func readPurchasePlan(path string) ([]purchasePlanRow, error) {
 // reference asset with its link; a matched asset with no link gains it, and
 // one whose link differs keeps it unless the row says swap. Everything
 // recorded or changed is marked Needs review; an asset already on the
-// purchase's listing is left exactly as it is. Every call that makes the
-// server look the listing up waits --interval after the one before, so a run
-// over hundreds of purchases isn't throttled by the store.
+// purchase's listing is left exactly as it is. Each row is one quick request:
+// the server queues its store lookup in one batch for the run and paces the
+// lookups itself, so a slow store never makes a row fail.
 func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 	if len(e.Args) != 2 {
 		return axi.Usagef([]string{"dmsn purchases record plan.tsv"}, "purchases record takes one plan file")
-	}
-	if f.interval < 0 {
-		return axi.Usagef(nil, "--interval cannot be negative")
 	}
 	rows, err := readPurchasePlan(e.Args[1])
 	if err != nil {
@@ -424,21 +421,13 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 		links[a.AssetID] = a.SourceURL
 	}
 
-	// Set after each call that may have looked the store up. A link the library
-	// already holds is answered without a lookup, so a rerun doesn't wait on it.
-	var lastLookup time.Time
-	pace := func() error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Until(lastLookup.Add(f.interval))):
-			return nil
-		}
-	}
+	// The run's lookups share one batch, which the first queued lookup creates.
+	var batchID uint
+	queued := 0
 
 	counts := map[string]int{}
 	report := []map[string]any{}
-	add := func(row purchasePlanRow, outcome string, assetID uint, detail string) {
+	add := func(i int, row purchasePlanRow, outcome string, assetID uint, detail string) {
 		counts[outcome]++
 		var id, d any
 		if assetID != 0 {
@@ -448,41 +437,36 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 			d = detail
 		}
 		report = append(report, map[string]any{"package_id": row.ID, "name": row.Name, "outcome": outcome, "asset_id": id, "detail": d})
+		fmt.Fprintf(progressOut, "record %d of %d: %s %s: %s\n", i+1, len(rows), row.ID, row.Name, outcome)
 	}
 
-	for _, row := range rows {
+	for i, row := range rows {
 		switch row.Action {
 		case actionDropped:
-			counts["dropped"]++
+			add(i, row, "dropped", 0, "")
 			continue
 		case actionNew:
-			if err := pace(); err != nil {
-				return err
-			}
 			var out struct {
-				Outcome        string `json:"outcome"`
-				AssetID        uint   `json:"asset_id"`
-				MetadataFailed bool   `json:"metadata_failed"`
+				Outcome       string `json:"outcome"`
+				AssetID       uint   `json:"asset_id"`
+				LookupBatchID uint   `json:"lookup_batch_id"`
 			}
-			body := map[string]any{"source_url": row.Link, "name": row.Name, "needs_review": true}
-			err := client.PostJSON(ctx, "/api/assets/references", body, &out)
-			if out.Outcome != "exists" {
-				lastLookup = time.Now()
+			body := map[string]any{
+				"source_url": row.Link, "name": row.Name, "needs_review": true,
+				"queue_lookup": true, "lookup_batch_id": batchID,
 			}
-			if err != nil {
+			if err := client.PostJSON(ctx, "/api/assets/references", body, &out); err != nil {
 				if failsEveryRow(err) {
 					return err
 				}
-				add(row, "failed", 0, axi.AsError(err).Message)
+				add(i, row, "failed", 0, rowError(err))
 				continue
 			}
-			outcome := firstNonEmpty(recordOutcomes[out.Outcome], out.Outcome)
-			detail := ""
-			if out.MetadataFailed {
-				counts["no_store_data"]++
-				detail = "store lookup failed: linked, but no store metadata or cover"
+			if out.LookupBatchID != 0 {
+				batchID = out.LookupBatchID
+				queued++
 			}
-			add(row, outcome, out.AssetID, detail)
+			add(i, row, firstNonEmpty(recordOutcomes[out.Outcome], out.Outcome), out.AssetID, "")
 			continue
 		}
 
@@ -490,35 +474,29 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 		current, ok := links[row.AssetID]
 		switch {
 		case !ok:
-			add(row, "failed", row.AssetID, "no such asset in this library")
+			add(i, row, "failed", row.AssetID, "no such asset in this library")
 			continue
 		case current != "" && sameListing(current, row.Link):
-			add(row, "unchanged", row.AssetID, "")
+			add(i, row, "unchanged", row.AssetID, "")
 			continue
 		case current != "" && row.Action == actionMatched:
-			add(row, "kept", row.AssetID, "kept its own link "+current)
+			add(i, row, "kept", row.AssetID, "kept its own link "+current)
 			continue
 		}
 		outcome := "linked"
 		if current != "" {
 			outcome = "swapped"
 		}
-		noStoreData, err := linkAsset(ctx, client, row.AssetID, row.Link, current != "", pace)
-		lastLookup = time.Now()
-		if err != nil {
+		if err := linkAsset(ctx, client, row.AssetID, row.Link, current != "", &batchID); err != nil {
 			if failsEveryRow(err) {
 				return err
 			}
-			add(row, "failed", row.AssetID, axi.AsError(err).Message)
+			add(i, row, "failed", row.AssetID, rowError(err))
 			continue
 		}
+		queued++
 		links[row.AssetID] = row.Link
-		detail := ""
-		if noStoreData != "" {
-			counts["no_store_data"]++
-			detail = "store lookup failed: linked, but no store metadata or cover (" + noStoreData + ")"
-		}
-		add(row, outcome, row.AssetID, detail)
+		add(i, row, outcome, row.AssetID, "")
 	}
 
 	table := axi.Table{
@@ -526,7 +504,7 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 		Truncatable: []string{"detail"}, Rows: report, Total: -1,
 		EmptyNote: "every row was dropped",
 	}
-	summary := Block{Key: "record", Fields: []toon.KV{
+	fields := []toon.KV{
 		{Key: "rows", Value: len(rows)},
 		{Key: "added", Value: counts[recordOutcomes["created"]]},
 		{Key: "already_in_library", Value: counts[recordOutcomes["exists"]]},
@@ -536,10 +514,23 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 		{Key: "kept_own_link", Value: counts["kept"]},
 		{Key: "dropped", Value: counts["dropped"]},
 		{Key: "failed", Value: counts["failed"]},
-		{Key: "no_store_data", Value: counts["no_store_data"]},
-	}}
+		{Key: "store_lookups_queued", Value: queued},
+	}
 	help := []string{"dmsn assets --needs-review"}
-	if err := axi.RenderComposite(e.Out, []Block{summary}, nil, []axi.Table{table}, help, e.Globals.options()); err != nil {
+	if batchID != 0 {
+		// The lookups run on after record returns; the batch is where their
+		// outcome, no_store_data included, is counted.
+		fields = append(fields, toon.KV{Key: "lookup_batch", Value: batchID})
+		var b lookupBatch
+		if err := client.GetJSON(ctx, batchPath(batchID), nil, &b); err == nil {
+			fields = append(fields,
+				toon.KV{Key: "lookups_still_queued", Value: b.Queued},
+				toon.KV{Key: "no_store_data_so_far", Value: b.NoStoreData},
+				toon.KV{Key: "lookups_failed_so_far", Value: b.Failed})
+		}
+		help = append([]string{fmt.Sprintf("dmsn bulk refresh --batch %d", batchID)}, help...)
+	}
+	if err := axi.RenderComposite(e.Out, []Block{{Key: "record", Fields: fields}}, nil, []axi.Table{table}, help, e.Globals.options()); err != nil {
 		return err
 	}
 	if counts["failed"] > 0 {
@@ -549,37 +540,61 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 	return nil
 }
 
+// rowError is what a failed row reports. A row that timed out may still have
+// been recorded, and recording again is safe, so it says to rerun.
+func rowError(err error) string {
+	var notQueued *lookupNotQueuedError
+	if errors.As(err, &notQueued) {
+		return notQueued.Error()
+	}
+	var netErr net.Error
+	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
+		return "timed out: this row may have been recorded; rerun the plan, and a rerun answers exists for anything already recorded"
+	}
+	return axi.AsError(err).Message
+}
+
 // linkAsset marks an existing asset Needs review, sets its store link, then
-// asks the server to look the listing up and fill the asset's blank fields.
-// Needs review comes first: an asset linked but not flagged would read as
-// unchanged on a rerun and never be flagged. The link is set before the lookup
-// so a failed lookup still leaves the asset linked, as a new reference asset
-// is; that failure comes back as noStoreData, not err.
+// asks the server to queue a lookup of the listing in the run's batch, which
+// fills the asset's blank fields. Needs review comes first: an asset linked
+// but not flagged would read as unchanged on a rerun and never be flagged.
 //
 // A swap also blanks the old store's name, product ID and version: the lookup
 // fills only blank fields, so without this the asset would keep the old
 // store's identity beside its new Unity link.
-func linkAsset(ctx context.Context, client *Client, assetID uint, link string, swap bool, pace func() error) (noStoreData string, err error) {
+func linkAsset(ctx context.Context, client *Client, assetID uint, link string, swap bool, batchID *uint) error {
 	id := strconv.FormatUint(uint64(assetID), 10)
 	review := map[string]any{"asset_ids": []uint{assetID}, "action": "unreview"}
 	if err := client.PostJSON(ctx, "/api/assets/bulk", review, nil); err != nil {
-		return "", err
+		return err
 	}
 	patch := map[string]any{"source_url": link}
 	if swap {
 		patch["store"], patch["store_product_id"], patch["latest_store_version"] = "", "", ""
 	}
 	if err := client.PatchJSON(ctx, "/api/assets/"+id, patch, nil); err != nil {
-		return "", err
+		return err
 	}
-	if err := pace(); err != nil {
-		return "", err
+	var b lookupBatch
+	lookup := map[string]any{"asset_ids": []uint{assetID}, "batch_id": *batchID}
+	if err := client.PostJSON(ctx, "/api/store-lookups", lookup, &b); err != nil {
+		return &lookupNotQueuedError{assetID: assetID, err: err}
 	}
-	if err := client.PostJSON(ctx, "/api/assets/"+id+"/metadata/fetch", nil, nil); err != nil {
-		if failsEveryRow(err) {
-			return "", err
-		}
-		return axi.AsError(err).Message, nil
-	}
-	return "", nil
+	*batchID = b.BatchID
+	return nil
 }
+
+// lookupNotQueuedError is a row whose link was set but whose lookup wasn't
+// queued. A rerun would find the asset on its link, answer unchanged and queue
+// nothing, so the row says how to look the asset up instead.
+type lookupNotQueuedError struct {
+	assetID uint
+	err     error
+}
+
+func (e *lookupNotQueuedError) Error() string {
+	return fmt.Sprintf("linked, but its store lookup was not queued (%s); run dmsn bulk refresh --assets %d",
+		axi.AsError(e.err).Message, e.assetID)
+}
+
+func (e *lookupNotQueuedError) Unwrap() error { return e.err }
