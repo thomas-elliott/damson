@@ -49,18 +49,18 @@ func (r *unityEntityRef) key() string {
 }
 
 type unityProduct struct {
-	ID                     string              `json:"id"`
-	ProductID              string              `json:"productId"`
-	Slug                   string              `json:"slug"`
-	Name                   string              `json:"name"`
-	Description            string              `json:"description"`
-	AssetCount             int                 `json:"assetCount"`
-	DownloadSize           string              `json:"downloadSize"`
-	ReviewCount            int                 `json:"reviewCount"`
-	PackageType            string              `json:"packageType"`
+	ID           string `json:"id"`
+	ProductID    string `json:"productId"`
+	Slug         string `json:"slug"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	AssetCount   int    `json:"assetCount"`
+	DownloadSize string `json:"downloadSize"`
+	ReviewCount  int    `json:"reviewCount"`
+	PackageType  string `json:"packageType"`
 	// State is "published" for a live listing and "deprecated" for one the
 	// store has withdrawn.
-	State string `json:"state"`
+	State                  string              `json:"state"`
 	PublishNotes           string              `json:"publishNotes"`
 	LicenseText            string              `json:"licenseText"`
 	CustomLicense          bool                `json:"customLicense"`

@@ -2,6 +2,8 @@ package metadata
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -135,5 +137,38 @@ func TestUnityFetch_LiveListingClearsDeprecated(t *testing.T) {
 	}
 	if md.Price == "" {
 		t.Fatal("a live listing keeps its price")
+	}
+}
+
+type failingFetcher struct{}
+
+func (failingFetcher) Fetch(context.Context, *Client, string) (*Metadata, error) {
+	return nil, errors.New("adapter broke")
+}
+
+// When a store's adapter fails and the generic scraper answers, the answer is
+// kept but marked, so callers can report the store lookup as failed.
+func TestRegistryFetch_MarksGenericFallback(t *testing.T) {
+	page := []byte(`<html><head><meta property="og:title" content="Some Pack"></head></html>`)
+	r := NewRegistry(fakeStoreClient(t, ClientOptions{HostMinGap: time.Millisecond},
+		func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(page) }))
+	r.RegisterHost("store.example.com", failingFetcher{})
+
+	md, err := r.Fetch(context.Background(), "https://store.example.com/pack")
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if !md.StoreLookupFailed || md.Title != "Some Pack" {
+		t.Fatalf("got title %q failed=%v, want the scraped title marked failed", md.Title, md.StoreLookupFailed)
+	}
+
+	// A host with no adapter is answered by the scraper as a matter of course,
+	// which is not a failure.
+	md, err = r.Fetch(context.Background(), "https://other.example.com/pack")
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if md.StoreLookupFailed {
+		t.Fatal("a generic host's answer must not be marked as a failed store lookup")
 	}
 }

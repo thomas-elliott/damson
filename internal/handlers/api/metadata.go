@@ -161,6 +161,9 @@ type metadataFetchResponse struct {
 	Fetched    *metadataView      `json:"fetched"`
 	Applied    []string           `json:"applied"`
 	Conflicts  []metadataConflict `json:"conflicts"`
+	// StoreLookupFailed says the store's adapter failed and the generic
+	// scraper answered; what it read is applied all the same.
+	StoreLookupFailed bool `json:"store_lookup_failed,omitempty"`
 }
 
 type metadataFetchRequest struct {
@@ -245,6 +248,8 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 		Fetched:    metadataViewFrom(meta),
 		Applied:    applied,
 		Conflicts:  conflicts,
+
+		StoreLookupFailed: meta.StoreLookupFailed,
 	})
 }
 

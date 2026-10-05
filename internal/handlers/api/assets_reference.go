@@ -59,7 +59,8 @@ type referenceRecordResponse struct {
 	LocationPath string `json:"location_path,omitempty"`
 	SourceURL    string `json:"source_url,omitempty"`
 	// MetadataFailed says the store lookup for the link failed, so the asset
-	// has its link but no store metadata or cover.
+	// has its link but not the store's details: none at all, or only what the
+	// generic scraper read from the page.
 	MetadataFailed bool `json:"metadata_failed,omitempty"`
 }
 
@@ -189,7 +190,10 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 			slog.Warn("reference: store lookup failed", "url", link, "err", ferr, "library_id", lib.ID)
 			metadataFailed = true
 		} else {
+			// A generic-scraper answer still fills blanks, but it isn't the
+			// store's details, so it is reported as a failed lookup.
 			meta = m
+			metadataFailed = m.StoreLookupFailed
 		}
 	}
 
