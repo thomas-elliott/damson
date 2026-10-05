@@ -346,6 +346,7 @@ export interface AssetDetailView {
   price_currency?: string;
   rating?: number;
   rating_count?: number;
+  store_deprecated?: boolean;
   update_available?: boolean;
   licence?: LicenceView;
   source_metadata?: SourceMetadataView;

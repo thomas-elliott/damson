@@ -639,3 +639,49 @@ func TestMetadataApply_ConfirmsStorefrontField(t *testing.T) {
 		t.Fatalf("audit diff does not record the previous publisher: %s", entry.DiffJSON)
 	}
 }
+
+// The deprecated flag is the store's state, so a plain Fetch metadata sets it
+// and a later one that finds the listing live clears it, even though neither
+// may overwrite a field a person could have written.
+func TestMetadataFetch_SetsAndClearsStoreDeprecated(t *testing.T) {
+	h, db := newTestHandler(t)
+	deprecated := true
+	fake := &fakeMetadata{meta: &metadata.Metadata{Store: metadata.StoreUnity, StoreDeprecated: &deprecated}}
+	h.metadata = fake
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "pack")
+	r := setupRouter(h, u)
+	url := map[string]any{"url": "https://assetstore.unity.com/packages/slug/32351"}
+
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", url), http.StatusOK)
+	w := performRequest(r, http.MethodGet, "/api/assets/1", nil)
+	requireStatus(t, w, http.StatusOK)
+	if got := jsonResponse[map[string]any](t, w)["store_deprecated"]; got != true {
+		t.Fatalf("store_deprecated = %v after a deprecated lookup, want true", got)
+	}
+
+	live := false
+	fake.meta = &metadata.Metadata{Store: metadata.StoreUnity, StoreDeprecated: &live}
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil), http.StatusOK)
+	var stored models.Asset
+	if err := db.First(&stored, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.StoreDeprecated {
+		t.Fatal("a lookup that found the listing live must clear store_deprecated")
+	}
+
+	// A lookup that couldn't tell (no listing page read) leaves the flag alone.
+	if err := db.Model(&stored).Update("store_deprecated", true).Error; err != nil {
+		t.Fatal(err)
+	}
+	fake.meta = &metadata.Metadata{Store: metadata.StoreUnity}
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/assets/1/metadata/fetch", nil), http.StatusOK)
+	if err := db.First(&stored, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !stored.StoreDeprecated {
+		t.Fatal("a lookup with no deprecated state must leave the flag as it was")
+	}
+}

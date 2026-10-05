@@ -58,6 +58,7 @@ type assetDetailResponse struct {
 	PriceCurrency      string     `json:"price_currency"`
 	Rating             *float64   `json:"rating"`
 	RatingCount        *int       `json:"rating_count"`
+	StoreDeprecated    bool       `json:"store_deprecated"`
 	Licence            *struct {
 		DetectedType string `json:"detected_type"`
 		Status       string `json:"status"`
@@ -327,6 +328,7 @@ func runAsset(ctx context.Context, e *Env) error {
 		{Key: "rating_count", Value: orNil(a.RatingCount)},
 		{Key: "publisher_url", Value: blankToNil(a.PublisherURL)},
 		{Key: "store_product_id", Value: blankToNil(a.StoreProductID)},
+		{Key: "store_deprecated", Value: a.StoreDeprecated},
 		{Key: "licence", Value: licenceValue(a)},
 		{Key: "created_at", Value: a.CreatedAt},
 		{Key: "updated_at", Value: a.UpdatedAt},

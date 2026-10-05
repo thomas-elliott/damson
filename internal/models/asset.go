@@ -13,19 +13,21 @@ type Asset struct {
 	SourceURL          string
 	SourceMetadataJSON json.RawMessage `gorm:"type:jsonb"`
 	// Storefront metadata promoted to first-class columns (migration 019).
-	Publisher            *string
-	PublisherURL         *string
-	Store                *string
-	StoreProductID       *string
-	ReleasedAt           *time.Time
-	StoreUpdatedAt       *time.Time
-	LatestStoreVersion   *string
-	Engine               *string
-	MinEngineVersion     *string
-	Price                *string
-	PriceCurrency        *string
-	Rating               *float64 `gorm:"type:numeric(3,2)"`
-	RatingCount          *int
+	Publisher          *string
+	PublisherURL       *string
+	Store              *string
+	StoreProductID     *string
+	ReleasedAt         *time.Time
+	StoreUpdatedAt     *time.Time
+	LatestStoreVersion *string
+	Engine             *string
+	MinEngineVersion   *string
+	Price              *string
+	PriceCurrency      *string
+	Rating             *float64 `gorm:"type:numeric(3,2)"`
+	RatingCount        *int
+	// StoreDeprecated says the store has deprecated the listing (migration 025).
+	StoreDeprecated      bool `gorm:"not null;default:false"`
 	LicenceID            *uint
 	CurrentVersionID     *uint
 	ThumbnailObjectKey   string
