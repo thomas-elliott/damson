@@ -328,10 +328,9 @@ func (h *Handler) getAssetLocations(c *gin.Context) {
 		Select("id AS asset_id, location_path").
 		Where("library_id = ? AND location_path IS NOT NULL", lib.ID)
 	if under != "" && under != "/" {
-		// A prefix compare rather than LIKE, so the `_` common in pack names
-		// isn't read as a wildcard.
-		q = q.Where("(location_path = ? OR left(location_path, ?) = ?)",
-			under, len(under)+1, under+"/")
+		// starts_with rather than LIKE, so the `_` common in pack names isn't
+		// read as a wildcard.
+		q = q.Where("(location_path = ? OR starts_with(location_path, ?))", under, under+"/")
 	}
 	locations := []recordedLocation{}
 	if err := q.Order("location_path").Scan(&locations).Error; err != nil {
