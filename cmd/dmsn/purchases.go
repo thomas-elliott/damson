@@ -189,7 +189,6 @@ type assetLinksResponse struct {
 type recordedAsset struct {
 	AssetID        uint   `json:"asset_id"`
 	Name           string `json:"name"`
-	Publisher      string `json:"publisher"`
 	SourceURL      string `json:"source_url"`
 	Store          string `json:"store"`
 	StoreProductID string `json:"store_product_id"`
@@ -425,17 +424,16 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 		links[a.AssetID] = a.SourceURL
 	}
 
-	lookups := 0
+	// Set after each call that may have looked the store up. A link the library
+	// already holds is answered without a lookup, so a rerun doesn't wait on it.
+	var lastLookup time.Time
 	pace := func() error {
-		if lookups > 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(f.interval):
-			}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Until(lastLookup.Add(f.interval))):
+			return nil
 		}
-		lookups++
-		return nil
 	}
 
 	counts := map[string]int{}
@@ -467,7 +465,11 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 				MetadataFailed bool   `json:"metadata_failed"`
 			}
 			body := map[string]any{"source_url": row.Link, "name": row.Name, "needs_review": true}
-			if err := client.PostJSON(ctx, "/api/assets/references", body, &out); err != nil {
+			err := client.PostJSON(ctx, "/api/assets/references", body, &out)
+			if out.Outcome != "exists" {
+				lastLookup = time.Now()
+			}
+			if err != nil {
 				if failsEveryRow(err) {
 					return err
 				}
@@ -501,7 +503,8 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 		if current != "" {
 			outcome = "swapped"
 		}
-		noStoreData, err := linkAsset(ctx, client, row.AssetID, row.Link, pace)
+		noStoreData, err := linkAsset(ctx, client, row.AssetID, row.Link, current != "", pace)
+		lastLookup = time.Now()
 		if err != nil {
 			if failsEveryRow(err) {
 				return err
@@ -552,13 +555,21 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 // unchanged on a rerun and never be flagged. The link is set before the lookup
 // so a failed lookup still leaves the asset linked, as a new reference asset
 // is; that failure comes back as noStoreData, not err.
-func linkAsset(ctx context.Context, client *Client, assetID uint, link string, pace func() error) (noStoreData string, err error) {
+//
+// A swap also blanks the old store's name, product ID and version: the lookup
+// fills only blank fields, so without this the asset would keep the old
+// store's identity beside its new Unity link.
+func linkAsset(ctx context.Context, client *Client, assetID uint, link string, swap bool, pace func() error) (noStoreData string, err error) {
 	id := strconv.FormatUint(uint64(assetID), 10)
 	review := map[string]any{"asset_ids": []uint{assetID}, "action": "unreview"}
 	if err := client.PostJSON(ctx, "/api/assets/bulk", review, nil); err != nil {
 		return "", err
 	}
-	if err := client.PatchJSON(ctx, "/api/assets/"+id, map[string]any{"source_url": link}, nil); err != nil {
+	patch := map[string]any{"source_url": link}
+	if swap {
+		patch["store"], patch["store_product_id"], patch["latest_store_version"] = "", "", ""
+	}
+	if err := client.PatchJSON(ctx, "/api/assets/"+id, patch, nil); err != nil {
 		return "", err
 	}
 	if err := pace(); err != nil {
