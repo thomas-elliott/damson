@@ -61,6 +61,8 @@ func runPurchases(ctx context.Context, e *Env, f *purchasesFlags) error {
 		return axi.Usagef(usage, "purchases needs a subcommand: read, plan or record")
 	}
 	switch e.Args[0] {
+	case "read":
+		return runPurchasesRead(ctx, e, f)
 	case "plan":
 		return runPurchasesPlan(ctx, e, f)
 	case "record":
