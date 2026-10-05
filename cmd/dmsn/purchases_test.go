@@ -171,8 +171,8 @@ func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
 	want := []string{
 		"GET /api/assets/links",
 		"POST /api/assets/references", "POST /api/assets/references",
-		"PATCH /api/assets/1", "POST /api/assets/bulk", "POST /api/assets/1/metadata/fetch",
-		"PATCH /api/assets/4", "POST /api/assets/bulk", "POST /api/assets/4/metadata/fetch",
+		"POST /api/assets/bulk", "PATCH /api/assets/1", "POST /api/assets/1/metadata/fetch",
+		"POST /api/assets/bulk", "PATCH /api/assets/4", "POST /api/assets/4/metadata/fetch",
 	}
 	if !slices.Equal(lib.calls, want) {
 		t.Fatalf("calls =\n%s\nwant\n%s", strings.Join(lib.calls, "\n"), strings.Join(want, "\n"))
@@ -180,10 +180,10 @@ func TestPurchasesRecord_RecordsWhatEachRowSays(t *testing.T) {
 	if b := lib.bodies[1]; b["needs_review"] != true || b["name"] != "Brand New" || b["source_url"] != unityListingLink("100") {
 		t.Errorf("new purchase body = %v", b)
 	}
-	if b := lib.bodies[3]; b["source_url"] != unityListingLink("102") {
+	if b := lib.bodies[4]; b["source_url"] != unityListingLink("102") {
 		t.Errorf("link body = %v", b)
 	}
-	if b := lib.bodies[4]; b["action"] != "unreview" || fmt.Sprint(b["asset_ids"]) != "[1]" {
+	if b := lib.bodies[3]; b["action"] != "unreview" || fmt.Sprint(b["asset_ids"]) != "[1]" {
 		t.Errorf("Needs review body = %v", b)
 	}
 	for _, s := range []string{"added: 2", "linked: 1", "swapped: 1", "unchanged: 1", "kept_own_link: 1",
