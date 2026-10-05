@@ -34,6 +34,10 @@ func (f *fakeMetadata) Fetch(_ context.Context, rawURL string) (*metadata.Metada
 	return f.meta, f.fetchErr
 }
 
+func (f *fakeMetadata) FetchWaiting(ctx context.Context, rawURL string) (*metadata.Metadata, error) {
+	return f.Fetch(ctx, rawURL)
+}
+
 func (f *fakeMetadata) FetchImage(_ context.Context, _ string) ([]byte, string, error) {
 	return f.img, f.imgCT, f.imgErr
 }

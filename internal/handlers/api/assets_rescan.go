@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -205,14 +206,14 @@ func (h *Handler) rescanThumbnail(c *gin.Context, libraryID uint, asset *models.
 			if gerr != nil {
 				slog.Warn("rescan: generate thumbnail", "err", gerr, "path", candidate.RelativePath)
 			} else if res.ObjectKey != "" {
-				return h.setThumbnail(c, asset, res.ObjectKey, res.ContentType, false)
+				return h.setThumbnail(c.Request.Context(), asset, res.ObjectKey, res.ContentType, false)
 			}
 		}
 	}
 
 	// Fallback: reuse a rendered preview derivative as the card thumbnail.
 	if pv := pickPreviewDerivative(files); pv != nil {
-		return h.setThumbnail(c, asset, pv.PreviewObjectKey, pv.PreviewContentType, false)
+		return h.setThumbnail(c.Request.Context(), asset, pv.PreviewObjectKey, pv.PreviewContentType, false)
 	}
 	return false
 }
@@ -220,8 +221,8 @@ func (h *Handler) rescanThumbnail(c *gin.Context, libraryID uint, asset *models.
 // setThumbnail persists the asset's thumbnail pointer (and whether it came from
 // a storefront cover) and mirrors it onto the in-memory asset so a follow-on
 // audit diff sees the new value.
-func (h *Handler) setThumbnail(c *gin.Context, asset *models.Asset, key, contentType string, fromStore bool) bool {
-	if err := h.db.WithContext(c.Request.Context()).Model(asset).
+func (h *Handler) setThumbnail(ctx context.Context, asset *models.Asset, key, contentType string, fromStore bool) bool {
+	if err := h.db.WithContext(ctx).Model(asset).
 		Where("id = ?", asset.ID).
 		Updates(map[string]any{
 			"thumbnail_object_key":   key,
