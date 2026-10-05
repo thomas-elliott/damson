@@ -36,6 +36,9 @@ type assetGridRow struct {
 	ReleasedAt         *time.Time `json:"released_at,omitempty"`
 	UpdateAvailable    bool       `json:"update_available,omitempty"`
 	IsReference        bool       `json:"is_reference,omitempty"`
+	Store              string     `json:"store,omitempty"`
+	SourceURL          string     `json:"source_url,omitempty"`
+	StoreDeprecated    bool       `json:"store_deprecated,omitempty"`
 }
 
 type assetListResponse struct {
@@ -305,6 +308,9 @@ func (h *Handler) getAssets(c *gin.Context) {
 		LatestStoreVersion *string
 		StoreVersions      string
 		IsReference        bool
+		Store              *string
+		SourceURL          string
+		StoreDeprecated    bool
 	}
 	var rows []row
 	err := base.Session(&gorm.Session{}).
@@ -315,6 +321,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		// Subqueries are immune to both.
 		Select(`a.id, a.name, a.needs_review, a.created_at, a.thumbnail_object_key,
 			a.publisher, a.released_at, a.latest_store_version, a.is_reference,
+			a.store, a.source_url, a.store_deprecated,
 			COALESCE((SELECT string_agg(v3.store_version, ',') FROM asset_versions v3
 				WHERE v3.asset_id = a.id AND v3.store_version <> ''), '') AS store_versions,
 			COALESCE((SELECT COUNT(*) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS file_count,
@@ -358,6 +365,9 @@ func (h *Handler) getAssets(c *gin.Context) {
 			ReleasedAt:         r.ReleasedAt,
 			UpdateAvailable:    updateAvailable,
 			IsReference:        r.IsReference,
+			Store:              derefString(r.Store),
+			SourceURL:          r.SourceURL,
+			StoreDeprecated:    r.StoreDeprecated,
 		})
 	}
 

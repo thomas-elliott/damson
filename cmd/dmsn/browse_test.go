@@ -501,3 +501,19 @@ func TestAsset_DetailShowsAReferenceAssetsLocation(t *testing.T) {
 		t.Fatalf("detail should show the location:\n%s", out)
 	}
 }
+
+func TestAssets_StoreFieldsCanBeShown(t *testing.T) {
+	isolate(t)
+	body := `{"assets":[{"id":7,"name":"Standard Assets","store":"unity",
+	  "source_url":"https://assetstore.unity.com/packages/slug/32351","store_deprecated":true}],"total":1}`
+	withServer(t, map[string]http.HandlerFunc{"/api/assets": serveJSON(nil, body)})
+
+	out, code := exec(t, "assets", "--fields", "id,name,store,source_url,store_deprecated")
+	if code != axi.ExitOK {
+		t.Fatalf("exit = %d: %s", code, out)
+	}
+	if !strings.Contains(out, "{id,name,store,source_url,store_deprecated}") ||
+		!strings.Contains(out, `7,Standard Assets,unity,"https://assetstore.unity.com/packages/slug/32351",true`) {
+		t.Fatalf("store fields missing:\n%s", out)
+	}
+}

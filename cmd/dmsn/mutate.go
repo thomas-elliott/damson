@@ -88,9 +88,13 @@ func init() {
 			"       dmsn asset record [--location-path PATH] [--source-url URL] [--name NAME]\n" +
 			"                         [--publisher NAME] [--tags A,B] [--needs-review]\n" +
 			"       dmsn asset review|unreview <id>\n" +
+			"       dmsn asset refresh <id>\n" +
 			"       dmsn asset tag|untag <id> <path>...\n" +
 			"       dmsn asset rm <id> --yes\n\n" +
 			"editable: " + strings.Join(editableFields, ", ") + "\n\n" +
+			"refresh looks the store link up again and waits for the result. It\n" +
+			"fills blanks and replaces what the last lookup wrote, keeping and\n" +
+			"reporting any field a person changed.\n\n" +
 			"review, tag and untag are idempotent and report whether anything\n" +
 			"changed. rm is destructive and requires --yes.\n\n" +
 			"record adds an asset by where it lives, with nothing imported: a path,\n" +
@@ -151,20 +155,38 @@ func init() {
 	})
 
 	var bulkAssets, bulkTag string
-	var bulkYes bool
+	var bulkYes, bulkNoWait bool
+	var bulkBatch uint
+	bulkFilters := &assetFilters{}
 	register(&command{
 		name:    "bulk",
 		summary: "apply one action to many assets",
 		usage: "usage: dmsn bulk tag|untag --assets 1,2,3 --tag <path>\n" +
 			"       dmsn bulk review|unreview --assets 1,2,3\n" +
-			"       dmsn bulk rm --assets 1,2,3 --yes\n\n" +
-			"One transaction, audited, capped at 1000 assets. Reports `affected`.",
+			"       dmsn bulk rm --assets 1,2,3 --yes\n" +
+			"       dmsn bulk refresh --assets 1,2,3 | [filters] [--no-wait]\n" +
+			"       dmsn bulk refresh --batch <id> [--no-wait]\n\n" +
+			"tag, untag, review, unreview and rm are one transaction, audited,\n" +
+			"capped at 1000 assets. They report `affected`.\n\n" +
+			"refresh asks the server to look each asset's store link up again,\n" +
+			"one at a time, filling blanks and replacing what the last lookup\n" +
+			"wrote but never a field a person changed. It takes --assets or the\n" +
+			"filters of dmsn assets (--store --source-host --tag --publisher …),\n" +
+			"waits and prints progress to stderr; --no-wait prints the batch and\n" +
+			"returns, and --batch <id> reports on it later. Stopping dmsn leaves\n" +
+			"the server's lookups running.",
 		flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&bulkAssets, "assets", "", "comma-separated asset ids")
 			fs.StringVar(&bulkTag, "tag", "", "tag path, for tag/untag")
 			fs.BoolVar(&bulkYes, "yes", false, "confirm a destructive action")
+			fs.BoolVar(&bulkNoWait, "no-wait", false, "refresh: return the batch without waiting")
+			fs.UintVar(&bulkBatch, "batch", 0, "refresh: report on this batch")
+			bulkFilters.registerSelection(fs)
 		},
 		run: func(ctx context.Context, e *Env) error {
+			if len(e.Args) == 1 && e.Args[0] == "refresh" {
+				return runBulkRefresh(ctx, e, bulkAssets, bulkTag, bulkFilters, bulkNoWait, bulkBatch)
+			}
 			return runBulk(ctx, e, bulkAssets, bulkTag, bulkYes)
 		},
 	})
@@ -196,6 +218,8 @@ func runAssetVerb(ctx context.Context, e *Env, edit *editFlags, yes bool) error 
 		return runAssetTag(ctx, e, verb, rest)
 	case "rm":
 		return runAssetRemove(ctx, e, rest, yes)
+	case "refresh":
+		return runAssetRefresh(ctx, e, rest)
 	default:
 		return runAsset(ctx, e)
 	}
@@ -647,7 +671,7 @@ func runBulk(ctx context.Context, e *Env, assets, tag string, yes bool) error {
 	spec, ok := bulkActions[e.Args[0]]
 	if !ok {
 		return axi.Usagef(
-			[]string{"verbs: " + strings.Join(sortedKeys(bulkActions), ",")},
+			[]string{"verbs: " + strings.Join(sortedKeys(bulkActions), ",") + ",refresh"},
 			"unknown bulk verb %q", e.Args[0])
 	}
 	ids, err := parseIDList(assets)

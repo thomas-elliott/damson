@@ -28,6 +28,9 @@ type assetRow struct {
 	ReleasedAt         *time.Time `json:"released_at"`
 	UpdateAvailable    bool       `json:"update_available"`
 	ThumbnailObjectKey string     `json:"thumbnail_object_key"`
+	Store              string     `json:"store"`
+	SourceURL          string     `json:"source_url"`
+	StoreDeprecated    bool       `json:"store_deprecated"`
 }
 
 type assetListResponse struct {
@@ -90,7 +93,7 @@ var (
 	assetAllowed = []string{
 		"id", "name", "publisher", "needs_review", "file_count", "size_bytes",
 		"package_kind", "licence_spdx", "licence_status", "released_at",
-		"update_available", "created_at",
+		"update_available", "created_at", "store", "source_url", "store_deprecated",
 	}
 )
 
@@ -110,6 +113,9 @@ func assetRows(assets []assetRow) []map[string]any {
 			"released_at":      a.ReleasedAt,
 			"update_available": a.UpdateAvailable,
 			"created_at":       a.CreatedAt,
+			"store":            blankToNil(a.Store),
+			"source_url":       blankToNil(a.SourceURL),
+			"store_deprecated": a.StoreDeprecated,
 		})
 	}
 	return rows
@@ -137,17 +143,24 @@ type assetFilters struct {
 
 func (f *assetFilters) register(fs *flag.FlagSet) {
 	f.page.register(fs)
-	fs.StringVar(&f.query, "q", "", "full-text search")
+	fs.StringVar(&f.sort, "sort", "", "created_desc|created_asc|released_desc|released_asc|name_asc")
 	fs.StringVar(&f.tag, "tag", "", "tag path, or a numeric tag id")
+	f.registerSelection(fs)
+}
+
+// registerSelection registers the filters that pick assets, without paging,
+// sorting or --tag, so a command that acts on the matches can take them too
+// (bulk has its own --tag).
+func (f *assetFilters) registerSelection(fs *flag.FlagSet) {
+	fs.StringVar(&f.query, "q", "", "full-text search")
 	fs.StringVar(&f.collection, "collection", "", "collection id")
 	fs.StringVar(&f.project, "project", "", "project id")
 	fs.StringVar(&f.publisher, "publisher", "", "exact publisher")
-	fs.StringVar(&f.store, "store", "", "storefront (unity|sketchfab|itch)")
+	fs.StringVar(&f.store, "store", "", "storefront (unity|sketchfab|itch|generic)")
 	fs.StringVar(&f.packageKind, "package-kind", "", "loose|zip|unitypackage")
 	fs.StringVar(&f.licenceStatus, "licence-status", "", "ok|warn|err|unk")
 	fs.StringVar(&f.licenceSPDX, "licence", "", "exact SPDX identifier")
 	fs.StringVar(&f.sourceHost, "source-host", "", "host of the source URL")
-	fs.StringVar(&f.sort, "sort", "", "created_desc|created_asc|released_desc|released_asc|name_asc")
 	fs.BoolVar(&f.needsReview, "needs-review", false, "only assets awaiting review")
 	fs.BoolVar(&f.updatesAvailable, "updates-available", false, "only assets with a newer store version")
 	fs.StringVar(&f.releasedAfter, "released-after", "", "YYYY-MM-DD or RFC3339")
@@ -156,10 +169,31 @@ func (f *assetFilters) register(fs *flag.FlagSet) {
 var assetSorts = []string{"created_desc", "created_asc", "released_desc", "released_asc", "name_asc"}
 
 func (f *assetFilters) buildQuery() (url.Values, error) {
-	q := url.Values{}
+	q, err := f.selectionQuery()
+	if err != nil {
+		return nil, err
+	}
 	if err := f.page.apply(q); err != nil {
 		return nil, err
 	}
+
+	// The server silently falls back to its default sort on an unknown value.
+	// Reject it here instead: a caller who mistyped a sort should learn that
+	// rather than quietly receive a differently-ordered list.
+	if s := strings.TrimSpace(f.sort); s != "" {
+		if !slices.Contains(assetSorts, s) {
+			return nil, axi.Usagef(
+				[]string{"valid sorts: " + strings.Join(assetSorts, ",")},
+				"unknown sort %q", s)
+		}
+		q.Set("sort", s)
+	}
+	return q, nil
+}
+
+// selectionQuery is the filters alone, as GET /api/assets reads them.
+func (f *assetFilters) selectionQuery() (url.Values, error) {
+	q := url.Values{}
 	setIf(q, "q", f.query)
 	// A tag is a path by default; digits mean the caller had an id in hand.
 	if t := strings.TrimSpace(f.tag); t != "" {
@@ -191,18 +225,6 @@ func (f *assetFilters) buildQuery() (url.Values, error) {
 	setIf(q, "released_after", f.releasedAfter)
 	setBoolIf(q, "needs_review", f.needsReview)
 	setBoolIf(q, "updates_available", f.updatesAvailable)
-
-	// The server silently falls back to its default sort on an unknown value.
-	// Reject it here instead: a caller who mistyped a sort should learn that
-	// rather than quietly receive a differently-ordered list.
-	if s := strings.TrimSpace(f.sort); s != "" {
-		if !slices.Contains(assetSorts, s) {
-			return nil, axi.Usagef(
-				[]string{"valid sorts: " + strings.Join(assetSorts, ",")},
-				"unknown sort %q", s)
-		}
-		q.Set("sort", s)
-	}
 	return q, nil
 }
 
