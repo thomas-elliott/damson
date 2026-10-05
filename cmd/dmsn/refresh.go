@@ -53,7 +53,9 @@ func (b lookupBatch) progressLine() string {
 		b.Total-b.Queued, b.Total, b.Failed, b.NoStoreData)
 }
 
-func batchPath(id uint) string { return "/api/store-lookups/batches/" + strconv.FormatUint(uint64(id), 10) }
+func batchPath(id uint) string {
+	return "/api/store-lookups/batches/" + strconv.FormatUint(uint64(id), 10)
+}
 
 // waitForBatch polls the batch until nothing in it is queued, printing a
 // progress line whenever the counts move. Stopping dmsn stops only the
