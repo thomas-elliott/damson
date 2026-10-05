@@ -130,3 +130,5 @@ None
 
 - `internal/handlers/api/assets_reference.go`: publisher and tags apply only when a record creates the asset, like the name. A given publisher is set before the store lookup, so it wins over the store's publisher, which fills blanks only.
 - `internal/handlers/api/assets_reference.go`: tags go through the existing tag rule, so `3D` and `Environments` are stored as `3d` and `environments`. A record takes at most 32 tags, and a blank tag is refused before the store lookup runs.
+- `internal/handlers/api/assets_reference.go`: `GET /api/assets/locations` is unpaged, one short row per recorded path. `?under=` matches the folder itself and anything below it by a prefix compare, so `_` in a pack name is not a wildcard and `/mnt/nfs/3Dx` is not under `/mnt/nfs/3D`.
+- `cmd/dmsn/scan.go`: `scan known` checks each recorded path on the machine it runs on. It refuses a `--under` that isn't a readable directory, and treats any stat error other than "does not exist" as an error, so an unmounted store is never reported as every pack gone.

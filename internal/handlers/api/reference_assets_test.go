@@ -394,6 +394,44 @@ func seedReference(t *testing.T, db *gorm.DB, libID uint, name, path, link strin
 	return &a
 }
 
+// A scan of one folder must see every path recorded under it and nothing from
+// a sibling folder, whose packs would otherwise be reported gone.
+func TestAssetLocations_ListsRecordedPathsUnderAFolder(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	for _, p := range []string{"/mnt/nfs/3D/Synty/A_Pack", "/mnt/nfs/3D/B.zip", "/mnt/nfs/3Dx/C", "/mnt/nfs/Audio/D"} {
+		seedReference(t, db, lib.ID, p, p, "")
+	}
+	seedReference(t, db, lib.ID, "link only", "", "https://example.com/p")
+	other := seedLibrary(t, db, "Other")
+	seedReference(t, db, other.ID, "theirs", "/mnt/nfs/3D/Theirs", "")
+	r := setupRouter(h, u)
+
+	paths := func(query string) []string {
+		t.Helper()
+		w := performRequest(r, http.MethodGet, "/api/assets/locations"+query, nil)
+		requireStatus(t, w, http.StatusOK)
+		var out []string
+		for _, l := range jsonResponse[struct {
+			Locations []recordedLocation `json:"locations"`
+		}](t, w).Locations {
+			out = append(out, l.LocationPath)
+		}
+		return out
+	}
+
+	if got := paths("?under=/mnt/nfs/3D/"); !slices.Equal(got, []string{"/mnt/nfs/3D/B.zip", "/mnt/nfs/3D/Synty/A_Pack"}) {
+		t.Errorf("under /mnt/nfs/3D: got %v", got)
+	}
+	if got := paths("?under=/mnt/nfs/3_"); len(got) != 0 {
+		t.Errorf("an underscore in under was read as a wildcard: %v", got)
+	}
+	if got := paths(""); len(got) != 4 {
+		t.Errorf("no under: got %v, want this library's four paths", got)
+	}
+}
+
 func TestReferenceAsset_ListAndDetailCarryTheLocation(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")

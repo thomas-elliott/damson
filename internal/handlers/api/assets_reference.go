@@ -303,6 +303,44 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	c.JSON(status, referenceResponseFrom(outcome, &asset))
 }
 
+type recordedLocation struct {
+	AssetID      uint   `json:"asset_id"`
+	LocationPath string `json:"location_path"`
+}
+
+// getAssetLocations lists every path recorded in the library, so a scan can
+// sort what it found into new and known, and spot recorded paths that are
+// gone. ?under= keeps only that folder and what lies beneath it, so a scan of
+// one folder never reports another's paths as gone. The list is unpaged: one
+// short row per reference asset is small even for thousands of packs.
+func (h *Handler) getAssetLocations(c *gin.Context) {
+	lib := getLibrary(c)
+	if lib == nil {
+		respond500(c, errRequestContextIncomplete)
+		return
+	}
+	under, err := normaliseLocationPath(c.Query("under"))
+	if err != nil {
+		respond400(c, err)
+		return
+	}
+	q := h.db.WithContext(c.Request.Context()).Model(&models.Asset{}).
+		Select("id AS asset_id, location_path").
+		Where("library_id = ? AND location_path IS NOT NULL", lib.ID)
+	if under != "" && under != "/" {
+		// A prefix compare rather than LIKE, so the `_` common in pack names
+		// isn't read as a wildcard.
+		q = q.Where("(location_path = ? OR left(location_path, ?) = ?)",
+			under, len(under)+1, under+"/")
+	}
+	locations := []recordedLocation{}
+	if err := q.Order("location_path").Scan(&locations).Error; err != nil {
+		respond500(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"locations": locations})
+}
+
 // updateReferenceTx applies a re-record of a known path: a store link given now
 // replaces any earlier one, and Needs review is set when asked for. Nothing the
 // user edited is touched; the store lookup that follows fills blanks only.
