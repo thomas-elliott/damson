@@ -1,6 +1,6 @@
 # Refresh store details from the server
 
-**Status:** implemented — all nine stages, cleaned up 2026-10-06 (PR pending).
+**Status:** implemented — all nine stages, cleaned up 2026-10-06 (PR #4).
 
 Covers DAM-7
 
