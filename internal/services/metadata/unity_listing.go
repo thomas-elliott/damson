@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -115,21 +116,27 @@ type unityCategory struct {
 
 // unityFetchListing reads the package page and parses its inlined entity store.
 // Best-effort by design: any transport, status or parse failure yields nil so
-// the caller keeps the Coveo-only metadata rather than failing the fetch.
-func unityFetchListing(ctx context.Context, client *Client, listingURL, productID string) (*unityListing, string) {
+// the caller keeps the Coveo-only metadata rather than failing the fetch. The
+// one error returned is the store asking for a pause, which the caller must
+// wait out rather than save a lookup with the page's details missing.
+func unityFetchListing(ctx context.Context, client *Client, listingURL, productID string) (*unityListing, string, error) {
 	if listingURL == "" {
-		return nil, ""
+		return nil, "", nil
 	}
 	resp, err := client.Get(ctx, listingURL, nil)
+	var limited *RateLimitedError
+	if errors.As(err, &limited) {
+		return nil, "", err
+	}
 	if err != nil || resp.StatusCode >= 400 {
-		return nil, ""
+		return nil, "", nil
 	}
 	pageURL := firstNonEmpty(resp.FinalURL, listingURL)
 	l, err := unityParseListing(resp.Body, productID)
 	if err != nil {
-		return nil, pageURL
+		return nil, pageURL, nil
 	}
-	return l, pageURL
+	return l, pageURL, nil
 }
 
 // unityParseListing extracts the entity store from a package page body and

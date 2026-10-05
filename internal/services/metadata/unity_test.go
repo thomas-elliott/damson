@@ -151,7 +151,7 @@ func (failingFetcher) Fetch(context.Context, *Client, string) (*Metadata, error)
 func TestRegistryFetch_MarksGenericFallback(t *testing.T) {
 	page := []byte(`<html><head><meta property="og:title" content="Some Pack"></head></html>`)
 	r := NewRegistry(fakeStoreClient(t, ClientOptions{HostMinGap: time.Millisecond},
-		func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(page) }))
+		func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(page) }), time.Millisecond)
 	r.RegisterHost("store.example.com", failingFetcher{})
 
 	md, err := r.Fetch(context.Background(), "https://store.example.com/pack")
