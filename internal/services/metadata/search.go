@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,12 +25,25 @@ const maxCandidatesPerStore = 12
 // under its own short timeout, and merges the results. A store that errors or
 // times out contributes nothing rather than failing the whole search.
 func (r *Registry) Search(ctx context.Context, query string) ([]Candidate, error) {
+	cands, _ := r.SearchStores(ctx, query)
+	return cands, nil
+}
+
+// SearchStores is Search that also names each store that errored or timed
+// out, so a caller searching many packs can tell "no listing" from "the store
+// didn't answer" and report the packs it couldn't search.
+func (r *Registry) SearchStores(ctx context.Context, query string) ([]Candidate, []string) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, nil
 	}
+	type result struct {
+		store string
+		cands []Candidate
+		err   error
+	}
+	out := make(chan result, len(r.searchers))
 	var wg sync.WaitGroup
-	out := make(chan []Candidate, len(r.searchers))
 	for _, s := range r.searchers {
 		wg.Add(1)
 		go func(s Searcher) {
@@ -39,22 +53,27 @@ func (r *Registry) Search(ctx context.Context, query string) ([]Candidate, error
 			cands, err := s.Search(sctx, r.client, query)
 			if err != nil {
 				slog.Warn("metadata: store search failed", "store", s.Store(), "err", err)
-				return
 			}
 			if len(cands) > maxCandidatesPerStore {
 				cands = cands[:maxCandidatesPerStore]
 			}
-			out <- cands
+			out <- result{store: s.Store(), cands: cands, err: err}
 		}(s)
 	}
 	wg.Wait()
 	close(out)
 
 	var merged []Candidate
-	for cs := range out {
-		merged = append(merged, cs...)
+	var failed []string
+	for res := range out {
+		if res.err != nil {
+			failed = append(failed, res.store)
+			continue
+		}
+		merged = append(merged, res.cands...)
 	}
-	return merged, nil
+	sort.Strings(failed)
+	return merged, failed
 }
 
 // ---------------- Sketchfab search -----------------------------------------
