@@ -73,6 +73,7 @@ type assetListFilters struct {
 	Store         string     // exact store match
 	ReleasedAfter *time.Time // released_at >= this instant
 	UpdatesOnly   bool       // latest_store_version is newer than every version held
+	NotDownloaded bool       // Purchased, not downloaded: a reference asset with no path
 	Sort          string     // created_desc (default) | released_desc | released_asc | name_asc
 }
 
@@ -133,6 +134,9 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 	}
 	if s := c.Query("updates_available"); s == "true" || s == "1" {
 		f.UpdatesOnly = true
+	}
+	if s := c.Query("not_downloaded"); s == "true" || s == "1" {
+		f.NotDownloaded = true
 	}
 	if s := strings.TrimSpace(c.Query("released_after")); s != "" {
 		for _, layout := range []string{time.RFC3339, "2006-01-02"} {
@@ -205,6 +209,9 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 	}
 	if f.UpdatesOnly {
 		q = q.Where(updatesAvailableSQL())
+	}
+	if f.NotDownloaded {
+		q = q.Where("a.is_reference AND a.location_path IS NULL")
 	}
 	if f.LicenceSPDX != "" || f.LicenceStatus != "" {
 		q = q.Joins("LEFT JOIN licences l ON l.id = a.licence_id")

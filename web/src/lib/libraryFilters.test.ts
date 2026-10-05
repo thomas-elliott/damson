@@ -105,6 +105,12 @@ describe("parseAssetFilters — storefront metadata filters", () => {
     expect(parse("").updates_available).toBeUndefined();
   });
 
+  it("reads the purchased-not-downloaded filter only when explicitly true", () => {
+    expect(parse("not_downloaded=true").not_downloaded).toBe(true);
+    expect(parse("not_downloaded=false").not_downloaded).toBeUndefined();
+    expect(activeFilterCount(parse("not_downloaded=true"))).toBe(1);
+  });
+
   it("counts the new filters in the badge but not the sort", () => {
     expect(activeFilterCount(parse("publisher=JustCreate"))).toBe(1);
     expect(
