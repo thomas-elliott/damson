@@ -28,7 +28,7 @@ import (
 type metadataService interface {
 	Fetch(ctx context.Context, rawURL string) (*metadata.Metadata, error)
 	FetchImage(ctx context.Context, rawURL string) ([]byte, string, error)
-	Search(ctx context.Context, query string) ([]metadata.Candidate, error)
+	SearchStores(ctx context.Context, query string) ([]metadata.Candidate, []string)
 }
 
 // metadataView is the client-facing shape of fetched metadata — the normalised
@@ -308,6 +308,9 @@ func (h *Handler) countAssetImages(ctx context.Context, assetID uint) int {
 type metadataSearchResponse struct {
 	Query      string          `json:"query"`
 	Candidates []candidateView `json:"candidates"`
+	// FailedStores names each store that errored or timed out, so a caller
+	// can tell a throttled search from one that found nothing.
+	FailedStores []string `json:"failed_stores,omitempty"`
 }
 
 func (h *Handler) getMetadataPreview(c *gin.Context) {
@@ -376,20 +379,16 @@ func (h *Handler) getMetadataSearch(c *gin.Context) {
 		respond400(c, asError("q is required"))
 		return
 	}
-	cands, err := h.metadata.Search(c.Request.Context(), q)
-	if err != nil {
-		slog.Warn("metadata search failed", "q", q, "err", err)
-		respond502(c, "metadata search failed")
-		return
-	}
+	cands, failed := h.metadata.SearchStores(c.Request.Context(), q)
 	if lib := getLibrary(c); lib != nil {
 		if s, serr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID); serr == nil {
 			metadata.SortByPreferredStore(cands, s.PreferredStore)
 		}
 	}
 	c.JSON(http.StatusOK, metadataSearchResponse{
-		Query:      q,
-		Candidates: candidateViewsFrom(cands),
+		Query:        q,
+		Candidates:   candidateViewsFrom(cands),
+		FailedStores: failed,
 	})
 }
 

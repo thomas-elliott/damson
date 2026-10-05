@@ -26,7 +26,7 @@ type fakeMetadata struct {
 	imgErr     error
 	lastURL    string
 	candidates []metadata.Candidate
-	searchErr  error
+	failed     []string
 }
 
 func (f *fakeMetadata) Fetch(_ context.Context, rawURL string) (*metadata.Metadata, error) {
@@ -38,8 +38,8 @@ func (f *fakeMetadata) FetchImage(_ context.Context, _ string) ([]byte, string, 
 	return f.img, f.imgCT, f.imgErr
 }
 
-func (f *fakeMetadata) Search(_ context.Context, _ string) ([]metadata.Candidate, error) {
-	return f.candidates, f.searchErr
+func (f *fakeMetadata) SearchStores(_ context.Context, _ string) ([]metadata.Candidate, []string) {
+	return f.candidates, f.failed
 }
 
 func tinyPNG(t *testing.T) []byte {
@@ -434,7 +434,7 @@ func TestMetadataSearch_Endpoint(t *testing.T) {
 	h.metadata = &fakeMetadata{candidates: []metadata.Candidate{
 		{Title: "Fantasy Pack", ListingURL: "https://assetstore.unity.com/packages/x-1", Store: metadata.StoreUnity},
 		{Title: "Rock", ListingURL: "https://sketchfab.com/models/abc", Store: metadata.StoreSketchfab},
-	}}
+	}, failed: []string{metadata.StoreItch}}
 	u := seedUser(t, db, "t@example.com")
 	seedLibraryForUser(t, db, u, "Personal")
 
@@ -444,6 +444,9 @@ func TestMetadataSearch_Endpoint(t *testing.T) {
 	resp := jsonResponse[metadataSearchResponse](t, w)
 	if resp.Query != "fantasy" || len(resp.Candidates) != 2 {
 		t.Fatalf("unexpected search response: %+v", resp)
+	}
+	if len(resp.FailedStores) != 1 || resp.FailedStores[0] != metadata.StoreItch {
+		t.Fatalf("a store that failed should be named: %+v", resp.FailedStores)
 	}
 }
 
