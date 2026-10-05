@@ -32,7 +32,8 @@ type storeLookupsRequest struct {
 }
 
 // storeLookupProblem is one lookup the caller should hear about: it failed,
-// only the generic scraper answered, or it kept a field a person had changed.
+// only the generic scraper answered, or, in a refresh, it kept a field a
+// person had changed.
 type storeLookupProblem struct {
 	AssetID   uint               `json:"asset_id"`
 	Name      string             `json:"name"`
@@ -256,10 +257,16 @@ func (h *Handler) storeLookupBatchStatus(ctx context.Context, batch models.Store
 		case models.StoreLookupNoStoreData:
 			resp.NoStoreData++
 		}
-		if len(conflicts) > 0 {
+		// Only a refresh replaces fields, so only there is a kept field news: a
+		// fill-blanks lookup keeps every value already set, by design.
+		kept := batch.Refresh && len(conflicts) > 0
+		if !kept {
+			conflicts = nil
+		}
+		if kept {
 			resp.Conflicted++
 		}
-		if r.Status == models.StoreLookupFailed || r.Result == models.StoreLookupNoStoreData || len(conflicts) > 0 {
+		if r.Status == models.StoreLookupFailed || r.Result == models.StoreLookupNoStoreData || kept {
 			resp.Problems = append(resp.Problems, storeLookupProblem{
 				AssetID: r.AssetID, Name: r.Name, Status: r.Status, Result: r.Result, Error: r.Error, Conflicts: conflicts,
 			})
@@ -315,29 +322,37 @@ func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
 	if batch.CreatedByUserID != nil {
 		userID = *batch.CreatedByUserID
 	}
+	// A generic-scraper answer is not the store's details, so even a refresh
+	// only fills blanks with it, and it never replaces a record a store lookup
+	// left: the next refresh would read the store's values as a person's.
+	refresh := batch.Refresh && !meta.StoreLookupFailed
+	keepRecord := meta.StoreLookupFailed && len(asset.SourceMetadataJSON) > 0
+
 	// Judge what a person changed before this lookup's record replaces the
 	// last one.
 	var confirm map[string]bool
 	apply := meta
-	if batch.Refresh {
+	if refresh {
 		if confirm, err = h.refreshConfirm(ctx, &asset); err != nil {
 			return err
 		}
 		apply = withoutUnchangedCover(&asset, meta)
 	}
 	applied, conflicts := h.applyMetadata(ctx, lk.LibraryID, &asset, apply, confirm, false, "", userID)
-	if batch.Refresh && len(applied) > 0 && !asset.NeedsReview {
+	if refresh && len(applied) > 0 && !asset.NeedsReview {
 		if err := db.Model(&asset).Update("needs_review", true).Error; err != nil {
 			return err
 		}
 	}
-	h.persistSourceRecord(ctx, &asset, metadata.SourceRecord{
-		Store:      meta.Store,
-		ListingURL: firstNonEmptyStr(meta.ListingURL, asset.SourceURL),
-		FetchedAt:  time.Now().UTC(),
-		Matched:    true,
-		Metadata:   meta,
-	})
+	if !keepRecord {
+		h.persistSourceRecord(ctx, &asset, metadata.SourceRecord{
+			Store:      meta.Store,
+			ListingURL: firstNonEmptyStr(meta.ListingURL, asset.SourceURL),
+			FetchedAt:  time.Now().UTC(),
+			Matched:    true,
+			Metadata:   meta,
+		})
+	}
 
 	result := models.StoreLookupUnchanged
 	switch {

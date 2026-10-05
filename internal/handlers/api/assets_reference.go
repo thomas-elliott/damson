@@ -176,15 +176,6 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	ctx := c.Request.Context()
 	db := h.db.WithContext(ctx)
 
-	// Check a named batch before recording, so a bad one can't leave the
-	// asset recorded with no lookup queued.
-	if req.QueueLookup && req.LookupBatchID != 0 {
-		if _, err := lookupBatchTx(db, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
-			respondGORM(c, err, "lookup batch not found")
-			return
-		}
-	}
-
 	// A link-only record whose link is already in the library creates nothing,
 	// so answer it before spending a store lookup.
 	if path == "" {
@@ -223,7 +214,10 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		lookupID uint
 		batch    models.StoreLookupBatch
 	)
-	err = db.Transaction(func(tx *gorm.DB) error {
+	// recordTx records or updates the asset. It and the queued lookup commit
+	// together, so a recorded asset is never left without the lookup a rerun
+	// (which answers exists) would not queue again.
+	recordTx := func(tx *gorm.DB) error {
 		if path != "" {
 			err := tx.Where("library_id = ? AND location_path = ?", lib.ID, path).First(&asset).Error
 			if err == nil {
@@ -300,17 +294,21 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 			}
 		}
 		return nil
-	})
-	if err == nil && req.QueueLookup && link != "" && outcome != referenceExists {
-		err = db.Transaction(func(tx *gorm.DB) error {
-			var terr error
-			if batch, terr = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); terr != nil {
-				return terr
-			}
-			lookupID, terr = createStoreLookupTx(tx, batch, asset.ID)
-			return terr
-		})
 	}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := recordTx(tx); err != nil {
+			return err
+		}
+		if !req.QueueLookup || link == "" || outcome == referenceExists {
+			return nil
+		}
+		var err error
+		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
+			return err
+		}
+		lookupID, err = createStoreLookupTx(tx, batch, asset.ID)
+		return err
+	})
 	switch {
 	case errors.Is(err, errReferenceNameRequired):
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
@@ -321,7 +319,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respond409(c, "that path was recorded at the same moment; record it again to update it")
 		return
 	case err != nil:
-		respondGORM(c, err, "asset not found")
+		respondGORM(c, err, "asset or lookup batch not found")
 		return
 	}
 	if lookupID != 0 {

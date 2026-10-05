@@ -90,8 +90,10 @@ func TestStoreLookups_QueueThenFillBlanksOnly(t *testing.T) {
 	w = performRequest(r, http.MethodGet, "/api/store-lookups/batches/"+uintStr(queued.BatchID), nil)
 	requireStatus(t, w, http.StatusOK)
 	status := jsonResponse[storeLookupBatchResponse](t, w)
-	if status.Done != 2 || status.Queued != 0 || status.Changed != 2 || status.Conflicted != 2 {
-		t.Fatalf("batch = %+v, want 2 done, both changed, both with a name conflict", status)
+	// Both kept their names, but a fill-blanks lookup keeps every set value by
+	// design, so that is not reported.
+	if status.Done != 2 || status.Queued != 0 || status.Changed != 2 || status.Conflicted != 0 || len(status.Problems) != 0 {
+		t.Fatalf("batch = %+v, want 2 done, both changed, and nothing reported as kept", status)
 	}
 }
 
@@ -372,12 +374,16 @@ func TestStoreRefresh_NoSourceRecordUsesTheAuditLog(t *testing.T) {
 func TestStoreRefresh_NoChangeLeavesNeedsReview(t *testing.T) {
 	h, db := newTestHandler(t)
 	q := &heldLookups{}
-	same := &metadata.Metadata{Store: metadata.StoreUnity, Title: "Pack", Publisher: "P", CoverURL: "https://cdn.example.com/c.png"}
+	// The store sends a rating finer than the column keeps.
+	same := &metadata.Metadata{Store: metadata.StoreUnity, Title: "Pack", Publisher: "P", Rating: 4.8456,
+		CoverURL: "https://cdn.example.com/c.png"}
 	h.metadata, h.storeLookups = &fakeMetadata{meta: same, img: tinyPNG(t), imgCT: "image/png"}, q
 	u := seedUser(t, db, "t@example.com")
 	lib := seedLibraryForUser(t, db, u, "Personal")
 	a := seedLinkedAsset(t, db, lib.ID, "Pack", "https://assetstore.unity.com/packages/slug/6", func(a *models.Asset) {
 		a.Store, a.Publisher = strPtr(metadata.StoreUnity), strPtr("P")
+		rating := 4.85
+		a.Rating = &rating
 		a.ThumbnailObjectKey, a.ThumbnailFromStore = "thumbs/aa/cover", true
 		a.SourceMetadataJSON = sourceRecordJSON(t, same)
 	})
@@ -405,5 +411,40 @@ func TestListAssets_CarriesStoreFields(t *testing.T) {
 	if len(rows) != 1 || rows[0].Store != "unity" || !rows[0].StoreDeprecated ||
 		rows[0].SourceURL != "https://assetstore.unity.com/packages/slug/32351" {
 		t.Fatalf("list rows = %+v, want store, source_url and store_deprecated", rows)
+	}
+}
+
+// A refresh during a store outage gets only the generic scraper's answer. It
+// must not replace the store's details with it, nor the store's source record.
+func TestStoreRefresh_GenericFallbackOnlyFillsBlanks(t *testing.T) {
+	h, db := newTestHandler(t)
+	q := &heldLookups{}
+	h.metadata, h.storeLookups = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreGeneric, Title: "Page Title", Description: "Page text.", Publisher: "From The Page",
+		StoreLookupFailed: true,
+	}}, q
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	last := &metadata.Metadata{Store: metadata.StoreUnity, Title: "Pack", Description: "The store's words."}
+	a := seedLinkedAsset(t, db, lib.ID, "Pack", "https://assetstore.unity.com/packages/slug/7", func(a *models.Asset) {
+		a.Store, a.Description, a.SourceMetadataJSON = strPtr(metadata.StoreUnity), last.Description, sourceRecordJSON(t, last)
+	})
+	db.Model(a).Update("needs_review", false)
+
+	batch := lookUp(t, h, setupRouter(h, u), q, a.ID, true)
+	var got models.Asset
+	db.First(&got, a.ID)
+	if derefString(got.Store) != metadata.StoreUnity || got.Name != "Pack" || got.Description != last.Description {
+		t.Fatalf("store %v name %q description %q, want the store's details kept", got.Store, got.Name, got.Description)
+	}
+	if derefString(got.Publisher) != "From The Page" {
+		t.Fatalf("publisher %v, want the blank filled", got.Publisher)
+	}
+	var kept metadata.SourceRecord
+	if err := json.Unmarshal(got.SourceMetadataJSON, &kept); err != nil || kept.Store != metadata.StoreUnity {
+		t.Fatalf("source record store %q (%v), want the store's record kept, not the scraper's", kept.Store, err)
+	}
+	if batch.NoStoreData != 1 {
+		t.Fatalf("batch %+v, want the lookup counted as no_store_data", batch)
 	}
 }

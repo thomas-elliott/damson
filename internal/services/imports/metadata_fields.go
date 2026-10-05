@@ -97,7 +97,9 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 	}
 
 	if meta.Rating > 0 {
-		if cur := asset.Rating; cur == nil || *cur != meta.Rating {
+		// The column keeps two decimal places, and the store may send more, so
+		// an unchanged rating must not read as a new one.
+		if cur := asset.Rating; cur == nil || roundRating(*cur) != roundRating(meta.Rating) {
 			switch {
 			case cur != nil && !confirm["rating"]:
 				conflicts = append(conflicts, FieldConflict{
@@ -143,6 +145,9 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 	}
 	return before, updates, conflicts
 }
+
+// roundRating is a rating at the two decimal places the rating column keeps.
+func roundRating(r float64) float64 { return math.Round(r*100) / 100 }
 
 // MetadataTagList is the full tag set one fetch contributes: the store's flat
 // keyword tags plus its category as a single hierarchical path. tags.Attach
@@ -224,8 +229,7 @@ func ChangedSince(asset *models.Asset, last *metadata.Metadata) map[string]bool 
 	for column, v := range dates {
 		changed[column] = v.current != nil && (v.last == nil || !v.current.Equal(*v.last))
 	}
-	// The column keeps two decimal places, and the store may send more.
-	changed["rating"] = asset.Rating != nil && math.Round(*asset.Rating*100) != math.Round(last.Rating*100)
+	changed["rating"] = asset.Rating != nil && roundRating(*asset.Rating) != roundRating(last.Rating)
 	changed["rating_count"] = asset.RatingCount != nil && *asset.RatingCount != last.RatingCount
 	return changed
 }
