@@ -76,6 +76,8 @@ func (StoreLookupArgs) Kind() string { return "store_lookup" }
 // it, since applying a lookup to an asset is the same work Fetch metadata does.
 type StoreLookupRunner interface {
 	RunStoreLookup(ctx context.Context, lookupID uint) error
+	// FailStoreLookup records a lookup failed once River has given up on it.
+	FailStoreLookup(ctx context.Context, lookupID uint, reason string) error
 }
 
 // storeLookupWorker runs store lookups. run is set by SetStoreLookupRunner
@@ -90,7 +92,16 @@ func (w *storeLookupWorker) Work(ctx context.Context, job *river.Job[StoreLookup
 	if w.run == nil {
 		return fmt.Errorf("queue: no store lookup runner set")
 	}
-	return w.run.RunStoreLookup(ctx, job.Args.LookupID)
+	err := w.run.RunStoreLookup(ctx, job.Args.LookupID)
+	// On the last attempt, mark the row failed so it doesn't stay queued, and
+	// dmsn doesn't wait on it, until the next start. The job's own context may
+	// have timed out, so the mark runs without it.
+	if err != nil && job.Attempt >= job.MaxAttempts {
+		if merr := w.run.FailStoreLookup(context.WithoutCancel(ctx), job.Args.LookupID, err.Error()); merr != nil {
+			slog.Warn("queue: mark store lookup failed on last attempt", "lookup_id", job.Args.LookupID, "err", merr)
+		}
+	}
+	return err
 }
 
 func (w *storeLookupWorker) Timeout(*river.Job[StoreLookupArgs]) time.Duration {

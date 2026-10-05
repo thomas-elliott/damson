@@ -247,8 +247,6 @@ func parseJobTimeout(raw string) time.Duration {
 
 const defaultUploadJanitorInterval = time.Hour
 
-// defaultStoreLookupInterval is the gap dmsn kept between lookups before the
-// server took the pacing over.
 const defaultStoreLookupInterval = 2 * time.Second
 
 // parseInterval reads a Go duration string ("1h", "30m"). Empty, unparseable

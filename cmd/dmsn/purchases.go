@@ -520,15 +520,13 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 	if batchID != 0 {
 		// The lookups run on after record returns; the batch is where their
 		// outcome, no_store_data included, is counted.
+		fields = append(fields, toon.KV{Key: "lookup_batch", Value: batchID})
 		var b lookupBatch
 		if err := client.GetJSON(ctx, batchPath(batchID), nil, &b); err == nil {
 			fields = append(fields,
-				toon.KV{Key: "lookup_batch", Value: batchID},
 				toon.KV{Key: "lookups_still_queued", Value: b.Queued},
 				toon.KV{Key: "no_store_data_so_far", Value: b.NoStoreData},
 				toon.KV{Key: "lookups_failed_so_far", Value: b.Failed})
-		} else {
-			fields = append(fields, toon.KV{Key: "lookup_batch", Value: batchID})
 		}
 		help = append([]string{fmt.Sprintf("dmsn bulk refresh --batch %d", batchID)}, help...)
 	}
@@ -545,6 +543,10 @@ func runPurchasesRecord(ctx context.Context, e *Env, f *purchasesFlags) error {
 // rowError is what a failed row reports. A row that timed out may still have
 // been recorded, and recording again is safe, so it says to rerun.
 func rowError(err error) string {
+	var notQueued *lookupNotQueuedError
+	if errors.As(err, &notQueued) {
+		return notQueued.Error()
+	}
 	var netErr net.Error
 	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
 		return "timed out: this row may have been recorded; rerun the plan, and a rerun answers exists for anything already recorded"
@@ -576,8 +578,23 @@ func linkAsset(ctx context.Context, client *Client, assetID uint, link string, s
 	var b lookupBatch
 	lookup := map[string]any{"asset_ids": []uint{assetID}, "batch_id": *batchID}
 	if err := client.PostJSON(ctx, "/api/store-lookups", lookup, &b); err != nil {
-		return err
+		return &lookupNotQueuedError{assetID: assetID, err: err}
 	}
 	*batchID = b.BatchID
 	return nil
 }
+
+// lookupNotQueuedError is a row whose link was set but whose lookup wasn't
+// queued. A rerun would find the asset on its link, answer unchanged and queue
+// nothing, so the row says how to look the asset up instead.
+type lookupNotQueuedError struct {
+	assetID uint
+	err     error
+}
+
+func (e *lookupNotQueuedError) Error() string {
+	return fmt.Sprintf("linked, but its store lookup was not queued (%s); run dmsn bulk refresh --assets %d",
+		axi.AsError(e.err).Message, e.assetID)
+}
+
+func (e *lookupNotQueuedError) Unwrap() error { return e.err }
