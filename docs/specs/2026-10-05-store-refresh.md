@@ -155,6 +155,8 @@ Mode: committing — branch `store-refresh`, one commit per stage (AGENTS.md: "/
 - `cmd/dmsn/refresh.go`: `asset refresh` always waits; it is one lookup. `bulk refresh --batch <id>` follows a batch queued with `--no-wait`, waiting unless `--no-wait` is given again. Progress is one stderr line each time the counts move, polled every 2 s.
 - `cmd/dmsn/purchases.go`: record does not wait for its lookups, which can run for an hour or more over 429 purchases with galleries. It ends with the batch's counts so far (`no_store_data_so_far` and the rest) and `dmsn bulk refresh --batch <id>` to follow it, where `no_store_data` is counted once the lookups have run. The skill tells the agent to follow the batch before reporting.
 - `cmd/dmsn/purchases.go`: a row times out when the request does (`--timeout`, default 30 s), and only then says it may have been recorded.
+- `internal/handlers/api/assets.go`: the update badge, in the list and the detail view, leaves deprecated listings out too, so it still agrees with the Updates available filter and the overview count.
+- `cmd/dmsn/assets.go`: `--store-deprecated` only selects deprecated assets, as `--needs-review` only selects unreviewed ones; `GET /api/assets` also takes `store_deprecated=false`. `POST /api/store-lookups` refuses a `store_deprecated` it can't read, as it does the other filters.
 
 ### Review — stages 1…7
 
