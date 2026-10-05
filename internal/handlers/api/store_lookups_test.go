@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -238,5 +240,154 @@ func TestRecordReference_QueuedLookup(t *testing.T) {
 	db.Model(&models.Asset{}).Where("name = ?", "Nine").Count(&n)
 	if n != 0 {
 		t.Fatal("a refused record must not create the asset")
+	}
+}
+
+// sourceRecordJSON is a stored source record holding last as the previous
+// lookup's answer.
+func sourceRecordJSON(t *testing.T, last *metadata.Metadata) []byte {
+	t.Helper()
+	b, err := json.Marshal(metadata.SourceRecord{Store: last.Store, Matched: true, Metadata: last})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// lookUp queues one lookup of the asset and runs it, returning its batch.
+func lookUp(t *testing.T, h *Handler, r http.Handler, q *heldLookups, assetID uint, refresh bool) storeLookupBatchResponse {
+	t.Helper()
+	w := performRequest(r, http.MethodPost, "/api/store-lookups", map[string]any{"asset_ids": []uint{assetID}, "refresh": refresh})
+	requireStatus(t, w, http.StatusAccepted)
+	batchID := jsonResponse[storeLookupBatchResponse](t, w).BatchID
+	q.runAll(t, h)
+	w = performRequest(r, http.MethodGet, "/api/store-lookups/batches/"+uintStr(batchID), nil)
+	requireStatus(t, w, http.StatusOK)
+	return jsonResponse[storeLookupBatchResponse](t, w)
+}
+
+func conflictFields(b storeLookupBatchResponse) []string {
+	var out []string
+	for _, p := range b.Problems {
+		for _, c := range p.Conflicts {
+			out = append(out, c.Field)
+		}
+	}
+	return out
+}
+
+// The purchase run's case: an asset whose last lookup was the generic
+// scraper's. A refresh replaces what that lookup wrote and fills blanks, but
+// keeps what a person wrote, reporting it.
+func TestStoreRefresh_ReplacesOnlyWhatAPersonHasNotChanged(t *testing.T) {
+	released := time.Date(2015, 3, 16, 7, 40, 35, 0, time.UTC)
+	last := &metadata.Metadata{Store: metadata.StoreGeneric, Title: "Page Title | Unity Asset Store", Description: "Short page text."}
+	store := &metadata.Metadata{
+		Store: metadata.StoreUnity, Title: "Standard Assets", Description: "The store's full description.",
+		Publisher: "Unity Technologies", StoreID: "32351", ReleasedAt: &released,
+	}
+	seed := func(t *testing.T) (*Handler, *gorm.DB, http.Handler, *heldLookups, *models.Asset) {
+		h, db := newTestHandler(t)
+		q := &heldLookups{}
+		h.metadata, h.storeLookups = &fakeMetadata{meta: store}, q
+		u := seedUser(t, db, "t@example.com")
+		lib := seedLibraryForUser(t, db, u, "Personal")
+		a := seedLinkedAsset(t, db, lib.ID, "Plan Name", "https://assetstore.unity.com/packages/slug/32351", func(a *models.Asset) {
+			a.Description = last.Description // as the last lookup wrote it
+			a.Store = strPtr(metadata.StoreGeneric)
+			a.Publisher = strPtr("Typed By Hand") // the last lookup gave none
+			a.SourceMetadataJSON = sourceRecordJSON(t, last)
+		})
+		db.Model(a).Update("needs_review", false)
+		return h, db, setupRouter(h, u), q, a
+	}
+
+	t.Run("refresh", func(t *testing.T) {
+		h, db, r, q, a := seed(t)
+		batch := lookUp(t, h, r, q, a.ID, true)
+
+		var got models.Asset
+		db.First(&got, a.ID)
+		if got.Description != store.Description || derefString(got.Store) != metadata.StoreUnity {
+			t.Fatalf("description %q store %v, want both replaced: the last lookup wrote them", got.Description, got.Store)
+		}
+		if got.ReleasedAt == nil || derefString(got.StoreProductID) != "32351" {
+			t.Fatalf("released_at %v store_product_id %v, want blanks filled", got.ReleasedAt, got.StoreProductID)
+		}
+		if got.Name != "Plan Name" || derefString(got.Publisher) != "Typed By Hand" {
+			t.Fatalf("name %q publisher %v, want both kept: a person wrote them", got.Name, got.Publisher)
+		}
+		assertContains(t, conflictFields(batch), "name", "publisher")
+		if !got.NeedsReview || batch.Changed != 1 {
+			t.Fatalf("needs_review %v, batch %+v: a refresh that changed fields marks the asset Needs review", got.NeedsReview, batch)
+		}
+	})
+
+	t.Run("a lookup that is not a refresh", func(t *testing.T) {
+		h, db, r, q, a := seed(t)
+		lookUp(t, h, r, q, a.ID, false)
+
+		var got models.Asset
+		db.First(&got, a.ID)
+		if got.Description != last.Description || derefString(got.Store) != metadata.StoreGeneric {
+			t.Fatalf("description %q store %v: only an explicit refresh may replace a field with a value", got.Description, got.Store)
+		}
+		if got.ReleasedAt == nil {
+			t.Fatal("blanks are still filled")
+		}
+	})
+}
+
+// With no source record to compare against, the audit log says what a person
+// edited.
+func TestStoreRefresh_NoSourceRecordUsesTheAuditLog(t *testing.T) {
+	h, db := newTestHandler(t)
+	q := &heldLookups{}
+	h.metadata, h.storeLookups = &fakeMetadata{meta: &metadata.Metadata{
+		Store: metadata.StoreUnity, Description: "The store's words.", Publisher: "Unity Technologies",
+	}}, q
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	a := seedLinkedAsset(t, db, lib.ID, "Pack", "https://assetstore.unity.com/packages/slug/5", func(a *models.Asset) {
+		a.Publisher = strPtr("Old Publisher")
+	})
+	r := setupRouter(h, u)
+	requireStatus(t, performRequest(r, http.MethodPatch, "/api/assets/"+uintStr(a.ID),
+		map[string]any{"description": "My words."}), http.StatusOK)
+
+	batch := lookUp(t, h, r, q, a.ID, true)
+	var got models.Asset
+	db.First(&got, a.ID)
+	if got.Description != "My words." {
+		t.Fatalf("description %q, want the person's edit kept", got.Description)
+	}
+	if derefString(got.Publisher) != "Unity Technologies" {
+		t.Fatalf("publisher %v, want it replaced: no person edited it", got.Publisher)
+	}
+	assertContains(t, conflictFields(batch), "description")
+}
+
+// A refresh that finds nothing new leaves the asset as it was, Needs review
+// included.
+func TestStoreRefresh_NoChangeLeavesNeedsReview(t *testing.T) {
+	h, db := newTestHandler(t)
+	q := &heldLookups{}
+	same := &metadata.Metadata{Store: metadata.StoreUnity, Title: "Pack", Publisher: "P", CoverURL: "https://cdn.example.com/c.png"}
+	h.metadata, h.storeLookups = &fakeMetadata{meta: same, img: tinyPNG(t), imgCT: "image/png"}, q
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	a := seedLinkedAsset(t, db, lib.ID, "Pack", "https://assetstore.unity.com/packages/slug/6", func(a *models.Asset) {
+		a.Store, a.Publisher = strPtr(metadata.StoreUnity), strPtr("P")
+		a.ThumbnailObjectKey, a.ThumbnailFromStore = "thumbs/aa/cover", true
+		a.SourceMetadataJSON = sourceRecordJSON(t, same)
+	})
+	db.Model(a).Update("needs_review", false)
+	r := setupRouter(h, u)
+
+	batch := lookUp(t, h, r, q, a.ID, true)
+	var got models.Asset
+	db.First(&got, a.ID)
+	if got.NeedsReview || batch.Unchanged != 1 || got.ThumbnailObjectKey != "thumbs/aa/cover" {
+		t.Fatalf("needs_review %v thumbnail %q batch %+v, want the asset untouched", got.NeedsReview, got.ThumbnailObjectKey, batch)
 	}
 }

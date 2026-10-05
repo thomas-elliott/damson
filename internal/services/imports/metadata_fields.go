@@ -1,6 +1,7 @@
 package imports
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -191,4 +192,40 @@ func StoreUpdateAvailable(latestStoreVersion string, heldVersions []string) (ava
 		return false, ""
 	}
 	return CompareStoreVersions(latest, best) > 0, highestHeld
+}
+
+// ChangedSince reports which of the asset's storefront columns, and its name
+// and description, no longer hold what last (the previous lookup) gave them:
+// someone changed them since. A blank column is never changed, since a lookup
+// fills it anyway; a column holding a value the lookup didn't give is.
+func ChangedSince(asset *models.Asset, last *metadata.Metadata) map[string]bool {
+	changed := map[string]bool{}
+	text := map[string]struct{ current, last string }{
+		"name":                 {asset.Name, last.Title},
+		"description":          {asset.Description, last.Description},
+		"publisher":            {derefString(asset.Publisher), last.Publisher},
+		"publisher_url":        {derefString(asset.PublisherURL), last.PublisherURL},
+		"store":                {derefString(asset.Store), last.Store},
+		"store_product_id":     {derefString(asset.StoreProductID), last.StoreID},
+		"latest_store_version": {derefString(asset.LatestStoreVersion), last.LatestStoreVersion},
+		"engine":               {derefString(asset.Engine), last.Engine},
+		"min_engine_version":   {derefString(asset.MinEngineVersion), last.MinEngineVersion},
+		"price":                {derefString(asset.Price), last.Price},
+		"price_currency":       {derefString(asset.PriceCurrency), last.Currency},
+	}
+	for column, v := range text {
+		current := strings.TrimSpace(v.current)
+		changed[column] = current != "" && current != strings.TrimSpace(v.last)
+	}
+	dates := map[string]struct{ current, last *time.Time }{
+		"released_at":      {asset.ReleasedAt, last.ReleasedAt},
+		"store_updated_at": {asset.StoreUpdatedAt, last.StoreUpdatedAt},
+	}
+	for column, v := range dates {
+		changed[column] = v.current != nil && (v.last == nil || !v.current.Equal(*v.last))
+	}
+	// The column keeps two decimal places, and the store may send more.
+	changed["rating"] = asset.Rating != nil && math.Round(*asset.Rating*100) != math.Round(last.Rating*100)
+	changed["rating_count"] = asset.RatingCount != nil && *asset.RatingCount != last.RatingCount
+	return changed
 }
