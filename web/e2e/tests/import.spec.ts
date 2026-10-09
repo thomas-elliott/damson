@@ -16,7 +16,9 @@ test.describe("Asset import", () => {
   test("dropping a .unitypackage enqueues an import and surfaces in the library", async ({
     page,
     request,
+    noConsoleErrors,
   }) => {
+    void noConsoleErrors;
     const session = await bootstrapAdmin(request);
     await installSession(page, session);
 
