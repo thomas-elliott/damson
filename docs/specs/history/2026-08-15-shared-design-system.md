@@ -2,7 +2,7 @@
 
 **Status:** implemented — all eleven stages merged 2026-08-15 (PR #40, `f91d654`).
 **Alignment artifact:** `.lavish/spec-shared-design.html`.
-**Input brief:** [`docs/shared-design-adoption.md`](../../shared-design-adoption.md) — estate context,
+**Input brief:** [`docs/shared-design-adoption.md`](../../archive/shared-design-adoption.md) — estate context,
 the original measurements, the seven hazards. This spec supersedes it wherever the two disagree.
 **Roadmap item:** `Next` #1 in [`docs/roadmap.md`](../../roadmap.md), which banked ten decisions on
 2026-08-15. Those are carried below as settled, not re-decided.

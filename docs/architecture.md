@@ -4,17 +4,6 @@ Current-state reference for Damson. The build-time design docs in
 [`docs/archive/`](archive/) describe the *why* and the trade-offs;
 this doc describes *what is in the tree today*.
 
-Companions:
-
-- [`docs/CONVENTIONS.md`](CONVENTIONS.md) — coding standards, handler
-  patterns, test helpers
-- [`docs/design-system.md`](design-system.md) — frontend design system
-- [`docs/progress.md`](progress.md) — what has landed, slice by slice
-- [`docs/specs/`](specs/) — signed-off specs; the *why* behind each
-  post-MVP slice
-- [`docs/observability.md`](observability.md) — logging and log queries
-- [`AGENTS.md`](../AGENTS.md) — quick-start guidance for agentic coding
-
 ---
 
 ## 1. What Damson is
@@ -48,15 +37,11 @@ Core concerns:
   are durable Postgres-backed jobs whose state survives a restart
   (§12).
 
-The M0–M7 MVP ladder is complete; post-MVP work is spec-driven under
-[`docs/specs/`](specs/). See [`docs/progress.md`](progress.md) for
-what has landed and what is deferred.
-
 ---
 
 ## 2. Stack
 
-**Backend.** Go 1.26, Gin, GORM (Postgres in production and tests —
+**Backend.** Go, Gin, GORM (Postgres in production and tests —
 the suite runs against a real Postgres via `DAMSON_TEST_POSTGRES_DSN`).
 Auth via `coreos/go-oidc/v3` + `oauth2` (OIDC mode)
 or `golang-jwt/jwt/v5` HS256 (local mode). S3 access via
@@ -67,68 +52,26 @@ Thumbnails and previews are pure Go: stdlib `image` +
 `hajimehoshi/go-mp3` and `jfreymuth/oggvorbis` for audio. WAV is
 parsed in-tree. No CGo.
 
-**Frontend.** React 19, TypeScript 6 (strict), Vite 8. TanStack Query 5
-for server state. React Router 8 (data router). Tailwind 4 with OKLCH
-design tokens. Radix UI headless primitives + hand-rolled components
-under `web/src/design-system/`. `class-variance-authority` for
+**Frontend.** React 19, TypeScript 6 (strict), Vite. TanStack Query
+for server state. React Router (data router). Tailwind with OKLCH
+design tokens. `@telliott/shared-ui` for contract primitives; Radix +
+hand-rolled components under `web/src/design-system/` for the rest. `class-variance-authority` for
 variants; `clsx` + `tailwind-merge` via a `cn()` helper.
 `@tanstack/react-virtual` for the asset grid. `@fontsource/inter` +
 `@fontsource/jetbrains-mono` self-hosted fonts.
+Two TypeScript compilers are installed side by side: the `typescript` dependency is aliased to `@typescript/typescript6`, which is what `tsc -b` runs; `@typescript/native` (TS 7) sits alongside it. Check `web/package.json` before assuming which one a given script uses.
 
 **Tooling.** [just](https://just.systems) (`justfile` + `tools/*.just`) for all developer workflows. `air`
-for Go hot-reload. Vitest 4 with two projects: `unit` (jsdom) and
+for Go hot-reload. Vitest with two projects: `unit` (jsdom) and
 `storybook` (Playwright Chromium running every `*.stories.tsx` with
-axe-core a11y checks). Storybook 10. Multi-stage Dockerfile (Node →
+axe-core a11y checks). Storybook. Multi-stage Dockerfile (Node →
 Go → Alpine).
 
 Module path: `github.com/thomas-elliott/damson`.
 
----
+**The `damson.go` quirk.** `//go:embed` patterns can only reach **into** a directory, not **up** from the embedding file. Since `database/migrations/*.sql` and `web/static/*` are at project root but the Go packages that need them live under `internal/`, there is a single file at project root — `damson.go` — that holds both `//go:embed` directives and exports `damson.MigrationsFS` and `damson.WebStaticFS`. Consumers import `github.com/thomas-elliott/damson` and use those vars.
 
-## 3. Repository layout
-
-```
-damson/
-├── justfile
-├── tools/                    # just modules (build, check, format, lint, release, test)
-├── Dockerfile
-├── damson.go                 # //go:embed for migrations + SPA (see below)
-├── cmd/
-│   ├── server/main.go        # entry point: HTTP server, middleware, wiring
-│   ├── dmsn/                 # the CLI (see §18a); stdlib flag, no new deps
-│   └── e2e-server/main.go    # test-only binary for Playwright (Postgres + /api/test/*)
-├── internal/
-│   ├── auth/                 # Authenticator interface + local + oidc + PAT impls
-│   ├── axi/                  # CLI output contract: encoding, projection, errors
-│   ├── toon/                 # emit-only TOON encoder (CLI output format)
-│   ├── config/               # env loading, panic-on-missing
-│   ├── db/                   # gorm.Open, migration runner
-│   ├── handlers/api/         # one file per feature; receivers on *Handler
-│   ├── models/               # GORM models, one file per entity
-│   ├── queue/                # River client + workers (import / preview queues)
-│   ├── services/
-│   │   ├── audit/            # audit log writer (same-tx with mutation) + retention purge
-│   │   ├── extract/          # .unitypackage (tar) + .zip extractors
-│   │   ├── imports/          # import pipeline, stage transitions, SSE, enrichment
-│   │   ├── licence/          # SPDX + Unity EULA detection
-│   │   ├── metadata/         # storefront adapters (Unity / Sketchfab / itch) + scraper
-│   │   ├── preview/          # per-file preview derivatives + processing-queue state
-│   │   ├── storage/          # storage.Service interface + LocalFS + S3
-│   │   │   └── cleanup/      # orphan blob scan / delete
-│   │   ├── tags/             # tag path helpers
-│   │   └── thumbnail/        # raster / audio / font workers
-│   ├── testdb/               # per-test Postgres schema harness
-│   └── web/                  # SPA static handler
-├── database/migrations/      # NNN_*.sql, applied on startup
-├── web/                      # React SPA (Vite); built into web/static/
-└── docs/                     # this directory
-```
-
-`damson.go` lives at the repo root because `//go:embed` cannot
-traverse upward. It exports `damson.MigrationsFS` and
-`damson.WebStaticFS`, consumed by `internal/db` and `internal/web`.
-`web/static/.gitkeep` exists so `//go:embed all:web/static` succeeds
-before the SPA is built.
+`web/static/.gitkeep` exists because `//go:embed all:web/static` requires the directory to match at least one file at compile time, even before the SPA has been built.
 
 ---
 
@@ -197,7 +140,8 @@ section sketches the shape and relationships.
 
 - **`tags`** — `library_id`, `path` (materialised path,
   `environment/trees/deciduous`), `parent_id`. `unique(library_id,
-  path)`. Path length capped at 1 KiB.
+  path)`. Path length capped at 1 KiB. A shared cross-library
+  vocabulary is a deliberate future add.
 - **`asset_tags`** — `asset_id` × `tag_id`.
 - **`projects`** — `library_id`, `name`, `description`,
   `target_distribution` (`commercial` | `open-source` | `personal`
@@ -247,8 +191,7 @@ ownership** — they do not affect access rules.
 
 ### 4.6 Migrations
 
-SQL-only, in `database/migrations/NNN_*.sql` (001–023 at time of
-writing). The runner (`internal/db/migrate.go`) reads them via
+SQL-only, in `database/migrations/NNN_*.sql`. The runner (`internal/db/migrate.go`) reads them via
 `damson.MigrationsFS`, applies in lexicographic order inside a
 Postgres advisory lock, tracks applied files in `schema_migrations`.
 Each file is wrapped in `BEGIN; … COMMIT;` and uses `IF NOT EXISTS`
@@ -260,7 +203,8 @@ discipline (§12).
 
 **Tests** run against a real Postgres (each test gets an isolated
 schema with the SQL migrations applied), configured via
-`DAMSON_TEST_POSTGRES_DSN`. A schema change must still land in **both**
+`DAMSON_TEST_POSTGRES_DSN`. It is **required** — with it unset the
+suite fails fast rather than silently skipping. A schema change must still land in **both**
 an SQL migration **and** the corresponding GORM struct tags, since the
 model tags remain the second source of truth. Postgres-specific
 behaviour (tsvector, JSONB operators, `pg_advisory_lock`) is exercised
@@ -349,6 +293,10 @@ leaked from one Damson cannot replay against another.
 Local users are looked up by `lower(email)` with a non-null
 `password_hash`; they hold no `user_identities` row.
 
+`users.subject` no longer exists — migration 008 dropped it and moved
+external identities to `user_identities`. Don't reintroduce a
+synthetic-subject pattern.
+
 Login is gated by `auth.LoginThrottle` (in-memory, per-IP +
 per-email; 5 burst, 1/min refill). 429 on empty bucket. Same bucket
 gates `POST /api/auth/bootstrap`.
@@ -391,7 +339,8 @@ Both modes share `auth.BootstrapFirstAdmin`: the **first user on an
 empty system** (no other users, no libraries) is promoted to
 `role='sysadmin'`, a default `"Personal"` library is created, the
 user becomes its admin member, and `current_library_id` is set — all
-in one transaction. It's a no-op once any other user or library
+in one transaction. No env-var allowlist — identity is whoever signs
+in first. It's a no-op once any other user or library
 exists, so retrying is safe.
 
 Local mode has two entry points:
@@ -637,28 +586,8 @@ source version. Object keys are reused — no re-upload. Audited as
 `asset.version.subset`. The file-picking UI is the **scoped file
 browser** (`web/src/components/filebrowser/`): a full-page tree
 browser at `/library/:assetId/browse`, entered via "Browse files" from
-a browsable asset (current version with more than one file). It
-superseded the original flat checkbox-list dialog
-(`SubsetVersionDialog`, retired). Source version is the asset's
-current version — the only one whose files are loaded into the panel
-today.
-
-**Subset version** — `POST /api/assets/:id/versions/:vid/subset`
-creates a new version whose `asset_files` rows are a subset of the
-source version. Object keys are reused — no re-upload. Audited as
-`asset.version.subset`. Backend landed in M7. The file-picking UI is
-the **scoped file browser** (`web/src/components/filebrowser/`): a
-full-page tree browser entered via "Browse files" from a browsable
-asset (current version with more than one file), where the user
-selects files and creates a subset. It superseded the original flat
-checkbox-list dialog (`SubsetVersionDialog`, retired). Source version
-is the asset's current version (the only one whose files are loaded
-into the panel today).
-
-**Async pipeline** — currently deferred. SSE
-`/api/imports/events` and `/api/imports/:id/events` will land when
-the backend goes async; the SPA already tolerates a "thumbnail
-pending" state.
+a browsable asset (current version with more than one file). Source version is the asset's
+current version — the only one whose files are loaded into the panel.
 
 ### 8.1 Unity package extraction
 
@@ -818,9 +747,7 @@ later extraction or rescan (§9.1).
 `internal/services/preview/`. Where a thumbnail is a small per-asset
 image, a preview is a **web-safe, browser-renderable derivative of one
 file** — larger, so the file detail panel shows real detail — for
-formats a browser cannot open directly. Currently pure-Go raster
-decoding (TIFF, BMP, and friends) with the rest of the taxonomy
-staged behind it. Previews are stored content-addressed under the
+formats a browser cannot open directly. Previews are stored content-addressed under the
 same `thumbs/` prefix.
 
 Guards: a long-edge cap on the output, and a decompression-bomb guard
@@ -881,7 +808,7 @@ for the reasoning.
 - **Timeouts and sizing.** Per-queue job timeout, defaulting to
   `DefaultJobTimeout` (30 min — generous, because imports can be
   multi-GB). Worker counts default to `GOMAXPROCS`. Both are
-  overridable per queue (§15.1).
+  overridable per queue (`.env.example`).
 - **Resume on boot.** `imports.ResumeInFlight` /
   `preview.ResumeInFlight` re-enqueue rows left mid-flight by a
   restart. River dedupes by args, so this is idempotent and also
@@ -934,8 +861,8 @@ adding a derived column.
   - Per-asset / per-project (inside the current library).
   - Library audit (`/api/audit`).
   - Server audit (sysadmin only; `/api/admin/audit`). Two scopes
-    via `?scope=` (PER-74): `server` (default — `library_id IS NULL`
-    only, the original behaviour) or `all` (server + library-scoped
+    via `?scope=`: `server` (default — `library_id IS NULL`
+    only) or `all` (server + library-scoped
     events across every library, with each row's `library_name`
     joined in for the SPA to render).
 - Retention: per-library via `library_settings.audit_retention_days`
@@ -945,88 +872,6 @@ adding a derived column.
   is `DAMSON_AUDIT_PURGE_INTERVAL` (default `24h`). Server-level
   events (`library_id IS NULL`) are not yet purged — `server_settings`
   has no retention column.
-
----
-
-## 15. Configuration
-
-Loaded once at startup by `internal/config/config.go`. A `.env` in
-the repo root is auto-loaded; real env vars win on conflict.
-Missing required values panic at startup.
-
-Secrets (`DAMSON_POSTGRES_DSN`, `DAMSON_JWT_SIGNING_KEY`,
-`DAMSON_LOCAL_ADMIN_PASSWORD`, `DAMSON_S3_ACCESS_KEY`,
-`DAMSON_S3_SECRET_KEY`) also accept a `<NAME>_FILE` variant that
-reads the value from a path — for Docker Secrets. Setting both the
-direct var and the `_FILE` variant panics at startup.
-
-The only always-required value is `DAMSON_POSTGRES_DSN` (or its
-`_FILE` form).
-
-### 15.1 Always
-
-| Var | Default |
-|---|---|
-| `DAMSON_POSTGRES_DSN` | **required** |
-| `DAMSON_LISTEN_ADDR` | `:8080` |
-| `DAMSON_BASE_URL` | `http://localhost:8080` |
-| `DAMSON_LOG_LEVEL` | `info` |
-| `DAMSON_LOG_FORMAT` | `json` (`text` for local dev — see `docs/observability.md`) |
-| `DAMSON_AUTH_MODE` | `local` (or `oidc`) |
-| `DAMSON_STORAGE_MODE` | `local` (or `s3`) |
-| `DAMSON_AUDIT_PURGE_INTERVAL` | `24h` (Go duration; non-positive falls back to default) |
-| `DAMSON_ORPHAN_MIN_AGE` | `168h` (7 days; minimum object age before orphan cleanup will delete it — §5.1) |
-| `DAMSON_UPLOAD_JANITOR_INTERVAL` | `1h` (how often abandoned upload sessions expire and their multipart uploads abort — §8.0) |
-
-Background queues (§12). Unset / unparseable / non-positive values
-fall back to the default in every case.
-
-| Var | Default |
-|---|---|
-| `DAMSON_IMPORT_QUEUE_WORKERS` | `GOMAXPROCS` |
-| `DAMSON_PREVIEW_QUEUE_WORKERS` | `GOMAXPROCS` |
-| `DAMSON_IMPORT_JOB_TIMEOUT` | `30m` (Go duration) |
-| `DAMSON_PREVIEW_JOB_TIMEOUT` | `30m` (Go duration) |
-
-### 15.2 `DAMSON_AUTH_MODE=local` (default)
-
-| Var | Default / required |
-|---|---|
-| `DAMSON_JWT_SIGNING_KEY` | optional; if empty, 32 random bytes are generated and persisted |
-| `DAMSON_JWT_KEY_FILE` | `./data/jwt.key` |
-| `DAMSON_LOCAL_ADMIN_EMAIL` | optional — when set with `_PASSWORD`, seeds first admin |
-| `DAMSON_LOCAL_ADMIN_PASSWORD` | optional |
-
-### 15.3 `DAMSON_AUTH_MODE=oidc`
-
-| Var | Required? |
-|---|---|
-| `DAMSON_OIDC_ISSUER_URL` | required |
-| `DAMSON_OIDC_CLIENT_ID` | required |
-| `DAMSON_OIDC_AUDIENCE` | required |
-
-Frontend env (Vite, OIDC only): `VITE_OIDC_AUTHORITY`,
-`VITE_OIDC_CLIENT_ID`, `VITE_OIDC_SCOPE`, `VITE_OIDC_REDIRECT_URI`,
-`VITE_OIDC_SILENT_REDIRECT_URI`, `VITE_OIDC_POST_LOGOUT_REDIRECT_URI`.
-
-### 15.4 `DAMSON_STORAGE_MODE=local` (default)
-
-| Var | Default |
-|---|---|
-| `DAMSON_STORAGE_LOCAL_PATH` | `./data/blobs` |
-
-### 15.5 `DAMSON_STORAGE_MODE=s3`
-
-| Var | Default / required |
-|---|---|
-| `DAMSON_S3_ENDPOINT` | required |
-| `DAMSON_S3_REGION` | required |
-| `DAMSON_S3_BUCKET` | required |
-| `DAMSON_S3_ACCESS_KEY` | required |
-| `DAMSON_S3_SECRET_KEY` | required |
-| `DAMSON_S3_FORCE_PATH_STYLE` | `true` |
-
-See `.env.example` for the canonical list.
 
 ---
 
@@ -1094,9 +939,7 @@ upload progress (fetch lacks it).
 ### 16.4 SPA auth flow
 
 1. App boots → `useAuthMode()` hits `/api/auth/mode` (public) and
-   the result is cached in TanStack Query (single source of truth —
-   the previous parallel `cached` singleton in `lib/authMode.ts` was
-   removed in the Alpha leftover-features rollup, PER-68).
+   the result is cached in TanStack Query (single source of truth).
 2. **OIDC mode** — `AuthGuard` uses `oidc-client-ts`'s
    `UserManager`; missing/expired user → `signinRedirect` (browser
    leaves the SPA).
@@ -1111,6 +954,11 @@ upload progress (fetch lacks it).
 5. On 401, `api.ts` tries silent renew (OIDC) or throws
    `AuthRedirectError` (local). The dedicated local refresh keeps
    typical sessions from ever reaching the 401 path.
+6. **Auth-mode cache is TanStack-only.** `lib/authMode.ts:getCachedAuthMode()`
+   reads directly out of TanStack's query cache for the synchronous-access
+   sites in `api.ts` and `lib/token.ts`. Post-bootstrap code seeds the new
+   value via `queryClient.setQueryData` (synchronous) and fires a no-await
+   invalidate.
 
 ### 16.5 Grid
 
@@ -1138,148 +986,13 @@ Chromium tests with axe-core a11y checks (`a11y.test = "error"`).
 `web/src/components/notifications/`. Client-side only — there is no
 notifications table or endpoint. `NotificationProvider` is mounted
 above the router in `App.tsx`, which is the point: **it owns the
-upload queue**, so uploads survive navigation. Previously upload
-state lived in `DropZone` inside `LibraryPage`, and React Router
-unmounting the page aborted the in-flight XHR.
+upload queue**, so uploads survive navigation. Keep upload state above the
+router: in a page component, a navigation unmounts it and aborts the
+in-flight XHR.
 
 It also drives the shell's unread / in-flight badge, and is where
 upload concurrency capping, per-upload cancel, clear-all, and the
 "add as a version of an existing asset?" prompt live (§8).
-
----
-
-## 17. API surface
-
-REST-ish JSON under `/api`. The list mirrors
-`internal/handlers/api/handler.go`. Library-scoped endpoints
-operate against the user's `current_library_id` and are wrapped by
-`requireLibrary()`. The `/api/libraries/:id/...` family is gated
-inside each handler.
-
-```
-# Public
-GET    /api/auth/mode
-POST   /api/auth/login                # local mode (rate-limited)
-POST   /api/auth/bootstrap            # local mode (rate-limited)
-GET    /api/health
-
-# Session / user
-GET    /api/me
-PATCH  /api/me                        # app-owned email / display name
-GET    /api/libraries
-POST   /api/me/current-library
-POST   /api/auth/refresh              # local mode (re-issues JWT)
-
-# Libraries (cross-library; handler-gated)
-POST   /api/libraries
-PATCH  /api/libraries/:id
-DELETE /api/libraries/:id
-GET    /api/libraries/:id/members
-POST   /api/libraries/:id/members
-PATCH  /api/libraries/:id/members/:userId
-DELETE /api/libraries/:id/members/:userId
-
-# Server admin (sysadmin only)
-GET    /api/admin/users
-PATCH  /api/admin/users/:id
-GET    /api/admin/settings
-PATCH  /api/admin/settings
-GET    /api/admin/audit               # ?scope=server (default) | all
-POST   /api/admin/storage/cleanup/scan    # list orphaned objects
-POST   /api/admin/storage/cleanup/delete  # delete an explicit key list
-
-# Assets (library-scoped)
-GET    /api/assets
-POST   /api/assets/bulk               # action over a selection: delete, review,
-                                      #   unreview, add_tag, remove_tag,
-                                      #   add_to_collection, set_licence
-GET    /api/assets/:id
-PATCH  /api/assets/:id
-DELETE /api/assets/:id
-POST   /api/assets/:id/review
-POST   /api/assets/:id/rescan         # re-derive licence + thumbnail from files
-POST   /api/assets/:id/merge          # fold another asset into this one
-GET    /api/assets/:id/audit
-GET    /api/assets/:id/licence
-PUT    /api/assets/:id/licence
-POST   /api/assets/:id/licence/review
-GET    /api/assets/:id/licence/detect
-POST   /api/assets/:id/tags
-DELETE /api/assets/:id/tags/:tagId
-
-# Versions (library-scoped)
-PATCH  /api/assets/:id/versions/:vid
-DELETE /api/assets/:id/versions/:vid
-POST   /api/assets/:id/versions/:vid/reextract
-POST   /api/assets/:id/versions/:vid/subset
-
-# Storefront metadata (library-scoped)
-POST   /api/assets/:id/metadata/fetch          # fetch + fill/confirm from a listing
-POST   /api/assets/:id/metadata/apply
-POST   /api/assets/:id/metadata/gallery/backfill
-GET    /api/metadata/preview          # non-mutating fetch-by-url (candidate expand)
-GET    /api/metadata/image            # SSRF-guarded image proxy → same-origin bytes
-GET    /api/metadata/search           # name search across storefront adapters
-
-# Imports (library-scoped)
-POST   /api/imports                   # multipart; 202 + optional suggested_match
-GET    /api/imports                   # ?stage=<name> | all
-GET    /api/imports/events            # SSE: library-wide stage transitions
-GET    /api/imports/:id
-GET    /api/imports/:id/events        # SSE: one import
-POST   /api/imports/:id/retry
-
-# Previews (library-scoped)
-GET    /api/previews                  # processing-queue view
-GET    /api/previews/events           # SSE: preview transitions
-GET    /api/previews/:objectKey       # serve a preview derivative
-POST   /api/assets/:id/previews/requeue
-POST   /api/assets/:id/files/:fileId/previews/requeue
-
-# Tags / licences (library-scoped)
-GET    /api/tags
-POST   /api/tags
-DELETE /api/tags/:id
-POST   /api/licences/detect
-
-# Projects (library-scoped)
-GET    /api/projects
-POST   /api/projects
-GET    /api/projects/:id
-PATCH  /api/projects/:id
-DELETE /api/projects/:id
-GET    /api/projects/:id/audit
-POST   /api/projects/:id/pins
-DELETE /api/projects/:id/pins/:pinId
-
-# Collections (library-scoped)
-GET    /api/collections
-POST   /api/collections
-GET    /api/collections/:id
-PATCH  /api/collections/:id
-DELETE /api/collections/:id
-POST   /api/collections/:id/assets
-DELETE /api/collections/:id/assets/:assetId
-
-# Search alias
-GET    /api/search                    # same shape as /api/assets
-
-# Settings (library-scoped; PATCH gated to library admin)
-GET    /api/settings
-PATCH  /api/settings
-
-# Files (library-scoped)
-GET    /api/files/:objectKey
-GET    /api/thumbs/:objectKey
-
-# Audit (library-scoped)
-GET    /api/audit
-```
-
-Every endpoint the archived tech design assumed is now implemented —
-the last gaps (`POST /api/libraries`, SSE imports) closed with the
-async-pipeline and River work. `docs/progress.md` tracks what has
-landed since.
 
 ---
 
@@ -1427,7 +1140,7 @@ cost accepted: temp disk equal to the compressed folder, and a retained
 "original package" that is a CLI-synthesised archive.
 
 **Build.** `just build cli`. There is deliberately no cross-compile matrix,
-no Woodpecker step and no release artefacts — see §19.13.
+no Woodpecker step and no release artefacts — see `docs/progress.md`, Known gaps.
 
 ## 18b. Importing the Unity Asset Store cache
 
@@ -1476,53 +1189,3 @@ blanks-only — a resumed import cannot clobber a correction — and that publis
 then feeds `exactMatchCandidate`, breaking ties among title matches and
 unlocking a whole-word-prefix near match when the publisher agrees exactly. A
 near match records confidence `0.8` rather than claiming an exact `1.0`.
-
----
-
-## 19. Confirmed decisions
-
-Reproduced from the archived tech design §22 and updated where
-the code diverges:
-
-1. Module path `github.com/thomas-elliott/damson`.
-2. Frontend OIDC library `oidc-client-ts`.
-3. **Local auth mode is real and tested**, alongside OIDC. The
-   archived tech design described OIDC only; local mode is
-   `internal/auth/local.go` + `internal/handlers/api/auth.go`.
-4. Upload path: in-server streaming (Go server hashes in-stream
-   and puts to storage, multipart to S3). Revisit only if the server
-   becomes a bottleneck.
-5. Import staging: real `asset_imports` table. It stays the durable
-   source of truth for stage state even now that River owns the
-   scheduling (§12).
-6. Test tier: **real Postgres everywhere**, per-test schema via
-   `internal/testdb`, `DAMSON_TEST_POSTGRES_DSN` required. SQLite is
-   gone — the driver is no longer a dependency, and tsvector, JSONB
-   operators and advisory locks are exercised directly.
-7. Thumbnail pipeline: stdlib `image` + `golang.org/x/image/*`.
-   No CGo, no third-party encoder. JPEG for photographic content,
-   PNG for everything else. File previews (§11.2) follow the same
-   pure-Go constraint.
-8. Ownership model: library-based group ownership.
-9. **Brand colour is yellow only** — no theme-swap, and it is `--primary`
-   (shadcn's `--accent` is the hover surface). **Light at `:root`, dark on
-   `.dark`**, with `prefers-color-scheme` deciding the initial value until the
-   user picks one. Primitives come from shadcn/ui via the shared `@shared`
-   registry as copy-in source; Damson-specific components are still hand-rolled
-   on Radix. See
-   [`specs/history/2026-08-15-shared-design-system.md`](specs/history/2026-08-15-shared-design-system.md).
-10. Background jobs: River on Postgres, replacing hand-rolled
-    goroutine pools. Chosen for durability across restarts and
-    observable job state without building a scheduler.
-11. External identities live in `user_identities`, keyed
-    `(issuer, subject)`, with verified email as the cross-IdP join
-    key. `users.subject` was dropped (migration 008).
-12. Storefront metadata is fetched server-side through one
-    SSRF-guarded client, and listing imagery is re-hosted as local
-    blobs rather than widening the CSP to store CDNs.
-13. The CLI is named `dmsn`, not `damsonctl`: an agent types it on
-    every call, and the server binary keeps `damson` so the Dockerfile
-    and manifests are untouched. It ships with **no distribution
-    plumbing** — `just build cli` and `dmsn setup`, nothing else. The
-    accepted consequence is that the binary exists only where someone
-    builds it.

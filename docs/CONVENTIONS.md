@@ -2,45 +2,6 @@
 
 Coding standards, conventions, and setup for go/react repositories.
 
-This document complements:
-- `AGENTS.md` — shorter quick-start rules for agentic coding
-- `docs/architecture.md` — current architecture, data model, API surface, shipped decisions
-- `docs/design-system.md` — frontend design system spec
-- `docs/progress.md` — what's actually in the tree, slice by slice
-- `docs/specs/` — signed-off specs driving post-MVP work
-- `docs/archive/` — original design docs and point-in-time research, kept for historical reference
-
----
-
-## Stack
-
-**Backend**
-- Go 1.26 with the Gin web framework
-- GORM (PostgreSQL in both production and tests; each test gets its own schema)
-- Pluggable auth: OIDC bearer tokens (`coreos/go-oidc` + `oauth2`) or local HS256 JWTs (`golang-jwt/jwt/v5`)
-- Pluggable storage: local filesystem or S3-compatible (`internal/services/storage`)
-- River (`riverqueue/river` on `pgx/v5`) for background jobs — imports and previews
-
-**Frontend**
-- React 19 + TypeScript 6 (strict mode). Two compilers are installed side by side: the `typescript` dependency is aliased to `@typescript/typescript6`, which is what `tsc -b` runs; `@typescript/native` (TS 7) sits alongside it. Check `web/package.json` before assuming which one a given script uses.
-- Vite 8 build tool
-- TanStack Query v5 for server state
-- React Router 8
-- Tailwind CSS with OKLCH design tokens
-- Radix UI headless primitives (`@radix-ui/react-*`) + hand-rolled components under `web/src/design-system/`
-- `class-variance-authority` for component variants; `clsx` + `tailwind-merge` via a `cn()` helper
-- `lucide-react` icons; `@fontsource/inter` + `@fontsource/jetbrains-mono` self-hosted fonts
-- CodeMirror 6 (`@codemirror/*`) for markdown editing and `@lezer/markdown` for the matching read-only renderer — see the `MarkdownEditor` / `Markdown` primitives
-
-**Tooling**
-- [just](https://just.systems) (`justfile` + `tools/*.just`) for all developer workflows
-- `air` for Go hot-reload
-- Vitest 4 with two projects: `unit` (jsdom) for component unit tests and `storybook` (Playwright Chromium) that runs every `*.stories.tsx` as a real-browser test with axe-core a11y checks
-- Storybook 10 (`@storybook/react-vite`) for the component gallery, with `@storybook/addon-a11y`, `@storybook/addon-vitest`, and `storybook-addon-pseudo-states`
-- Playwright for e2e against `cmd/e2e-server` (a Postgres-backed test binary mirroring production wiring)
-- Multi-stage Dockerfile (Node → Go → Alpine)
-- Woodpecker CI (`.woodpecker.yml`)
-
 ---
 
 ## Developer Commands
@@ -135,7 +96,7 @@ Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON hand
 ### Tests
 Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers are in `internal/handlers/api/api_test.go`:
 
-- `newTestHandler(t)` — returns `(*Handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires `DAMSON_TEST_POSTGRES_DSN` (see AGENTS.md "Migrations vs tests")
+- `newTestHandler(t)` — returns `(*Handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires `DAMSON_TEST_POSTGRES_DSN` (see `docs/architecture.md` §4.6)
 - `newTestHandlerLocal(t)` — same but in local-auth mode, with a `*auth.LocalAuthenticator` returned alongside
 - `setupRouter(h, asUser)` — registers routes under `/api`; bypasses real auth by injecting `asUser` via `auth.SetUserForTest`
 - `performGET(r, path)`, `performRequest(r, method, path, body)` — issue requests
@@ -209,7 +170,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Primary keys: `bigserial PRIMARY KEY`. Timestamps: `timestamptz NOT NULL DEFAULT now()`.
 - Migrations are SQL-only — no Go migration framework. See `internal/db/migrate.go` for the runner (advisory lock + `schema_migrations` tracking).
 - River's `river_*` tables are the exception: River owns that schema and migrates it from `queue.New`. Don't hand-write migrations for them.
-- Schema changes must land in BOTH the SQL migration AND the corresponding GORM struct tag — production and tests both run the SQL migrations, but GORM still maps columns from the struct tags, so a migration/tag mismatch surfaces at runtime (and now in tests). See AGENTS.md "Migrations vs tests".
+- Schema changes must land in BOTH the SQL migration AND the corresponding GORM struct tag — production and tests both run the SQL migrations, but GORM still maps columns from the struct tags, so a migration/tag mismatch surfaces at runtime (and now in tests). See `docs/architecture.md` §4.6.
 
 ## Docker & Release
 

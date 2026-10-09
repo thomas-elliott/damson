@@ -137,8 +137,7 @@ Docker Secrets / Kubernetes secrets. Setting both the direct var and
 the `_FILE` form panics at startup.
 
 For mode-specific variables (OIDC, S3, local-mode bootstrap, JWT
-signing key) see [`docs/architecture.md`](docs/architecture.md) §13 and
-the comments in `.env.example`.
+signing key) see the comments in `.env.example`.
 
 ### First-run flow
 

@@ -1,6 +1,4 @@
-# E2E Flow Roadmap
-
-**Status:** all three tiers implemented **Last updated:** 2026-07-25
+# E2E flows
 
 Playwright runs against a dedicated test binary (`cmd/e2e-server`) that
 mirrors the production wiring. This document captures what's covered, what's
@@ -11,24 +9,12 @@ because it still explains *why* each flow earned a slot.
 ## Implementation status
 
 - **Real-backend harness:** `cmd/e2e-server` — a test-only Go binary backed
-  by **Postgres** (SQLite was dropped in the River migration), adding
+  by **Postgres**, adding
   `/api/test/reset` to drop and re-migrate between tests and `/api/test/users`
   to seed. Built as a dependency of `just test e2e`; Playwright launches it alongside
   `vite dev` via the `webServer` array. Needs `DAMSON_TEST_POSTGRES_DSN` at
   runtime — `just test e2e` defaults it to the shared local Postgres on 5432
   via the `damson_test` database.
-- **All three tiers are implemented**: 22 tests across 12 spec files in
-  `web/e2e/tests/`.
-
-| Tier | Spec files |
-|---|---|
-| 1 | `bootstrap`, `login`, `library`, `import` |
-| 2 | `library-switch`, `asset-edit-persist`, `oidc-callback` |
-| 3 | `projects`, `collections`, `search`, `admin-audit`, `settings` |
-
-The search spec's original caveat — "only when running against Postgres, not
-SQLite" — is moot: Postgres is the only backend now, so the `tsvector` path
-is always the one under test.
 
 Companions:
 - `docs/CONVENTIONS.md` — testing libraries, fixtures, coverage expectations
@@ -180,20 +166,14 @@ is no top-level sign-out button any more.
 
 ## Tier 3 — nice-to-have (implemented)
 
-Originally deferred until tiers 1 and 2 were stable; all five have since
-landed. Notes kept for the rationale:
-
 - **Project create + pin assets** — exercises the projects CRUD and
   pin/unpin write path.
 - **Collection create + share link** — collections CRUD + sharing.
 - **Search returns filtered results** — covers the search route and the
-  Postgres `tsvector` index. (The original "only when running against
-  Postgres" caveat no longer applies — Postgres is the only backend.)
+  Postgres `tsvector` index.
 - **Admin audit log visibility** — sysadmin role gating.
 - **Settings persistence** — change a library setting (grid density
-  default), reload, value sticks. It used to drive the theme default; that
-  control left the Settings page when the theme became a browser-only
-  concern.
+  default), reload, value sticks.
 
 ---
 
@@ -223,22 +203,6 @@ priority than flow coverage in *this* suite. Note that a11y is not
 uncovered: every `*.stories.tsx` runs in real Chromium under Vitest with
 axe-core checks at `a11y.test = "error"` (`just test stories`). Visual
 regression remains unowned.
-
----
-
-## What's left
-
-The build-out order above is done — harness, then tiers 1 → 3. Remaining
-work on this suite:
-
-1. **Visual regression** — still unowned. Decide whether it belongs here or
-   in the Storybook tier.
-2. **Coverage for post-MVP surfaces** — previews / processing queue, the
-   notification centre's upload ownership across navigation, storefront
-   enrichment, and bulk edit have no e2e flow yet. The upload-survives-
-   navigation case is the highest-value of these: it's exactly the
-   multi-system, hard-to-reproduce-by-hand class this suite exists for.
-3. **Runtime budget** — keep the full suite under 3 minutes in CI.
 
 ---
 

@@ -1,7 +1,5 @@
 # Damson Design System
 
-**Status:** v3 — primitives from the `@telliott/shared-ui` package **Last updated:** 2026-08-22
-
 The authoritative implementation contract for Damson's frontend. **Storybook is the
 visual reference** (`just storybook`); this document is what the code actually does.
 The old mockup now lives at `docs/archive/mockup/` and is consulted only for the *why*.
@@ -15,11 +13,6 @@ npm package; nothing is copied into the tree, so `web/src/components/ui/` no lon
 exists. Damson's own primitives stay in `web/src/design-system/primitives/` and wrap
 or re-export what the package exports. A per-project difference belongs in a token
 override or a wrapper, never in a fork. See **Where primitives come from**.
-
-Companions: `docs/architecture.md` (architecture, data model, API),
-`docs/CONVENTIONS.md` (stack, developer commands),
-`docs/archive/ui-design.md` (the original information-architecture
-brief — kept for historical reference).
 
 ---
 
@@ -206,7 +199,7 @@ line-height only, no weight)
 
 | Utility | px / line-height | Used for |
 |---|---|---|
-| `text-display` | 28 / 1.2 | Page and hero titles. **Installed, currently unused** — Damson's largest is `title`. |
+| `text-display` | 28 / 1.2 | Page and hero titles. |
 | `text-title` | 22 / 1.25 | Dialog and section titles. |
 | `text-heading` | 20 / 1.3 | Subsection headings. |
 | `text-subhead` | 18 / 1.35 | Card headings, list group headers. |
@@ -227,7 +220,7 @@ rules; bake in size + weight + transform + tracking + family)
 
 Headings — four weight variants each. There is deliberately **no bare alias**:
 `text-title` is the contract's plain 22px, and `text-title-semibold` is Damson's
-22px at 600. The two used to collide.
+22px at 600.
 
 | Token | px / line-height | Pairs with |
 |---|---|---|
@@ -559,8 +552,7 @@ data + state lives in `web/src/components/filebrowser/`.
   surface; image-type files render from a caller-supplied `imageSrc`.
 - **`FilePreview`** — per-type preview *dispatcher* for the file detail panel:
   picks the richest viewer a file type supports, falling back to `FileThumb`
-  when none applies or the bytes aren't loaded. Currently only the inline
-  image viewer is wired; later viewers slot in above the fallback and should
+  when none applies or the bytes aren't loaded. Later viewers slot in above the fallback and should
   be `lazy`-loaded so heavy deps stay out of the main bundle (the component's
   doc comment carries the pattern). The caller supplies `previewUrl` from an
   authenticated blob fetch — the component does no fetching of its own.
@@ -661,6 +653,6 @@ tier (e.g. `subtle-foreground` instead of `faint-foreground`) before adding a
 story-level exception. Exceptions should be the exception.
 
 **Check both themes.** `STORYBOOK_THEME=light pnpm run test:stories` runs the suite
-in light. It is not in `just check` yet — see the note in
-`docs/progress.md` about the Storybook vitest project not emitting Tailwind
+in light. It is not in `just check` yet — see the item in
+`docs/roadmap.md` about the Storybook vitest project not emitting Tailwind
 utilities, which makes its contrast checks weaker than they look.
