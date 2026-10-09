@@ -46,6 +46,10 @@ func main() {
 	if cfg.GinMode != "" {
 		gin.SetMode(cfg.GinMode)
 	}
+	if err := checkDataDirs(cfg); err != nil {
+		slog.Error("data directory", "err", err)
+		os.Exit(1)
+	}
 
 	gormDB, err := db.Open(cfg.PostgresDSN)
 	if err != nil {
