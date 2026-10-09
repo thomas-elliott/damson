@@ -62,7 +62,10 @@ func TestUploadChunk_FullSizeChunkPassesTheServerStack(t *testing.T) {
 		ImportPool:  imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: imports.NewBroadcaster()}),
 		Broadcaster: imports.NewBroadcaster(),
 	})
-	r := newRouter("")
+	r, err := newRouter("", nil)
+	if err != nil {
+		t.Fatalf("router: %v", err)
+	}
 	api.AddRoutes(r.Group("/api"), auth.Middleware(local, auth.NewTokenAuthenticator(db)), h)
 
 	const chunk = 32 << 20

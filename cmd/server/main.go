@@ -156,7 +156,11 @@ func main() {
 	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}
 	go janitor.Run(purgeCtx)
 
-	r := newRouter(oidcCSPOrigin(cfg))
+	r, err := newRouter(oidcCSPOrigin(cfg), cfg.TrustedProxies)
+	if err != nil {
+		slog.Error("DAMSON_TRUSTED_PROXIES", "err", err)
+		os.Exit(1)
+	}
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
 		DB:                 gormDB,
@@ -248,14 +252,21 @@ func main() {
 
 // newRouter builds the engine with the global middleware every request runs
 // through, in order. Tests use it to reach a handler the way production does.
-func newRouter(cspOrigin string) *gin.Engine {
+//
+// trustedProxies lists the proxies (IPs or CIDRs) whose X-Forwarded-For is
+// believed. Empty trusts none, so ClientIP — which the login and bootstrap
+// throttles key on — is the connection's own address and not caller-chosen.
+func newRouter(cspOrigin string, trustedProxies []string) (*gin.Engine, error) {
 	r := gin.New()
+	if err := r.SetTrustedProxies(trustedProxies); err != nil {
+		return nil, err
+	}
 	r.Use(requestID())
 	r.Use(requestLogger())
 	r.Use(gin.CustomRecovery(recoveryHandler))
 	r.Use(securityHeaders(cspOrigin))
 	r.Use(jsonBodyCap(maxJSONBodyBytes, "/api"+api.UploadChunkRoute))
-	return r
+	return r, nil
 }
 
 // maxJSONBodyBytes caps the body Gin will read on JSON-shaped requests.
