@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -155,13 +156,7 @@ func main() {
 	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}
 	go janitor.Run(purgeCtx)
 
-	r := gin.New()
-	r.Use(requestID())
-	r.Use(requestLogger())
-	r.Use(gin.CustomRecovery(recoveryHandler))
-	r.Use(securityHeaders(oidcCSPOrigin(cfg)))
-	r.Use(jsonBodyCap(maxJSONBodyBytes))
-
+	r := newRouter(oidcCSPOrigin(cfg))
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
 		DB:                 gormDB,
@@ -251,9 +246,21 @@ func main() {
 	}
 }
 
+// newRouter builds the engine with the global middleware every request runs
+// through, in order. Tests use it to reach a handler the way production does.
+func newRouter(cspOrigin string) *gin.Engine {
+	r := gin.New()
+	r.Use(requestID())
+	r.Use(requestLogger())
+	r.Use(gin.CustomRecovery(recoveryHandler))
+	r.Use(securityHeaders(cspOrigin))
+	r.Use(jsonBodyCap(maxJSONBodyBytes, "/api"+api.UploadChunkRoute))
+	return r
+}
+
 // maxJSONBodyBytes caps the body Gin will read on JSON-shaped requests.
-// Multipart uploads (POST /api/imports) are exempt — they handle their own
-// streaming pipeline, see internal/handlers/api/assets.go. 1 MiB is well above
+// Multipart uploads (POST /api/imports) and upload chunks are exempt — they
+// handle their own streaming and caps, see internal/handlers/api. 1 MiB is well above
 // any reasonable JSON payload (the largest is a licence's original_text) and
 // well below the threshold at which a malicious client can OOM the process.
 const maxJSONBodyBytes = 1 << 20
@@ -322,11 +329,12 @@ func securityHeaders(oidcOrigin string) gin.HandlerFunc {
 // jsonBodyCap wraps the request body in http.MaxBytesReader for routes that
 // don't stream a multipart upload. The exemption keeps POST /api/imports
 // streaming-capable while every other endpoint gains a hard ceiling on body
-// reads. 413 surfaces if the limit trips.
-func jsonBodyCap(limit int64) gin.HandlerFunc {
+// reads. 413 surfaces if the limit trips. ownCap names routes whose handler
+// caps the body itself, at a size above limit (the upload chunk PUT).
+func jsonBodyCap(limit int64, ownCap ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ct := c.Request.Header.Get("Content-Type")
-		if c.Request.Body != nil && !strings.HasPrefix(ct, "multipart/") {
+		if c.Request.Body != nil && !strings.HasPrefix(ct, "multipart/") && !slices.Contains(ownCap, c.FullPath()) {
 			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		}
 		c.Next()
