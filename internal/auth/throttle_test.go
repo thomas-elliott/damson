@@ -61,26 +61,24 @@ func TestLoginThrottle_EmptyKeyAlwaysAllowed(t *testing.T) {
 	}
 }
 
-func TestLoginThrottle_EvictsAtCap(t *testing.T) {
+// A full key map refuses new keys rather than evicting old ones: eviction
+// would let a caller spraying fresh keys clear someone else's lockout.
+func TestLoginThrottle_RefusesNewKeysWhenFull(t *testing.T) {
 	tt := NewLoginThrottle(1, time.Minute)
 	tt.maxKeys = 3
-	now := time.Unix(1_000_000, 0)
-	tt.now = func() time.Time { return now }
+	tt.now = staticClock(time.Unix(1_000_000, 0))
 
-	tt.Allow("a")
-	now = now.Add(time.Second)
-	tt.Allow("b")
-	now = now.Add(time.Second)
-	tt.Allow("c")
-	// Map at cap. Inserting "d" should evict the oldest ("a").
-	now = now.Add(time.Second)
-	tt.Allow("d")
-
-	if _, ok := tt.buckets["a"]; ok {
-		t.Fatal("expected oldest bucket 'a' evicted")
+	if !tt.Allow("victim") || tt.Allow("victim") {
+		t.Fatal("victim: burst then lockout expected")
 	}
-	if len(tt.buckets) != 3 {
-		t.Fatalf("expected 3 buckets, got %d", len(tt.buckets))
+	tt.Allow("b")
+	tt.Allow("c")
+
+	if tt.Allow("d") {
+		t.Fatal("a new key was admitted to a full map")
+	}
+	if tt.Allow("victim") {
+		t.Fatal("the victim's lockout was cleared by filling the map")
 	}
 }
 
