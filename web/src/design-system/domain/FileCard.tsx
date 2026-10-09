@@ -108,7 +108,7 @@ export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function Fi
       >
         <FileThumb node={node} imageUrl={imageUrl} imageSrc={imageSrc} />
         {node.ext && (
-          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-xs bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-xs bg-black/55 px-1.5 py-0.5 font-mono text-label uppercase tracking-wide text-white">
             {node.ext.replace(".", "")}
           </span>
         )}

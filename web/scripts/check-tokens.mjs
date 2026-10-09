@@ -1,7 +1,8 @@
 // Ported from dialogue-db/web/scripts/check-tokens.mjs. Fix bugs there too.
 //
 // Fails the build on a token name this project has retired, on a raw colour
-// outside tokens.css, or on a typing surface below the 16px floor. The
+// outside tokens.css, on a typing surface below the 16px floor, or on any text
+// below the 12px floor. The
 // vocabulary is the shared contract's (design.smol.cloud/r/tokens.json).
 // Colour values live in tokens.css; the scale literals live in globals.css's
 // second @theme block, which is the only thing `shadcn add` will not regenerate.
@@ -119,6 +120,25 @@ const TYPING_SURFACES = new Set([
 ]);
 const BELOW_FIELD = /(?<![\w-])text-(ui|label|small|xs|sm|base|\[[^\]]+\])(?![\w-])/;
 
+/** The 12px floor: no text renders smaller, badges included. Catches an
+ * arbitrary Tailwind size, a stylesheet font-size and an inline fontSize, in
+ * px or rem (16px to the rem). */
+const TEXT_FLOOR_PX = 12;
+const TEXT_SIZES = [
+  /(?<![\w-])text-\[(\d*\.?\d+)(px|rem)\]/g,
+  /font-size:\s*(\d*\.?\d+)(px|rem)/g,
+  /fontSize:\s*["'`]?(\d*\.?\d+)(px|rem)?/g,
+];
+function belowTextFloor(line) {
+  for (const re of TEXT_SIZES) {
+    for (const [match, value, unit] of line.matchAll(re)) {
+      const px = unit === "rem" ? Number(value) * 16 : Number(value);
+      if (px < TEXT_FLOOR_PX) return match;
+    }
+  }
+  return null;
+}
+
 for (const file of files) {
   const rel = file.slice(ROOT.length + 1);
   const isStylesheet = file.endsWith(".css") && file !== TOKENS_CSS;
@@ -169,6 +189,9 @@ for (const file of files) {
 
       const hex = isStylesheet && line.match(RAW_HEX);
       if (hex) problems.push(`${at}: hex colour ${hex[0]} — use a token from tokens.css`);
+
+      const tiny = belowTextFloor(line);
+      if (tiny) problems.push(`${at}: ${tiny} is below the 12px text floor — use text-label (12px)`);
 
       const arb = line.match(ARBITRARY_COLOUR);
       if (arb) problems.push(`${at}: Tailwind arbitrary colour ${arb[0]} — use a token utility`);
