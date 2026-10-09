@@ -4,18 +4,16 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"os"
 	"path"
 	"sort"
 	"strings"
 
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
 const maxZipCoverBytes = 16 << 20
@@ -79,8 +77,7 @@ func (e *ZipExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult, 
 	var (
 		result     UnityResult
 		totalBytes int64
-		coverPick  *zip.File
-		coverPath  string
+		covers     []*zip.File
 		seen       = map[string]bool{}
 	)
 
@@ -127,23 +124,12 @@ func (e *ZipExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult, 
 			ObjectKey:    key,
 		})
 
-		if coverPick == nil && isImagePathname(rel) && usize > 0 && usize <= maxZipCoverBytes {
-			coverPick = f
-			coverPath = rel
+		if isImagePathname(rel) && usize > 0 && usize <= maxZipCoverBytes {
+			covers = append(covers, f)
 		}
 	}
 
-	if coverPick != nil {
-		if data, rerr := readZipEntry(coverPick, maxZipCoverBytes); rerr == nil {
-			sum := sha256.Sum256(data)
-			key := hex.EncodeToString(sum[:])
-			if perr := e.Storage.PutThumb(ctx, key, bytes.NewReader(data)); perr != nil {
-				return nil, fmt.Errorf("put thumb: %w", perr)
-			}
-			result.ThumbObjectKey = key
-			result.ThumbContentType = coverContentType(coverPath)
-		}
-	}
+	result.ThumbObjectKey, result.ThumbContentType = e.pickCover(ctx, covers)
 
 	return &result, nil
 }
@@ -157,12 +143,37 @@ func readZipEntry(f *zip.File, limit int64) ([]byte, error) {
 	return readCapped(rc, limit)
 }
 
-func coverContentType(p string) string {
-	if ct := mime.TypeByExtension(strings.ToLower(path.Ext(p))); ct != "" {
-		if i := strings.IndexByte(ct, ';'); i >= 0 {
-			ct = ct[:i]
+// pickCover renders the zip's cover from the first image entry that decodes,
+// trying cover-like names first and archive order after that. It goes through
+// the thumbnail generator, so the cover is resized and in a format a browser
+// shows, like any other thumbnail. No entry decoding means no cover.
+func (e *ZipExtractor) pickCover(ctx context.Context, candidates []*zip.File) (string, string) {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return isCoverName(candidates[i].Name) && !isCoverName(candidates[j].Name)
+	})
+	gen := &thumbnail.Generator{Storage: e.Storage}
+	for _, f := range candidates {
+		data, err := readZipEntry(f, maxZipCoverBytes)
+		if err != nil {
+			continue
 		}
-		return strings.TrimSpace(ct)
+		res, err := gen.Generate(ctx, thumbnail.Input{Reader: bytes.NewReader(data), Filename: f.Name}, thumbnail.Toggles{Raster: true})
+		if err == nil && res.ObjectKey != "" {
+			return res.ObjectKey, res.ContentType
+		}
+		// Not a decodable image, or the write failed: try the next. A cover
+		// is best-effort, like every thumbnail.
 	}
-	return "application/octet-stream"
+	return "", ""
+}
+
+// isCoverName reports whether an entry's file name reads like a cover image.
+func isCoverName(name string) bool {
+	base := strings.ToLower(path.Base(name))
+	for _, word := range []string{"cover", "preview", "thumbnail"} {
+		if strings.Contains(base, word) {
+			return true
+		}
+	}
+	return false
 }
