@@ -253,7 +253,7 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
         />
         <ToggleRow
           label="Unity preview harvest"
-          help="Use embedded preview.png from .unitypackage when present."
+          help="Use a package's embedded preview.png as its cover. Off: the store cover if there is one, otherwise the placeholder. Applies to new imports."
           checked={settings.thumbnails_unity_preview}
           onChange={(v) => apply({ thumbnails_unity_preview: v })}
         />

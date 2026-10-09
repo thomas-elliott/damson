@@ -159,42 +159,45 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return err
 	}
 
+	settings, sErr := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	if sErr != nil {
+		slog.Warn("imports: load settings", "err", sErr, "library_id", jc.libraryID)
+	}
+
+	// An archive's cover is the one its extractor harvested. For a Unity
+	// package that is a preview.png, which the library can switch off; the
+	// store cover or the placeholder then applies. Settings that fail to load
+	// keep the default, on.
 	thumbKey, thumbType := "", ""
-	if extracted != nil {
+	if extracted != nil && (!jc.isUnity || sErr != nil || settings.ThumbnailsUnityPreview) {
 		thumbKey = extracted.ThumbObjectKey
 		thumbType = extracted.ThumbContentType
 	}
-	if thumbKey == "" {
-		settings, sErr := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
-		if sErr != nil {
-			slog.Warn("imports: load settings", "err", sErr, "library_id", jc.libraryID)
-			// Loose files thumbnail from the original; zip relies on its
-			// extractor cover (its raw bytes aren't a thumbnailable image), and
-			// unitypackage only when the library opts in.
-		} else if !jc.isArchive || (jc.isUnity && settings.ThumbnailsUnityPreview) {
-			toggles := thumbnail.Toggles{
-				Raster: settings.ThumbnailsRasterEnabled,
-				Audio:  settings.ThumbnailsAudioEnabled,
-				Font:   settings.ThumbnailsFontEnabled,
-			}
-			filename, contentType := looseSourceMetadata(deps.DB.WithContext(ctx), jc.version.ID, jc.asset.Name)
-			blob, bErr := OpenOriginal(ctx, deps.Storage, jc.version)
-			if bErr != nil {
-				slog.Warn("imports: fetch blob for thumbnail", "err", bErr, "object_key", jc.version.OriginalPackageObjectKey)
-			} else {
-				gen := &thumbnail.Generator{Storage: deps.Storage}
-				tres, tErr := gen.Generate(ctx, thumbnail.Input{
-					Reader:      blob,
-					Filename:    filename,
-					ContentType: contentType,
-				}, toggles)
-				blob.Close()
-				if tErr != nil {
-					slog.Warn("imports: generate thumbnail", "err", tErr, "filename", filename)
-				} else if tres.ObjectKey != "" {
-					thumbKey = tres.ObjectKey
-					thumbType = tres.ContentType
-				}
+	// A loose file thumbnails from its own bytes. An archive's raw bytes are
+	// not a thumbnailable image, so it relies on its extractor's cover alone.
+	if thumbKey == "" && sErr == nil && !jc.isArchive {
+		toggles := thumbnail.Toggles{
+			Raster: settings.ThumbnailsRasterEnabled,
+			Audio:  settings.ThumbnailsAudioEnabled,
+			Font:   settings.ThumbnailsFontEnabled,
+		}
+		filename, contentType := looseSourceMetadata(deps.DB.WithContext(ctx), jc.version.ID, jc.asset.Name)
+		blob, bErr := OpenOriginal(ctx, deps.Storage, jc.version)
+		if bErr != nil {
+			slog.Warn("imports: fetch blob for thumbnail", "err", bErr, "object_key", jc.version.OriginalPackageObjectKey)
+		} else {
+			gen := &thumbnail.Generator{Storage: deps.Storage}
+			tres, tErr := gen.Generate(ctx, thumbnail.Input{
+				Reader:      blob,
+				Filename:    filename,
+				ContentType: contentType,
+			}, toggles)
+			blob.Close()
+			if tErr != nil {
+				slog.Warn("imports: generate thumbnail", "err", tErr, "filename", filename)
+			} else if tres.ObjectKey != "" {
+				thumbKey = tres.ObjectKey
+				thumbType = tres.ContentType
 			}
 		}
 	}
