@@ -191,7 +191,8 @@ for (const file of files) {
       if (hex) problems.push(`${at}: hex colour ${hex[0]} — use a token from tokens.css`);
 
       const tiny = belowTextFloor(line);
-      if (tiny) problems.push(`${at}: ${tiny} is below the 12px text floor — use text-label (12px)`);
+      if (tiny)
+        problems.push(`${at}: ${tiny} is below the 12px text floor — use text-label (12px)`);
 
       const arb = line.match(ARBITRARY_COLOUR);
       if (arb) problems.push(`${at}: Tailwind arbitrary colour ${arb[0]} — use a token utility`);
