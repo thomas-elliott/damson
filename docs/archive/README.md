@@ -16,7 +16,7 @@ These drove the M0–M7 MVP build.
 | Doc | What it is | Replaced by |
 |---|---|---|
 | `product-design-doc.md` | Original product brief: problem statement, goals, domain model, MVP scope, open questions | [`docs/architecture.md`](../architecture.md) §1 + the live code |
-| `technical-design.md` | Original technical design: stack, schema, storage layout, auth, pipelines, API surface, milestones | [`docs/architecture.md`](../architecture.md) for current state; [`docs/progress.md`](../progress.md) for what has landed |
+| `technical-design.md` | Original technical design: stack, schema, storage layout, auth, pipelines, API surface, milestones | [`docs/architecture.md`](../architecture.md) for current state; [`docs/specs/history/`](../specs/history/README.md) for what has landed |
 | `ui-design.md` | Original frontend design brief: information architecture, palette, interaction patterns | [`docs/design-system.md`](../design-system.md) for the implementation contract; the brief's IA still applies |
 
 ## Point-in-time research
@@ -31,6 +31,7 @@ agreed and built.
 | `preview-feasibility-brief.md` | Scoping brief narrowing that survey to a feasible slice | `specs/2026-06-18-file-previews.md` |
 | `preview-feasibility-research-prompt.md` | The research prompt that produced `preview-research.md` | — |
 | `preview-processing-queue-brief.md` | Brief on making preview work observable and retryable | `specs/2026-06-18-preview-processing-queue.md` |
+| `shared-design-adoption.md` | Brief for moving onto the shared design system, measured 2026-08-15 | `specs/history/2026-08-15-shared-design-system.md` |
 | `dependency-audit.md` | Pre-alpha major-version upgrade audit, audited 2026-04-26 | The pre-alpha bump pass. Stale — it predates the SQLite removal and the React Router / Vitest / TypeScript majors |
 
 For the **current** state of the project see:
@@ -39,6 +40,6 @@ For the **current** state of the project see:
 - [`docs/architecture.md`](../architecture.md) — architecture, data model, API
 - [`docs/CONVENTIONS.md`](../CONVENTIONS.md) — coding standards
 - [`docs/design-system.md`](../design-system.md) — frontend design system
-- [`docs/progress.md`](../progress.md) — what has landed, slice by slice
+- [`docs/progress.md`](../progress.md) — known gaps, and where the code diverges from these drafts
 - [`docs/specs/`](../specs/) — signed-off specs driving post-MVP work
 - [`AGENTS.md`](../../AGENTS.md) — quick-start guidance for agentic coding
