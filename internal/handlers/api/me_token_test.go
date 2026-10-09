@@ -163,3 +163,22 @@ func TestGetHealth_ReportsAVersion(t *testing.T) {
 		t.Fatal("version must never be blank — dmsn version renders it verbatim")
 	}
 }
+
+// A personal access token must not be traded for a session: the session would
+// be unscoped, unpinned and self-renewing, and it would pass RefuseTokens.
+func TestPostAuthRefresh_RefusesAPersonalAccessToken(t *testing.T) {
+	h, db, _ := newTestHandlerLocal(t)
+	u := seedUser(t, db, "cli@example.com")
+	lib := seedLibraryForUser(t, db, u, "Main")
+	secret := seedTokenFor(t, db, u.ID, lib.ID, auth.ScopeWrite, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
+	req.Header.Set("Authorization", "Bearer "+secret)
+	w := httptest.NewRecorder()
+	setupTokenRouter(h, db).ServeHTTP(w, req)
+
+	requireStatus(t, w, http.StatusForbidden)
+	if strings.Contains(w.Body.String(), `"token"`) {
+		t.Fatalf("refresh answered a token with a session: %s", w.Body.String())
+	}
+}

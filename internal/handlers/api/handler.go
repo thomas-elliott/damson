@@ -167,8 +167,9 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	authed.DELETE("/me/tokens/:id", noTokens, h.deleteAPIToken)
 	if h.authMode == config.AuthModeLocal {
 		// Local-mode session refresh. OIDC sessions silent-renew via the
-		// IdP, so this is local-only.
-		authed.POST("/auth/refresh", h.postAuthRefresh)
+		// IdP, so this is local-only. Closed to tokens: a session minted from
+		// one would be unscoped, unpinned and would itself pass noTokens.
+		authed.POST("/auth/refresh", noTokens, h.postAuthRefresh)
 	}
 
 	// Library member management — gated by membership/admin checks inside the
