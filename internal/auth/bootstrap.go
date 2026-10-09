@@ -14,36 +14,50 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
+// bootstrapLockKey serialises first-run bootstrap across requests and pods.
+// Distinct from db.AdvisoryLockKey, which serialises migrations.
+const bootstrapLockKey int64 = 4242424243
+
+// lockBootstrap holds bootstrapLockKey until tx ends. Counting users after it
+// is what makes "am I first?" safe: under read committed, the count then sees
+// every bootstrap that committed while this one waited.
+func lockBootstrap(tx *gorm.DB) error {
+	if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", bootstrapLockKey).Error; err != nil {
+		return fmt.Errorf("bootstrap lock: %w", err)
+	}
+	return nil
+}
+
 // BootstrapFirstAdmin promotes u to sysadmin and creates a default "Personal"
 // library (with u as its admin) when u is the very first user on an empty
 // system. Identity is whoever signs in first — we no longer consult an env
 // var of privileged emails. It is a no-op once any other user exists or any
 // library has been created, so retrying is safe.
 //
-// The whole thing runs in one transaction: if any step fails, u's role is
-// not promoted and no partial library is left behind.
+// The whole thing runs in one transaction under bootstrapLockKey: if any step
+// fails, u's role is not promoted and no partial library is left behind, and
+// two first sign-ups racing each other cannot both be promoted.
 func BootstrapFirstAdmin(ctx context.Context, db *gorm.DB, u *models.User) error {
-	// Only the first account on an empty system bootstraps. u has already
-	// been created by the caller, so it counts itself — exactly one user
-	// means u is the first. The library check is belt-and-braces against a
-	// half-finished previous run.
-	var userCount int64
-	if err := db.WithContext(ctx).Model(&models.User{}).Count(&userCount).Error; err != nil {
-		return fmt.Errorf("count users: %w", err)
-	}
-	if userCount > 1 {
-		return nil
-	}
-
-	var libCount int64
-	if err := db.WithContext(ctx).Model(&models.Library{}).Count(&libCount).Error; err != nil {
-		return fmt.Errorf("count libraries: %w", err)
-	}
-	if libCount > 0 {
-		return nil
-	}
-
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockBootstrap(tx); err != nil {
+			return err
+		}
+		// Only the first account on an empty system bootstraps. u has already
+		// been created by the caller, so it counts itself — exactly one user
+		// means u is the first. The library check is belt-and-braces against a
+		// half-finished previous run.
+		var userCount int64
+		if err := tx.Model(&models.User{}).Count(&userCount).Error; err != nil {
+			return fmt.Errorf("count users: %w", err)
+		}
+		var libCount int64
+		if err := tx.Model(&models.Library{}).Count(&libCount).Error; err != nil {
+			return fmt.Errorf("count libraries: %w", err)
+		}
+		if userCount > 1 || libCount > 0 {
+			return nil
+		}
+
 		u.Role = "sysadmin"
 		if err := tx.Save(u).Error; err != nil {
 			return fmt.Errorf("promote to sysadmin: %w", err)
@@ -122,15 +136,10 @@ func SeedLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) er
 		return fmt.Errorf("seed local admin: %w", err)
 	}
 
-	var count int64
-	if err := db.WithContext(ctx).Model(&models.User{}).Count(&count).Error; err != nil {
-		return fmt.Errorf("count users: %w", err)
-	}
-	if count > 0 {
+	_, err := createLocalAdmin(ctx, db, email, password)
+	if errors.Is(err, ErrAlreadyBootstrapped) {
 		return nil
 	}
-
-	_, err := createLocalAdmin(ctx, db, email, password)
 	return err
 }
 
@@ -147,19 +156,13 @@ func CreateFirstLocalAdmin(ctx context.Context, db *gorm.DB, email, password str
 		return nil, err
 	}
 
-	var count int64
-	if err := db.WithContext(ctx).Model(&models.User{}).Count(&count).Error; err != nil {
-		return nil, fmt.Errorf("count users: %w", err)
-	}
-	if count > 0 {
-		return nil, ErrAlreadyBootstrapped
-	}
-
 	return createLocalAdmin(ctx, db, email, password)
 }
 
-// createLocalAdmin is the shared transaction for seed/HTTP bootstrap.
-// Callers are responsible for the "no users exist" precondition.
+// createLocalAdmin is the shared transaction for seed/HTTP bootstrap. It
+// returns ErrAlreadyBootstrapped, leaving no user behind, when any user
+// exists. The check and the insert share one transaction under
+// bootstrapLockKey, so of two concurrent callers exactly one creates a user.
 func createLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) (*models.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -173,11 +176,23 @@ func createLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) 
 		Role:         "user", // promoted by BootstrapFirstAdmin below
 		PasswordHash: &hashStr,
 	}
-	if err := db.WithContext(ctx).Create(&u).Error; err != nil {
-		return nil, fmt.Errorf("create admin user: %w", err)
-	}
-
-	if err := BootstrapFirstAdmin(ctx, db, &u); err != nil {
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockBootstrap(tx); err != nil {
+			return err
+		}
+		var count int64
+		if err := tx.Model(&models.User{}).Count(&count).Error; err != nil {
+			return fmt.Errorf("count users: %w", err)
+		}
+		if count > 0 {
+			return ErrAlreadyBootstrapped
+		}
+		if err := tx.Create(&u).Error; err != nil {
+			return fmt.Errorf("create admin user: %w", err)
+		}
+		return BootstrapFirstAdmin(ctx, tx, &u)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &u, nil
