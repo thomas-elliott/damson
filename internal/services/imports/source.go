@@ -67,11 +67,16 @@ func ApplySourceHints(ctx context.Context, deps Deps, jc jobContext) {
 
 	db := deps.DB.WithContext(ctx)
 	if parsed.Publisher != "" {
+		before, err := assetSnapshot(ctx, deps.DB, jc.asset.ID)
+		if err != nil {
+			slog.Warn("source hints: audit snapshot", "err", err, "asset_id", jc.asset.ID)
+		}
 		if err := db.Model(&models.Asset{}).
 			Where("id = ? AND (publisher IS NULL OR publisher = '')", jc.asset.ID).
 			Update("publisher", parsed.Publisher).Error; err != nil {
 			slog.Warn("source hints: set publisher", "err", err, "asset_id", jc.asset.ID)
 		}
+		auditSystemUpdate(ctx, deps.DB, jc.libraryID, jc.asset.ID, before)
 	}
 
 	if path := parsed.CategoryPath(); path != "" {

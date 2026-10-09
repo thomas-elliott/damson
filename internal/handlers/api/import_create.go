@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
@@ -175,6 +176,25 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 			version.SourceRelativePath = &path
 		}
 		if err := tx.Create(&version).Error; err != nil {
+			return err
+		}
+		created := map[string]any{
+			"version_id": version.ID, "store_version": version.StoreVersion,
+			"package_kind": version.PackageKind, "filename": s.filename,
+		}
+		action := "asset.version.create"
+		if s.targetAssetID == 0 {
+			action = "asset.create"
+			created["name"] = asset.Name
+		}
+		if err := audit.Write(tx, audit.Entry{
+			LibraryID:  &s.libraryID,
+			UserID:     &s.userID,
+			ActionType: action,
+			TargetType: "asset",
+			TargetID:   &asset.ID,
+			Diff:       audit.Created(created),
+		}); err != nil {
 			return err
 		}
 		imp := models.AssetImport{

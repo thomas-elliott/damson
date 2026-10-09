@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -190,4 +191,32 @@ func TestGetAssetAudit_ScopedToAsset(t *testing.T) {
 	}
 	w = performGET(r, "/api/assets/9999/audit")
 	requireStatus(t, w, http.StatusNotFound)
+}
+
+// An import creates rows a person asked for, so the feed names them.
+func TestPostImport_AuditsTheAssetAndVersionUnderTheImporter(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	body, ctype := buildMultipart(t, "file", "tile.png", makeTestPNG(t, 8, 8))
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	first := jsonResponse[importEnqueueResponse](t, w)
+
+	body, ctype = buildMultipartWithFields(t, "file", "tile v2.png", makeTestPNG(t, 9, 9), map[string]string{
+		"asset_id": fmt.Sprint(first.AssetID), "store_version": "2",
+	})
+	requireStatus(t, postMultipart(r, "/api/imports", body, ctype), http.StatusAccepted)
+
+	for _, action := range []string{"asset.create", "asset.version.create"} {
+		var row models.AuditLog
+		if err := db.Where("action_type = ? AND target_id = ?", action, first.AssetID).First(&row).Error; err != nil {
+			t.Fatalf("no %s audit row: %v", action, err)
+		}
+		if row.UserID == nil || *row.UserID != u.ID || row.LibraryID == nil || *row.LibraryID != lib.ID {
+			t.Fatalf("%s row names user %v in library %v, want %d in %d", action, row.UserID, row.LibraryID, u.ID, lib.ID)
+		}
+	}
 }

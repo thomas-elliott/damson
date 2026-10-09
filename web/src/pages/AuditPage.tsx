@@ -13,7 +13,7 @@ const ACTION_FILTERS = [
   { label: "Updates", value: "asset.update" },
   { label: "Reviews", value: "asset.review" },
   { label: "Licences", value: "asset.licence.update" },
-  { label: "Tags", value: "asset.tag.add" },
+  { label: "Tags", value: "asset.tag" },
   { label: "Projects", value: "project.update" },
 ];
 
