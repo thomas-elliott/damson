@@ -14,6 +14,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <textarea
       ref={ref}
       data-invalid={invalid ? "true" : undefined}
+      aria-invalid={invalid || undefined}
       className={cn(
         "min-h-[80px] w-full resize-y rounded-sm border border-border-strong bg-background px-2 py-2 text-field text-foreground outline-hidden transition-colors duration-fast ease-standard placeholder:text-faint-foreground",
         "focus:border-primary focus:ring-2 focus:ring-inset focus:ring-ring",

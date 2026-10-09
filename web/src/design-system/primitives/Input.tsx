@@ -30,6 +30,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       <input
         ref={ref}
         disabled={disabled}
+        aria-invalid={invalid || undefined}
         className="min-w-0 flex-1 bg-transparent text-field leading-none text-foreground outline-hidden placeholder:text-faint-foreground disabled:cursor-not-allowed"
         {...props}
       />
