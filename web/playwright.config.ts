@@ -83,19 +83,8 @@ export default defineConfig({
       timeout: 120_000,
       stdout: "pipe",
       stderr: "pipe",
-      // OIDC config is fed in so getUserManager() in lib/oidc.ts can build
-      // a UserManager — used by the oidc-callback E2E spec, which mocks
-      // /api/auth/mode + the IdP endpoints via page.route(). Inert in
-      // every other test (the SPA stays in local mode because the e2e
-      // backend reports `mode: "local"` from /api/auth/mode).
-      env: {
-        VITE_OIDC_AUTHORITY: "https://oidc-mock.test",
-        VITE_OIDC_CLIENT_ID: "damson-test",
-        VITE_OIDC_SCOPE: "openid profile email",
-        VITE_OIDC_REDIRECT_URI: `${FRONTEND_URL}/auth/callback`,
-        VITE_OIDC_SILENT_REDIRECT_URI: `${FRONTEND_URL}/auth/silent-callback`,
-        VITE_OIDC_POST_LOGOUT_REDIRECT_URI: `${FRONTEND_URL}/login`,
-      },
+      // No OIDC env here: the SPA reads its OIDC config from /api/auth/mode
+      // at runtime, which the oidc-callback spec mocks with page.route().
     },
   ],
 });
