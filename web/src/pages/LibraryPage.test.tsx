@@ -19,7 +19,9 @@ vi.mock("@/components/AssetGrid", () => ({
     return <div>grid</div>;
   },
 }));
-vi.mock("@/components/Shell", () => ({ Shell: ({ main }: { main: ReactNode }) => <main>{main}</main> }));
+vi.mock("@/components/Shell", () => ({
+  Shell: ({ main }: { main: ReactNode }) => <main>{main}</main>,
+}));
 vi.mock("@/components/DropZone", () => ({
   DropZone: ({ children }: { children: ReactNode }) => <>{children}</>,
   useDropZoneOpen: () => () => {},
@@ -29,7 +31,10 @@ vi.mock("@/components/LibraryFilterSidebar", () => ({ LibraryFilterSidebar: () =
 vi.mock("@/components/LibraryPicker", () => ({ LibraryPicker: () => null }));
 vi.mock("@/components/AddByLocationDialog", () => ({ AddByLocationButton: () => null }));
 vi.mock("@/components/BulkAssetBar", () => ({ BulkAssetBar: () => null }));
-vi.mock("@/components/AssetSortMenu", () => ({ AssetSortMenu: () => null, DEFAULT_ASSET_SORT: "newest" }));
+vi.mock("@/components/AssetSortMenu", () => ({
+  AssetSortMenu: () => null,
+  DEFAULT_ASSET_SORT: "newest",
+}));
 
 function Location() {
   return <output aria-label="location">{useLocation().pathname}</output>;
