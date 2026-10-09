@@ -8,8 +8,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # `build frontend` is in the sweep because `pnpm run build` is `tsc -b && vite
 # build` — it is CI's only type check, and a type error passes every other gate
-# here. ESLint and Prettier run the other way round: they have no CI step at all,
-# so this is the only place they are enforced.
+# here.
 
 # Full preflight — read-only gates, the frontend build, then every test
 [default]
@@ -17,6 +16,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 all: fast
     just build frontend
     just test unit
+    just test stories
     just test e2e
 
 # Read-only, no database — lint, formatting, module tidiness
