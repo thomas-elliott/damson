@@ -72,13 +72,13 @@ export const Pills: Story = {
 export const Chips: Story = {
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
-      <Chip label="licence:" onRemove={() => {}}>
+      <Chip label="licence:" onRemove={() => {}} removeLabel="Remove licence filter: MIT">
         MIT
       </Chip>
-      <Chip label="tag:" onRemove={() => {}}>
+      <Chip label="tag:" onRemove={() => {}} removeLabel="Remove tag filter: ui">
         ui
       </Chip>
-      <Chip label="project:" onRemove={() => {}}>
+      <Chip label="project:" onRemove={() => {}} removeLabel="Remove project filter: crystal-quest">
         crystal-quest
       </Chip>
     </div>

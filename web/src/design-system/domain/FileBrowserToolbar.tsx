@@ -110,7 +110,12 @@ export function FileBrowserToolbar({
         <>
           <span className="h-4 w-px bg-border" aria-hidden />
           {activeTypes.map((ftype) => (
-            <Chip key={ftype} label="type:" onRemove={() => onToggleType?.(ftype)}>
+            <Chip
+              key={ftype}
+              label="type:"
+              onRemove={() => onToggleType?.(ftype)}
+              removeLabel={`Remove type filter: ${fileTypeMeta(ftype).label}`}
+            >
               {fileTypeMeta(ftype).label}
             </Chip>
           ))}
