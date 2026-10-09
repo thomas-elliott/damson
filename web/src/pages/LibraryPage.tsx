@@ -103,6 +103,11 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   // every time `assets` refetches caused useKeyboardShortcuts to rebind on
   // every paint.
   const stateRef = useRef({ assets, assetId, onOpenAsset, onCloseDetail, browsing });
+  // The grid reports how many cards a row shows; Arrow Up/Down move by it.
+  const columnsRef = useRef(1);
+  const onColumnsChange = useCallback((columns: number) => {
+    columnsRef.current = columns;
+  }, []);
   useEffect(() => {
     stateRef.current = { assets, assetId, onOpenAsset, onCloseDetail, browsing };
   });
@@ -152,14 +157,14 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
           key: "ArrowDown",
           handler: (e) => {
             e.preventDefault();
-            moveSelection(estimateColumnCount());
+            moveSelection(columnsRef.current);
           },
         },
         {
           key: "ArrowUp",
           handler: (e) => {
             e.preventDefault();
-            moveSelection(-estimateColumnCount());
+            moveSelection(-columnsRef.current);
           },
         },
         {
@@ -253,6 +258,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 selectedId={assetId}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
+                onColumnsChange={onColumnsChange}
               />
             )}
             {selectedList.length > 0 && (
@@ -295,17 +301,6 @@ function moveByOffset(
   if (next >= assets.length) next = assets.length - 1;
   const target = assets[next];
   if (target) open(target.id);
-}
-
-// estimateColumnCount infers how many cards fit per row from the grid's
-// declared min cell width (180px) plus gap (12px). Cheap heuristic that
-// avoids a layout-effect read; close enough for arrow-down semantics.
-function estimateColumnCount(): number {
-  if (typeof window === "undefined") return 4;
-  const cellWithGap = 180 + 12;
-  const main = window.document.querySelector("main");
-  const width = main?.clientWidth ?? window.innerWidth;
-  return Math.max(1, Math.floor(width / cellWithGap));
 }
 
 function UploadButton() {
