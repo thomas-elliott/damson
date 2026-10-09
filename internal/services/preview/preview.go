@@ -4,8 +4,8 @@
 // derivative per asset_files row (a larger image than the per-asset thumbnail)
 // and stores it content-addressed in the same thumb namespace.
 //
-// Stage 4 seeds this with pure-Go TIFF/BMP; later stages add PSD/EXR/TGA (raster
-// family), SVG (rasterise), and PDF (first-page poster). A zero Result means
+// Rasters decode through services/imaging, the same decoders the grid
+// thumbnail uses; SVG is rasterised here. A zero Result means
 // "no preview for this input" — callers leave the file's preview unset and the
 // SPA falls back to the type icon.
 package preview
@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -23,13 +24,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/oov/psd"
 	"github.com/srwiley/oksvg"
 	"github.com/srwiley/rasterx"
-	_ "golang.org/x/image/bmp" // bmp decode registration
 	"golang.org/x/image/draw"
-	_ "golang.org/x/image/tiff" // tiff decode registration
 
+	"github.com/thomas-elliott/damson/internal/services/imaging"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -38,10 +37,7 @@ const (
 	// the 512px thumbnail so the detail panel shows real detail, but bounded so
 	// a derivative can't balloon.
 	previewMaxEdge = 1600
-	// maxPixels guards against decompression bombs: DecodeConfig is read first
-	// and anything whose declared dimensions exceed this is skipped.
-	maxPixels   = 100 * 1000 * 1000 // 100 MP
-	jpegQuality = 85
+	jpegQuality    = 85
 )
 
 // Result is a generated derivative. A zero Result means the input had no
@@ -86,56 +82,26 @@ func (g *Generator) Generate(ctx context.Context, in Input) (Result, error) {
 }
 
 func classify(filename, detectedType string) string {
-	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".tiff", ".tif", ".bmp", ".psd":
-		return "raster"
-	case ".svg":
+	switch {
+	case strings.ToLower(filepath.Ext(filename)) == ".svg":
 		return "svg"
+	case imaging.NeedsConversion(filename):
+		return "raster"
 	}
 	return ""
 }
 
-// decodeRaster decodes a browser-unopenable raster by extension. PSD is read
-// for its merged composite; TIFF/BMP go through the registered x/image
-// decoders.
-func decodeRaster(raw []byte, ext string) (image.Image, error) {
-	switch ext {
-	case ".psd":
-		p, _, err := psd.Decode(bytes.NewReader(raw), nil)
-		if err != nil {
-			return nil, err
-		}
-		if p.Picker == nil {
-			return nil, fmt.Errorf("psd: no merged composite")
-		}
-		return p.Picker, nil
-	default:
-		img, _, err := image.Decode(bytes.NewReader(raw))
-		return img, err
-	}
-}
-
-// renderRaster decodes a (browser-unopenable) raster, downsamples it, and
-// re-encodes to a web-safe image: JPEG for opaque content, PNG otherwise.
+// renderRaster decodes a browser-unopenable raster through the shared imaging
+// decoders, downsamples it, and re-encodes to a web-safe image: JPEG for
+// opaque content, PNG otherwise. An image over imaging.MaxPixels gets no
+// preview.
 func (g *Generator) renderRaster(ctx context.Context, in Input) (Result, error) {
-	raw, err := io.ReadAll(in.Reader)
-	if err != nil {
-		return Result{}, fmt.Errorf("preview read: %w", err)
+	src, _, err := imaging.Decode(in.Reader, in.Filename)
+	if errors.Is(err, imaging.ErrTooLarge) {
+		return Result{}, nil // too large — skip, fall back to icon
 	}
-	// Cheap pre-decode bomb guard for formats that expose a config without
-	// decoding the pixels (TIFF/BMP/PSD). TGA has no such header, so it relies
-	// on the post-decode bounds check below.
-	if cfg, _, cErr := image.DecodeConfig(bytes.NewReader(raw)); cErr == nil {
-		if int64(cfg.Width)*int64(cfg.Height) > maxPixels {
-			return Result{}, nil // too large — skip, fall back to icon
-		}
-	}
-	src, err := decodeRaster(raw, strings.ToLower(filepath.Ext(in.Filename)))
 	if err != nil {
 		return Result{}, fmt.Errorf("preview decode: %w", err)
-	}
-	if b := src.Bounds(); int64(b.Dx())*int64(b.Dy()) > maxPixels {
-		return Result{}, nil // decoded larger than the ceiling — skip
 	}
 
 	scaled := resample(src, previewMaxEdge)
@@ -171,7 +137,7 @@ func (g *Generator) renderSVG(ctx context.Context, in Input) (Result, error) {
 		return Result{}, fmt.Errorf("preview svg parse: %w", err)
 	}
 	w, h := svgTarget(icon.ViewBox.W, icon.ViewBox.H, previewMaxEdge)
-	if int64(w)*int64(h) > maxPixels {
+	if int64(w)*int64(h) > imaging.MaxPixels {
 		return Result{}, nil
 	}
 	icon.SetTarget(0, 0, float64(w), float64(h))

@@ -142,6 +142,13 @@ func main() {
 	// Idempotent (River dedupes by args), so it's safe every boot and covers the
 	// one-time cutover of rows that were in flight before River existed. Previews
 	// first — ResumeInFlight resets processing→queued for files a worker died on.
+	// Files an earlier build could not render (the tier-2 image formats) are
+	// queued first, so the reconcile below enqueues them with the rest.
+	if queued, err := preview.QueueNewlySupported(startupCtx, gormDB); err != nil {
+		slog.Warn("preview backfill failed", "err", err)
+	} else if queued > 0 {
+		slog.Info("preview backfill", "queued", queued)
+	}
 	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewEnqueuer); err != nil {
 		slog.Warn("preview reconcile failed", "err", err)
 	} else if resumed > 0 {
@@ -161,6 +168,15 @@ func main() {
 	go func() {
 		if err := imports.RepairGallery(purgeCtx, gormDB, store, metaRegistry); err != nil {
 			slog.Warn("gallery repair failed", "err", err)
+		}
+	}()
+	// Assets whose image could not be decoded when imported (the tier-2
+	// formats) get their cover. Off the startup path: it reads blobs.
+	go func() {
+		if covered, err := imports.BackfillCovers(purgeCtx, gormDB, store); err != nil {
+			slog.Warn("cover backfill failed", "err", err)
+		} else if covered > 0 {
+			slog.Info("cover backfill", "covered", covered)
 		}
 	}()
 	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}

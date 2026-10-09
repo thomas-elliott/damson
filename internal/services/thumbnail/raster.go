@@ -30,7 +30,7 @@ const jpegQuality = 85
 // what they've dropped, so we inspect the decoded image rather than trust
 // the input content type.
 func (g *Generator) renderRaster(ctx context.Context, in Input) (Result, error) {
-	src, fmtName, err := imaging.Decode(in.Reader)
+	src, fmtName, err := imaging.Decode(in.Reader, in.Filename)
 	if errors.Is(err, imaging.ErrTooLarge) {
 		return Result{}, nil // no thumbnail: the placeholder shows
 	}

@@ -3,6 +3,7 @@ package preview
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -80,4 +81,37 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job
 		enq.Enqueue(Job{LibraryID: r.LibraryID, VersionID: r.VersionID})
 	}
 	return len(refs), nil
+}
+
+// QueueNewlySupported queues the files an earlier build marked unsupported
+// that a renderer now exists for, such as the tier-2 image formats, in
+// libraries with previews on. Run it before ResumeInFlight, which enqueues
+// them. Once queued a file is no longer unsupported, so a second run finds
+// nothing; the scan itself is over every unsupported file, every boot.
+func QueueNewlySupported(ctx context.Context, db *gorm.DB) (int, error) {
+	var files []models.AssetFile
+	err := db.WithContext(ctx).
+		Table("asset_files AS f").
+		Joins("JOIN asset_versions v ON v.id = f.asset_version_id").
+		Joins("JOIN assets a ON a.id = v.asset_id").
+		Joins("LEFT JOIN library_settings s ON s.library_id = a.library_id").
+		Where("f.preview_status = ? AND COALESCE(s.previews_enabled, true)", StatusUnsupported).
+		Select("f.id, f.relative_path, f.detected_type").
+		Scan(&files).Error
+	if err != nil {
+		return 0, err
+	}
+	var ids []uint
+	for _, f := range files {
+		if Supports(f.RelativePath, f.DetectedType) {
+			ids = append(ids, f.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	err = db.WithContext(ctx).Model(&models.AssetFile{}).
+		Where("id IN ?", ids).
+		Updates(map[string]any{"preview_status": StatusQueued, "preview_updated_at": time.Now().UTC()}).Error
+	return len(ids), err
 }
