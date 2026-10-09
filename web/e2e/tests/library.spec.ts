@@ -46,3 +46,28 @@ test.describe("Library page", () => {
     await expect(page).toHaveURL(/\/library\/\d+$/);
   });
 });
+
+// Body text takes the text-body type role, size and line height together, so
+// running copy matches every element that names the role.
+test("body text uses the text-body line height", async ({ page, request, noConsoleErrors }) => {
+  void noConsoleErrors;
+  const session = await bootstrapAdmin(request);
+  await installSession(page, session);
+  await page.goto("/library");
+
+  const { body, role } = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.className = "text-body";
+    probe.textContent = "probe";
+    document.body.append(probe);
+    const role = getComputedStyle(probe);
+    const body = getComputedStyle(document.body);
+    const out = {
+      body: `${body.fontSize}/${body.lineHeight}`,
+      role: `${role.fontSize}/${role.lineHeight}`,
+    };
+    probe.remove();
+    return out;
+  });
+  expect(body).toBe(role);
+});
