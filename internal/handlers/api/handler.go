@@ -101,6 +101,11 @@ type Deps struct {
 	OIDCClientID  string
 }
 
+// UploadChunkRoute is the chunk PUT, relative to /api. The server's 1 MiB body
+// cap exempts it by this path: the handler caps the body to the chunk size
+// itself.
+const UploadChunkRoute = "/imports/uploads/:id/chunks/:n"
+
 func New(d Deps) *Handler {
 	throttle := d.LoginThrottle
 	if throttle == nil {
@@ -230,7 +235,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	// survive one request.
 	scoped.POST("/imports/uploads", h.postUploadSession)
 	scoped.GET("/imports/uploads/:id", h.getUploadSession)
-	scoped.PUT("/imports/uploads/:id/chunks/:n", h.putUploadChunk)
+	scoped.PUT(UploadChunkRoute, h.putUploadChunk)
 	scoped.POST("/imports/uploads/:id/complete", h.postUploadComplete)
 	scoped.DELETE("/imports/uploads/:id", h.deleteUploadSession)
 
