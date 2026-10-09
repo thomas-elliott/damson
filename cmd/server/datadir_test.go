@@ -57,3 +57,25 @@ func TestCheckDataDirs(t *testing.T) {
 		t.Errorf("writable directories failed the check: %v", err)
 	}
 }
+
+// An existing key file mounted read-only is only ever read, so its directory
+// need not be writable.
+func TestCheckDataDirs_AcceptsAnExistingReadOnlyKey(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "secrets")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	key := filepath.Join(dir, "jwt.key")
+	if err := os.WriteFile(key, make([]byte, 64), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	cfg := config.Config{AuthMode: config.AuthModeLocal, StorageMode: config.StorageModeS3, JWTKeyFile: key}
+	if err := checkDataDirs(cfg); err != nil {
+		t.Fatalf("an existing read-only key was refused: %v", err)
+	}
+}

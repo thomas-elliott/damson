@@ -12,6 +12,9 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
+// maxZipCoverBytes mirrors the zip extractor's cover cap.
+const maxZipCoverBytes = 16 << 20
+
 // browserCoverTypes are the cover content types a browser shows.
 var browserCoverTypes = []string{"image/png", "image/jpeg", "image/webp", "image/gif"}
 
@@ -19,7 +22,10 @@ var browserCoverTypes = []string{"image/png", "image/jpeg", "image/webp", "image
 // show but hold an image the decoders now read: files imported before the
 // tier-2 formats, and zips whose cover was once stored raw (a PSD, say). The
 // cover is rendered from the first image file, by path, in the asset's
-// current version, as an import would. A store cover is never touched. Safe
+// current version, under the rules an import applies: a Unity package is
+// skipped (its cover only comes from a preview.png, under the library's
+// setting) and a zip takes no image over the extractor's cover cap. A store
+// cover is never touched. Safe
 // to run on every boot; an image that still fails to decode is tried again
 // on the next one.
 func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (int, error) {
@@ -31,11 +37,14 @@ func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (in
 	var rows []candidate
 	err := db.WithContext(ctx).
 		Table("assets AS a").
-		Joins("JOIN asset_files f ON f.asset_version_id = a.current_version_id").
+		Joins("JOIN asset_versions v ON v.id = a.current_version_id").
+		Joins("JOIN asset_files f ON f.asset_version_id = v.id").
 		Joins("LEFT JOIN library_settings s ON s.library_id = a.library_id").
 		Where("NOT a.is_reference AND NOT a.thumbnail_from_store").
 		Where("a.thumbnail_object_key = '' OR a.thumbnail_content_type NOT IN ?", browserCoverTypes).
 		Where("COALESCE(s.thumbnails_raster_enabled, true)").
+		Where("v.package_kind <> ?", "unitypackage").
+		Where("v.package_kind <> ? OR f.size_bytes <= ?", "zip", maxZipCoverBytes).
 		Order("a.id, f.relative_path").
 		Select("a.id AS asset_id, f.relative_path, f.object_key").
 		Scan(&rows).Error

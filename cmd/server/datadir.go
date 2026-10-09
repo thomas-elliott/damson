@@ -13,7 +13,8 @@ import (
 // In the image the defaults resolve to /data, so a missing or read-only
 // volume there is reported up front rather than as a bare mkdir error.
 func checkDataDirs(cfg config.Config) error {
-	if cfg.AuthMode == config.AuthModeLocal && len(cfg.JWTSigningKey) == 0 {
+	// An existing key file is only read, so its directory need not be writable.
+	if cfg.AuthMode == config.AuthModeLocal && len(cfg.JWTSigningKey) == 0 && !fileExists(cfg.JWTKeyFile) {
 		if err := checkWritable(filepath.Dir(cfg.JWTKeyFile)); err != nil {
 			return fmt.Errorf("%w; mount a writable volume there, or set DAMSON_JWT_KEY_FILE (or DAMSON_JWT_SIGNING_KEY) to avoid it", err)
 		}
@@ -42,4 +43,9 @@ func checkWritable(dir string) error {
 	_ = f.Close()
 	_ = os.Remove(f.Name())
 	return nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

@@ -255,8 +255,6 @@ const defaultUploadJanitorInterval = time.Hour
 
 const defaultStoreLookupInterval = 2 * time.Second
 
-// parseInterval reads a Go duration string ("1h", "30m"). Empty, unparseable
-// and non-positive values fall back to fallback.
 // parseList splits a comma-separated value, dropping blank entries.
 func parseList(raw string) []string {
 	var out []string
@@ -268,6 +266,8 @@ func parseList(raw string) []string {
 	return out
 }
 
+// parseInterval reads a Go duration string ("1h", "30m"). Empty, unparseable
+// and non-positive values fall back to fallback.
 func parseInterval(raw string, fallback time.Duration) time.Duration {
 	if raw == "" {
 		return fallback

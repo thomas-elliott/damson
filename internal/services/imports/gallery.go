@@ -93,6 +93,12 @@ func StoreGalleryImages(ctx context.Context, db *gorm.DB, store storage.Service,
 // reference), leaving rows that serve nothing. Safe to run on every boot:
 // with nothing missing it is one listing of thumbs/ and no fetches.
 func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetch imageFetcher) error {
+	// Rows first, then the listing: an image stored after the rows were read
+	// is in the listing, so a row written in between is never counted missing.
+	var rows []models.AssetImage
+	if err := db.WithContext(ctx).Find(&rows).Error; err != nil {
+		return err
+	}
 	objs, err := store.List(ctx, "thumbs")
 	if err != nil {
 		return err
@@ -100,11 +106,6 @@ func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetc
 	present := make(map[string]bool, len(objs))
 	for _, o := range objs {
 		present[o.Key] = true
-	}
-
-	var rows []models.AssetImage
-	if err := db.WithContext(ctx).Find(&rows).Error; err != nil {
-		return err
 	}
 	var missing []uint
 	assets := map[uint]bool{}
