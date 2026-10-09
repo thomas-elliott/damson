@@ -241,24 +241,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 			q = q.Where("l.detected_type = ?", f.LicenceSPDX)
 		}
 		if f.LicenceStatus != "" {
-			// Translate the requested status into the matching SPDX set so
-			// the filter runs in SQL. Keeps Total honest and stops pages
-			// shrinking after pagination has been applied. quickLicenceStatus
-			// only depends on detected_type, so the mapping is deterministic
-			// without JSONB inspection.
-			ok, errSet, unkExtras := licenceStatusSPDXBuckets()
-			switch f.LicenceStatus {
-			case "ok":
-				q = q.Where("l.detected_type IN ?", ok)
-			case "err":
-				q = q.Where("l.detected_type IN ?", errSet)
-			case "unk":
-				// no licence row OR detected_type is unknown/empty
-				q = q.Where("l.detected_type IS NULL OR l.detected_type = '' OR l.detected_type IN ?", unkExtras)
-			case "warn":
-				// licence row exists, type is set, and not in ok/err/unk lists.
-				q = q.Where("l.detected_type IS NOT NULL AND l.detected_type <> '' AND l.detected_type NOT IN ? AND l.detected_type NOT IN ? AND l.detected_type NOT IN ?", ok, errSet, unkExtras)
-			}
+			q = q.Where(licenceStatusSQL("l")+" = ?", permissiveLicences, f.LicenceStatus)
 		}
 	}
 	if f.TagID != nil {
@@ -322,6 +305,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		SizeBytes          int64
 		PackageKind        string
 		LicenceSPDX        string
+		LicenceStatus      string
 		Publisher          *string
 		ReleasedAt         *time.Time
 		LatestStoreVersion *string
@@ -346,10 +330,11 @@ func (h *Handler) getAssets(c *gin.Context) {
 			COALESCE((SELECT COUNT(*) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS file_count,
 			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS size_bytes,
 			COALESCE(cv2.package_kind, '') AS package_kind,
-			COALESCE(l2.detected_type, '') AS licence_spdx`).
+			COALESCE(l2.detected_type, '') AS licence_spdx,
+			`+licenceStatusSQL("l2")+` AS licence_status`, permissiveLicences).
 		Joins("LEFT JOIN asset_versions cv2 ON cv2.id = a.current_version_id").
 		Joins("LEFT JOIN licences l2 ON l2.id = a.licence_id").
-		Group("a.id, cv2.package_kind, l2.detected_type").
+		Group("a.id, cv2.package_kind, l2.detected_type, l2.attributes_json").
 		Order(assetOrderClause(f.Sort)).
 		Limit(limit).
 		Offset(offset).
@@ -361,9 +346,6 @@ func (h *Handler) getAssets(c *gin.Context) {
 
 	out := make([]assetGridRow, 0, len(rows))
 	for _, r := range rows {
-		// Status is derived for display; the SQL filter (above) has already
-		// picked the matching rows. Empty SPDX → "unk".
-		status := quickLicenceStatus(r.LicenceSPDX)
 		var held []string
 		if r.StoreVersions != "" {
 			held = strings.Split(r.StoreVersions, ",")
@@ -379,7 +361,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 			ThumbnailObjectKey: r.ThumbnailObjectKey,
 			PackageKind:        r.PackageKind,
 			LicenceSPDX:        r.LicenceSPDX,
-			LicenceStatus:      status,
+			LicenceStatus:      r.LicenceStatus,
 			Publisher:          derefString(r.Publisher),
 			ReleasedAt:         r.ReleasedAt,
 			UpdateAvailable:    updateAvailable,
@@ -762,18 +744,4 @@ func escapeLikePattern(s string) string {
 		b.WriteByte(c)
 	}
 	return b.String()
-}
-
-// licenceStatusSPDXBuckets returns the SPDX-id sets that map to "ok", "err",
-// and "unk" status respectively. Mirrors quickLicenceStatus / projects.go's
-// status switch — keep these in sync. "warn" is the complement of the
-// other three; the SQL filter expresses it as "not in any of these".
-func licenceStatusSPDXBuckets() (ok, errSet, unkExtras []string) {
-	ok = []string{
-		"MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "Zlib", "ISC",
-		"CC-BY-4.0", "CC-BY-3.0", "CC0-1.0", "OFL-1.1", "Unlicense",
-	}
-	errSet = []string{"CC-BY-NC-4.0", "CC-BY-NC-3.0", "CC-BY-NC-SA-4.0"}
-	unkExtras = []string{"unknown"}
-	return
 }
