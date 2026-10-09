@@ -96,11 +96,14 @@ type AssetFile struct {
 func (AssetFile) TableName() string { return "asset_files" }
 
 type AssetImport struct {
-	ID        uint   `gorm:"primarykey;auto_increment;not_null"`
-	AssetID   uint   `gorm:"not null;index"`
-	Stage     string `gorm:"not null;index"`
-	Error     string
-	UpdatedAt time.Time
+	ID      uint `gorm:"primarykey;auto_increment;not_null"`
+	AssetID uint `gorm:"not null;index"`
+	// AssetVersionID is the version this import fills. Nil only on a row
+	// whose version was deleted.
+	AssetVersionID *uint  `gorm:"index"`
+	Stage          string `gorm:"not null;index"`
+	Error          string
+	UpdatedAt      time.Time
 }
 
 func (AssetImport) TableName() string { return "asset_imports" }

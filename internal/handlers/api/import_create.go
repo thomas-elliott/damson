@@ -178,9 +178,10 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 			return err
 		}
 		imp := models.AssetImport{
-			AssetID:   asset.ID,
-			Stage:     imports.StageUploaded,
-			UpdatedAt: time.Now().UTC(),
+			AssetID:        asset.ID,
+			AssetVersionID: &version.ID,
+			Stage:          imports.StageUploaded,
+			UpdatedAt:      time.Now().UTC(),
 		}
 		if err := tx.Create(&imp).Error; err != nil {
 			return err

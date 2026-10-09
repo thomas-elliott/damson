@@ -336,8 +336,11 @@ func loadJobContext(db *gorm.DB, importID uint) (jobContext, error) {
 	if err := db.First(&asset, imp.AssetID).Error; err != nil {
 		return jobContext{}, fmt.Errorf("load asset: %w", err)
 	}
+	if imp.AssetVersionID == nil {
+		return jobContext{}, errors.New("load version: the import's version no longer exists")
+	}
 	var version models.AssetVersion
-	if err := db.Where("asset_id = ?", asset.ID).Order("import_date DESC").First(&version).Error; err != nil {
+	if err := db.Where("id = ? AND asset_id = ?", *imp.AssetVersionID, asset.ID).First(&version).Error; err != nil {
 		return jobContext{}, fmt.Errorf("load version: %w", err)
 	}
 	return jobContext{

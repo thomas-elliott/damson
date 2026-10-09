@@ -30,7 +30,7 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job
 	err := db.WithContext(ctx).
 		Table("asset_imports AS i").
 		Joins("JOIN assets a ON a.id = i.asset_id").
-		Joins("LEFT JOIN asset_versions v ON v.asset_id = a.id").
+		Joins("LEFT JOIN asset_versions v ON v.id = i.asset_version_id").
 		Where("i.stage NOT IN ?", []string{StageDone, StageFailed}).
 		Select("i.id AS import_id, a.library_id, v.original_package_object_key").
 		Order("i.id ASC").
