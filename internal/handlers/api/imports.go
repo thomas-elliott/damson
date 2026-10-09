@@ -257,14 +257,16 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		return
 	}
 
-	// Locate a source blob from the failed import's most-recent version.
+	// Locate a source blob from the failed import's own version.
 	// Unity uploads always retain the original archive on the version row;
 	// loose uploads need an asset_files row to recover the bytes.
 	var version models.AssetVersion
-	verr := h.db.WithContext(c.Request.Context()).
-		Where("asset_id = ?", asset.ID).
-		Order("import_date DESC").
-		First(&version).Error
+	verr := gorm.ErrRecordNotFound
+	if imp.AssetVersionID != nil {
+		verr = h.db.WithContext(c.Request.Context()).
+			Where("id = ? AND asset_id = ?", *imp.AssetVersionID, asset.ID).
+			First(&version).Error
+	}
 	if verr != nil && !errors.Is(verr, gorm.ErrRecordNotFound) {
 		respond500(c, verr)
 		return
@@ -296,7 +298,7 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 
 	var newImportID uint
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		// Retry re-imports into the existing (latest) version — the pipeline
+		// Retry re-imports into the failed import's version — the pipeline
 		// re-extracts into it in place, so no new version row is created.
 		if version.OriginalPackageObjectKey == "" {
 			if err := tx.Model(&models.AssetVersion{}).
@@ -306,9 +308,10 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 			}
 		}
 		nextImp := models.AssetImport{
-			AssetID:   asset.ID,
-			Stage:     imports.StageUploaded,
-			UpdatedAt: time.Now().UTC(),
+			AssetID:        asset.ID,
+			AssetVersionID: &version.ID,
+			Stage:          imports.StageUploaded,
+			UpdatedAt:      time.Now().UTC(),
 		}
 		if err := tx.Create(&nextImp).Error; err != nil {
 			return err
