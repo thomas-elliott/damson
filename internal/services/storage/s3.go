@@ -133,6 +133,43 @@ func (s *S3) StatMeta(ctx context.Context, prefix, key string) (ObjectMeta, erro
 	return metaFromS3(out.Metadata), nil
 }
 
+func (s *S3) Stat(ctx context.Context, prefix, key string) (ObjectInfo, bool, error) {
+	objectKey := prefix + "/" + shardedKey(key)
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &objectKey})
+	if isNotFound(err) {
+		return ObjectInfo{}, false, nil
+	}
+	if err != nil {
+		return ObjectInfo{}, false, s.wrapS3("head", objectKey, err)
+	}
+	info := ObjectInfo{Key: key, Size: aws.ToInt64(out.ContentLength)}
+	if out.LastModified != nil {
+		info.LastModified = *out.LastModified
+	}
+	return info, true, nil
+}
+
+func (s *S3) Touch(ctx context.Context, prefix, key string) (bool, error) {
+	return s.touch(ctx, prefix+"/"+shardedKey(key))
+}
+
+// touch refreshes an existing object's last-modified time by copying it onto
+// itself. S3 refuses a self-copy that changes nothing, so the copy replaces
+// the metadata with what the object already carries.
+func (s *S3) touch(ctx context.Context, objectKey string) (bool, error) {
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &objectKey})
+	if isNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, s.wrapS3("head", objectKey, err)
+	}
+	if err := s.copyObject(ctx, objectKey, objectKey, aws.ToInt64(out.ContentLength), metaFromS3(out.Metadata)); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *S3) Delete(ctx context.Context, prefix, key string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: &s.bucket,
@@ -213,7 +250,7 @@ func (s *S3) putInline(ctx context.Context, prefix string, body []byte, meta Obj
 	key := hex.EncodeToString(sum[:])
 	objectKey := prefix + "/" + shardedKey(key)
 
-	present, err := s.objectExists(ctx, objectKey)
+	present, err := s.touch(ctx, objectKey)
 	if err != nil {
 		return "", 0, err
 	}
@@ -266,7 +303,7 @@ func (s *S3) putStaged(ctx context.Context, prefix string, r io.Reader, meta Obj
 	key := hex.EncodeToString(h.Sum(nil))
 	objectKey := prefix + "/" + shardedKey(key)
 
-	present, err := s.objectExists(ctx, objectKey)
+	present, err := s.touch(ctx, objectKey)
 	if err != nil {
 		return "", 0, err
 	}
@@ -353,19 +390,10 @@ func (s *S3) copyObjectMultipart(ctx context.Context, srcKey, dstKey string, siz
 	return nil
 }
 
-func (s *S3) objectExists(ctx context.Context, objectKey string) (bool, error) {
-	_, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: &s.bucket,
-		Key:    &objectKey,
-	})
-	if err == nil {
-		return true, nil
-	}
+// isNotFound reports whether err is S3's answer for a missing object.
+func isNotFound(err error) bool {
 	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
-		return false, nil
-	}
-	return false, s.wrapS3("head", objectKey, err)
+	return errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound"
 }
 
 // abortStagingUpload re-sends the abort the uploader already attempted. The
@@ -499,11 +527,10 @@ func (s *S3) head(ctx context.Context, key string) (int64, bool, error) {
 		Bucket: &s.bucket,
 		Key:    &key,
 	})
+	if isNotFound(err) {
+		return 0, false, nil
+	}
 	if err != nil {
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
-			return 0, false, nil
-		}
 		return 0, false, s.wrapS3("head", key, err)
 	}
 	if out.ContentLength == nil {

@@ -97,34 +97,20 @@ func FindOrphans(ctx context.Context, store storage.Service, db *gorm.DB, minAge
 }
 
 // DeleteOrphans deletes the requested keys, re-verifying each against a
-// freshly-read known set and a fresh listing immediately before deletion: a key
-// that became referenced, dropped below the minimum age, or already vanished is
-// skipped with a reason rather than deleted. Each successful deletion is audited.
+// freshly-read known set and a fresh stat taken immediately before its
+// deletion: a key that became referenced, dropped below the minimum age, or
+// already vanished is skipped with a reason rather than deleted. Each
+// successful deletion is audited.
+//
+// The per-key stat is what protects an object an import is deduping onto: the
+// reuse touches the object (storage.Service.Touch) before the import's row
+// commits, so the object reads as too new even though no row references it yet.
 func DeleteOrphans(ctx context.Context, store storage.Service, db *gorm.DB, keys []Key, minAge time.Duration, now time.Time, actor *uint) (DeleteResult, error) {
 	known, err := knownKeys(ctx, db)
 	if err != nil {
 		return DeleteResult{}, err
 	}
 	cutoff := now.Add(-minAge)
-
-	listings := map[string]map[string]storage.ObjectInfo{}
-	for _, k := range keys {
-		if !isSweptPrefix(k.Prefix) {
-			continue
-		}
-		if _, done := listings[k.Prefix]; done {
-			continue
-		}
-		objs, err := store.List(ctx, k.Prefix)
-		if err != nil {
-			return DeleteResult{}, fmt.Errorf("list %s: %w", k.Prefix, err)
-		}
-		m := make(map[string]storage.ObjectInfo, len(objs))
-		for _, o := range objs {
-			m[o.Key] = o
-		}
-		listings[k.Prefix] = m
-	}
 
 	var res DeleteResult
 	skip := func(k Key, reason string) {
@@ -139,7 +125,11 @@ func DeleteOrphans(ctx context.Context, store storage.Service, db *gorm.DB, keys
 			skip(k, "now referenced")
 			continue
 		}
-		info, exists := listings[k.Prefix][k.Key]
+		info, exists, err := store.Stat(ctx, k.Prefix, k.Key)
+		if err != nil {
+			skip(k, "stat failed: "+err.Error())
+			continue
+		}
 		if !exists {
 			skip(k, "not found")
 			continue
@@ -198,6 +188,12 @@ func knownKeys(ctx context.Context, db *gorm.DB) (map[string]map[string]struct{}
 		return nil, fmt.Errorf("pluck asset thumbs: %w", err)
 	}
 	add("thumbs", assetThumbs)
+
+	var galleryKeys []string
+	if err := db.Model(&models.AssetImage{}).Distinct().Pluck("object_key", &galleryKeys).Error; err != nil {
+		return nil, fmt.Errorf("pluck gallery keys: %w", err)
+	}
+	add("thumbs", galleryKeys)
 
 	var previewKeys []string
 	if err := db.Model(&models.AssetFile{}).Distinct().Pluck("preview_object_key", &previewKeys).Error; err != nil {

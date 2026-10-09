@@ -3,11 +3,13 @@ package imports
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
@@ -83,4 +85,55 @@ func StoreGalleryImages(ctx context.Context, db *gorm.DB, store storage.Service,
 		order++
 		stored++
 	}
+}
+
+// RepairGallery drops gallery rows whose object is missing from storage and
+// fetches those images again from each asset's stored listing. The orphan
+// sweep once deleted gallery images (it did not count asset_images as a
+// reference), leaving rows that serve nothing. Safe to run on every boot:
+// with nothing missing it is one listing of thumbs/ and no fetches.
+func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetch imageFetcher) error {
+	objs, err := store.List(ctx, "thumbs")
+	if err != nil {
+		return err
+	}
+	present := make(map[string]bool, len(objs))
+	for _, o := range objs {
+		present[o.Key] = true
+	}
+
+	var rows []models.AssetImage
+	if err := db.WithContext(ctx).Find(&rows).Error; err != nil {
+		return err
+	}
+	var missing []uint
+	assets := map[uint]bool{}
+	for _, r := range rows {
+		if !present[r.ObjectKey] {
+			missing = append(missing, r.ID)
+			assets[r.AssetID] = true
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	if err := db.WithContext(ctx).Delete(&models.AssetImage{}, missing).Error; err != nil {
+		return err
+	}
+	slog.Info("gallery repair: dropped rows with a missing object", "rows", len(missing), "assets", len(assets))
+
+	for assetID := range assets {
+		var asset models.Asset
+		if err := db.WithContext(ctx).Select("id", "source_metadata_json").First(&asset, assetID).Error; err != nil {
+			slog.Warn("gallery repair: load asset", "err", err, "asset_id", assetID)
+			continue
+		}
+		var rec metadata.SourceRecord
+		if err := json.Unmarshal(asset.SourceMetadataJSON, &rec); err != nil || rec.Metadata == nil {
+			slog.Warn("gallery repair: no readable listing to refetch from", "asset_id", assetID)
+			continue
+		}
+		StoreGalleryImages(ctx, db, store, fetch, assetID, rec.Metadata.ImageURLs)
+	}
+	return nil
 }

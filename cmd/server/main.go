@@ -155,6 +155,14 @@ func main() {
 
 	purgeCtx, cancelPurge := context.WithCancel(context.Background())
 	defer cancelPurge()
+	// Gallery images the orphan sweep deleted (before it counted asset_images
+	// as a reference) are fetched again. Off the startup path, because each
+	// fetch waits on the storefront's rate limit.
+	go func() {
+		if err := imports.RepairGallery(purgeCtx, gormDB, store, metaRegistry); err != nil {
+			slog.Warn("gallery repair failed", "err", err)
+		}
+	}()
 	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}
 	go purger.Run(purgeCtx)
 	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}
