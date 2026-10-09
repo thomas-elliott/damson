@@ -320,8 +320,9 @@
   body {
     margin: 0;
     font-family: var(--font-sans);
-    font-size: 15px;
-    line-height: 1.5;
+    /* The text-body role, read from the theme at build time. */
+    font-size: --theme(--text-body);
+    line-height: --theme(--text-body--line-height);
     color: var(--foreground);
     background: var(--background);
     -webkit-font-smoothing: antialiased;
