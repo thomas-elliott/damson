@@ -2,6 +2,8 @@ package db_test
 
 import (
 	"context"
+	"database/sql"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -101,5 +103,46 @@ func TestMigrate_AdvisoryLockContention(t *testing.T) {
 	}
 	if total == 0 || total != distinct {
 		t.Fatalf("schema_migrations integrity broken: %d rows, %d distinct filenames", total, distinct)
+	}
+}
+
+// The advisory lock is session-level, so it must be released on the session
+// that took it. A pooled *gorm.DB can run the unlock on another connection,
+// where it is a no-op and the lock stays held until that connection closes —
+// blocking River's migrator, which takes the same key. This test forces that
+// interleaving: just before the unlock, it checks out whichever idle
+// connection the pool would hand next (the one that took the lock, if the
+// migrator was not pinned) and holds it.
+func TestMigrate_ReleasesTheAdvisoryLockItTook(t *testing.T) {
+	gdb := testdb.NewPostgres(t)
+	sqlDB, err := gdb.DB()
+	if err != nil {
+		t.Fatalf("sql db: %v", err)
+	}
+
+	var held *sql.Conn
+	if err := gdb.Callback().Raw().Before("gorm:raw").Register("test:hold_idle_conn", func(tx *gorm.DB) {
+		if held == nil && strings.Contains(tx.Statement.SQL.String(), "pg_advisory_unlock") {
+			held, _ = sqlDB.Conn(context.Background())
+		}
+	}); err != nil {
+		t.Fatalf("register callback: %v", err)
+	}
+
+	if err := db.Migrate(context.Background(), gdb); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if held == nil {
+		t.Fatal("the migrator never unlocked")
+	}
+	defer held.Close()
+
+	// pg_advisory_unlock reports whether this session held the lock.
+	var leaked bool
+	if err := held.QueryRowContext(context.Background(), `SELECT pg_advisory_unlock($1)`, db.AdvisoryLockKey).Scan(&leaked); err != nil {
+		t.Fatalf("unlock: %v", err)
+	}
+	if leaked {
+		t.Fatal("Migrate returned with the advisory lock still held by a pooled connection")
 	}
 }

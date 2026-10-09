@@ -22,20 +22,27 @@ const AdvisoryLockKey int64 = 4242424242
 // lexicographic order. Applied filenames are tracked in schema_migrations;
 // a Postgres advisory lock serialises concurrent startups.
 func Migrate(ctx context.Context, db *gorm.DB) error {
+	// The advisory lock is session-level, so the lock, every migration and the
+	// unlock must share one connection. On the pool, the unlock can land on
+	// another connection, where it is a no-op and the lock stays held.
+	return db.WithContext(ctx).Connection(migrateLocked)
+}
+
+func migrateLocked(conn *gorm.DB) error {
 	// Acquire the advisory lock first — even before creating
 	// schema_migrations. Two concurrent backends running CREATE TABLE IF
 	// NOT EXISTS race on pg_type/pg_class inserts and one gets a duplicate-
 	// key error on `pg_type_typname_nsp_index`. The lock takes a plain
 	// bigint key and doesn't need any table to exist, so it's safe to take
 	// here.
-	if err := db.WithContext(ctx).Exec(`SELECT pg_advisory_lock(?)`, AdvisoryLockKey).Error; err != nil {
+	if err := conn.Exec(`SELECT pg_advisory_lock(?)`, AdvisoryLockKey).Error; err != nil {
 		return fmt.Errorf("advisory lock: %w", err)
 	}
 	defer func() {
-		_ = db.Exec(`SELECT pg_advisory_unlock(?)`, AdvisoryLockKey).Error
+		_ = conn.Exec(`SELECT pg_advisory_unlock(?)`, AdvisoryLockKey).Error
 	}()
 
-	if err := db.WithContext(ctx).Exec(`
+	if err := conn.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			filename text PRIMARY KEY,
 			applied_at timestamptz NOT NULL DEFAULT now()
@@ -60,7 +67,7 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 
 	for _, name := range names {
 		var count int64
-		if err := db.WithContext(ctx).
+		if err := conn.
 			Raw(`SELECT count(1) FROM schema_migrations WHERE filename = ?`, name).
 			Scan(&count).Error; err != nil {
 			return fmt.Errorf("check %s: %w", name, err)
@@ -74,10 +81,10 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 		if err != nil {
 			return fmt.Errorf("read %s: %w", name, err)
 		}
-		if err := db.WithContext(ctx).Exec(string(body)).Error; err != nil {
+		if err := conn.Exec(string(body)).Error; err != nil {
 			return fmt.Errorf("apply %s: %w", name, err)
 		}
-		if err := db.WithContext(ctx).
+		if err := conn.
 			Exec(`INSERT INTO schema_migrations (filename) VALUES (?)`, name).Error; err != nil {
 			return fmt.Errorf("record %s: %w", name, err)
 		}
