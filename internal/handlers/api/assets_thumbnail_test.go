@@ -51,7 +51,6 @@ func TestPostImport_RasterToggleOff(t *testing.T) {
 	// so we Create the row with defaults then Update the toggle to false.
 	s := models.LibrarySettings{
 		LibraryID:          lib.ID,
-		ThemeDefault:       "dark",
 		GridDensityDefault: "medium",
 	}
 	if err := db.Create(&s).Error; err != nil {
