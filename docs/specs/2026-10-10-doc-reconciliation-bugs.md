@@ -271,3 +271,54 @@ LOW · introduced — `parseList` was inserted between `parseInterval`'s doc com
 #### Checked
 repo rules (library_id scoping on new queries, 500 generic, no token logging, migration plus GORM struct, `just check tidy` drift), documented hazards (auth: PAT refresh, `noTokens`; storage: touch and stat before sweep delete; import pipeline: version pinning, resume join; River resume ordering), mechanical (shape conformance on grid, project and licence rows, completeness, coverage of `asset_version_id` on every `AssetImport` creator, cross-boundary audit action names checked against the server's `ActionType` strings, shared-library precedence for Chip), logic, error handling, silent failure, input validation (`DAMSON_TRUSTED_PROXIES`, `jsonBodyCap` by `FullPath`, which gin sets before global middleware runs), idempotency (migrations 027–029, backfills on every boot), credentials, security (refresh `noTokens`, trusted proxies default none, throttle refuses when full, bootstrap advisory xact lock: OIDC and local races traced under read committed), concurrency (bootstrap lock, migrate lock on one connection, sweep reuse window, gallery repair against resumed imports), external contracts (S3 self-copy with `MetadataDirective: REPLACE`), resource management (temp files, blob close), logging, performance (boot-time scans of unsupported files and coverless assets), smells · issues in: correctness/logic (backfill against DAM-15/16), error handling (startup check), concurrency (gallery repair), comments (config) · n/a: none · validation: in-context (quick depth starts no agent), 4 candidates, 4 confirmed, 0 refuted
 unconfirmed: S3 `touch` replaces metadata without passing `ContentType`, so a self-copied object's Content-Type may reset to `binary/octet-stream`; not sure whether anything serves or reads the S3 Content-Type rather than the database's content type (internal/services/storage/s3.go `touch`) → checked: no S3 write path sets a Content-Type (PutObject, the staged copy and multipart all omit it), and serving takes the content type from the database, so the touch changes nothing a reader sees
+
+### Results
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| build | passed | `CGO_ENABLED=0 go build ./...`; `just build frontend` |
+| gate: `just check` | passed | lint, format, tidy, frontend build, Go and Vitest unit suites, story tests (24 files, 92 tests), e2e 18 passed |
+| review: stages 1…25 | passed | `### Review — stages 1…25`: 0 HIGH, 2 MED and 2 LOW, all fixed (`cd2642b`) |
+| DAM-32: PAT gets 403 from `/auth/refresh` | passed | `TestPostAuthRefresh_RefusesAPersonalAccessToken` (real middleware, Postgres); fails without `noTokens` on the route (got 200 and a JWT) |
+| DAM-32: 32 MiB chunk through the server stack, web and dmsn | passed | `TestUploadChunk_FullSizeChunkPassesTheServerStack` drives `newRouter` + real handler with a session and a PAT; fails without the exemption (413) |
+| DAM-32: forged X-Forwarded-For ignored | passed | `TestAuthThrottles_KeyOnTheClientIP` (login and bootstrap); fails when every proxy is trusted |
+| DAM-32: trusted proxy throttles by client IP | passed | same test, trusted-proxy case |
+| DAM-32: full key map refuses new keys, lockout stays | passed | `TestLoginThrottle_RefusesNewKeysWhenFull`; fails with eviction |
+| DAM-32: concurrent first run → one sysadmin, one library, local loser 409 | passed | `TestCreateFirstLocalAdmin_ConcurrentSignUpsBootstrapOnce`, `TestResolveUser_ConcurrentFirstLoginsBootstrapOnce` (real Postgres); failed 3 of 3 runs before (4 winners; up to 4 sysadmins) |
+| DAM-32: no advisory lock left held | passed | `TestMigrate_ReleasesTheAdvisoryLockItTook`; fails when the unlock runs on the pool. The queue's migrator already pinned its connection |
+| DAM-32: image starts with DSN + `/data`; unwritable `/data` fails naming it | passed | real image (`just image-build`): `/api/health` ok with an empty volume; with an unwritable tmpfs at `/data`, exit 1 and the message names `/data` and the env vars. `TestCheckDataDirs` covers the check |
+| DAM-33: sweep keeps gallery images and objects reused mid-sweep | passed | `TestSweep_NeverDeletesAGalleryImage`, `TestSweep_KeepsAnObjectAnImportDedupsOnto` (LocalFS, Postgres); both failed before. Residual window recorded in Choices |
+| DAM-33: swept gallery images refetched, no row points at a missing object | passed | `TestRepairGallery_RefetchesImagesWhoseObjectIsGone`; the storefront fetch is a fake |
+| DAM-33: new version or retry keeps a store cover | passed | `TestPostImport_NewVersionKeepsTheStorefrontCover`; fails without the `ThumbnailFromStore` check |
+| DAM-33: re-extract queues previews; subset keeps them | passed | `TestPostReExtract_QueuesFreshPreviews`, `TestPostAssetVersionSubset_KeepsTheSourcePreviews`; both failed before (`unsupported`) |
+| DAM-33: restart resumes each import once, for its own version | passed | `TestResumeInFlight_ResumesEachImportOnceForItsOwnVersion`; failed before (enqueued and marked failed) |
+| DAM-33: one licence status in grid, projects, filter and detail | passed | `TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail` (5 cases); 3 disagreed before |
+| DAM-33: import creation audited under the importer; enrichment and hints under system | passed | `TestPostImport_AuditsTheAssetAndVersionUnderTheImporter`, `TestEnrichAsset_AuditsItsChangesAsSystem`, `TestApplySourceHints_AuditsThePublisherAsSystem`; all failed before (no rows) |
+| DAM-33: tag and collection feed labels | passed | `auditFormat.test.ts`; 5 of 6 failed before |
+| DAM-34: Unity preview setting controls the harvested cover; help text | passed | `TestPostImport_UnityPreviewSettingControlsTheHarvestedCover`; the off case failed before. Help text changed in `SettingsPage.tsx`, copy only, no test |
+| DAM-34: zip cover resized and browser-safe; none if nothing decodes | passed | `TestZipExtractor_CoverIsTheFirstDecodableImageResized`, `TestZipExtractor_NoDecodableImageMeansNoCover`; both failed before |
+| DAM-34: large WAV/MP3 waveform without running out of memory | passed | `TestGenerator_Audio_LargeFilesStayWithinMemory`: live heap rose 572 MiB (WAV) and 714 MiB (MP3) before, under 64 MiB after |
+| DAM-34: over 100 MP gets the placeholder | passed | `TestGenerator_Raster_RefusesImagesOver100Megapixels` (a real 400 MP PNG bomb); thumbnailed before |
+| DAM-34: PSD, TGA, EXR, HDR, TIFF get a cover and a preview; EXR/HDR tone-mapped | passed | `TestPostImport_Tier2FormatsGetACoverAndAPreview` (PSD, TGA, EXR, HDR had no cover before), `TestDecode_Tier2Formats` |
+| DAM-34: earlier imports gain covers and previews | passed | `TestBackfill_Tier2FilesImportedEarlierGainACoverAndAPreview`; `TestBackfillCovers_RespectsArchiveCoverRules` |
+| DAM-34: PDFs keep their icon and viewer | passed | `TestSupports` asserts no backend preview for `.pdf`; no PDF code changed |
+| DAM-35: invalid Input/Textarea announced | passed | `invalidControls.test.tsx`; failed before |
+| DAM-35: Arrow Up/Down move one visible row | passed | `LibraryPage.test.tsx` with the grid reporting its columns; moved by the page's own estimate before. The browser width cases are not exercised: jsdom has no layout |
+| DAM-35: chip remove buttons name their filter | passed | `FileBrowserToolbar.test.tsx`; failed before. `removeLabel` is now required in the type |
+| DAM-35: body text uses the `text-body` line height | passed | e2e `body text uses the text-body line height` (Chromium); 22.5px against 23.25px before |
+| DAM-35: `theme_default` gone from DB and API | passed | `TestLibrarySettings_HaveNoDefaultTheme`; failed before (column present) |
+| DAM-35: no text below 12px; lint fails on new | passed | `node scripts/check-tokens.mjs` flagged 6 sites before the fix and passes after. Proof by command, not a test file |
+| DAM-36: CI fails on ESLint, check-tokens, Prettier, story test | unproven | `.woodpecker.yml` `web` step runs `lint` and `format:check`, new `stories` step; Woodpecker not run from this branch (no push) |
+| DAM-36: `just check` runs story tests | passed | `tools/check.just`; the gate run above ran them |
+| DAM-36: import e2e fails on a console error | passed | injected `console.error` failed the spec; passes without it |
+| DAM-36: no DAM-30 comment contradicts the code | passed | 14 comments corrected; dead `VITE_OIDC_*` env removed (`oidc-callback.spec.ts` 3 passed) |
+| DAM-36: failing test step stops the image build | unproven | steps run in order with no `depends_on` or `failure: ignore` on test steps, so `build-push` comes after them; `ops ci list` shows no failed pipeline on main to confirm it, so nothing was changed |
+| S3 storage paths (touch, stat) | unproven | covered by the fake S3 client in `s3_put_test.go`; no real S3 or Garage reached |
+| every session: a test fails before each fix | passed | rows above; exceptions are DAM-31 (lint command), DAM-30 (comments) and the CI rows |
+
+### Docs this made untrue (for `/distil`)
+
+- `docs/design-system.md`: restore the 12px text floor; `check-tokens` now enforces it. Remove "CI does not run them" and "Neither `just check` nor CI runs the storybook project".
+- `docs/architecture.md` §14 Scope: the import path now audits asset and version creation (importer) and enrichment and hints (`asset.update`, no user). §18: CI now runs lint, Prettier and story tests; drop the trap "ESLint and Prettier have no CI step". §5 traps: dedup now touches reused objects. §4.2: `asset_imports.asset_version_id`. §6.1: login throttle refuses new keys when full; client IP trusts `DAMSON_TRUSTED_PROXIES` only. §11: one decoder set (`internal/services/imaging`), tier-2 formats. §18.1: `/data` and the startup check.
+- `docs/roadmap.md`: Shaped "Preview formats, tier 2" has shipped (TGA, EXR, HDR); `docs/progress.md` Known gaps: add PDF posters as rejected.
+- `internal/config/config.go` documents `DAMSON_TRUSTED_PROXIES`; any env table in the docs needs it.
