@@ -221,7 +221,9 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		}
 		vid := jc.version.ID
 		asset.CurrentVersionID = &vid
-		if thumbKey != "" {
+		// A storefront cover outlives later extractions, as it does for
+		// rescan and re-extract.
+		if thumbKey != "" && !asset.ThumbnailFromStore {
 			asset.ThumbnailObjectKey = thumbKey
 			asset.ThumbnailContentType = thumbType
 		}
