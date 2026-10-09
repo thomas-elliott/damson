@@ -536,7 +536,6 @@ export function useCollection(id: number | null) {
 
 export interface LibrarySettings {
   library_id: number;
-  theme_default: "dark" | "light";
   grid_density_default: "small" | "medium" | "large";
   retain_original_packages: boolean;
   dedupe_enabled: boolean;

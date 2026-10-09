@@ -462,7 +462,6 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 	}
 	s = models.LibrarySettings{
 		LibraryID:               libID,
-		ThemeDefault:            "dark",
 		GridDensityDefault:      "medium",
 		RetainOriginalPackages:  true,
 		DedupeEnabled:           true,

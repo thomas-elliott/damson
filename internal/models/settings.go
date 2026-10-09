@@ -14,7 +14,6 @@ func (ServerSettings) TableName() string { return "server_settings" }
 
 type LibrarySettings struct {
 	LibraryID               uint   `gorm:"primarykey"`
-	ThemeDefault            string `gorm:"not null;default:dark"`
 	GridDensityDefault      string `gorm:"not null;default:medium"`
 	RetainOriginalPackages  bool   `gorm:"not null;default:true"`
 	DedupeEnabled           bool   `gorm:"not null;default:true"`
