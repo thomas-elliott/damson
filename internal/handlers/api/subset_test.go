@@ -106,3 +106,43 @@ func TestPostAssetVersionSubset_RejectsCrossVersionFiles(t *testing.T) {
 	})
 	requireStatus(t, w, http.StatusBadRequest)
 }
+
+// A subset reuses the source's objects, so it shows the source's previews
+// rather than starting from none.
+func TestPostAssetVersionSubset_KeepsTheSourcePreviews(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	asset := models.Asset{LibraryID: lib.ID, Name: "x"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	v := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1", PackageKind: "loose"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	src := models.AssetFile{
+		AssetVersionID: v.ID, RelativePath: "a.psd", SizeBytes: 1, ContentHash: "aa", ObjectKey: "aa",
+		PreviewObjectKey: "pp", PreviewContentType: "image/png", PreviewStatus: "done",
+	}
+	if err := db.Create(&src).Error; err != nil {
+		t.Fatal(err)
+	}
+	asset.CurrentVersionID = &v.ID
+	if err := db.Save(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	w := performRequest(setupRouter(h, u), http.MethodPost,
+		"/api/assets/"+uintStr(asset.ID)+"/versions/"+uintStr(v.ID)+"/subset", subsetRequest{FileIDs: []uint{src.ID}})
+	requireStatus(t, w, http.StatusCreated)
+
+	var copied models.AssetFile
+	if err := db.Where("asset_version_id <> ?", v.ID).First(&copied).Error; err != nil {
+		t.Fatal(err)
+	}
+	if copied.PreviewStatus != "done" || copied.PreviewObjectKey != "pp" || copied.PreviewContentType != "image/png" {
+		t.Fatalf("subset file preview = %q %q %q, want the source's", copied.PreviewStatus, copied.PreviewObjectKey, copied.PreviewContentType)
+	}
+}

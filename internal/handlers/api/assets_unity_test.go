@@ -465,3 +465,35 @@ func TestPostReExtract_NotFoundInOtherLibrary(t *testing.T) {
 func uintStr(u uint) string {
 	return strconv.FormatUint(uint64(u), 10)
 }
+
+// Re-extract rewrites a version's files, which resets their preview state;
+// it must queue fresh previews as an import does, or the version is left
+// with none and nothing queued.
+func TestPostReExtract_QueuesFreshPreviews(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="red"/></svg>`)
+	pkg := buildUnityPackage(t, []unityPkgEntry{{guid: testGUID(0x07), pathname: "Assets/icon.svg", content: svg}})
+	r := setupRouter(h, u)
+	body, ctype := buildMultipart(t, "file", "Icons.unitypackage", pkg)
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	imp := jsonResponse[importEnqueueResponse](t, w)
+
+	var asset models.Asset
+	if err := db.First(&asset, imp.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/assets/" + uintStr(asset.ID) + "/versions/" + uintStr(*asset.CurrentVersionID) + "/reextract"
+	requireStatus(t, performRequest(r, http.MethodPost, path, nil), http.StatusCreated)
+
+	var f models.AssetFile
+	if err := db.Where("asset_version_id = ?", *asset.CurrentVersionID).First(&f).Error; err != nil {
+		t.Fatal(err)
+	}
+	if f.PreviewStatus != "done" || f.PreviewObjectKey == "" {
+		t.Fatalf("after re-extract the SVG's preview is %q (key %q), want done", f.PreviewStatus, f.PreviewObjectKey)
+	}
+}
