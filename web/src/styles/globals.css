@@ -221,7 +221,8 @@
  * names below are registered with tailwind-merge in design-system/utils/cn.ts. */
 @utility text-title-reg {
   /* Headings — title (22), heading (20), subhead (18). Each has
-   * 4 weight variants and a bare alias = -semibold. */
+   * 4 weight variants. There is no bare alias: text-title is the
+   * contract's plain size. */
   font-size: 22px;
   line-height: 1.25;
   font-weight: 400;

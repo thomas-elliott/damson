@@ -217,7 +217,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 		// LIKE host match; source_url may not be parsed to host yet, so
 		// match substring. Good enough for v1; URL parsing is a future
 		// refinement. Escape `%` and `_` so user input doesn't become
-		// an unintended wildcard. ESCAPE clause works on Postgres + SQLite.
+		// an unintended wildcard.
 		q = q.Where(`a.source_url LIKE ? ESCAPE '\'`, "%"+escapeLikePattern(f.SourceHost)+"%")
 	}
 	if f.Publisher != "" {
@@ -263,8 +263,9 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 			Where("caf.collection_id = ?", *f.CollectionID)
 	}
 	if f.Query != "" {
-		// SQLite fallback: LIKE over name/description. Postgres: use
 		// to_tsquery with a prefix-aware query so "pack" matches "package".
+		// The LIKE branch is unreachable: Postgres is the only database, in
+		// tests too (docs/roadmap.md, Ideas: remove it).
 		if db.Dialector.Name() == "postgres" {
 			q = q.Where("a.search_vector @@ to_tsquery('simple', ?)", buildPrefixTsQuery(f.Query))
 		} else {
@@ -551,10 +552,9 @@ func (h *Handler) cleanupFailedVersionUpload(ctx context.Context, versionID, imp
 	}
 }
 
-// postReExtract creates a new AssetVersion by re-reading the original
-// .unitypackage archive that was retained when the source version was
-// imported. The previous version's rows are untouched; the asset's
-// current_version_id switches to the new version.
+// postReExtract re-reads the .unitypackage archive retained when the version
+// was imported and rewrites that version's files in place; it creates no new
+// version. The asset's current_version_id points at the re-extracted version.
 func (h *Handler) postReExtract(c *gin.Context) {
 	if h.storage == nil {
 		respond500(c, errStorageNotConfigured)
@@ -732,7 +732,6 @@ func buildPrefixTsQuery(raw string) string {
 
 // escapeLikePattern doubles up `%` and `_` characters and the escape `\` so
 // raw user input passed into a `LIKE ? ESCAPE '\'` clause matches literally.
-// Both Postgres and SQLite recognise the explicit ESCAPE clause.
 func escapeLikePattern(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))

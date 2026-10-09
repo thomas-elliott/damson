@@ -15,10 +15,8 @@ import (
 )
 
 // TestMigrate_AppliesAllSqlFiles is a sanity check that every file under
-// database/migrations/ applies cleanly against a fresh Postgres schema. The
-// SQLite AutoMigrate path used by unit tests doesn't exercise these files at
-// all, so Postgres-only syntax (tsvector columns, plpgsql triggers, GIN
-// indexes) only fails here.
+// database/migrations/ applies cleanly against a fresh Postgres schema, and
+// that a second run changes nothing.
 func TestMigrate_AppliesAllSqlFiles(t *testing.T) {
 	gdb := testdb.NewPostgres(t)
 

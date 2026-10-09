@@ -15,8 +15,8 @@ type Fixtures = {
   // paths where any error is a real regression. Skip it for tests that
   // intentionally drive failure paths.
   noConsoleErrors: void;
-  // Wipe + re-AutoMigrate the e2e backend before every test. Auto-applied
-  // so each test starts from a known-empty schema. This relies on the
+  // Truncate the e2e backend's data tables before every test. Auto-applied
+  // so each test starts from empty tables. This relies on the
   // /api/test/reset endpoint exposed by cmd/e2e-server (test build only).
   resetBackend: void;
 };

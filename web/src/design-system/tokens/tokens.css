@@ -30,8 +30,9 @@
   --background-hover: oklch(0 0 0 / 4%);
   --background-active: oklch(0 0 0 / 7%);
 
-  /* Text tiers. The bottom two are below WCAG AA on purpose — decorative and
-   * low-weight text only, never body copy. */
+  /* Text tiers, strongest first. Anything informational takes
+   * subtle-foreground or stronger; faint-foreground is decorative only, as it
+   * falls below WCAG AA in the light theme. See docs/design-system.md. */
   --foreground: oklch(0.2 0.01 80);
   --muted-foreground: oklch(0.38 0.01 80);
   --subtle-foreground: oklch(0.52 0.01 80);

@@ -208,11 +208,11 @@ func (h *Handler) getImport(c *gin.Context) {
 	c.JSON(http.StatusOK, r.toRow())
 }
 
-// postImportRetry re-runs the import pipeline against the previous import's
+// postImportRetry re-runs the import pipeline against the failed import's
 // retained source blob. Only `failed` rows can be retried; `done` rows are
-// rejected with 409. A retry creates a brand-new asset_version (label v2,
-// v3, …) plus a fresh asset_imports row in the `uploaded` stage and hands
-// it to the worker pool — same code path as a first-time upload.
+// rejected with 409. A retry re-extracts into the same version in place and
+// creates only a fresh asset_imports row in the `uploaded` stage, which it
+// hands to the worker pool.
 func (h *Handler) postImportRetry(c *gin.Context) {
 	if h.storage == nil {
 		respond500(c, errStorageNotConfigured)
