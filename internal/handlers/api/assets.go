@@ -678,6 +678,8 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
+	// Rewritten files start with no preview, so queue them as an import does.
+	h.rescanPreviews(c, lib.ID, source.ID)
 
 	c.JSON(http.StatusCreated, resp)
 }
