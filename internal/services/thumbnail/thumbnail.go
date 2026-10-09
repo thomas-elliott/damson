@@ -1,7 +1,7 @@
 // Package thumbnail generates preview images for imported assets per
 // docs/archive/technical-design.md §11. One worker per input category:
 //
-//   - Raster (image/*): decode + resample to 512px long edge + re-encode as
+//   - Raster (image/*, or any format imaging decodes): decode + resample to 512px long edge + re-encode as
 //     JPEG (photographic) or PNG (palette/alpha/rendered).
 //   - Audio (audio/*): decode PCM, downsample to waveform bins, render a
 //     waveform strip as PNG.
@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/thomas-elliott/damson/internal/services/imaging"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -106,10 +107,11 @@ func classify(in Input) string {
 		ct == "application/x-font-ttf" || ct == "application/x-font-otf":
 		return "font"
 	}
+	if imaging.IsImage(in.Filename) {
+		return "raster"
+	}
 	ext := strings.ToLower(filepath.Ext(in.Filename))
 	switch ext {
-	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif":
-		return "raster"
 	case ".wav", ".mp3", ".ogg", ".oga":
 		return "audio"
 	case ".ttf", ".otf":
