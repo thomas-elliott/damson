@@ -3,17 +3,16 @@ package imports
 import (
 	"context"
 	"log/slog"
+	"sort"
 
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imaging"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
-
-// maxZipCoverBytes mirrors the zip extractor's cover cap.
-const maxZipCoverBytes = 16 << 20
 
 // browserCoverTypes are the cover content types a browser shows.
 var browserCoverTypes = []string{"image/png", "image/jpeg", "image/webp", "image/gif"}
@@ -21,13 +20,12 @@ var browserCoverTypes = []string{"image/png", "image/jpeg", "image/webp", "image
 // BackfillCovers gives a grid cover to assets that have none a browser can
 // show but hold an image the decoders now read: files imported before the
 // tier-2 formats, and zips whose cover was once stored raw (a PSD, say). The
-// cover is rendered from the first image file, by path, in the asset's
-// current version, under the rules an import applies: a Unity package is
-// skipped (its cover only comes from a preview.png, under the library's
-// setting) and a zip takes no image over the extractor's cover cap. A store
-// cover is never touched. Safe
-// to run on every boot; an image that still fails to decode is tried again
-// on the next one.
+// cover is rendered from the first image file in the asset's current version,
+// cover-like names first and then by path, under the rules an import applies:
+// a Unity package is skipped (its cover only comes from a preview.png, under
+// the library's setting) and a zip takes no image over the extractor's cover
+// cap. A store cover is never touched. Safe to run on every boot; an image
+// that still fails to decode is tried again on the next one.
 func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (int, error) {
 	type candidate struct {
 		AssetID      uint
@@ -44,13 +42,21 @@ func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (in
 		Where("a.thumbnail_object_key = '' OR a.thumbnail_content_type NOT IN ?", browserCoverTypes).
 		Where("COALESCE(s.thumbnails_raster_enabled, true)").
 		Where("v.package_kind <> ?", "unitypackage").
-		Where("v.package_kind <> ? OR f.size_bytes <= ?", "zip", maxZipCoverBytes).
+		Where("v.package_kind <> ? OR f.size_bytes <= ?", "zip", extract.MaxZipCoverBytes).
 		Order("a.id, f.relative_path").
 		Select("a.id AS asset_id, f.relative_path, f.object_key").
 		Scan(&rows).Error
 	if err != nil {
 		return 0, err
 	}
+
+	// Within each asset, cover-like names first, as a zip's import picks them.
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].AssetID != rows[j].AssetID {
+			return rows[i].AssetID < rows[j].AssetID
+		}
+		return extract.IsCoverName(rows[i].RelativePath) && !extract.IsCoverName(rows[j].RelativePath)
+	})
 
 	gen := &thumbnail.Generator{Storage: store}
 	covered := 0

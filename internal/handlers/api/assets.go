@@ -263,7 +263,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 			Where("caf.collection_id = ?", *f.CollectionID)
 	}
 	if f.Query != "" {
-		// to_tsquery with a prefix-aware query so "pack" matches "package".
+		// Prefix-aware to_tsquery, so "pack" matches "package".
 		// The LIKE branch is unreachable: Postgres is the only database, in
 		// tests too (docs/roadmap.md, Ideas: remove it).
 		if db.Dialector.Name() == "postgres" {

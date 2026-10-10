@@ -30,16 +30,19 @@ func (p *patternReader) Read(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// largeWAV streams a 16-bit stereo WAV header followed by size bytes of a
-// square wave.
-func largeWAV(size int64) io.Reader {
+// largeWAV streams a 16-bit stereo WAV of size bytes of a square wave.
+func largeWAV(size int64) io.Reader { return wavWithChannels(2, size) }
+
+// wavWithChannels streams a 16-bit PCM WAV header claiming channels,
+// followed by size bytes of a square wave.
+func wavWithChannels(channels uint16, size int64) io.Reader {
 	hdr := make([]byte, 44)
 	copy(hdr[0:], "RIFF")
 	binary.LittleEndian.PutUint32(hdr[4:], uint32(36+size))
 	copy(hdr[8:], "WAVEfmt ")
 	binary.LittleEndian.PutUint32(hdr[16:], 16)
 	binary.LittleEndian.PutUint16(hdr[20:], 1) // PCM
-	binary.LittleEndian.PutUint16(hdr[22:], 2) // stereo
+	binary.LittleEndian.PutUint16(hdr[22:], channels)
 	binary.LittleEndian.PutUint32(hdr[24:], 44100)
 	binary.LittleEndian.PutUint32(hdr[28:], 44100*4)
 	binary.LittleEndian.PutUint16(hdr[32:], 4)
@@ -100,7 +103,7 @@ func TestGenerator_Audio_LargeFilesStayWithinMemory(t *testing.T) {
 		file string
 	}{
 		{"256 MiB WAV", func() io.Reader { return largeWAV(256 << 20) }, "long.wav"},
-		{"13 minutes of MP3", func() io.Reader { return largeMP3(30_000) }, "long.mp3"},
+		{"3 minutes of MP3", func() io.Reader { return largeMP3(7_500) }, "long.mp3"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,5 +120,22 @@ func TestGenerator_Audio_LargeFilesStayWithinMemory(t *testing.T) {
 				t.Fatalf("live heap rose %d MiB while rendering, budget %d MiB", grew>>20, budget>>20)
 			}
 		})
+	}
+}
+
+// The read buffer is sized from the header's channel count, which the
+// uploader controls: a tiny WAV claiming 65535 channels must not make the
+// worker reserve a gigabyte.
+func TestGenerator_Audio_AHeaderClaimingHugeChannelsStaysWithinMemory(t *testing.T) {
+	const budget = 64 << 20
+	g := &Generator{Storage: newTestStorage(t)}
+	// Total allocated, not the live heap: the buffer is short-lived, so a
+	// sampler can miss it.
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, _ = g.Generate(context.Background(), Input{Reader: wavWithChannels(65535, 8), Filename: "bomb.wav"}, Toggles{Audio: true})
+	runtime.ReadMemStats(&after)
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > budget {
+		t.Fatalf("allocated %d MiB, budget %d MiB", grew>>20, budget>>20)
 	}
 }

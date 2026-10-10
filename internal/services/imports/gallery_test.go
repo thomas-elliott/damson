@@ -82,3 +82,38 @@ func TestRepairGallery_RefetchesImagesWhoseObjectIsGone(t *testing.T) {
 		t.Errorf("the intact row was rewritten")
 	}
 }
+
+// Started against empty storage (a forgotten volume, a new bucket), every
+// cover is missing as well as every gallery image. The repair must leave the
+// rows alone rather than drop galleries the storefront may no longer serve.
+func TestRepairGallery_LeavesRowsAloneWhenStorageIsNotTheDatabases(t *testing.T) {
+	db := enrichTestDB(t)
+	ctx := context.Background()
+	store, err := storage.NewLocalFS(t.TempDir(), "")
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	asset := seedEnrichAsset(t, db, "Pack", false)
+	cover := "3333333333333333333333333333333333333333333333333333333333333333"
+	if err := db.Model(asset).Update("thumbnail_object_key", cover).Error; err != nil {
+		t.Fatalf("seed cover: %v", err)
+	}
+	gallery := "4444444444444444444444444444444444444444444444444444444444444444"
+	row := models.AssetImage{AssetID: asset.ID, SourceURL: "https://store.example/a.png", ObjectKey: gallery}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("seed row: %v", err)
+	}
+
+	fetch := &pngFetcher{}
+	if err := RepairGallery(ctx, db, store, fetch); err != nil {
+		t.Fatalf("repair: %v", err)
+	}
+
+	if len(fetch.calls) != 0 {
+		t.Errorf("fetched %v, want nothing", fetch.calls)
+	}
+	var kept models.AssetImage
+	if err := db.First(&kept, row.ID).Error; err != nil || kept.ObjectKey != gallery {
+		t.Errorf("gallery row was dropped or rewritten: %v", err)
+	}
+}

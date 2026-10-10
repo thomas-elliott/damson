@@ -77,9 +77,8 @@ var permissiveLicences = []string{
 }
 
 // licenceStatusSQL is LicenceStatusFor as SQL over a licences row aliased
-// alias (all NULL when the asset has no licence), so the grid, a project's
-// pins and the licence-status filter compute the status inside the query.
-// Its one placeholder takes permissiveLicences. Keep it in step with
+// alias (all NULL when the asset has no licence). Its one placeholder takes
+// permissiveLicences. Keep it in step with
 // LicenceStatusFor; TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail
 // checks the two agree.
 func licenceStatusSQL(alias string) string {

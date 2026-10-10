@@ -118,6 +118,26 @@ func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetc
 	if len(missing) == 0 {
 		return nil
 	}
+	// The sweep never deleted asset covers, so most of them missing means this
+	// storage is not the one the database describes — a forgotten /data
+	// volume, a new bucket — not a swept gallery. Dropping rows then would
+	// lose every gallery whose storefront link has since died.
+	var covers []string
+	if err := db.WithContext(ctx).Model(&models.Asset{}).
+		Where("thumbnail_object_key <> ''").Pluck("thumbnail_object_key", &covers).Error; err != nil {
+		return err
+	}
+	coversPresent := 0
+	for _, k := range covers {
+		if present[k] {
+			coversPresent++
+		}
+	}
+	if coversPresent*2 < len(covers) {
+		slog.Warn("gallery repair: skipped, most asset covers are missing from storage too",
+			"covers", len(covers), "covers_present", coversPresent, "gallery_rows_missing", len(missing))
+		return nil
+	}
 	if err := db.WithContext(ctx).Delete(&models.AssetImage{}, missing).Error; err != nil {
 		return err
 	}

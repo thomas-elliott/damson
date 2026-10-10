@@ -9,6 +9,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/imaging/imagingtest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
 // Files imported before tier 2 have no cover and an unsupported preview. The
@@ -109,5 +110,53 @@ func TestBackfillCovers_RespectsArchiveCoverRules(t *testing.T) {
 				t.Fatalf("backfill gave the %s a cover its import would not", tc.name)
 			}
 		})
+	}
+}
+
+// A zip's import takes a cover-like name before archive order, so the
+// backfill must pick the same image rather than the first by path.
+func TestBackfillCovers_PrefersACoverLikeNameAsAZipImportDoes(t *testing.T) {
+	db := enrichTestDB(t)
+	ctx := context.Background()
+	store, err := storage.NewLocalFS(t.TempDir(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset := seedEnrichAsset(t, db, "Zip", false)
+	version := models.AssetVersion{AssetID: asset.ID, PackageKind: "zip"}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatal(err)
+	}
+	images := &pngFetcher{} // each call returns a differently coloured PNG
+	var coverPNG []byte
+	for _, path := range []string{"a/first.png", "z/cover.png"} {
+		data, _, _ := images.FetchImage(ctx, path)
+		if path == "z/cover.png" {
+			coverPNG = data
+		}
+		key, _, err := store.PutBlob(ctx, bytes.NewReader(data), storage.ObjectMeta{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(&models.AssetFile{AssetVersionID: version.ID, RelativePath: path, SizeBytes: int64(len(data)), ObjectKey: key, ContentHash: key}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Model(asset).Update("current_version_id", version.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := BackfillCovers(ctx, db, store); err != nil {
+		t.Fatal(err)
+	}
+
+	want, err := (&thumbnail.Generator{Storage: store}).Generate(ctx, thumbnail.Input{Reader: bytes.NewReader(coverPNG), Filename: "cover.png"}, thumbnail.Toggles{Raster: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var a models.Asset
+	db.First(&a, asset.ID)
+	if a.ThumbnailObjectKey != want.ObjectKey {
+		t.Errorf("cover = %q, want the one rendered from z/cover.png (%q)", a.ThumbnailObjectKey, want.ObjectKey)
 	}
 }
