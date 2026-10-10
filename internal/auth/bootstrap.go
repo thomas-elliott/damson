@@ -164,6 +164,16 @@ func CreateFirstLocalAdmin(ctx context.Context, db *gorm.DB, email, password str
 // exists. The check and the insert share one transaction under
 // bootstrapLockKey, so of two concurrent callers exactly one creates a user.
 func createLocalAdmin(ctx context.Context, db *gorm.DB, email, password string) (*models.User, error) {
+	// A cheap check first, so a server that is already set up answers
+	// without paying for a password hash. The locked check below decides.
+	var existing int64
+	if err := db.WithContext(ctx).Model(&models.User{}).Count(&existing).Error; err != nil {
+		return nil, fmt.Errorf("count users: %w", err)
+	}
+	if existing > 0 {
+		return nil, ErrAlreadyBootstrapped
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)

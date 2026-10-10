@@ -93,8 +93,8 @@ func classify(filename, detectedType string) string {
 
 // renderRaster decodes a browser-unopenable raster through the shared imaging
 // decoders, downsamples it, and re-encodes to a web-safe image: JPEG for
-// opaque content, PNG otherwise. An image over imaging.MaxPixels gets no
-// preview.
+// opaque content, PNG otherwise. An image over the imaging pixel ceiling
+// gets no preview.
 func (g *Generator) renderRaster(ctx context.Context, in Input) (Result, error) {
 	src, _, err := imaging.Decode(in.Reader, in.Filename)
 	if errors.Is(err, imaging.ErrTooLarge) {

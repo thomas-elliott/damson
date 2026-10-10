@@ -122,12 +122,14 @@ const BELOW_FIELD = /(?<![\w-])text-(ui|label|small|xs|sm|base|\[[^\]]+\])(?![\w
 
 /** The 12px floor: no text renders smaller, badges included. Catches an
  * arbitrary Tailwind size, a stylesheet font-size and an inline fontSize, in
- * px or rem (16px to the rem). */
+ * px or rem (16px to the rem). An inline fontSize is a bare number, which
+ * React reads as px, or a quoted string; other units are not checked. */
 const TEXT_FLOOR_PX = 12;
 const TEXT_SIZES = [
   /(?<![\w-])text-\[(\d*\.?\d+)(px|rem)\]/g,
   /font-size:\s*(\d*\.?\d+)(px|rem)/g,
-  /fontSize:\s*["'`]?(\d*\.?\d+)(px|rem)?/g,
+  /fontSize:\s*(\d*\.?\d+)(?![\w.%])/g,
+  /fontSize:\s*["'`](\d*\.?\d+)(px|rem)["'`]/g,
 ];
 function belowTextFloor(line) {
   for (const re of TEXT_SIZES) {

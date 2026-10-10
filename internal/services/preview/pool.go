@@ -3,11 +3,13 @@ package preview
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/imaging"
 )
 
 // Job is the unit of work for the preview pool: a version to (re)process, and
@@ -87,31 +89,24 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job
 // that a renderer now exists for, such as the tier-2 image formats, in
 // libraries with previews on. Run it before ResumeInFlight, which enqueues
 // them. Once queued a file is no longer unsupported, so a second run finds
-// nothing; the scan itself is over every unsupported file, every boot.
+// nothing.
 func QueueNewlySupported(ctx context.Context, db *gorm.DB) (int, error) {
-	var files []models.AssetFile
-	err := db.WithContext(ctx).
-		Table("asset_files AS f").
-		Joins("JOIN asset_versions v ON v.id = f.asset_version_id").
+	// The extensions classify renders, as a Postgres regex: \.(svg|psd|...)$.
+	// They are letters and digits, so none needs escaping.
+	var exts []string
+	for _, ext := range append([]string{".svg"}, imaging.ConvertedExtensions()...) {
+		exts = append(exts, strings.TrimPrefix(ext, "."))
+	}
+	pattern := `\.(` + strings.Join(exts, "|") + `)$`
+
+	previewsOn := db.Table("asset_versions AS v").
 		Joins("JOIN assets a ON a.id = v.asset_id").
 		Joins("LEFT JOIN library_settings s ON s.library_id = a.library_id").
-		Where("f.preview_status = ? AND COALESCE(s.previews_enabled, true)", StatusUnsupported).
-		Select("f.id, f.relative_path, f.detected_type").
-		Scan(&files).Error
-	if err != nil {
-		return 0, err
-	}
-	var ids []uint
-	for _, f := range files {
-		if Supports(f.RelativePath, f.DetectedType) {
-			ids = append(ids, f.ID)
-		}
-	}
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	err = db.WithContext(ctx).Model(&models.AssetFile{}).
-		Where("id IN ?", ids).
-		Updates(map[string]any{"preview_status": StatusQueued, "preview_updated_at": time.Now().UTC()}).Error
-	return len(ids), err
+		Where("COALESCE(s.previews_enabled, true)").
+		Select("v.id")
+	res := db.WithContext(ctx).Model(&models.AssetFile{}).
+		Where("preview_status = ? AND lower(relative_path) ~ ?", StatusUnsupported, pattern).
+		Where("asset_version_id IN (?)", previewsOn).
+		Updates(map[string]any{"preview_status": StatusQueued, "preview_updated_at": time.Now().UTC()})
+	return int(res.RowsAffected), res.Error
 }

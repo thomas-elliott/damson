@@ -248,6 +248,14 @@ func TestPostImport_FieldAfterFileIsRejected(t *testing.T) {
 	if imports != 0 {
 		t.Errorf("want the failed upload's import row cleaned up, got %d", imports)
 	}
+	// Nor may the audit log claim the deleted asset was created.
+	var audits int64
+	if err := db.Model(&models.AuditLog{}).Count(&audits).Error; err != nil {
+		t.Fatal(err)
+	}
+	if audits != 0 {
+		t.Errorf("want no audit row for the failed upload, got %d", audits)
+	}
 }
 
 func itoa(v uint) string { return strconv.FormatUint(uint64(v), 10) }

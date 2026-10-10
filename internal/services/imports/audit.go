@@ -16,11 +16,14 @@ var unauditedAssetColumns = map[string]bool{
 }
 
 // assetSnapshot reads an asset row as column → value, so a system write can
-// be audited as the columns it changed.
+// be audited as the columns it changed. It returns nil on an error, so a
+// failed before-snapshot skips the audit rather than diffing every column.
 func assetSnapshot(ctx context.Context, db *gorm.DB, assetID uint) (map[string]any, error) {
 	row := map[string]any{}
-	err := db.WithContext(ctx).Table("assets").Where("id = ?", assetID).Take(&row).Error
-	return row, err
+	if err := db.WithContext(ctx).Table("assets").Where("id = ?", assetID).Take(&row).Error; err != nil {
+		return nil, err
+	}
+	return row, nil
 }
 
 // auditSystemUpdate writes one asset.update row attributed to no user — the
