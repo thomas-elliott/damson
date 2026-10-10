@@ -41,6 +41,11 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 		slog.Warn("enrich: reload asset", "err", err, "asset_id", jc.asset.ID)
 		return
 	}
+	before, err := assetSnapshot(ctx, deps.DB, asset.ID)
+	if err != nil {
+		slog.Warn("enrich: audit snapshot", "err", err, "asset_id", asset.ID)
+	}
+	defer auditSystemUpdate(ctx, deps.DB, jc.libraryID, asset.ID, before)
 
 	cands, err := deps.Metadata.Search(ctx, asset.Name)
 	if err != nil {

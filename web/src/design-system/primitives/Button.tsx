@@ -5,8 +5,7 @@ import {
 } from "@telliott/shared-ui";
 import { cn } from "@/design-system/utils";
 
-// A wrapper rather than a fork of the package Button. Button.test.tsx fails if
-// a call site bypasses this.
+// A wrapper rather than a fork of the package Button.
 const SOFT_DESTRUCTIVE = [
   "bg-destructive-soft text-destructive border-destructive/40",
   "hover:bg-destructive/20 hover:border-destructive/60",

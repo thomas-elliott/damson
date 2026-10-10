@@ -102,6 +102,18 @@ type Service interface {
 	// value when none was written. Reverses the write done by PutBlob/PutOriginal.
 	StatMeta(ctx context.Context, prefix, objectKey string) (ObjectMeta, error)
 
+	// Stat reports an object's size and last-modified time, and whether it
+	// exists. The orphan sweep checks each key's age with it just before
+	// deleting, rather than trusting a listing taken earlier.
+	Stat(ctx context.Context, prefix, objectKey string) (info ObjectInfo, exists bool, err error)
+
+	// Touch refreshes an existing object's last-modified time and reports
+	// whether it exists. A write that reuses an existing object must touch it
+	// (the Put methods do so themselves): the orphan sweep's age floor is what
+	// keeps an object alive between its reuse and the commit of the row that
+	// references it.
+	Touch(ctx context.Context, prefix, objectKey string) (exists bool, err error)
+
 	// Delete removes an object under prefix. Missing objects are not an error.
 	Delete(ctx context.Context, prefix, objectKey string) error
 

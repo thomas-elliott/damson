@@ -48,9 +48,8 @@ func (p *Purger) Run(ctx context.Context) {
 // `audit_retention_days`, deletes audit_log rows older than that window.
 // Returns the total number of rows deleted across all libraries.
 //
-// One DELETE per library keeps the SQL portable across the SQLite test
-// tier and Postgres production — and avoids holding a single statement
-// open across thousands of libraries.
+// One DELETE per library avoids holding a single statement open across
+// thousands of libraries.
 func PurgeOnce(ctx context.Context, db *gorm.DB, now time.Time) (int64, error) {
 	type rule struct {
 		LibraryID uint

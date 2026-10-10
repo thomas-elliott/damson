@@ -70,7 +70,7 @@ export function FilePlaceholder({ node, large, className, style }: FilePlacehold
       style={style}
     >
       <FileGlyph ftype={node.ftype} size={large ? 30 : 22} strokeWidth={1.4} />
-      <span className="font-mono text-[10px] uppercase tracking-wide text-faint-foreground">
+      <span className="font-mono text-label uppercase tracking-wide text-faint-foreground">
         {node.ext.replace(".", "") || "file"}
       </span>
     </div>

@@ -231,8 +231,9 @@ func TestS3PutHashed_LargeBodyStagesThenCopies(t *testing.T) {
 }
 
 // TestS3PutHashed_DedupeSkipsTheCopy proves HEAD-before-write survives the
-// rewrite: re-uploading content the bucket already holds must not copy 20 GB
-// around inside the bucket.
+// rewrite: re-uploading content the bucket already holds must not copy the
+// staged body to its final key again. The one copy it makes is the in-place
+// touch that refreshes the existing object's age for the orphan sweep.
 func TestS3PutHashed_DedupeSkipsTheCopy(t *testing.T) {
 	s, fake := newTestS3(t)
 	body := bytes.Repeat([]byte("y"), inlinePutBytes+1024)
@@ -250,8 +251,9 @@ func TestS3PutHashed_DedupeSkipsTheCopy(t *testing.T) {
 	if key2 != key {
 		t.Errorf("second upload key = %s, want the same content hash %s", key2, key)
 	}
-	if len(fake.copies) != copiesAfterFirst {
-		t.Errorf("the second upload must dedupe rather than copy again; copies = %v", fake.copies)
+	final := "originals/" + shardedKey(key)
+	if got := fake.copies[copiesAfterFirst:]; len(got) != 1 || got[0] != final+" -> "+final {
+		t.Errorf("the second upload must only touch the existing object in place; copies = %v", got)
 	}
 	if len(fake.deletes) != 2 {
 		t.Errorf("both staging objects must be dropped, got deletes = %v", fake.deletes)

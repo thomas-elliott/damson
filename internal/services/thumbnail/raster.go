@@ -3,13 +3,15 @@ package thumbnail
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
 
 	"golang.org/x/image/draw"
-	_ "golang.org/x/image/webp" // webp decode registration
+
+	"github.com/thomas-elliott/damson/internal/services/imaging"
 )
 
 // resampleMaxEdge is the long-edge size of generated thumbnails. 512 matches
@@ -20,15 +22,18 @@ const resampleMaxEdge = 512
 // lossless so this only applies to the JPEG branch.
 const jpegQuality = 85
 
-// renderRaster decodes the input (PNG / JPEG / GIF / BMP / WebP via the
-// `_` import above), resamples to `resampleMaxEdge` on the longer edge, and
-// re-encodes. Per §11.1 we pick JPEG for photographic content (clean RGBA
+// renderRaster decodes the input through the shared imaging decoders, which
+// refuse an image over their pixel ceiling, resamples to `resampleMaxEdge` on
+// the longer edge, and re-encodes. Per §11.1 we pick JPEG for photographic content (clean RGBA
 // with no palette, full alpha or transparency) and PNG for everything else.
 // The call sites that hit us — raster uploads from a user — won't know
 // what they've dropped, so we inspect the decoded image rather than trust
 // the input content type.
 func (g *Generator) renderRaster(ctx context.Context, in Input) (Result, error) {
-	src, fmtName, err := image.Decode(in.Reader)
+	src, fmtName, err := imaging.Decode(in.Reader, in.Filename)
+	if errors.Is(err, imaging.ErrTooLarge) {
+		return Result{}, nil // no thumbnail: the placeholder shows
+	}
 	if err != nil {
 		return Result{}, fmt.Errorf("raster decode: %w", err)
 	}

@@ -139,7 +139,7 @@ func seedImportRow(t *testing.T, gdb *gorm.DB, withOriginal bool) (importID, lib
 	if err := gdb.Create(&v).Error; err != nil {
 		t.Fatalf("seed version: %v", err)
 	}
-	imp := models.AssetImport{AssetID: asset.ID, Stage: imports.StageUploaded}
+	imp := models.AssetImport{AssetID: asset.ID, AssetVersionID: &v.ID, Stage: imports.StageUploaded}
 	if err := gdb.Create(&imp).Error; err != nil {
 		t.Fatalf("seed import: %v", err)
 	}

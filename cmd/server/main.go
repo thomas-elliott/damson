@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -44,6 +45,10 @@ func main() {
 
 	if cfg.GinMode != "" {
 		gin.SetMode(cfg.GinMode)
+	}
+	if err := checkDataDirs(cfg); err != nil {
+		slog.Error("data directory", "err", err)
+		os.Exit(1)
 	}
 
 	gormDB, err := db.Open(cfg.PostgresDSN)
@@ -137,6 +142,13 @@ func main() {
 	// Idempotent (River dedupes by args), so it's safe every boot and covers the
 	// one-time cutover of rows that were in flight before River existed. Previews
 	// first — ResumeInFlight resets processing→queued for files a worker died on.
+	// Files an earlier build could not render (the tier-2 image formats) are
+	// queued first, so the reconcile below enqueues them with the rest.
+	if queued, err := preview.QueueNewlySupported(startupCtx, gormDB); err != nil {
+		slog.Warn("preview backfill failed", "err", err)
+	} else if queued > 0 {
+		slog.Info("preview backfill", "queued", queued)
+	}
 	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewEnqueuer); err != nil {
 		slog.Warn("preview reconcile failed", "err", err)
 	} else if resumed > 0 {
@@ -150,18 +162,30 @@ func main() {
 
 	purgeCtx, cancelPurge := context.WithCancel(context.Background())
 	defer cancelPurge()
+	// Off the startup path: each refetch waits on the storefront's rate limit.
+	go func() {
+		if err := imports.RepairGallery(purgeCtx, gormDB, store, metaRegistry); err != nil {
+			slog.Warn("gallery repair failed", "err", err)
+		}
+	}()
+	// Off the startup path: it reads blobs.
+	go func() {
+		if covered, err := imports.BackfillCovers(purgeCtx, gormDB, store); err != nil {
+			slog.Warn("cover backfill failed", "err", err)
+		} else if covered > 0 {
+			slog.Info("cover backfill", "covered", covered)
+		}
+	}()
 	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}
 	go purger.Run(purgeCtx)
 	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}
 	go janitor.Run(purgeCtx)
 
-	r := gin.New()
-	r.Use(requestID())
-	r.Use(requestLogger())
-	r.Use(gin.CustomRecovery(recoveryHandler))
-	r.Use(securityHeaders(oidcCSPOrigin(cfg)))
-	r.Use(jsonBodyCap(maxJSONBodyBytes))
-
+	r, err := newRouter(oidcCSPOrigin(cfg), cfg.TrustedProxies)
+	if err != nil {
+		slog.Error("DAMSON_TRUSTED_PROXIES", "err", err)
+		os.Exit(1)
+	}
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
 		DB:                 gormDB,
@@ -251,9 +275,28 @@ func main() {
 	}
 }
 
+// newRouter builds the engine with the global middleware every request runs
+// through, in order. Tests use it to reach a handler the way production does.
+//
+// trustedProxies lists the proxies (IPs or CIDRs) whose X-Forwarded-For is
+// believed. Empty trusts none, so ClientIP — which the login and bootstrap
+// throttles key on — is the connection's own address and not caller-chosen.
+func newRouter(cspOrigin string, trustedProxies []string) (*gin.Engine, error) {
+	r := gin.New()
+	if err := r.SetTrustedProxies(trustedProxies); err != nil {
+		return nil, err
+	}
+	r.Use(requestID())
+	r.Use(requestLogger())
+	r.Use(gin.CustomRecovery(recoveryHandler))
+	r.Use(securityHeaders(cspOrigin))
+	r.Use(jsonBodyCap(maxJSONBodyBytes, "/api"+api.UploadChunkRoute))
+	return r, nil
+}
+
 // maxJSONBodyBytes caps the body Gin will read on JSON-shaped requests.
-// Multipart uploads (POST /api/imports) are exempt — they handle their own
-// streaming pipeline, see internal/handlers/api/assets.go. 1 MiB is well above
+// Multipart uploads (POST /api/imports) and upload chunks are exempt — they
+// handle their own streaming and caps, see internal/handlers/api. 1 MiB is well above
 // any reasonable JSON payload (the largest is a licence's original_text) and
 // well below the threshold at which a malicious client can OOM the process.
 const maxJSONBodyBytes = 1 << 20
@@ -322,11 +365,12 @@ func securityHeaders(oidcOrigin string) gin.HandlerFunc {
 // jsonBodyCap wraps the request body in http.MaxBytesReader for routes that
 // don't stream a multipart upload. The exemption keeps POST /api/imports
 // streaming-capable while every other endpoint gains a hard ceiling on body
-// reads. 413 surfaces if the limit trips.
-func jsonBodyCap(limit int64) gin.HandlerFunc {
+// reads. 413 surfaces if the limit trips. ownCap names routes whose handler
+// caps the body itself, at a size above limit (the upload chunk PUT).
+func jsonBodyCap(limit int64, ownCap ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ct := c.Request.Header.Get("Content-Type")
-		if c.Request.Body != nil && !strings.HasPrefix(ct, "multipart/") {
+		if c.Request.Body != nil && !strings.HasPrefix(ct, "multipart/") && !slices.Contains(ownCap, c.FullPath()) {
 			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		}
 		c.Next()

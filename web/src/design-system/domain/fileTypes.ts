@@ -96,6 +96,7 @@ const EXT_TO_TYPE: Record<string, FileType> = {
   tga: "texture",
   psd: "texture",
   exr: "texture",
+  hdr: "texture",
   tif: "texture",
   tiff: "texture",
   webp: "texture",

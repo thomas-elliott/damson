@@ -15,7 +15,7 @@ func TestImport_PurgesOriginalWhenRetentionOff(t *testing.T) {
 
 	// GORM treats a zero-value bool as "use default" (retain defaults true), so
 	// create with defaults then explicitly turn retention off.
-	s := models.LibrarySettings{LibraryID: lib.ID, ThemeDefault: "dark", GridDensityDefault: "medium"}
+	s := models.LibrarySettings{LibraryID: lib.ID, GridDensityDefault: "medium"}
 	if err := db.Create(&s).Error; err != nil {
 		t.Fatal(err)
 	}

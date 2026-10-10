@@ -1,9 +1,9 @@
 # Cutting a release.
 #
 # A release promotes current main to prod by pushing a vX.Y.Z tag, which
-# triggers the Woodpecker tag pipeline (.woodpecker.yml): it re-runs the full
-# test suite, then promotes the existing main-<sha> image (no rebuild). Nothing
-# is gated locally — run `just check` yourself first.
+# triggers the Woodpecker tag pipeline (.woodpecker.yml): it runs no tests and
+# promotes the main-<sha> image that main's pipeline already tested (no
+# rebuild). Nothing is gated locally — run `just check` yourself first.
 #
 # A bare `just release` lists; a bare noun that cut a tag would be a surprise.
 

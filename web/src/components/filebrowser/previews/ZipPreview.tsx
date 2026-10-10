@@ -99,7 +99,7 @@ export default function ZipPreview({ node }: { node: FileNode }) {
               {e.name}
             </span>
             {e.ratio > SUSPICIOUS_RATIO && (
-              <span className="shrink-0 rounded-sm bg-warning-soft px-1.5 text-[10px] text-warning">
+              <span className="shrink-0 rounded-sm bg-warning-soft px-1.5 text-label text-warning">
                 {Math.round(e.ratio)}× ratio
               </span>
             )}

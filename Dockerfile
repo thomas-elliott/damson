@@ -21,7 +21,12 @@ RUN go build -ldflags="-s -w" -o /out/damson ./cmd/server
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S damson \
-    && adduser -S damson -G damson
+    && adduser -S damson -G damson \
+    && install -d -o damson -g damson /data
+# The JWT key and local blobs default to ./data, so the working directory puts
+# them in /data. It is owned by damson so an empty named volume mounted there
+# starts writable; the server refuses to start if it is not.
+WORKDIR /
 USER damson
 COPY --from=build /out/damson /usr/local/bin/damson
 EXPOSE 8080

@@ -207,6 +207,7 @@ func (h *Handler) getProject(c *gin.Context) {
 		CurrentVersion  *uint
 		CurrentLabel    string
 		LicenceType     string
+		LicenceStatus   string
 		SizeBytes       int64
 		PinnedAt        time.Time
 	}
@@ -218,8 +219,9 @@ func (h *Handler) getProject(c *gin.Context) {
 			a.current_version_id AS current_version,
 			cv.version_label AS current_label,
 			l.detected_type AS licence_type,
+			`+licenceStatusSQL("l")+` AS licence_status,
 			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = pin.pinned_version_id), 0) AS size_bytes,
-			pin.pinned_at`).
+			pin.pinned_at`, permissiveLicences).
 		Joins("JOIN assets a ON a.id = pin.asset_id").
 		Joins("LEFT JOIN asset_versions v ON v.id = pin.pinned_version_id").
 		Joins("LEFT JOIN asset_versions cv ON cv.id = a.current_version_id").
@@ -258,14 +260,9 @@ func (h *Handler) getProject(c *gin.Context) {
 			HasUpdate: r.CurrentVersion != nil && r.PinnedVersionID != nil &&
 				*r.CurrentVersion != *r.PinnedVersionID,
 			LicenceSPDX:   r.LicenceType,
-			LicenceStatus: "unk",
+			LicenceStatus: r.LicenceStatus,
 			SizeBytes:     r.SizeBytes,
 			PinnedAt:      r.PinnedAt,
-		}
-		if r.LicenceType != "" {
-			// Minimal status inference without loading attrs — call the
-			// canonical helper with empty attrs for the common case.
-			detail.LicenceStatus = quickLicenceStatus(r.LicenceType)
 		}
 		if detail.HasUpdate {
 			out.UpdatesAvailable++
@@ -273,19 +270,6 @@ func (h *Handler) getProject(c *gin.Context) {
 		out.Pins = append(out.Pins, detail)
 	}
 	c.JSON(http.StatusOK, out)
-}
-
-func quickLicenceStatus(id string) string {
-	switch id {
-	case "MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "Zlib", "ISC",
-		"CC-BY-4.0", "CC-BY-3.0", "CC0-1.0", "OFL-1.1", "Unlicense":
-		return "ok"
-	case "CC-BY-NC-4.0", "CC-BY-NC-3.0", "CC-BY-NC-SA-4.0":
-		return "err"
-	case "unknown", "":
-		return "unk"
-	}
-	return "warn"
 }
 
 func (h *Handler) patchProject(c *gin.Context) {

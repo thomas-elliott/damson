@@ -3,13 +3,24 @@ import { X } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
 
-export interface ChipProps extends HTMLAttributes<HTMLSpanElement> {
+interface ChipBaseProps extends HTMLAttributes<HTMLSpanElement> {
   label?: string;
-  onRemove?: () => void;
 }
 
+// A removable chip must say what its button removes: several render side by
+// side, and "Remove" alone does not tell a screen-reader user which.
+export type ChipProps = ChipBaseProps &
+  (
+    | { onRemove?: undefined; removeLabel?: undefined }
+    | {
+        onRemove: () => void;
+        /** The remove button's accessible name, e.g. "Remove type filter: Image". */
+        removeLabel: string;
+      }
+  );
+
 export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
-  { className, label, onRemove, children, ...props },
+  { className, label, onRemove, removeLabel, children, ...props },
   ref,
 ) {
   return (
@@ -26,7 +37,7 @@ export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
       {onRemove && (
         <button
           type="button"
-          aria-label="Remove"
+          aria-label={removeLabel}
           onClick={onRemove}
           className="grid h-[18px] w-[18px] place-items-center rounded-xs text-subtle-foreground transition-colors duration-fast ease-standard hover:bg-accent hover:text-foreground"
         >

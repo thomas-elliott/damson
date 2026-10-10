@@ -4,8 +4,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"strings"
 	"testing"
 )
@@ -35,11 +37,10 @@ func buildZip(t *testing.T, entries []zentry) []byte {
 }
 
 func TestZipExtractor_HappyPath(t *testing.T) {
-	cover := []byte("\x89PNG\r\n\x1a\nfake-image")
 	arc := buildZip(t, []zentry{
 		{name: "pack/readme.txt", data: []byte("hello")},
 		{name: "pack/model.fbx", data: []byte("fbx-bytes")},
-		{name: "pack/cover.png", data: cover},
+		{name: "pack/cover.png", data: solidPNG(t, 64, 64, color.RGBA{B: 255, A: 255})},
 	})
 
 	fs := newFakeStorage()
@@ -66,15 +67,63 @@ func TestZipExtractor_HappyPath(t *testing.T) {
 	if res.ThumbObjectKey == "" {
 		t.Fatalf("expected a cover thumbnail to be harvested")
 	}
-	if res.ThumbContentType != "image/png" {
-		t.Fatalf("cover content type: got %q, want image/png", res.ThumbContentType)
-	}
-	wantKey := sha256.Sum256(cover)
-	if res.ThumbObjectKey != hex.EncodeToString(wantKey[:]) {
-		t.Fatalf("cover key mismatch: got %q", res.ThumbObjectKey)
-	}
 	if _, ok := fs.thumbs[res.ThumbObjectKey]; !ok {
 		t.Fatalf("cover not stored under thumbs")
+	}
+}
+
+// solidPNG encodes a w×h PNG filled with c.
+func solidPNG(t *testing.T, w, h int, c color.Color) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(img, img.Bounds(), image.NewUniform(c), image.Point{}, draw.Src)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// A zip's cover is a thumbnail like any other: the first image that decodes,
+// trying cover-like names first, resized and in a format a browser shows.
+func TestZipExtractor_CoverIsTheFirstDecodableImageResized(t *testing.T) {
+	blue := color.RGBA{B: 255, A: 255}
+	arc := buildZip(t, []zentry{
+		{name: "pack/a_broken.png", data: []byte("\x89PNG\r\n\x1a\nnot really")},
+		{name: "pack/b_texture.png", data: solidPNG(t, 32, 32, color.RGBA{R: 255, A: 255})},
+		{name: "pack/z_Cover.png", data: solidPNG(t, 1024, 768, blue)},
+	})
+	fs := newFakeStorage()
+	res, err := (&ZipExtractor{Storage: fs}).Extract(context.Background(), bytes.NewReader(arc))
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if res.ThumbContentType != "image/png" && res.ThumbContentType != "image/jpeg" {
+		t.Fatalf("cover content type %q is not one a browser shows", res.ThumbContentType)
+	}
+	img, _, err := image.Decode(bytes.NewReader(fs.thumbs[res.ThumbObjectKey]))
+	if err != nil {
+		t.Fatalf("stored cover does not decode: %v", err)
+	}
+	if b := img.Bounds(); b.Dx() != 512 || b.Dy() != 384 {
+		t.Fatalf("cover is %v, want the 1024×768 cover resized to 512×384", b)
+	}
+	if r, g, b, _ := img.At(10, 10).RGBA(); r != 0 || g != 0 || b < 0xf000 {
+		t.Fatalf("cover was not taken from the cover-named image")
+	}
+}
+
+func TestZipExtractor_NoDecodableImageMeansNoCover(t *testing.T) {
+	arc := buildZip(t, []zentry{
+		{name: "pack/cover.png", data: []byte("\x89PNG\r\n\x1a\nnot really")},
+		{name: "pack/art.psd", data: []byte("8BPS garbage")},
+	})
+	res, err := (&ZipExtractor{Storage: newFakeStorage()}).Extract(context.Background(), bytes.NewReader(arc))
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if res.ThumbObjectKey != "" {
+		t.Fatalf("a zip with no decodable image got cover %q", res.ThumbObjectKey)
 	}
 }
 

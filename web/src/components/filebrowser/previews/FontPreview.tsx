@@ -63,7 +63,7 @@ export default function FontPreview({ node }: { node: FileNode }) {
       <div style={{ fontFamily: loaded ? family : undefined }} className="flex flex-col gap-2">
         {SIZES.map((size) => (
           <div key={size} className="flex items-baseline gap-3">
-            <span className="w-9 shrink-0 font-mono text-[10px] text-faint-foreground">{size}</span>
+            <span className="w-9 shrink-0 font-mono text-label text-faint-foreground">{size}</span>
             <span
               style={{ fontSize: size, lineHeight: 1.2 }}
               className="break-words text-foreground"

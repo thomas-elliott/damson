@@ -166,7 +166,11 @@ export const LibraryView: Story = {
                 <BreadcrumbSeparator />
                 <BreadcrumbItem current>Compliant</BreadcrumbItem>
               </Breadcrumb>
-              <Chip label="licence:" onRemove={() => {}}>
+              <Chip
+                label="licence:"
+                onRemove={() => {}}
+                removeLabel="Remove licence filter: Compliant"
+              >
                 Compliant
               </Chip>
               <Button variant="ghost" size="sm">

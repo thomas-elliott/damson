@@ -79,7 +79,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           <AssetThumb thumb={thumb} />
         )}
         {typeBadge && (
-          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-xs bg-black/55 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-white">
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-xs bg-black/55 px-1.5 py-0.5 font-mono text-label uppercase tracking-wide text-white">
             {typeBadge}
           </span>
         )}
@@ -93,7 +93,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           <span
             aria-label="Update available"
             title="A newer version is available from the store"
-            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-xs bg-primary px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-primary-foreground"
+            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-xs bg-primary px-1.5 py-0.5 font-mono text-label uppercase tracking-wide text-primary-foreground"
           >
             Update
           </span>

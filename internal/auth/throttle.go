@@ -12,11 +12,11 @@ import (
 // A single binary, single process design means an in-memory bucket is
 // sufficient. Real distributed deployments would put a real rate-limiter at
 // the proxy. The cap on tracked keys keeps memory bounded under a hostile
-// caller spraying random IPs.
+// caller spraying random IPs; once it is reached, new keys are refused.
 type LoginThrottle struct {
 	burst    int           // tokens at full
 	refill   time.Duration // wall time between token refills
-	maxKeys  int           // hard cap on tracked keys; oldest entries evicted
+	maxKeys  int           // hard cap on tracked keys; new keys refused beyond it
 	mu       sync.Mutex
 	buckets  map[string]*throttleBucket
 	now      func() time.Time
@@ -65,8 +65,11 @@ func (t *LoginThrottle) Allow(key string) bool {
 	t.maybeCleanLocked(now)
 	b, ok := t.buckets[key]
 	if !ok {
+		// Refuse rather than evict: evicting would let a caller spraying
+		// fresh keys clear someone else's lockout. Idle buckets still age out
+		// through maybeCleanLocked.
 		if len(t.buckets) >= t.maxKeys {
-			t.evictOldestLocked()
+			return false
 		}
 		b = &throttleBucket{tokens: float64(t.burst), lastSeen: now}
 		t.buckets[key] = b
@@ -101,21 +104,5 @@ func (t *LoginThrottle) maybeCleanLocked(now time.Time) {
 		if b.lastSeen.Before(cutoff) {
 			delete(t.buckets, k)
 		}
-	}
-}
-
-// evictOldestLocked drops the single oldest bucket. Linear scan is fine at
-// the maxKeys ceiling — this only runs when we'd otherwise exceed it.
-func (t *LoginThrottle) evictOldestLocked() {
-	var oldestKey string
-	var oldestSeen time.Time
-	for k, b := range t.buckets {
-		if oldestKey == "" || b.lastSeen.Before(oldestSeen) {
-			oldestKey = k
-			oldestSeen = b.lastSeen
-		}
-	}
-	if oldestKey != "" {
-		delete(t.buckets, oldestKey)
 	}
 }

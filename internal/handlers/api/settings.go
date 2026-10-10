@@ -14,7 +14,6 @@ import (
 
 type librarySettingsView struct {
 	LibraryID               uint   `json:"library_id"`
-	ThemeDefault            string `json:"theme_default"`
 	GridDensityDefault      string `json:"grid_density_default"`
 	RetainOriginalPackages  bool   `json:"retain_original_packages"`
 	DedupeEnabled           bool   `json:"dedupe_enabled"`
@@ -43,7 +42,6 @@ type librarySettingsResponse struct {
 func settingsViewFrom(s *models.LibrarySettings) librarySettingsView {
 	return librarySettingsView{
 		LibraryID:               s.LibraryID,
-		ThemeDefault:            s.ThemeDefault,
 		GridDensityDefault:      s.GridDensityDefault,
 		RetainOriginalPackages:  s.RetainOriginalPackages,
 		DedupeEnabled:           s.DedupeEnabled,
@@ -89,7 +87,6 @@ func (h *Handler) withMaxUpload(c *gin.Context, v librarySettingsView) (libraryS
 }
 
 type librarySettingsPatchRequest struct {
-	ThemeDefault            *string `json:"theme_default,omitempty"`
 	GridDensityDefault      *string `json:"grid_density_default,omitempty"`
 	RetainOriginalPackages  *bool   `json:"retain_original_packages,omitempty"`
 	DedupeEnabled           *bool   `json:"dedupe_enabled,omitempty"`
@@ -125,9 +122,6 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 			return err
 		}
 		before := settingsViewFrom(s)
-		if req.ThemeDefault != nil {
-			s.ThemeDefault = *req.ThemeDefault
-		}
 		if req.GridDensityDefault != nil {
 			s.GridDensityDefault = *req.GridDensityDefault
 		}
@@ -197,7 +191,6 @@ func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettin
 	// Create with defaults.
 	s = models.LibrarySettings{
 		LibraryID:               libID,
-		ThemeDefault:            "dark",
 		GridDensityDefault:      "medium",
 		RetainOriginalPackages:  true,
 		DedupeEnabled:           true,

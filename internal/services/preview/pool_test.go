@@ -94,3 +94,57 @@ func TestResumeInFlight_RecoversCrashedProcessing(t *testing.T) {
 		t.Fatalf("crashed processing file not recovered: got %q, want done", f.PreviewStatus)
 	}
 }
+
+// Only files a renderer now exists for are queued, by extension in any case,
+// and only in libraries with previews on.
+func TestQueueNewlySupported_QueuesOnlyRenderableFilesWherePreviewsAreOn(t *testing.T) {
+	db := newProcessDB(t)
+	seedFiles := func(libraryID uint, paths ...string) {
+		ensureLibrary(t, db, libraryID)
+		asset := models.Asset{LibraryID: libraryID, Name: "a"}
+		if err := db.Create(&asset).Error; err != nil {
+			t.Fatal(err)
+		}
+		version := models.AssetVersion{AssetID: asset.ID}
+		if err := db.Create(&version).Error; err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range paths {
+			f := models.AssetFile{AssetVersionID: version.ID, RelativePath: p, ObjectKey: p, ContentHash: p, PreviewStatus: StatusUnsupported}
+			if err := db.Create(&f).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	seedFiles(1, "Textures/Sky.EXR", "Scripts/Player.cs", "Icons/logo.svg")
+	seedFiles(2, "Textures/ground.tga")
+	if err := db.Create(&models.LibrarySettings{LibraryID: 2}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.LibrarySettings{}).Where("library_id = ?", 2).Update("previews_enabled", false).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := QueueNewlySupported(context.Background(), db)
+	if err != nil {
+		t.Fatalf("queue: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("queued %d, want 2", n)
+	}
+	want := map[string]string{
+		"Textures/Sky.EXR":    StatusQueued,
+		"Icons/logo.svg":      StatusQueued,
+		"Scripts/Player.cs":   StatusUnsupported,
+		"Textures/ground.tga": StatusUnsupported,
+	}
+	var files []models.AssetFile
+	if err := db.Find(&files).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if f.PreviewStatus != want[f.RelativePath] {
+			t.Errorf("%s: status %q, want %q", f.RelativePath, f.PreviewStatus, want[f.RelativePath])
+		}
+	}
+}

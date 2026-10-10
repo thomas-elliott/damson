@@ -11,6 +11,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 )
 
 type subsetRequest struct {
@@ -90,6 +91,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	label := req.VersionLabel
 
 	var newVersion models.AssetVersion
+	queuePreviews := false
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		newVersion = models.AssetVersion{
 			AssetID:         asset.ID,
@@ -106,14 +108,28 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 		}
 		rows := make([]models.AssetFile, 0, len(sourceFiles))
 		for _, f := range sourceFiles {
+			// The objects are the source's, so its previews are too. A preview
+			// still rendering for the source is queued again for the subset,
+			// whose own job renders it.
+			status := f.PreviewStatus
+			if status == preview.StatusProcessing {
+				status = preview.StatusQueued
+			}
+			if status == preview.StatusQueued {
+				queuePreviews = true
+			}
 			rows = append(rows, models.AssetFile{
-				AssetVersionID: newVersion.ID,
-				RelativePath:   f.RelativePath,
-				SizeBytes:      f.SizeBytes,
-				ContentHash:    f.ContentHash,
-				ObjectKey:      f.ObjectKey,
-				DetectedType:   f.DetectedType,
-				UnityGUID:      f.UnityGUID,
+				AssetVersionID:     newVersion.ID,
+				RelativePath:       f.RelativePath,
+				SizeBytes:          f.SizeBytes,
+				ContentHash:        f.ContentHash,
+				ObjectKey:          f.ObjectKey,
+				DetectedType:       f.DetectedType,
+				UnityGUID:          f.UnityGUID,
+				PreviewObjectKey:   f.PreviewObjectKey,
+				PreviewContentType: f.PreviewContentType,
+				PreviewStatus:      status,
+				PreviewUpdatedAt:   f.PreviewUpdatedAt,
 			})
 		}
 		if err := tx.Create(&rows).Error; err != nil {
@@ -141,6 +157,9 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	if err != nil {
 		respond500(c, err)
 		return
+	}
+	if queuePreviews && h.previewPool != nil {
+		h.previewPool.EnqueueVersion(lib.ID, newVersion.ID)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
