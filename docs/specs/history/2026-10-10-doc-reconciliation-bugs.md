@@ -1,6 +1,6 @@
 # Doc-reconciliation bugs
 
-**Status:** implemented — 2026-10-10, branch `doc-reconciliation-bugs` (PR not yet opened).
+**Status:** implemented — 2026-10-10 (PR #6).
 
 Covers DAM-32, DAM-33, DAM-34, DAM-35 and DAM-36
 
