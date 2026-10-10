@@ -130,6 +130,40 @@ func (l *LocalFS) StatMeta(_ context.Context, prefix, key string) (ObjectMeta, e
 	return m, nil
 }
 
+func (l *LocalFS) Stat(_ context.Context, prefix, key string) (ObjectInfo, bool, error) {
+	path, err := l.pathFor(prefix, key)
+	if err != nil {
+		return ObjectInfo{}, false, err
+	}
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return ObjectInfo{}, false, nil
+	}
+	if err != nil {
+		return ObjectInfo{}, false, err
+	}
+	return ObjectInfo{Key: key, Size: info.Size(), LastModified: info.ModTime()}, true, nil
+}
+
+func (l *LocalFS) Touch(_ context.Context, prefix, key string) (bool, error) {
+	path, err := l.pathFor(prefix, key)
+	if err != nil {
+		return false, err
+	}
+	return touchFile(path)
+}
+
+// touchFile sets path's modification time to now, reporting false when the
+// file does not exist.
+func touchFile(path string) (bool, error) {
+	now := time.Now()
+	err := os.Chtimes(path, now, now)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (l *LocalFS) PutThumb(ctx context.Context, key string, r io.Reader) error {
 	path, err := l.pathFor("thumbs", key)
 	if err != nil {
@@ -184,8 +218,12 @@ func (l *LocalFS) putHashed(_ context.Context, prefix string, r io.Reader, meta 
 		return "", 0, err
 	}
 
-	if _, err := os.Stat(finalPath); err == nil {
-		// Already present — drop the temp and return the existing key.
+	if present, err := touchFile(finalPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", 0, err
+	} else if present {
+		// Already present — drop the temp and return the existing key, touched
+		// so the orphan sweep sees it as new (Service.Touch).
 		_ = os.Remove(tmpPath)
 		return key, n, nil
 	}

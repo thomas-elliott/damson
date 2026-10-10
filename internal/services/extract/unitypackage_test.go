@@ -106,6 +106,16 @@ func (f *fakeStorage) StatMeta(_ context.Context, _ string, key string) (storage
 	return f.meta[key], nil
 }
 
+func (f *fakeStorage) Stat(_ context.Context, prefix, key string) (storage.ObjectInfo, bool, error) {
+	data, ok := f.bucket(prefix)[key]
+	return storage.ObjectInfo{Key: key, Size: int64(len(data))}, ok, nil
+}
+
+func (f *fakeStorage) Touch(_ context.Context, prefix, key string) (bool, error) {
+	_, ok := f.bucket(prefix)[key]
+	return ok, nil
+}
+
 func (f *fakeStorage) Delete(_ context.Context, prefix, key string) error {
 	delete(f.bucket(prefix), key)
 	return nil

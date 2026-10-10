@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -62,12 +63,30 @@ func LicenceStatusFor(detectedType string, attrs licence.Attributes) string {
 	if attrs.CommercialUse != nil && !*attrs.CommercialUse {
 		return "err"
 	}
-	switch detectedType {
-	case "MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "Zlib", "ISC",
-		"CC-BY-4.0", "CC-BY-3.0", "CC0-1.0", "OFL-1.1", "Unlicense":
+	if slices.Contains(permissiveLicences, detectedType) {
 		return "ok"
 	}
 	return "warn"
+}
+
+// permissiveLicences are the types LicenceStatusFor reports as ok unless
+// their attributes bar commercial use.
+var permissiveLicences = []string{
+	"MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "Zlib", "ISC",
+	"CC-BY-4.0", "CC-BY-3.0", "CC0-1.0", "OFL-1.1", "Unlicense",
+}
+
+// licenceStatusSQL is LicenceStatusFor as SQL over a licences row aliased
+// alias (all NULL when the asset has no licence). Its one placeholder takes
+// permissiveLicences. Keep it in step with
+// LicenceStatusFor; TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail
+// checks the two agree.
+func licenceStatusSQL(alias string) string {
+	return `CASE
+		WHEN COALESCE(` + alias + `.detected_type, '') IN ('', 'unknown') THEN 'unk'
+		WHEN ` + alias + `.attributes_json->>'commercial_use' = 'false' THEN 'err'
+		WHEN ` + alias + `.detected_type IN ? THEN 'ok'
+		ELSE 'warn' END`
 }
 
 // getLicence returns the current licence row for an asset, or 404.

@@ -3,10 +3,13 @@ package preview
 import (
 	"context"
 	"log/slog"
+	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/imaging"
 )
 
 // Job is the unit of work for the preview pool: a version to (re)process, and
@@ -80,4 +83,30 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job
 		enq.Enqueue(Job{LibraryID: r.LibraryID, VersionID: r.VersionID})
 	}
 	return len(refs), nil
+}
+
+// QueueNewlySupported queues the files an earlier build marked unsupported
+// that a renderer now exists for, such as the tier-2 image formats, in
+// libraries with previews on. Run it before ResumeInFlight, which enqueues
+// them. Once queued a file is no longer unsupported, so a second run finds
+// nothing.
+func QueueNewlySupported(ctx context.Context, db *gorm.DB) (int, error) {
+	// The extensions classify renders, as a Postgres regex: \.(svg|psd|...)$.
+	// They are letters and digits, so none needs escaping.
+	var exts []string
+	for _, ext := range append([]string{".svg"}, imaging.ConvertedExtensions()...) {
+		exts = append(exts, strings.TrimPrefix(ext, "."))
+	}
+	pattern := `\.(` + strings.Join(exts, "|") + `)$`
+
+	previewsOn := db.Table("asset_versions AS v").
+		Joins("JOIN assets a ON a.id = v.asset_id").
+		Joins("LEFT JOIN library_settings s ON s.library_id = a.library_id").
+		Where("COALESCE(s.previews_enabled, true)").
+		Select("v.id")
+	res := db.WithContext(ctx).Model(&models.AssetFile{}).
+		Where("preview_status = ? AND lower(relative_path) ~ ?", StatusUnsupported, pattern).
+		Where("asset_version_id IN (?)", previewsOn).
+		Updates(map[string]any{"preview_status": StatusQueued, "preview_updated_at": time.Now().UTC()})
+	return int(res.RowsAffected), res.Error
 }

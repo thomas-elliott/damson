@@ -34,6 +34,11 @@ func TestSupports(t *testing.T) {
 	if Supports("Player.cs", "") || Supports("clip.wav", "") {
 		t.Error("code/audio should not be backend-previewable")
 	}
+	// PDFs keep pdf.js in the panel and their icon in the grid: no poster is
+	// rendered (rejected; see the 2026-10-10 doc-reconciliation spec).
+	if Supports("manual.pdf", "") {
+		t.Error("a PDF should get no backend preview")
+	}
 }
 
 func TestGenerate_BMP_OpaqueIsJPEG(t *testing.T) {

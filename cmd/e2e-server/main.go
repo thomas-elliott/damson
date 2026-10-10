@@ -129,8 +129,8 @@ func main() {
 	})
 	api.AddRoutes(apiGroup, auth.Middleware(la, auth.NewTokenAuthenticator(gormDB)), h)
 
-	// Test-only: drop every table and re-AutoMigrate. Lets each Playwright
-	// test start from a known-empty schema. Returns 204 on success.
+	// Test-only: truncate every data table, keeping the migrated schema. Lets
+	// each Playwright test start from empty tables. Returns 204 on success.
 	apiGroup.POST("/test/reset", func(c *gin.Context) {
 		if err := resetSchema(gormDB); err != nil {
 			slog.Error("reset", "err", err)

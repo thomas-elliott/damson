@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
@@ -32,6 +33,9 @@ type importRows struct {
 	assetID   uint
 	versionID uint
 	importID  uint
+	// created is the asset.create or asset.version.create entry. finishImport
+	// writes it once the upload is stored, so a failed upload leaves none.
+	created audit.Entry
 }
 
 func newImportSpec(libraryID, userID uint, filename, contentType string) importSpec {
@@ -177,15 +181,32 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 		if err := tx.Create(&version).Error; err != nil {
 			return err
 		}
+		created := map[string]any{
+			"version_id": version.ID, "store_version": version.StoreVersion,
+			"package_kind": version.PackageKind, "filename": s.filename,
+		}
+		action := "asset.version.create"
+		if s.targetAssetID == 0 {
+			action = "asset.create"
+			created["name"] = asset.Name
+		}
 		imp := models.AssetImport{
-			AssetID:   asset.ID,
-			Stage:     imports.StageUploaded,
-			UpdatedAt: time.Now().UTC(),
+			AssetID:        asset.ID,
+			AssetVersionID: &version.ID,
+			Stage:          imports.StageUploaded,
+			UpdatedAt:      time.Now().UTC(),
 		}
 		if err := tx.Create(&imp).Error; err != nil {
 			return err
 		}
-		rows = importRows{assetID: asset.ID, versionID: version.ID, importID: imp.ID}
+		rows = importRows{assetID: asset.ID, versionID: version.ID, importID: imp.ID, created: audit.Entry{
+			LibraryID:  &s.libraryID,
+			UserID:     &s.userID,
+			ActionType: action,
+			TargetType: "asset",
+			TargetID:   &asset.ID,
+			Diff:       audit.Created(created),
+		}}
 		return nil
 	})
 	return rows, err
@@ -202,6 +223,9 @@ func (h *Handler) finishImport(ctx context.Context, s importSpec, rows importRow
 		if err := tx.Model(&models.AssetVersion{}).
 			Where("id = ?", rows.versionID).
 			Updates(updates).Error; err != nil {
+			return err
+		}
+		if err := audit.Write(tx, rows.created); err != nil {
 			return err
 		}
 		if s.isArchive {

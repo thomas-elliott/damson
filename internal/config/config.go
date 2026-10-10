@@ -98,6 +98,11 @@ type Config struct {
 	// for every caller. Defaults to 2s; an unparseable or non-positive value
 	// falls back to the default.
 	StoreLookupInterval time.Duration
+
+	// TrustedProxies lists the proxies (IPs or CIDRs) whose X-Forwarded-For
+	// names the client, from the comma-separated DAMSON_TRUSTED_PROXIES. Empty
+	// trusts none: the client IP is the connection's address.
+	TrustedProxies []string
 }
 
 func Load() Config {
@@ -135,6 +140,7 @@ func Load() Config {
 		OrphanMinAge:          parseOrphanMinAge(os.Getenv("DAMSON_ORPHAN_MIN_AGE")),
 		UploadJanitorInterval: parseInterval(os.Getenv("DAMSON_UPLOAD_JANITOR_INTERVAL"), defaultUploadJanitorInterval),
 		StoreLookupInterval:   parseInterval(os.Getenv("DAMSON_STORE_LOOKUP_INTERVAL"), defaultStoreLookupInterval),
+		TrustedProxies:        parseList(os.Getenv("DAMSON_TRUSTED_PROXIES")),
 	}
 
 	switch authMode {
@@ -248,6 +254,17 @@ func parseJobTimeout(raw string) time.Duration {
 const defaultUploadJanitorInterval = time.Hour
 
 const defaultStoreLookupInterval = 2 * time.Second
+
+// parseList splits a comma-separated value, dropping blank entries.
+func parseList(raw string) []string {
+	var out []string
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
 
 // parseInterval reads a Go duration string ("1h", "30m"). Empty, unparseable
 // and non-positive values fall back to fallback.

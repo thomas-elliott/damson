@@ -112,7 +112,9 @@ func (m *localMultipart) Complete(_ context.Context, parts []Part) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if _, err := os.Stat(final); err == nil {
+	if present, err := touchFile(final); err != nil {
+		return "", err
+	} else if present {
 		return m.key, m.discard()
 	}
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {

@@ -1,6 +1,7 @@
 package thumbnail
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -26,20 +27,21 @@ const (
 	waveformBins   = waveformWidth
 )
 
-// renderAudio decodes the input to mono-float32 PCM, downsamples into
-// `waveformBins` peak-amplitude bins, and renders a centred strip.
-// Supported decoders: WAV (in-tree), MP3 (hajimehoshi/go-mp3), OGG Vorbis
-// (jfreymuth/oggvorbis). Anything else returns a zero Result so the caller
-// falls back to an icon.
+// renderAudio streams the input through a decoder into a fixed-size peak
+// envelope and renders it as a centred strip. Memory is bounded by the
+// waveform's width, not the file's length, so an hour of audio costs what a
+// second does. Supported decoders: WAV (in-tree), MP3 (hajimehoshi/go-mp3),
+// OGG Vorbis (jfreymuth/oggvorbis). Anything else returns an error so the
+// caller falls back to an icon.
 func (g *Generator) renderAudio(ctx context.Context, in Input) (Result, error) {
-	samples, err := decodePCM(in)
-	if err != nil {
+	env := &envelope{block: 1}
+	if err := decodePCM(in, env.add); err != nil {
 		return Result{}, fmt.Errorf("audio decode: %w", err)
 	}
-	if len(samples) == 0 {
+	peaks := env.bins()
+	if len(peaks) == 0 {
 		return Result{}, fmt.Errorf("audio decode: empty PCM")
 	}
-	peaks := binPeaks(samples, waveformBins)
 	img := drawWaveform(peaks)
 
 	var buf bytes.Buffer
@@ -53,253 +55,210 @@ func (g *Generator) renderAudio(ctx context.Context, in Input) (Result, error) {
 	return Result{ObjectKey: key, ContentType: "image/png", Category: "audio"}, nil
 }
 
-// decodePCM picks a decoder by content type / extension and returns a
-// mono-float32 PCM slice in [-1, 1]. Multi-channel inputs are collapsed by
-// averaging across channels — waveform rendering only cares about
-// amplitude envelope, not spatial information.
-func decodePCM(in Input) ([]float32, error) {
+// envelope keeps a fixed-size peak envelope of a sample stream of unknown
+// length: the peak of each block of samples, with neighbouring peaks merged
+// pairwise, and the block doubled, whenever there are twice as many as the
+// waveform has bins.
+type envelope struct {
+	peaks []float32
+	block int // samples per peak
+	cur   float32
+	n     int // samples in the current block
+}
+
+func (e *envelope) add(s float32) {
+	e.cur = max(e.cur, float32(math.Abs(float64(s))))
+	if e.n++; e.n < e.block {
+		return
+	}
+	e.peaks = append(e.peaks, e.cur)
+	e.cur, e.n = 0, 0
+	if len(e.peaks) == 2*waveformBins {
+		for i := range waveformBins {
+			e.peaks[i] = max(e.peaks[2*i], e.peaks[2*i+1])
+		}
+		e.peaks = e.peaks[:waveformBins]
+		e.block *= 2
+	}
+}
+
+// bins returns the envelope as at most waveformBins peaks.
+func (e *envelope) bins() []float32 {
+	if e.n > 0 {
+		e.peaks = append(e.peaks, e.cur)
+		e.cur, e.n = 0, 0
+	}
+	return binPeaks(e.peaks, waveformBins)
+}
+
+// decodePCM picks a decoder by content type / extension and streams mono
+// samples in [-1, 1] to add. Multi-channel inputs are collapsed by averaging
+// across channels — waveform rendering only cares about amplitude envelope,
+// not spatial information.
+func decodePCM(in Input, add func(float32)) error {
 	ext := strings.ToLower(filepath.Ext(in.Filename))
 	ct := strings.ToLower(in.ContentType)
 
 	switch {
 	case ext == ".wav" || strings.Contains(ct, "wav"):
-		return decodeWAV(in.Reader)
+		return decodeWAV(in.Reader, add)
 	case ext == ".mp3" || strings.Contains(ct, "mpeg"):
-		return decodeMP3(in.Reader)
+		return decodeMP3(in.Reader, add)
 	case ext == ".ogg" || ext == ".oga" || strings.Contains(ct, "ogg") || strings.Contains(ct, "vorbis"):
-		return decodeOGG(in.Reader)
+		return decodeOGG(in.Reader, add)
 	}
-	return nil, fmt.Errorf("unsupported audio type: ext=%q ct=%q", ext, ct)
+	return fmt.Errorf("unsupported audio type: ext=%q ct=%q", ext, ct)
 }
 
-// decodeWAV parses RIFF/WAVE with PCM format 1 (int) and format 3 (float).
-// We don't attempt to support compressed codecs embedded in WAV — those are
-// rare in game audio and would pull in larger decoders.
-func decodeWAV(r io.Reader) ([]float32, error) {
-	buf, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
+// maxWAVFmtChunk bounds the one chunk decodeWAV reads whole; a real `fmt `
+// chunk is 16 to 40 bytes.
+const maxWAVFmtChunk = 1 << 10
+
+// maxWAVChannels bounds the channel count a WAV header may claim. The read
+// buffer is sized from it, so an uploaded header claiming 65535 channels
+// would otherwise reserve a gigabyte. WAV defines 18 speaker positions.
+const maxWAVChannels = 32
+
+// decodeWAV parses RIFF/WAVE with PCM format 1 (int) and format 3 (float),
+// streaming the data chunk. We don't attempt to support compressed codecs
+// embedded in WAV — those are rare in game audio and would pull in larger
+// decoders. `fmt ` must precede `data`, as it does in a normal WAV.
+func decodeWAV(r io.Reader, add func(float32)) error {
+	br := bufio.NewReader(r)
+	var riff [12]byte
+	if _, err := io.ReadFull(br, riff[:]); err != nil {
+		return fmt.Errorf("wav too short")
 	}
-	if len(buf) < 44 {
-		return nil, fmt.Errorf("wav too short")
-	}
-	if string(buf[0:4]) != "RIFF" || string(buf[8:12]) != "WAVE" {
-		return nil, fmt.Errorf("not a RIFF/WAVE")
+	if string(riff[0:4]) != "RIFF" || string(riff[8:12]) != "WAVE" {
+		return fmt.Errorf("not a RIFF/WAVE")
 	}
 
-	var (
-		audioFormat   uint16
-		numChannels   uint16
-		bitsPerSample uint16
-		dataOffset    int
-		dataSize      int
-	)
-
-	// Walk chunks until we find `fmt ` and `data`. `fmt ` must precede
-	// `data` for a normal WAV; if the file is badly ordered we give up.
-	pos := 12
+	var format, channels, bits uint16
 	haveFmt := false
-	for pos+8 <= len(buf) {
-		id := string(buf[pos : pos+4])
-		sz := int(binary.LittleEndian.Uint32(buf[pos+4 : pos+8]))
-		if pos+8+sz > len(buf) {
-			return nil, fmt.Errorf("wav chunk overflows")
+	for {
+		var hdr [8]byte
+		if _, err := io.ReadFull(br, hdr[:]); err != nil {
+			return fmt.Errorf("wav missing fmt or data chunk")
 		}
-		body := buf[pos+8 : pos+8+sz]
-		switch id {
-		case "fmt ":
-			if len(body) < 16 {
-				return nil, fmt.Errorf("wav fmt chunk too small")
+		id := string(hdr[0:4])
+		size := int64(binary.LittleEndian.Uint32(hdr[4:8]))
+		switch {
+		case id == "fmt ":
+			if size < 16 || size > maxWAVFmtChunk {
+				return fmt.Errorf("wav fmt chunk size %d", size)
 			}
-			audioFormat = binary.LittleEndian.Uint16(body[0:2])
-			numChannels = binary.LittleEndian.Uint16(body[2:4])
-			bitsPerSample = binary.LittleEndian.Uint16(body[14:16])
+			body := make([]byte, size)
+			if _, err := io.ReadFull(br, body); err != nil {
+				return fmt.Errorf("wav fmt chunk: %w", err)
+			}
+			format = binary.LittleEndian.Uint16(body[0:2])
+			channels = binary.LittleEndian.Uint16(body[2:4])
+			bits = binary.LittleEndian.Uint16(body[14:16])
+			if channels > maxWAVChannels {
+				return fmt.Errorf("wav claims %d channels", channels)
+			}
 			haveFmt = true
-		case "data":
-			dataOffset = pos + 8
-			dataSize = sz
+		case id == "data" && haveFmt:
+			return streamPCM(io.LimitReader(br, size), format, bits, int(max(channels, 1)), add)
+		default:
+			if _, err := io.CopyN(io.Discard, br, size); err != nil {
+				return fmt.Errorf("wav chunk overflows")
+			}
 		}
-		pos += 8 + sz
-		if sz%2 == 1 {
-			pos++ // pad byte
-		}
-		if haveFmt && dataSize > 0 {
-			break
-		}
-	}
-	if !haveFmt || dataSize == 0 {
-		return nil, fmt.Errorf("wav missing fmt or data chunk")
-	}
-
-	data := buf[dataOffset : dataOffset+dataSize]
-	ch := int(numChannels)
-	if ch == 0 {
-		ch = 1
-	}
-
-	switch audioFormat {
-	case 1: // PCM int
-		switch bitsPerSample {
-		case 8:
-			return wavInt8ToFloat(data, ch), nil
-		case 16:
-			return wavInt16ToFloat(data, ch), nil
-		case 24:
-			return wavInt24ToFloat(data, ch), nil
-		case 32:
-			return wavInt32ToFloat(data, ch), nil
-		}
-	case 3: // IEEE float
-		if bitsPerSample == 32 {
-			return wavFloat32(data, ch), nil
+		if size%2 == 1 {
+			_, _ = br.Discard(1) // pad byte
 		}
 	}
-	return nil, fmt.Errorf("wav format=%d bits=%d not supported", audioFormat, bitsPerSample)
 }
 
-func wavInt8ToFloat(data []byte, ch int) []float32 {
-	// 8-bit WAV is unsigned [0,255] with 128 as silence.
-	frames := len(data) / ch
-	out := make([]float32, frames)
-	for i := 0; i < frames; i++ {
-		var sum int
-		for c := 0; c < ch; c++ {
-			sum += int(data[i*ch+c]) - 128
-		}
-		out[i] = float32(sum) / float32(ch) / 128
+// streamPCM reads interleaved PCM frames from r and passes each frame's
+// channel average to add.
+func streamPCM(r io.Reader, format, bits uint16, channels int, add func(float32)) error {
+	sample, ok := pcmSampleDecoder(format, bits)
+	if !ok {
+		return fmt.Errorf("wav format=%d bits=%d not supported", format, bits)
 	}
-	return out
+	width := int(bits / 8)
+	frame := width * channels
+	buf := make([]byte, frame*4096)
+	for {
+		n, err := io.ReadFull(r, buf)
+		for off := 0; off+frame <= n; off += frame {
+			var sum float32
+			for c := range channels {
+				sum += sample(buf[off+c*width:])
+			}
+			add(sum / float32(channels))
+		}
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
 
-func wavInt16ToFloat(data []byte, ch int) []float32 {
-	stride := 2 * ch
-	frames := len(data) / stride
-	out := make([]float32, frames)
-	for i := 0; i < frames; i++ {
-		var sum int32
-		for c := 0; c < ch; c++ {
-			off := i*stride + c*2
-			sum += int32(int16(binary.LittleEndian.Uint16(data[off : off+2])))
-		}
-		out[i] = float32(sum) / float32(ch) / 32768
-	}
-	return out
-}
-
-func wavInt24ToFloat(data []byte, ch int) []float32 {
-	stride := 3 * ch
-	frames := len(data) / stride
-	out := make([]float32, frames)
-	for i := 0; i < frames; i++ {
-		var sum int64
-		for c := 0; c < ch; c++ {
-			off := i*stride + c*3
-			// little-endian 24-bit signed
-			v := int32(data[off]) | int32(data[off+1])<<8 | int32(data[off+2])<<16
+// pcmSampleDecoder returns the function that reads one little-endian sample
+// of the given WAV format and bit depth as a float in [-1, 1].
+func pcmSampleDecoder(format, bits uint16) (func([]byte) float32, bool) {
+	switch {
+	case format == 1 && bits == 8:
+		// 8-bit WAV is unsigned [0,255] with 128 as silence.
+		return func(b []byte) float32 { return float32(int(b[0])-128) / 128 }, true
+	case format == 1 && bits == 16:
+		return func(b []byte) float32 { return float32(int16(binary.LittleEndian.Uint16(b))) / 32768 }, true
+	case format == 1 && bits == 24:
+		return func(b []byte) float32 {
+			v := int32(b[0]) | int32(b[1])<<8 | int32(b[2])<<16
 			if v&0x800000 != 0 {
 				v |= ^0xFFFFFF
 			}
-			sum += int64(v)
-		}
-		out[i] = float32(sum) / float32(ch) / 8388608
+			return float32(v) / 8388608
+		}, true
+	case format == 1 && bits == 32:
+		return func(b []byte) float32 { return float32(int32(binary.LittleEndian.Uint32(b))) / 2147483648 }, true
+	case format == 3 && bits == 32:
+		return func(b []byte) float32 { return math.Float32frombits(binary.LittleEndian.Uint32(b)) }, true
 	}
-	return out
+	return nil, false
 }
 
-func wavInt32ToFloat(data []byte, ch int) []float32 {
-	stride := 4 * ch
-	frames := len(data) / stride
-	out := make([]float32, frames)
-	for i := 0; i < frames; i++ {
-		var sum int64
-		for c := 0; c < ch; c++ {
-			off := i*stride + c*4
-			sum += int64(int32(binary.LittleEndian.Uint32(data[off : off+4])))
-		}
-		out[i] = float32(sum) / float32(ch) / 2147483648
-	}
-	return out
-}
-
-func wavFloat32(data []byte, ch int) []float32 {
-	stride := 4 * ch
-	frames := len(data) / stride
-	out := make([]float32, frames)
-	for i := 0; i < frames; i++ {
-		var sum float32
-		for c := 0; c < ch; c++ {
-			off := i*stride + c*4
-			bits := binary.LittleEndian.Uint32(data[off : off+4])
-			sum += math.Float32frombits(bits)
-		}
-		out[i] = sum / float32(ch)
-	}
-	return out
-}
-
-func decodeMP3(r io.Reader) ([]float32, error) {
-	rs, ok := r.(io.ReadSeeker)
-	if !ok {
-		// go-mp3 wants a ReadSeeker; buffer the whole file. Audio imports
-		// are capped by the upload limit, so this is bounded.
-		buf, err := io.ReadAll(r)
-		if err != nil {
-			return nil, err
-		}
-		rs = bytes.NewReader(buf)
-	}
-	dec, err := gomp3.NewDecoder(rs)
+// decodeMP3 streams the decoder's output, which go-mp3 always emits as
+// 16-bit little-endian interleaved stereo. A reader that is not a seeker is
+// read straight through, never buffered.
+func decodeMP3(r io.Reader, add func(float32)) error {
+	dec, err := gomp3.NewDecoder(r)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	// go-mp3 emits 16-bit stereo, little-endian, interleaved.
-	raw, err := io.ReadAll(dec)
-	if err != nil {
-		return nil, err
-	}
-	return wavInt16ToFloat(raw, 2), nil
+	return streamPCM(dec, 1, 16, 2, add)
 }
 
-func decodeOGG(r io.Reader) ([]float32, error) {
-	rs, ok := r.(io.ReadSeeker)
-	if !ok {
-		buf, err := io.ReadAll(r)
-		if err != nil {
-			return nil, err
-		}
-		rs = bytes.NewReader(buf)
-	}
-	dec, err := oggvorbis.NewReader(rs)
+func decodeOGG(r io.Reader, add func(float32)) error {
+	dec, err := oggvorbis.NewReader(r)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	ch := dec.Channels()
-	if ch <= 0 {
-		ch = 1
-	}
+	ch := max(dec.Channels(), 1)
 	// oggvorbis hands us float32 interleaved; average channels to mono.
-	out := make([]float32, 0, 48000*8)
 	tmp := make([]float32, 4096*ch)
 	for {
 		n, err := dec.Read(tmp)
-		if n > 0 {
-			frames := n / ch
-			for i := 0; i < frames; i++ {
-				var sum float32
-				for c := 0; c < ch; c++ {
-					sum += tmp[i*ch+c]
-				}
-				out = append(out, sum/float32(ch))
+		for i := 0; i+ch <= n; i += ch {
+			var sum float32
+			for c := range ch {
+				sum += tmp[i+c]
 			}
+			add(sum / float32(ch))
 		}
 		if err == io.EOF {
-			break
+			return nil
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return out, nil
 }
 
 // binPeaks buckets samples into `bins` groups and returns the peak absolute
@@ -310,11 +269,12 @@ func binPeaks(samples []float32, bins int) []float32 {
 	if bins <= 0 || len(samples) == 0 {
 		return nil
 	}
+	if len(samples) <= bins {
+		// Too short to bin: one column per sample.
+		bins = len(samples)
+	}
 	out := make([]float32, bins)
 	per := float64(len(samples)) / float64(bins)
-	if per < 1 {
-		per = 1
-	}
 	for i := 0; i < bins; i++ {
 		start := int(float64(i) * per)
 		end := int(float64(i+1) * per)

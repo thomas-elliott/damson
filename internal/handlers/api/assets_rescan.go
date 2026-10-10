@@ -14,6 +14,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/imaging"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
@@ -261,10 +262,11 @@ func (h *Handler) rescanPreviews(c *gin.Context, libraryID, versionID uint) int 
 	return queued
 }
 
-// thumbnailExts maps renderable file extensions to a base score. Higher means
-// a more useful thumbnail source; raster wins over audio/font waveforms.
-var thumbnailExts = map[string]int{
-	".png": 3, ".jpg": 3, ".jpeg": 3, ".gif": 3, ".bmp": 3, ".webp": 3, ".tiff": 3, ".tif": 3,
+// Base scores for a thumbnail source. Higher means more useful: any image
+// the decoders read (imaging.IsImage) wins over an audio or font render.
+const imageThumbnailScore = 3
+
+var nonImageThumbnailExts = map[string]int{
 	".wav": 1, ".mp3": 1, ".ogg": 1, ".oga": 1,
 	".ttf": 1, ".otf": 1,
 }
@@ -277,7 +279,10 @@ func pickThumbnailCandidate(files []models.AssetFile) *models.AssetFile {
 	bestScore := 0
 	for i := range files {
 		f := &files[i]
-		base := thumbnailExts[strings.ToLower(filepath.Ext(f.RelativePath))]
+		base := nonImageThumbnailExts[strings.ToLower(filepath.Ext(f.RelativePath))]
+		if imaging.IsImage(f.RelativePath) {
+			base = imageThumbnailScore
+		}
 		if base == 0 {
 			continue
 		}

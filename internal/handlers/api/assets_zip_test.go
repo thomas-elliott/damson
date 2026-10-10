@@ -37,7 +37,7 @@ func TestPostImport_Zip_ExtractsFilesAsOneAsset(t *testing.T) {
 	arc := buildZipArchive(t, map[string][]byte{
 		"kit/readme.txt":     []byte("hello"),
 		"kit/model.fbx":      []byte("fbx-bytes"),
-		"kit/textures/a.png": []byte("\x89PNG\r\n\x1a\nfake"),
+		"kit/textures/a.png": makeTestPNG(t, 16, 16),
 	})
 
 	r := setupRouter(h, u)

@@ -49,10 +49,10 @@ export const ToolbarExample: Story = {
             <BreadcrumbSeparator />
             <BreadcrumbItem current>Sprites</BreadcrumbItem>
           </Breadcrumb>
-          <Chip label="licence:" onRemove={() => {}}>
+          <Chip label="licence:" onRemove={() => {}} removeLabel="Remove licence filter: MIT">
             MIT
           </Chip>
-          <Chip label="tag:" onRemove={() => {}}>
+          <Chip label="tag:" onRemove={() => {}} removeLabel="Remove tag filter: ui">
             ui
           </Chip>
           <Button variant="ghost" size="sm">

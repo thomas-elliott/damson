@@ -26,15 +26,21 @@ export function AssetGrid({
   selectedId,
   selectedIds,
   onToggleSelect,
+  onColumnsChange,
 }: {
   assets: AssetRow[];
   onOpen?: (id: number) => void;
   selectedId?: number | null;
   selectedIds?: Set<number>;
   onToggleSelect?: (id: number) => void;
+  /** Reports how many cards a row shows, so keyboard moves can go one row. */
+  onColumnsChange?: (columns: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { columns, cellWidth } = useGridMetrics(scrollRef);
+  useEffect(() => {
+    onColumnsChange?.(columns);
+  }, [columns, onColumnsChange]);
 
   const rows = useMemo(() => {
     const out: AssetRow[][] = [];

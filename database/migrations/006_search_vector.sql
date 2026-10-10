@@ -1,9 +1,7 @@
 BEGIN;
 
--- Full-text search. Postgres-only: SQLite tests use the `search_q` LIKE
--- fallback inside handlers, so the tsvector path here is never exercised by
--- unit tests. Real-Postgres integration is the test tier that covers this
--- (see docs/technical-design.md §22 decision 5).
+-- Full-text search over a tsvector column. Postgres is the only database, in
+-- tests too, so the handler tests exercise this path.
 
 ALTER TABLE assets
     ADD COLUMN IF NOT EXISTS search_vector tsvector;
