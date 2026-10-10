@@ -14,30 +14,31 @@ import (
 // directory and which env vars move it, not fail later on a bare mkdir error.
 func TestCheckDataDirs(t *testing.T) {
 	root := t.TempDir()
-	readOnly := filepath.Join(root, "data")
-	if err := os.Mkdir(readOnly, 0o500); err != nil {
+	// A file where the data directory should be: nobody can create or write
+	// to it, root included. CI runs as root, which ignores a 0500 directory.
+	unwritable := filepath.Join(root, "data")
+	if err := os.WriteFile(unwritable, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(readOnly, 0o700) })
 
 	local := config.Config{
 		AuthMode:         config.AuthModeLocal,
 		StorageMode:      config.StorageModeLocal,
-		JWTKeyFile:       filepath.Join(readOnly, "jwt.key"),
-		StorageLocalPath: filepath.Join(readOnly, "blobs"),
+		JWTKeyFile:       filepath.Join(unwritable, "jwt.key"),
+		StorageLocalPath: filepath.Join(unwritable, "blobs"),
 	}
 
 	err := checkDataDirs(local)
 	if err == nil {
-		t.Fatal("a read-only data directory passed the startup check")
+		t.Fatal("an unwritable data directory passed the startup check")
 	}
-	for _, want := range []string{readOnly, "DAMSON_JWT_KEY_FILE"} {
+	for _, want := range []string{unwritable, "DAMSON_JWT_KEY_FILE"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not name %q", err, want)
 		}
 	}
 
-	// Storage alone on a read-only path names its own override.
+	// Storage alone on an unwritable path names its own override.
 	storageOnly := local
 	storageOnly.JWTSigningKey = []byte("set")
 	if err := checkDataDirs(storageOnly); err == nil || !strings.Contains(err.Error(), "DAMSON_STORAGE_LOCAL_PATH") {
