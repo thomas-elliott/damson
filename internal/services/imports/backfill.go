@@ -29,6 +29,7 @@ var browserCoverTypes = []string{"image/png", "image/jpeg", "image/webp", "image
 func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (int, error) {
 	type candidate struct {
 		AssetID      uint
+		VersionID    uint
 		RelativePath string
 		ObjectKey    string
 	}
@@ -44,7 +45,7 @@ func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (in
 		Where("v.package_kind <> ?", "unitypackage").
 		Where("v.package_kind <> ? OR f.size_bytes <= ?", "zip", extract.MaxZipCoverBytes).
 		Order("a.id, f.relative_path").
-		Select("a.id AS asset_id, f.relative_path, f.object_key").
+		Select("a.id AS asset_id, v.id AS version_id, f.relative_path, f.object_key").
 		Scan(&rows).Error
 	if err != nil {
 		return 0, err
@@ -74,14 +75,18 @@ func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (in
 			continue
 		}
 		done[r.AssetID] = true
-		err = db.WithContext(ctx).Model(&models.Asset{}).
-			Where("id = ? AND NOT thumbnail_from_store", r.AssetID).
-			Updates(map[string]any{"thumbnail_object_key": res.ObjectKey, "thumbnail_content_type": res.ContentType}).Error
-		if err != nil {
-			slog.Warn("cover backfill: save", "err", err, "asset_id", r.AssetID)
+		// Imports and rescans run alongside the backfill at boot. The save
+		// re-checks the candidate's conditions, so a cover one of them set
+		// meanwhile, or a version that has since become current, stands.
+		saved := db.WithContext(ctx).Model(&models.Asset{}).
+			Where("id = ? AND current_version_id = ? AND NOT thumbnail_from_store", r.AssetID, r.VersionID).
+			Where("thumbnail_object_key = '' OR thumbnail_content_type NOT IN ?", browserCoverTypes).
+			Updates(map[string]any{"thumbnail_object_key": res.ObjectKey, "thumbnail_content_type": res.ContentType})
+		if saved.Error != nil {
+			slog.Warn("cover backfill: save", "err", saved.Error, "asset_id", r.AssetID)
 			continue
 		}
-		covered++
+		covered += int(saved.RowsAffected)
 	}
 	return covered, nil
 }

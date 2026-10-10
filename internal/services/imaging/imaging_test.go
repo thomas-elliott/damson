@@ -37,9 +37,9 @@ func TestDecode_Tier2Formats(t *testing.T) {
 	}
 }
 
-// Every format's header is checked against MaxPixels before its pixels are
-// allocated.
-func TestDecode_RefusesHeadersOver100Megapixels(t *testing.T) {
+// Every format's header is checked against its ceiling before its pixels are
+// allocated: MaxPixels, or less for a format that decodes to float pixels.
+func TestDecode_RefusesHeadersOverTheCeiling(t *testing.T) {
 	// An 18-byte header, then room for the 26-byte footer TGA readers look for.
 	tgaHeader := make([]byte, 18+26)
 	tgaHeader[2] = 2 // uncompressed true-colour
@@ -51,6 +51,9 @@ func TestDecode_RefusesHeadersOver100Megapixels(t *testing.T) {
 		"huge.psd": imagingtest.PSD(t, 20_000, 20_000),
 		"huge.tga": tgaHeader,
 		"huge.hdr": []byte("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 20000 +X 20000\n"),
+		// 36 megapixels: under MaxPixels, over the float formats' ceilings.
+		"big.hdr": []byte("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 6000 +X 6000\n"),
+		"big.exr": exrDeclaring(t, 6000, 6000),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, _, err := Decode(bytes.NewReader(data), name); !errors.Is(err, ErrTooLarge) {
@@ -58,4 +61,20 @@ func TestDecode_RefusesHeadersOver100Megapixels(t *testing.T) {
 			}
 		})
 	}
+}
+
+// exrDeclaring returns the EXR fixture with its data window widened to w×h,
+// padded so the file can hold the chunk table that window implies.
+func exrDeclaring(t *testing.T, w, h uint32) []byte {
+	t.Helper()
+	data := imagingtest.EXR(t)
+	attr := []byte("dataWindow\x00box2i\x00")
+	i := bytes.Index(data, attr)
+	if i < 0 {
+		t.Fatal("fixture has no dataWindow")
+	}
+	box := i + len(attr) + 4 // past the attribute's size
+	binary.LittleEndian.PutUint32(data[box+8:], w-1)
+	binary.LittleEndian.PutUint32(data[box+12:], h-1)
+	return append(data, make([]byte, 8*int(h))...)
 }

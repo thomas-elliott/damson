@@ -222,11 +222,24 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		if err := tx.First(&asset, jc.asset.ID).Error; err != nil {
 			return err
 		}
-		vid := jc.version.ID
-		asset.CurrentVersionID = &vid
+		// A retried or resumed import of an older version finishes without
+		// taking the asset back to it, or its cover, once a newer version
+		// is current.
+		makeCurrent := true
+		if asset.CurrentVersionID != nil && *asset.CurrentVersionID != jc.version.ID {
+			var current models.AssetVersion
+			if err := tx.First(&current, *asset.CurrentVersionID).Error; err != nil {
+				return err
+			}
+			makeCurrent = !current.ImportDate.After(jc.version.ImportDate)
+		}
+		if makeCurrent {
+			vid := jc.version.ID
+			asset.CurrentVersionID = &vid
+		}
 		// A storefront cover outlives later extractions, as it does for
 		// rescan and re-extract.
-		if thumbKey != "" && !asset.ThumbnailFromStore {
+		if makeCurrent && thumbKey != "" && !asset.ThumbnailFromStore {
 			asset.ThumbnailObjectKey = thumbKey
 			asset.ThumbnailContentType = thumbType
 		}
