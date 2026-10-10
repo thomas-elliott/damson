@@ -99,6 +99,9 @@ export default function MarkdownEditorView({
           }),
           cmPlaceholder(placeholder ?? ""),
           EditorView.contentAttributes.of({
+            // Already a tab stop as an editing host. Saying so explicitly lets
+            // axe see the capped, scrollable editor as keyboard-reachable.
+            tabindex: "0",
             ...(id ? { id } : {}),
             ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
             ...(describedBy ? { "aria-describedby": describedBy } : {}),
