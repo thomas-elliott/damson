@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-
-	"github.com/thomas-elliott/damson/internal/models"
 )
 
 // ResumeInFlight scans asset_imports for rows in a non-terminal stage and
@@ -118,17 +116,4 @@ func LoadEvent(ctx context.Context, db *gorm.DB, libraryID, importID uint) (Even
 		return Event{}, false, nil
 	}
 	return r.toEvent(), true, nil
-}
-
-// SeedImport creates a new asset_imports row in the uploaded stage. Returns
-// the row id so the caller can enqueue it.
-func SeedImport(db *gorm.DB, assetID uint) (uint, error) {
-	imp := models.AssetImport{
-		AssetID: assetID,
-		Stage:   StageUploaded,
-	}
-	if err := db.Create(&imp).Error; err != nil {
-		return 0, err
-	}
-	return imp.ID, nil
 }

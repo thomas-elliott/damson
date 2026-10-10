@@ -162,16 +162,13 @@ func main() {
 
 	purgeCtx, cancelPurge := context.WithCancel(context.Background())
 	defer cancelPurge()
-	// Gallery images the orphan sweep deleted (before it counted asset_images
-	// as a reference) are fetched again. Off the startup path, because each
-	// fetch waits on the storefront's rate limit.
+	// Off the startup path: each refetch waits on the storefront's rate limit.
 	go func() {
 		if err := imports.RepairGallery(purgeCtx, gormDB, store, metaRegistry); err != nil {
 			slog.Warn("gallery repair failed", "err", err)
 		}
 	}()
-	// Assets whose image could not be decoded when imported (the tier-2
-	// formats) get their cover. Off the startup path: it reads blobs.
+	// Off the startup path: it reads blobs.
 	go func() {
 		if covered, err := imports.BackfillCovers(purgeCtx, gormDB, store); err != nil {
 			slog.Warn("cover backfill failed", "err", err)

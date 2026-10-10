@@ -134,7 +134,9 @@ func (h *Handler) postUploadSession(c *gin.Context) {
 		return
 	}
 
-	present, err := h.objectPresent(ctx, spec.storagePrefix(), digest)
+	// Touched as well as checked: a reused object must look new to the orphan
+	// sweep until the import's rows reference it.
+	present, err := h.storage.Touch(ctx, spec.storagePrefix(), digest)
 	if err != nil {
 		respond500(c, fmt.Errorf("head %s (library %d): %w", digest, lib.ID, err))
 		return
@@ -511,13 +513,6 @@ func (h *Handler) requireOpenSession(c *gin.Context, s *models.UploadSession) bo
 		return false
 	}
 	return true
-}
-
-// objectPresent reports whether the library's storage already holds key. A
-// hit is about to be reused without a write, so it is touched: that keeps the
-// orphan sweep off it until the import's rows reference it.
-func (h *Handler) objectPresent(ctx context.Context, prefix, key string) (bool, error) {
-	return h.storage.Touch(ctx, prefix, key)
 }
 
 func sessionParts(s *models.UploadSession) []storage.Part {

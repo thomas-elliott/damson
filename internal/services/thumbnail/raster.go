@@ -23,8 +23,8 @@ const resampleMaxEdge = 512
 const jpegQuality = 85
 
 // renderRaster decodes the input through the shared imaging decoders, which
-// refuse an image over imaging.MaxPixels, resamples to `resampleMaxEdge` on the longer edge, and
-// re-encodes. Per §11.1 we pick JPEG for photographic content (clean RGBA
+// refuse an image over imaging.MaxPixels, resamples to `resampleMaxEdge` on
+// the longer edge, and re-encodes. Per §11.1 we pick JPEG for photographic content (clean RGBA
 // with no palette, full alpha or transparency) and PNG for everything else.
 // The call sites that hit us — raster uploads from a user — won't know
 // what they've dropped, so we inspect the decoded image rather than trust

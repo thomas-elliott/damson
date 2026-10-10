@@ -1,8 +1,9 @@
 // Package thumbnail generates preview images for imported assets per
 // docs/archive/technical-design.md §11. One worker per input category:
 //
-//   - Raster (image/*, or any format imaging decodes): decode + resample to 512px long edge + re-encode as
-//     JPEG (photographic) or PNG (palette/alpha/rendered).
+//   - Raster (image/*, or any format imaging decodes): decode + resample to
+//     512px long edge + re-encode as JPEG (photographic) or PNG
+//     (palette/alpha/rendered).
 //   - Audio (audio/*): decode PCM, downsample to waveform bins, render a
 //     waveform strip as PNG.
 //   - Font (font/* or .ttf/.otf): render a sample string as PNG.

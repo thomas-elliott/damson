@@ -114,6 +114,11 @@ func decodePCM(in Input, add func(float32)) error {
 // chunk is 16 to 40 bytes.
 const maxWAVFmtChunk = 1 << 10
 
+// maxWAVChannels bounds the channel count a WAV header may claim. The read
+// buffer is sized from it, so an uploaded header claiming 65535 channels
+// would otherwise reserve a gigabyte. WAV defines 18 speaker positions.
+const maxWAVChannels = 32
+
 // decodeWAV parses RIFF/WAVE with PCM format 1 (int) and format 3 (float),
 // streaming the data chunk. We don't attempt to support compressed codecs
 // embedded in WAV — those are rare in game audio and would pull in larger
@@ -149,6 +154,9 @@ func decodeWAV(r io.Reader, add func(float32)) error {
 			format = binary.LittleEndian.Uint16(body[0:2])
 			channels = binary.LittleEndian.Uint16(body[2:4])
 			bits = binary.LittleEndian.Uint16(body[14:16])
+			if channels > maxWAVChannels {
+				return fmt.Errorf("wav claims %d channels", channels)
+			}
 			haveFmt = true
 		case id == "data" && haveFmt:
 			return streamPCM(io.LimitReader(br, size), format, bits, int(max(channels, 1)), add)
@@ -267,9 +275,6 @@ func binPeaks(samples []float32, bins int) []float32 {
 	}
 	out := make([]float32, bins)
 	per := float64(len(samples)) / float64(bins)
-	if per < 1 {
-		per = 1
-	}
 	for i := 0; i < bins; i++ {
 		start := int(float64(i) * per)
 		end := int(float64(i+1) * per)

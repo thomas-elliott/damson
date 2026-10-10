@@ -16,7 +16,8 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
-const maxZipCoverBytes = 16 << 20
+// MaxZipCoverBytes caps the size of a zip entry considered for the cover.
+const MaxZipCoverBytes = 16 << 20
 
 type ZipExtractor struct {
 	Storage storage.Service
@@ -124,7 +125,7 @@ func (e *ZipExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult, 
 			ObjectKey:    key,
 		})
 
-		if isImagePathname(rel) && usize > 0 && usize <= maxZipCoverBytes {
+		if isImagePathname(rel) && usize > 0 && usize <= MaxZipCoverBytes {
 			covers = append(covers, f)
 		}
 	}
@@ -149,11 +150,11 @@ func readZipEntry(f *zip.File, limit int64) ([]byte, error) {
 // shows, like any other thumbnail. No entry decoding means no cover.
 func (e *ZipExtractor) pickCover(ctx context.Context, candidates []*zip.File) (string, string) {
 	sort.SliceStable(candidates, func(i, j int) bool {
-		return isCoverName(candidates[i].Name) && !isCoverName(candidates[j].Name)
+		return IsCoverName(candidates[i].Name) && !IsCoverName(candidates[j].Name)
 	})
 	gen := &thumbnail.Generator{Storage: e.Storage}
 	for _, f := range candidates {
-		data, err := readZipEntry(f, maxZipCoverBytes)
+		data, err := readZipEntry(f, MaxZipCoverBytes)
 		if err != nil {
 			continue
 		}
@@ -167,8 +168,9 @@ func (e *ZipExtractor) pickCover(ctx context.Context, candidates []*zip.File) (s
 	return "", ""
 }
 
-// isCoverName reports whether an entry's file name reads like a cover image.
-func isCoverName(name string) bool {
+// IsCoverName reports whether a file name reads like a cover image. A zip's
+// import tries these first for its cover, and so does the cover backfill.
+func IsCoverName(name string) bool {
 	base := strings.ToLower(path.Base(name))
 	for _, word := range []string{"cover", "preview", "thumbnail"} {
 		if strings.Contains(base, word) {
