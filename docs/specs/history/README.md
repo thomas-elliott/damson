@@ -7,6 +7,8 @@ records what was decided *at the time*, not what is true now. For the live shape
 The top level of [`../`](../) is what is **in flight**. Nothing being there means nothing is in
 flight — see [`../../roadmap.md`](../../roadmap.md) for what is queued.
 
+**The shipping ritual is the last commit on the branch, not a follow-up after merge** — doing it afterwards means committing straight to `main`. So once the PR is open: flip the `**Status:**` line to `implemented — … (PR #N)`, move the file into `history/`, add it to that index, and lift anything it deferred onto `roadmap.md`. Reference the PR, not a merge sha: the sha does not exist yet, and a squash merge means the branch's own shas never will.
+
 | Date | Spec | What it did | Merged |
 | --- | --- | --- | --- |
 | 2026-06-18 | [file-previews](2026-06-18-file-previews.md) | Per-file preview derivatives for the scoped file browser. Format coverage beyond pure-Go raster is the staged remainder. | PR #24 `3fca0ae` |

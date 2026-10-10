@@ -6,10 +6,8 @@ output.
 
 ## Configuration
 
-| Env var             | Values                          | Default | Effect                                   |
-| ------------------- | ------------------------------- | ------- | ---------------------------------------- |
-| `DAMSON_LOG_LEVEL`  | `debug` `info` `warn` `error`   | `info`  | Minimum level emitted.                   |
-| `DAMSON_LOG_FORMAT` | `json` `text`                   | `json`  | `text` for local dev; `json` to ship.    |
+- `DAMSON_LOG_LEVEL` — `debug`, `info` (default), `warn` or `error`; the minimum level emitted.
+- `DAMSON_LOG_FORMAT` — `json` (default, to ship) or `text` (local dev).
 
 Every line carries `service=damson`, a `version` (module version or VCS
 revision), and `source` (file:line) via `AddSource`.
@@ -50,9 +48,10 @@ than a static `"request"`, so VL's message column is readable without adding
 - `request_id` — correlation id; honoured from an inbound `X-Request-Id`
   header, otherwise generated, and echoed on the response.
 - `user_id`, `library_id` — when the request is authenticated / library-scoped.
+  These keys are string-mirrored in `main.go`; renaming the constants in
+  `auth`/`api` silently drops the fields.
 - `err` — **the actual cause** of any 4xx/5xx. Handlers attach it via
-  `respond400` / `respond500` (which call `c.Error`), so a 500 is no longer a
-  bare status with no explanation. 5xx logs at `error`, 4xx at `warn`.
+  `respond400` / `respond500` (which call `c.Error`). 5xx logs at `error`, 4xx at `warn`.
 
 Query strings are never logged — only `URL.Path` — so a presigned or
 token-bearing URL cannot leak through the request line.
@@ -72,6 +71,10 @@ that never returns — proxy timeout, pod OOM-kill, client hang-up — leaves no
 line at all. Pair the start line with the completion line by `request_id`; a
 start with no matching completion is a request the process did not survive.
 
+Chunked uploads log one start/completion pair per chunk
+`PUT /api/imports/uploads/<id>/chunks/<n>`, each with its own `request_id`. Correlate one upload
+session by the `/api/imports/uploads/<id>` path prefix.
+
 Panics are caught by `recoveryHandler`, which logs at `error` with a full
 `stack` and the `request_id`, then returns a generic 500.
 
@@ -80,14 +83,14 @@ the logs only, never to the client.
 
 ## Asynchronous work
 
-Background jobs run on River (`internal/queue`) across two queues, `import`
-and `preview`. River emits its own lifecycle logging through the same `slog`
+Background jobs run on River (`internal/queue`) on the `import`, `preview` and `store_lookup`
+queues. River emits its own lifecycle logging through the same `slog`
 handler.
 
-Import pipeline failures are logged at `error` with `import_id` and
-`library_id` (`internal/services/imports/worker.go`); the per-stage failure
-reason is also persisted to `asset_imports.error` and streamed over SSE.
-Preview failures land the same way against `asset_files.preview_status`.
+Import pipeline failures are logged at `error` as `"imports: pipeline failed"` with `import_id`,
+`library_id` and the cause in `reason`, not `err` (`internal/services/imports/pipeline.go`); the
+reason is also persisted to `asset_imports.error` and streamed over SSE. Preview failures log at
+`warn` and land against `asset_files.preview_status`.
 
 Because the DB row is the durable source of truth in both cases, a log line
 is a *diagnostic*, not the record — to ask "what failed and why", query
@@ -116,14 +119,14 @@ namespace:="damson-prod" status:>=500 | fields _time, path, err, request_id, use
 # Trace one request end-to-end
 namespace:="damson-prod" request_id:"<id from the X-Request-Id response header>"
 
-# Upload failures (the POST /api/imports handler + async pipeline)
+# Upload failures, direct and chunked (the async pipeline is the next query)
 namespace:="damson-prod" path:"/api/imports" status:>=500 | fields _time, err, request_id
 
 # Async import pipeline failures
-namespace:="damson-prod" _msg:"import pipeline failed" | fields _time, import_id, library_id, err
+namespace:="damson-prod" _msg:"imports: pipeline failed" | fields _time, import_id, library_id, reason
 
-# Background job errors across both queues
-namespace:="damson-prod" level:"ERROR" _msg:~"job|queue|preview" | fields _time, _msg, err
+# Background job failures across the queues (preview failures are warn, not error)
+namespace:="damson-prod" level:in("ERROR", "WARN") _msg:~"queue|preview|imports" | fields _time, _msg, err, reason
 
 # Slowest requests in the last hour
 namespace:="damson-prod" _time:1h | sort by (duration_ms desc) | limit 20

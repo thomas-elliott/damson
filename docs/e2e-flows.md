@@ -1,236 +1,88 @@
 # E2E flows
 
-Playwright runs against a dedicated test binary (`cmd/e2e-server`) that
-mirrors the production wiring. This document captures what's covered, what's
-intentionally deferred, and the design principles guiding both. The tiering
-below was a sequencing recommendation, not a hard contract — it's kept
-because it still explains *why* each flow earned a slot.
+The Playwright suite (`web/e2e/`) drives the real SPA against a real Go backend and Postgres. It
+exists for the bugs unit and component tests cannot reach: contract drift between the SPA and the
+handlers, router and auth regressions on dependency bumps, and wiring across HTTP, DB, storage and
+the job queue. A flow earns a spec when it is on the critical path, crosses those systems, and is
+too slow to reproduce by hand on every change.
 
-## Implementation status
+## How it runs
 
-- **Real-backend harness:** `cmd/e2e-server` — a test-only Go binary backed
-  by **Postgres**, adding
-  `/api/test/reset` to drop and re-migrate between tests and `/api/test/users`
-  to seed. Built as a dependency of `just test e2e`; Playwright launches it alongside
-  `vite dev` via the `webServer` array. Needs `DAMSON_TEST_POSTGRES_DSN` at
-  runtime — `just test e2e` defaults it to the shared local Postgres on 5432
-  via the `damson_test` database.
+`just test e2e` builds `cmd/e2e-server` into `web/e2e/.bin`, then Playwright starts it and `vite dev`
+through the `webServer` array in `web/playwright.config.ts` (`E2E_TARGET=preview` runs the built
+bundle instead). Arguments go straight to Playwright, so `just test e2e --ui` gets the interactive
+runner. The backend needs `DAMSON_TEST_POSTGRES_DSN`; `just test e2e` defaults it to the shared local
+Postgres. One worker, no parallelism: every test shares the one backend and its database.
 
-Companions:
-- `docs/CONVENTIONS.md` — testing libraries, fixtures, coverage expectations
-- `web/playwright.config.ts` — webServer target (`vite dev` by default,
-  `vite preview` with `E2E_TARGET=preview`)
+`cmd/e2e-server` mounts the production `api.Handler` and River queue in local-auth mode, against
+the real SQL migrations. It does not mount `cmd/server`'s middleware (request id, request logging,
+security headers, JSON body cap), the metadata service or store lookups, and its login throttle is
+effectively off. It adds two test-only routes: `POST /api/test/reset` and `POST /api/test/users`
+(seed a user, optionally sysadmin or with a library membership).
 
-> The Woodpecker e2e step pins a `mcr.microsoft.com/playwright` image tag that
-> must match `@playwright/test` in `web/package.json` exactly, or the bundled
-> browsers won't be found. Bumping one means bumping the other.
+Specs import `test` from `web/e2e/fixtures.ts`, which resets the backend before every test. They
+seed through the real API (`bootstrapAdmin`, `createLibrary`, `switchCurrentLibrary`,
+`uploadImport`, `createTestUser`) and authenticate by writing the session into local storage
+before the SPA loads (`installSession`); only the login and bootstrap specs drive the forms.
+`uploadImport` blocks until the import row is `done`. The OIDC spec runs entirely in the browser:
+it intercepts `/api/auth/mode` and the IdP endpoints with `page.route`.
 
----
+## Contract
 
-## Selection criteria
+Covered, one spec per flow in `web/e2e/tests/`: first-run bootstrap and the AuthGuard redirects,
+local login, the library page rendering a seeded asset, a UI upload accepted and shown as a
+placeholder, library switching without leaking the other library's assets, tag and licence edits
+surviving a reload, the OIDC callback and sign-out, project pins, collection add/remove, search,
+sysadmin gating of the audit page, and library settings surviving a reload.
 
-A flow earns a tier-1 slot when it satisfies most of the following:
+Not covered:
 
-1. **Critical path.** If it breaks, the product is unusable for the
-   majority of users in their first session.
-2. **Multi-system integration.** Touches frontend + HTTP + DB + storage /
-   worker — a class of bug unit and component tests fundamentally cannot
-   reach.
-3. **Upgrade-fragile.** Hits surfaces that have historically broken on
-   dependency bumps (router, auth, file upload, async worker plumbing).
-4. **Hard to detect manually.** Requires multi-step setup or async waits
-   that a developer is unlikely to reproduce on every PR.
+- No spec watches an import reach `done` through the UI. The upload spec stops at the 202 and the
+  placeholder; `uploadImport` reaches `done` only as API seeding.
+- Accessibility is checked only by the story suite (`just test stories`, axe at
+  `a11y.test = "error"`), and no gate runs it: not `just test`, not `just check`, not CI.
+- Visual regression has no owner.
+- Chunked uploads, below.
 
----
+### Deliberately not covered: chunked uploads
 
-## Tier 1 — critical path (implemented)
-
-### 1. First-run bootstrap → first login
-
-**What.** Fresh deployment with zero users. `/api/auth/mode` returns
-`needs_bootstrap=true`. User submits the bootstrap form, server creates
-the first admin, the SPA stores the session token and lands the user in
-`/library`. A second visit goes straight to `/login`, not `/bootstrap`.
-
-**Why high-value.** This is the very first thing every operator
-experiences. It exercises the full auth surface
-(`/api/auth/mode`, `/api/auth/bootstrap`, `/api/auth/login`),
-post-login routing, token storage, and the `needs_bootstrap` flag flip
-that requires the cache invalidation in `lib/authMode.ts` to work
-correctly. AuthGuard regressions (the 6 → 7 react-router rewrite was
-exactly this surface) land here first.
-
-**How it's tested.** Real backend. `cmd/e2e-server` boots against an empty
-Postgres schema in the Playwright `webServer` (alongside `vite dev`). The
-test drives the form, asserts URL transitions, and checks that a follow-up
-`fetch('/api/auth/mode')` returns `needs_bootstrap=false`. Teardown is
-`/api/test/reset`, which drops and re-migrates between tests.
-
-### 2. Local login → library page renders with content
-
-**What.** Bootstrapped server with a seeded user and one library
-containing N assets. User logs in, lands on `/library`, and sees asset
-cards rendered with thumbnails and metadata. Click into a detail panel,
-assert the right asset loads.
-
-**Why high-value.** Most common authenticated session. Covers `LoginPage`,
-AuthGuard's "ready" path, `/api/me`, `/api/libraries`, the library
-switch into `/api/me/current-library`, then the scoped fetch
-`/api/assets`. Catches react-query cache key regressions, virtualized
-grid breakage (`@tanstack/react-virtual`), broken thumbnail proxying
-(`/thumbs/:objectKey`), and any router-related URL/state desync.
-
-**How it's tested.** Real backend with a seed fixture (one user,
-one library, ~5 assets). Load fixtures via a small Go test helper that
-the Playwright `globalSetup` shells out to (or via a `/test/seed` endpoint
-gated to test mode). Assertions: at least one asset card visible by role,
-detail panel opens on click, no console errors throughout.
-
-### 3. Asset import — `.unitypackage` upload to "ready"
-
-**What.** From the Queue page, drop a small fixture `.unitypackage` file.
-Watch the import row move queued → extracting → done. Refresh `/library`
-and find the new asset.
-
-**Why high-value.** Damson's signature feature. Touches the entire
-import pipeline: dropzone → multipart upload (`POST /api/imports`)
-→ storage layer (`internal/services/storage`) → async extract worker
-(`internal/services/extract`) → DB writes → thumbnail generation
-→ library refresh. Most failure modes here are silent: the upload
-"works" but extraction fails, or the library doesn't refresh, or the
-thumbnail is missing. Unit tests cover each stage; only an E2E catches
-the wiring.
-
-**How it's tested.** Real backend, real storage on a tmpdir
-(`DAMSON_STORAGE_LOCAL_PATH=$(mktemp -d)`), real extractor. Ship a
-~50KB fixture `.unitypackage` in `web/e2e/fixtures/`. Use
-`page.locator('input[type=file]').setInputFiles()` to bypass the actual
-dropzone (more reliable than simulating drag/drop). Poll the import row
-for "done" with a 30s timeout, then navigate to library and assert
-the new asset is visible. Clean up the tmpdir in afterEach.
-
----
-
-## Tier 2 — next wave (implemented)
-
-### 4. Library switch isolates scope
-
-**What.** User with two libraries A and B (each with distinct assets)
-switches active library and verifies the asset list refetches with the
-new scope — none of A's assets leak into B's view.
-
-**Why high-value.** Multi-tenancy correctness. A subtle react-query cache
-key bug would silently show one library's data while the URL says
-another, which is a security/privacy issue, not just a UX one.
-
-**How it's tested.** Real backend, two seeded libraries with disjoint
-assets. Switch via the library picker, assert the asset IDs visible after
-the switch are exactly B's, then switch back and re-assert.
-
-### 5. Tag and licence edits persist
-
-**What.** Open an asset detail. Add a new tag, change the licence, save.
-Reload the page (or remount the SPA) and confirm both stuck.
-
-**Why high-value.** Most common write path after import. Exercises the
-PATCH/PUT handlers, optimistic update logic in `useMutations.ts`, and
-the licence detection auto-suggest. Reload-then-reassert catches the
-class of "optimistic update masks a backend write failure" bug.
-
-**How it's tested.** Real backend, one seeded asset. Use Testing Library
-roles to find the tag input and licence selector. After save, call
-`page.reload()` and re-query the same elements.
-
-### 6. OIDC sign-in callback
-
-**What.** With the server in OIDC mode, navigate to `/auth/callback`
-with a stub `code`+`state`, expect the SPA to exchange and land on
-`/library`.
-
-**Why high-value.** OIDC is one of two supported auth modes and has
-zero E2E coverage today. The full code-exchange dance is hard to fake,
-but the SPA-side callback handling is testable in isolation.
-
-**How it's tested.** Mocked. Stand up either a fake OIDC issuer (e.g.
-`oidc-provider` running in `globalSetup`) or `page.route` the
-`oidc-client-ts` token endpoint to return a synthetic JWT. Skip a
-real provider in CI; the value is in catching SPA-side regressions in
-`LoginCallbackPage` and `lib/oidc.ts`.
-
-The same spec covers sign-out (stored user cleared, redirect to `/login`).
-Sign-out lives in the rail-foot account menu, so the test opens the
-`Account` trigger first and then clicks the `Sign out` **menuitem** — there
-is no top-level sign-out button any more.
-
----
-
-## Tier 3 — nice-to-have (implemented)
-
-- **Project create + pin assets** — exercises the projects CRUD and
-  pin/unpin write path.
-- **Collection create + share link** — collections CRUD + sharing.
-- **Search returns filtered results** — covers the search route and the
-  Postgres `tsvector` index.
-- **Admin audit log visibility** — sysadmin role gating.
-- **Settings persistence** — change a library setting (grid density
-  default), reload, value sticks.
-
----
-
-## Cross-cutting principles
-
-**Real backend over mocked API for tier 1.** Mocked-API tests are fast
-but don't catch contract drift between the SPA and the Go handlers.
-Once we're spinning up the Go binary anyway (a one-time cost in
-`globalSetup`), the marginal cost per real-backend test is small.
-
-**Console-error capture in every flow.** The `noConsoleErrors` fixture
-in `web/e2e/fixtures.ts` should be opt-in for any flow that doesn't
-intentionally exercise an error path. Most upgrade regressions surface
-as silent console errors first.
-
-**Stable selectors via roles, not test IDs.** Prefer
-`getByRole('button', { name: /sign in/i })` over `data-testid`. Test
-IDs rot; roles double as accessibility checks.
-
-**Flake budget.** Target 0% flake. If a test starts flaking, fix the
-test or the underlying race — never add a `waitFor(timeout)`. Use
-Playwright's auto-waiting locators and `expect(...).toPass()` where
-genuine retries are needed.
-
-**A11y and visual regression deferred here.** Both are valuable but lower
-priority than flow coverage in *this* suite. Note that a11y is not
-uncovered: every `*.stories.tsx` runs in real Chromium under Vitest with
-axe-core checks at `a11y.test = "error"` (`just test stories`). Visual
-regression remains unowned.
-
----
-
-## Deliberately not covered: chunked uploads
-
-The resumable transport (`docs/architecture.md` section 8.0) has no
-Playwright flow, and that is a decision rather than a gap.
-
-Triggering it needs a file at or above the 256 MiB threshold. Generating
-one per run costs more than the whole suite's runtime budget, and
-lowering the threshold for tests would mean shipping a test-only code
-path through the exact logic the test is meant to prove.
+The resumable transport (`docs/architecture.md` section 8.0) has no Playwright flow, by decision.
+Triggering it needs a file at or above `CHUNKED_UPLOAD_THRESHOLD` (`web/src/lib/chunkedUpload.ts`).
+Generating one per run costs more than the suite's runtime budget, and lowering the threshold for
+tests would ship a test-only path through the logic the test is meant to prove.
 
 What covers it instead:
 
-- `web/src/lib/chunkedUpload.test.ts` — the browser half against a
-  recorded fetch: chunk boundaries and ordering, the dedupe
-  short-circuit, resume from stored state, retry on a transient failure,
+- `web/src/lib/chunkedUpload.test.ts` — the browser half against a recorded fetch: chunk boundaries
+  and ordering, the dedupe short-circuit, resume from stored state, retry on a transient failure,
   no retry on a rejected chunk, abort.
-- `internal/handlers/api/uploads_test.go` — the server half end to end
-  against real Postgres and a real storage backend, with the chunk size
-  injected small so a few dozen bytes exercise the multi-chunk path.
-- `internal/services/storage/multipart_test.go` — one contract run
-  against both storage backends.
-- `cmd/dmsn/chunked_test.go` — the CLI half against a fake session
-  server.
+- `internal/handlers/api/uploads_test.go` — the server half against real Postgres and storage, with
+  the chunk size injected small so a few bytes exercise the multi-chunk path.
+- `internal/services/storage/multipart_test.go` — one contract run against both storage backends.
+- `cmd/dmsn/chunked_test.go` — the CLI half against a fake session server.
 
-What that leaves genuinely unproven in a browser: the Web Worker hashing
-path (jsdom cannot run the WASM, so the unit test stubs the worker), and
-`Blob`-body streaming under a real network stack. Both are worth a manual
-pass against a real large file before trusting a release.
+Still unproven in a browser: the Web Worker hashing path (the unit test stubs the worker), and
+`Blob`-body streaming under a real network stack. Both are worth a manual pass against a real large
+file before trusting a release.
+
+## Traps
+
+- **Add a new table to `dataTables` in `cmd/e2e-server/main.go`.** Reset truncates that list
+  (`CASCADE` reaches tables with a foreign key into it) rather than re-migrating, so a table outside
+  both keeps its rows from one test into the next.
+- **Don't assume reset clears stored objects.** It clears the database only; blobs persist in
+  `E2E_DATA_DIR` (default `web/e2e/.e2e-data`) across tests and runs, so a re-uploaded fixture can
+  dedupe onto an object an earlier test wrote.
+- **Stop `just dev` / `just backend` before `just test e2e`.** Outside CI Playwright reuses whatever
+  already answers on `:8080` and `:5173`: the dev server listens on the same port, and a leftover
+  e2e-server runs the old code.
+- **Don't write a spec that needs store lookups or metadata enrichment.** The e2e server does not
+  wire them, so those endpoints answer 503.
+- **List `noConsoleErrors` in the test's arguments.** It is opt-in, not automatic; a happy-path spec
+  without it lets console errors, the first sign of most upgrade regressions, pass.
+- **Wait on a response or a locator, never `waitForTimeout`.** Use `page.waitForResponse` or the
+  auto-waiting `expect`; a sleep turns a race into a flake.
+- **Select by role, not `data-testid`.** Roles double as an accessibility check.
+- **Bump the Woodpecker e2e image with `@playwright/test`.** The `mcr.microsoft.com/playwright` tag
+  in `.woodpecker.yml` must match the version in `web/package.json` exactly, or the bundled browsers
+  are not found.

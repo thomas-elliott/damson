@@ -117,6 +117,9 @@ built-vs-not-built answerable by location rather than by reading.
 
 ## Ideas  (unshaped maybes — one to three lines each)
 
+- **Adopt the package's `Chip`, `Tag` and `SegmentedControl`** — `@telliott/shared-ui` exports all
+  three, Damson hand-writes its own, and nothing records why. Move onto the package, or find the
+  divergence and record it beside Input/Textarea in `design-system.md`. Unscoped.
 - **Local auth hardening** — in-memory rate limiting only (no shared store across replicas), no MFA,
   a minimum-length password floor and nothing else. Fine for dev and small installs, which is what
   it is documented as; a real multi-replica deployment changes that. Unscoped.
