@@ -277,6 +277,9 @@ export const EditingOverview: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "Edit" }));
     await expect(await canvas.findByLabelText("Name")).toBeVisible();
     await expect(await canvas.findByText(/Metadata from Unity Asset Store/)).toBeVisible();
+    // The description editor loads lazily; wait for it so the a11y check
+    // always sees it, not only when the chunk happens to arrive in time.
+    await expect(await canvas.findByRole("textbox", { name: "Description" })).toBeVisible();
   },
 };
 
