@@ -13,39 +13,8 @@ Names follow a canonical vocabulary — `build`, `test`, `lint`, `format`, `chec
 `clean`, `dev`, `install` — with the backend/frontend split as the second word
 (`lint backend` / `lint frontend`). Reach for the umbrella when in doubt.
 
-| Recipe | Purpose |
-|---|---|
-| `just` | lists every recipe |
-| `just install` | Go modules + pnpm + Playwright browsers (fresh clone) |
-| `just dev` | Go API + Vite SPA in parallel |
-| `just backend` | Go API only, `air` hot-reload |
-| `just frontend` | Vite dev server only |
-| `just build` | SPA + Go production binary |
-| `just build frontend` | Build SPA into `web/static` (`tsc -b` + vite build) |
-| `just build cli` | Build the `dmsn` CLI |
-| `just check` | full preflight: `check fast` + build frontend + unit + e2e |
-| `just check fast` | read-only, no database: lint + format check + tidy |
-| `just check tidy` | `go mod tidy` + fail on `go.mod` / `go.sum` drift |
-| `just lint` | `go vet` + eslint (`lint backend`, `lint frontend`) |
-| `just format` | `go fmt` + prettier --write (`format backend`, `format frontend`) |
-| `just format check` | verify formatting without writing |
-| `just test` | everything: unit + e2e |
-| `just test unit` | Go (Postgres-backed) + Vitest unit |
-| `just test backend [ARGS]` | Go tests; ARGS narrows to a package or a test |
-| `just test frontend [FILE]` | Vitest unit project (jsdom, fast); FILE runs one file |
-| `just test stories` | Vitest storybook project — every `*.stories.tsx` in real Chromium with axe a11y |
-| `just test e2e [ARGS]` | Playwright (boots Postgres + e2e-server + vite internally); ARGS goes to Playwright, so `--ui` gets the interactive runner |
-| `just test watch` | Vitest watch mode |
-| `just test coverage` | Coverage report |
-| `just storybook` | Storybook dev server (port 6006) |
-| `just storybook-build` | Static Storybook build (smoke test) |
-| `just clean` | remove build artefacts |
-| `just image-build` | Container image |
-| `just release {patch,minor,major}` | Tag a release |
-
-**`just check` is the full preflight.** It replaced `task ci`; what `task check` used
-to do is now `just check fast`. The full one is what CI gates on, so reaching for the
-fast one before a push is what lets a red build through.
+**`just check` is the full preflight** and what CI gates on. `just check fast` skips the build
+and the tests, so running only it before a push is what lets a red build through.
 
 Go tests need Postgres. `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` itself,
 defaulting to the shared local instance on 5432 via the `damson_test` database, and
@@ -75,28 +44,34 @@ API handlers are receiver methods on a shared exported `Handler` struct that car
 Access the current user with `auth.GetUser(c)`.
 
 ### Error responses
-Use `ctx.AbortWithStatusJSON(status, gin.H{"error": msg})`.
+Respond through the helpers in `helpers.go` (`respond400/400Msg/404/409/500`, `respondForbidden`; `respondGORM` for transaction errors). Never call `AbortWithStatusJSON` for a 4xx/5xx with a cause: only `respond400`/`respond500` attach it via `c.Error`, which is what puts `err` on the request log line.
 
 - `400` — bad request (e.g. validation failure) — include `err.Error()`
-- `401` — unauthorized (middleware)
+- `401` — unauthenticated
+- `403` — forbidden (`respondForbidden`)
 - `404` — not found
 - `409` — conflict
 - `500` — internal error — use the generic string `"internal error"`, don't leak internals
 
-Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic for request-level failures; reserve panics for startup config (`MustGetEnv`).
+Rarer statuses have their own homes: upload transport failures (413, 408, 507, …) go through
+`respondUploadFailure` in `upload_errors.go`; store-metadata errors through `respond502`/`respond503`
+in `metadata.go`.
+
+Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic. Startup failures log with `slog.Error` and `os.Exit(1)`.
 
 ### Database patterns
 - GORM models live in `internal/models/`. Each model implements `TableName() string` so the production table name is explicit and survives a struct rename (e.g. `Asset` → `assets`, `LibraryMembership` → `library_memberships`).
-- IDs are `uint` with `gorm:"primarykey;auto_increment;not_null"`.
+- IDs are `uint` with `gorm:"primarykey;auto_increment;not_null"`. Singleton settings rows are the exception (`ServerSettings` is `primarykey;default:1`).
 - Timestamps are `time.Time` fields populated by GORM.
 - Response shapes that differ from DB rows (enriched views, joins) use dedicated view models — see `assetGridRow` / `meResponse` / `libraryMembershipView` and similar.
 - Prefer the GORM query builder (`Find`, `Where`, `Preload`, `Joins`, `Scan`); use `Table` + `Select` for joins. Raw SQL only when necessary.
-- Complex queries use **lateral joins + batch loading**: fetch IDs first, then load relations in bulk to avoid N+1.
+- Complex queries use **batch loading**: fetch IDs first, then load relations in bulk to avoid N+1.
 
 ### Tests
-Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers are in `internal/handlers/api/api_test.go`:
+Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers live in the package's `*_test.go` files — the core ones in `api_test.go`, seed helpers beside the feature they seed:
 
 - `newTestHandler(t)` — returns `(*Handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires `DAMSON_TEST_POSTGRES_DSN` (see `docs/architecture.md` §4.6)
+- Import and preview pools are synchronous (`NewSync`), so a 202 import is already terminal when the handler returns; River's async behaviour is only exercised by e2e.
 - `newTestHandlerLocal(t)` — same but in local-auth mode, with a `*auth.LocalAuthenticator` returned alongside
 - `setupRouter(h, asUser)` — registers routes under `/api`; bypasses real auth by injecting `asUser` via `auth.SetUserForTest`
 - `performGET(r, path)`, `performRequest(r, method, path, body)` — issue requests
@@ -134,11 +109,12 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 ### API layer (`src/api.ts`)
 - `fetchJson<T>(url, options)` is the main wrapper: attaches bearer token, handles 401 via silent token renewal with single-flight deduping, retries once, parses JSON, and throws `ApiError` on non-2xx.
 - `uploadFile(url, file, onProgress?)` handles multipart uploads with XHR progress events (fetch lacks upload progress).
+- `fetchMaybeJson` is the same for responses that may have no body (204); `fetchBlob` for binary downloads.
 - Error types: `ApiError` (with status), `AuthRedirectError` (401 after renewal fails — triggers redirect to login). Narrow with `isAuthRedirectError(err)`.
-- Don't call `fetch` directly from components; always go through these helpers so auth/renewal behavior is consistent. (Two exceptions in `lib/authMode.ts` and `lib/localAuth.ts` — they're public, pre-auth endpoints that can't depend on the wrapper.)
+- Don't call `fetch` directly from components; always go through these helpers so auth/renewal behavior is consistent. Exceptions live in `lib/` and `hooks/` only: the pre-auth calls (`lib/authMode.ts`, `lib/localAuth.ts`), SSE (`fetchEventSource` in `hooks/use*Events.ts`) and the chunk uploader (`lib/chunkedUpload.ts`). The SSE hooks and the uploader attach the bearer themselves and get no 401 renewal.
 
 ### Auth / OIDC
-- Env vars (Vite): `VITE_OIDC_AUTHORITY`, `VITE_OIDC_CLIENT_ID`, `VITE_OIDC_SCOPE`, `VITE_OIDC_REDIRECT_URI`, `VITE_OIDC_SILENT_REDIRECT_URI`, `VITE_OIDC_POST_LOGOUT_REDIRECT_URI`.
+- OIDC client config comes from `GET /api/auth/mode` at runtime (`lib/oidc.ts`); there are no build-time OIDC env vars.
 - `automaticSilentRenew: true` — token refresh happens transparently in the background.
 - Never log tokens or raw session values.
 
@@ -157,7 +133,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
   - **`unit`** — `jsdom`, globals enabled, setup file `src/test/setupTests.ts`, pattern `src/**/*.{test,spec}.{ts,tsx}`. Run with `just test frontend`.
   - **`storybook`** — real Chromium via Playwright and `@storybook/addon-vitest/vitest-plugin`; every `*.stories.tsx` runs as a test with axe-core a11y checks (`a11y.test = "error"`). Run with `just test stories`.
 - Libraries: `@testing-library/react`, `@testing-library/user-event` for the unit project; `storybook/test` helpers for story interactions.
-- Browsers are installed via `npx playwright install chromium`; the cache lives at `~/Library/Caches/ms-playwright/` on macOS.
+- Browsers come from `just install`; the cache lives at `~/Library/Caches/ms-playwright/` on macOS.
 
 ---
 
@@ -167,17 +143,16 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Naming: `NNN_descriptive_name.sql` (zero-padded 3-digit sequence). Example: `002_tags.sql`.
 - Each migration is wrapped in `BEGIN; ... COMMIT;`.
 - Use `IF NOT EXISTS` for idempotency.
-- Primary keys: `bigserial PRIMARY KEY`. Timestamps: `timestamptz NOT NULL DEFAULT now()`.
-- Migrations are SQL-only — no Go migration framework. See `internal/db/migrate.go` for the runner (advisory lock + `schema_migrations` tracking).
+- Primary keys: `bigserial PRIMARY KEY`. `created_at` / `updated_at` are `timestamptz NOT NULL DEFAULT now()`. Event timestamps are nullable `timestamptz`.
+- Migrations are SQL-only — no Go migration framework. See `internal/db/migrate.go` for the runner (advisory lock + `schema_migrations` tracking). The file is recorded only after its own COMMIT, so a crash in between re-runs it. Data `UPDATE`s must be idempotent too.
 - River's `river_*` tables are the exception: River owns that schema and migrates it from `queue.New`. Don't hand-write migrations for them.
-- Schema changes must land in BOTH the SQL migration AND the corresponding GORM struct tag — production and tests both run the SQL migrations, but GORM still maps columns from the struct tags, so a migration/tag mismatch surfaces at runtime (and now in tests). See `docs/architecture.md` §4.6.
+- Schema changes must land in BOTH the SQL migration AND the GORM struct. A `default:` tag makes GORM omit a zero value on Create, so writing `false` to a default-true column needs an explicit `Update`.
 
 ## Docker & Release
 
-**Dockerfile** (three-stage, no CGo):
-1. `node:24-alpine` — `pnpm install --frozen-lockfile` + `vite build` → `web/static/`
-2. `golang:1.26-alpine` — `CGO_ENABLED=0 go build` with `-ldflags="-s -w"`, embedding the built SPA via `go:embed`
-3. `alpine:3.20` runtime — `ca-certificates` + `tzdata`, non-root `damson` user, `HEALTHCHECK` hitting `/api/health`
+**`Dockerfile`** is three-stage with no CGo: the SPA build into `web/static/`, a static Go build that
+embeds it via `go:embed`, and a minimal runtime as a non-root `damson` user with a `HEALTHCHECK` on
+`/api/health`. Base-image versions live in the Dockerfile.
 
 **CI/CD is Woodpecker** (`.woodpecker.yml`), not GitHub Actions. A push to `main` runs the full suite then builds and pushes `ghcr.io/thomas-elliott/damson:main-<sha>` and bumps the test environment's kustomize tag. Pushing a `v*.*.*` tag does **not** rebuild — it promotes that already-tested `main-<sha>` image to the `{version}`, `{major}.{minor}` and `{major}` tags with `crane`, then bumps prod. So a tag is only releasable if its commit was previously built on `main`.
 
