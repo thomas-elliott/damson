@@ -14,7 +14,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
-// maxGalleryImages caps how many gallery images one fetch/enrich stores.
+// maxGalleryImages caps how many gallery images one asset holds.
 const maxGalleryImages = 8
 
 // imageFetcher is the download surface gallery storage needs — the minimal
@@ -45,7 +45,7 @@ func StoreGalleryImages(ctx context.Context, db *gorm.DB, store storage.Service,
 	order := len(existing)
 
 	gen := &thumbnail.Generator{Storage: store}
-	stored := 0
+	stored := len(existing)
 	for _, u := range urls {
 		if stored >= maxGalleryImages {
 			break

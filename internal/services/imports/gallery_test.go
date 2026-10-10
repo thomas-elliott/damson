@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -115,5 +116,33 @@ func TestRepairGallery_LeavesRowsAloneWhenStorageIsNotTheDatabases(t *testing.T)
 	var kept models.AssetImage
 	if err := db.First(&kept, row.ID).Error; err != nil || kept.ObjectKey != gallery {
 		t.Errorf("gallery row was dropped or rewritten: %v", err)
+	}
+}
+
+// The cap is per asset: images already stored count towards it, so a later
+// fetch tops the gallery up to the cap and no further.
+func TestStoreGalleryImages_CapCountsImagesAlreadyStored(t *testing.T) {
+	db := enrichTestDB(t)
+	ctx := context.Background()
+	store, err := storage.NewLocalFS(t.TempDir(), "")
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	asset := seedEnrichAsset(t, db, "Pack", false)
+
+	var urls []string
+	for i := range 12 {
+		urls = append(urls, fmt.Sprintf("https://store.example/%d.png", i))
+	}
+	fetch := &pngFetcher{}
+	StoreGalleryImages(ctx, db, store, fetch, asset.ID, urls[:6])
+	StoreGalleryImages(ctx, db, store, fetch, asset.ID, urls)
+
+	var n int64
+	if err := db.Model(&models.AssetImage{}).Where("asset_id = ?", asset.ID).Count(&n).Error; err != nil {
+		t.Fatal(err)
+	}
+	if n != maxGalleryImages {
+		t.Errorf("asset holds %d gallery images, want the cap of %d", n, maxGalleryImages)
 	}
 }
