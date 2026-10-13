@@ -40,7 +40,7 @@ import (
 )
 
 func main() {
-	slog.SetDefault(newLogger())
+	slog.SetDefault(newLogger(os.Stdout))
 	cfg := config.Load()
 
 	if cfg.GinMode != "" {
@@ -536,27 +536,8 @@ func requestLogger() gin.HandlerFunc {
 	}
 }
 
-const (
-	vlMessageKey = "_msg"
-	vlTimeKey    = "_time"
-)
-
-func victoriaLogsKeys(groups []string, a slog.Attr) slog.Attr {
-	// A group attribute called "msg" is data; renaming it would collide with
-	// the record's own message.
-	if len(groups) > 0 {
-		return a
-	}
-	switch a.Key {
-	case slog.MessageKey:
-		a.Key = vlMessageKey
-	case slog.TimeKey:
-		a.Key = vlTimeKey
-	}
-	return a
-}
-
-func newLogger() *slog.Logger {
+// newLogger writes to w, which is os.Stdout outside tests.
+func newLogger(w io.Writer) *slog.Logger {
 	level := slog.LevelInfo
 	switch os.Getenv("DAMSON_LOG_LEVEL") {
 	case "debug":
@@ -569,10 +550,9 @@ func newLogger() *slog.Logger {
 	opts := &slog.HandlerOptions{Level: level, AddSource: true}
 	var h slog.Handler
 	if os.Getenv("DAMSON_LOG_FORMAT") == "text" {
-		h = slog.NewTextHandler(os.Stdout, opts)
+		h = slog.NewTextHandler(w, opts)
 	} else {
-		opts.ReplaceAttr = victoriaLogsKeys
-		h = slog.NewJSONHandler(os.Stdout, opts)
+		h = slog.NewJSONHandler(w, opts)
 	}
 	return slog.New(h).With("service", "damson", "version", readVersion())
 }

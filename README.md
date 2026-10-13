@@ -18,7 +18,7 @@ by Postgres and an S3-compatible object store (or a local filesystem).
 - [`docs/specs/`](docs/specs/) — signed-off specs; post-MVP work is
   spec-driven and each file records the *why* behind one slice
 - [`docs/observability.md`](docs/observability.md) — logging shape and
-  LogsQL queries
+  LogQL queries
 - [`docs/e2e-flows.md`](docs/e2e-flows.md) — Playwright coverage
 - [`docs/archive/`](docs/archive/) — original design documents and
   point-in-time research, kept for historical reference (no longer

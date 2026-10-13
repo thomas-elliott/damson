@@ -14,17 +14,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// captureJSONLogs installs a JSON slog handler wired exactly as newLogger wires
-// the production one, and returns a func yielding the decoded records.
+// captureJSONLogs installs the production logger, writing to a buffer, and
+// returns a func yielding the decoded records.
 func captureJSONLogs(t *testing.T) func() []map[string]any {
 	t.Helper()
+	t.Setenv("DAMSON_LOG_LEVEL", "debug")
+	t.Setenv("DAMSON_LOG_FORMAT", "json")
 	var buf strings.Builder
-	h := slog.NewJSONHandler(&buf, &slog.HandlerOptions{
-		Level:       slog.LevelDebug,
-		ReplaceAttr: victoriaLogsKeys,
-	})
 	prev := slog.Default()
-	slog.SetDefault(slog.New(h))
+	slog.SetDefault(newLogger(&buf))
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
 	return func() []map[string]any {
@@ -43,9 +41,9 @@ func captureJSONLogs(t *testing.T) func() []map[string]any {
 	}
 }
 
-// TestVictoriaLogsKeysRenamesMessageAndTime pins the F3 fix: VictoriaLogs only
-// treats _msg / _time as the message and timestamp, and slog writes msg / time.
-func TestVictoriaLogsKeysRenamesMessageAndTime(t *testing.T) {
+// TestJSONLogsUseSlogsStandardKeys pins the message and timestamp to slog's
+// own msg / time, which is where ops logs and Logs Drilldown look for them.
+func TestJSONLogsUseSlogsStandardKeys(t *testing.T) {
 	records := captureJSONLogs(t)
 	slog.Info("hello", "status", 200)
 
@@ -55,36 +53,16 @@ func TestVictoriaLogsKeysRenamesMessageAndTime(t *testing.T) {
 	}
 	rec := recs[0]
 
-	if got := rec[vlMessageKey]; got != "hello" {
-		t.Errorf("_msg = %v, want %q", got, "hello")
+	if got := rec[slog.MessageKey]; got != "hello" {
+		t.Errorf("msg = %v, want %q", got, "hello")
 	}
-	if _, ok := rec[vlTimeKey]; !ok {
-		t.Errorf("_time missing; got keys %v", keysOf(rec))
+	if _, ok := rec[slog.TimeKey]; !ok {
+		t.Errorf("time missing; got keys %v", keysOf(rec))
 	}
-	// The negative half: a stub that emitted both spellings, or none, would
-	// still satisfy the assertions above.
-	if _, ok := rec[slog.MessageKey]; ok {
-		t.Errorf("bare %q must not survive the rename; got keys %v", slog.MessageKey, keysOf(rec))
-	}
-	if _, ok := rec[slog.TimeKey]; ok {
-		t.Errorf("bare %q must not survive the rename; got keys %v", slog.TimeKey, keysOf(rec))
-	}
-	if got := rec["status"]; got != float64(200) {
-		t.Errorf("unrelated attrs must pass through untouched; status = %v", got)
-	}
-}
-
-// TestVictoriaLogsKeysLeavesGroupAttrsAlone guards the len(groups) check: an
-// attribute a handler happens to call "msg" inside a group is data, and
-// renaming it would collide with the record's real message.
-func TestVictoriaLogsKeysLeavesGroupAttrsAlone(t *testing.T) {
-	nested := victoriaLogsKeys([]string{"req"}, slog.String("msg", "payload"))
-	if nested.Key != "msg" {
-		t.Errorf("group attr key = %q, want it left as %q", nested.Key, "msg")
-	}
-	top := victoriaLogsKeys(nil, slog.String("msg", "payload"))
-	if top.Key != vlMessageKey {
-		t.Errorf("top-level attr key = %q, want %q", top.Key, vlMessageKey)
+	for _, old := range []string{"_msg", "_time"} {
+		if _, ok := rec[old]; ok {
+			t.Errorf("%q must not appear; got keys %v", old, keysOf(rec))
+		}
 	}
 }
 
@@ -102,7 +80,7 @@ func runRequest(t *testing.T, req *http.Request, handler gin.HandlerFunc) *httpt
 }
 
 // TestRequestLoggerComposesMessage covers F4: a static msg="request" carries no
-// information once it lands on _msg.
+// information once it lands on the message.
 func TestRequestLoggerComposesMessage(t *testing.T) {
 	records := captureJSONLogs(t)
 
@@ -114,12 +92,12 @@ func TestRequestLoggerComposesMessage(t *testing.T) {
 	if len(recs) != 1 {
 		t.Fatalf("a non-upload request must log exactly once, got %d", len(recs))
 	}
-	msg, _ := recs[0][vlMessageKey].(string)
+	msg, _ := recs[0][slog.MessageKey].(string)
 	if !strings.HasPrefix(msg, "POST /api/imports → 202 in ") {
-		t.Errorf("_msg = %q, want the composed form", msg)
+		t.Errorf("msg = %q, want the composed form", msg)
 	}
 	if msg == "request" {
-		t.Errorf("_msg must not be the old static string")
+		t.Errorf("msg must not be the old static string")
 	}
 	if got := recs[0]["status"]; got != float64(202) {
 		t.Errorf("structured status = %v, want 202 (fields must stay queryable)", got)
@@ -187,8 +165,8 @@ func TestRequestLoggerEmitsUploadStartLine(t *testing.T) {
 	if got := start["phase"]; got != "start" {
 		t.Errorf("start line phase = %v, want %q", got, "start")
 	}
-	if msg, _ := start[vlMessageKey].(string); msg != "POST /api/imports → upload started" {
-		t.Errorf("start _msg = %q", msg)
+	if msg, _ := start[slog.MessageKey].(string); msg != "POST /api/imports → upload started" {
+		t.Errorf("start msg = %q", msg)
 	}
 	if got := start["content_length"]; got != float64(len("payload")) {
 		t.Errorf("start content_length = %v, want %d", got, len("payload"))
