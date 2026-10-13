@@ -12,20 +12,30 @@ output.
 Every line carries `service=damson`, a `version` (module version or VCS
 revision), and `source` (file:line) via `AddSource`.
 
-### Field names
+### Field names: `_msg` and `_time`
 
-The JSON handler keeps slog's own keys: the message is `msg` and the timestamp
-`time`. Those are among the message fields `ops logs` and Logs Drilldown look
-for, so nothing is renamed.
+The JSON handler renames slog's two special keys — `msg` → `_msg` and `time` →
+`_time` — via `ReplaceAttr` (`victoriaLogsKeys` in `cmd/server/main.go`). Those
+are the field names VictoriaLogs treats as the native message and timestamp; a
+line without `_msg` is ingested but shows up empty in VL's default view and
+trips its `missing _msg field` warning.
+
+Doing the rename at the source makes it collector-independent: it does not
+depend on the cluster's ingest URL setting `_msg_field=msg`, which the shared
+`k8s-monitoring` chart does not do and which is not ours to change.
+
+The rename is skipped for the text handler (local dev reads better as plain
+`msg=`) and for attributes nested inside an `slog` group — a group attribute
+called `msg` is data, not the record's message.
 
 ## Request logging
 
 `requestLogger` (`cmd/server/main.go`) emits one line when any request
 finishes, plus a start line for requests carrying a file body.
 
-`msg` is composed per request — `POST /api/imports → 202 in 431ms` — rather
-than a static `"request"`, so the message column is readable without a
-`line_format`. Filter on the structured fields, not on `msg`:
+`_msg` is composed per request — `POST /api/imports → 202 in 431ms` — rather
+than a static `"request"`, so VL's message column is readable without adding
+`| fields`. Filter on the structured fields, not on `_msg`:
 
 - `method`, `path`, `status`, `duration_ms`, `remote_ip`, `bytes_out`
 - `bytes_in` — bytes actually **read from the request body**, not
@@ -86,44 +96,46 @@ Because the DB row is the durable source of truth in both cases, a log line
 is a *diagnostic*, not the record — to ask "what failed and why", query
 `asset_imports.error` / `preview_status` rather than reconstructing from logs.
 
-## Shipping to Loki
+## Shipping to VictoriaLogs
 
 Damson runs on the k8s cluster, where the cluster-wide Alloy collector
 (the `k8s-monitoring` chart) already tails every pod's stdout and pushes it to
-Loki — no per-app collector or config is needed. Loki stores the JSON line as
-written; `| json` in a query turns its keys (`level`, `status`, `path`,
-`duration_ms`, `request_id`, `err`, …) into fields to filter on. Loki also
-detects each line's level, as `detected_level`.
+VictoriaLogs — no per-app collector or config is needed. VictoriaLogs
+auto-parses the JSON line into queryable fields. Damson emits `_msg` and
+`_time` itself (see "Field names" above), so the message and timestamp land on
+VL's native fields regardless of the chart's `_msg_field` configuration. The
+remaining slog keys (`level`, `status`, `path`, `duration_ms`, `request_id`,
+`err`, …) become queryable fields as-is.
 
 Logs are scoped by k8s namespace: `damson-prod` (prod) and `damson-test`
 (test).
 
-### Useful LogQL queries
+### Useful LogsQL queries
 
-```logql
+```logsql
 # Every server error with its cause and correlation id
-{namespace="damson-prod"} | json | status >= 500 | line_format "{{.path}} {{.err}} {{.request_id}} {{.user_id}}"
+namespace:="damson-prod" status:>=500 | fields _time, path, err, request_id, user_id
 
 # Trace one request end-to-end
-{namespace="damson-prod"} | json | request_id = "<id from the X-Request-Id response header>"
+namespace:="damson-prod" request_id:"<id from the X-Request-Id response header>"
 
 # Upload failures, direct and chunked (the async pipeline is the next query)
-{namespace="damson-prod"} | json | path =~ "/api/imports.*" | status >= 500 | line_format "{{.err}} {{.request_id}}"
+namespace:="damson-prod" path:"/api/imports" status:>=500 | fields _time, err, request_id
 
 # Async import pipeline failures
-{namespace="damson-prod"} | json | msg = "imports: pipeline failed" | line_format "{{.import_id}} {{.library_id}} {{.reason}}"
+namespace:="damson-prod" _msg:"imports: pipeline failed" | fields _time, import_id, library_id, reason
 
 # Background job failures across the queues (preview failures are warn, not error)
-{namespace="damson-prod"} | json | level =~ "ERROR|WARN" | msg =~ ".*(queue|preview|imports).*"
+namespace:="damson-prod" level:in("ERROR", "WARN") _msg:~"queue|preview|imports" | fields _time, _msg, err, reason
 
-# Slowest requests in the last hour (a metric query: set the range to 1h)
-topk(20, max_over_time({namespace="damson-prod"} | json | unwrap duration_ms [1h]) by (path))
+# Slowest requests in the last hour
+namespace:="damson-prod" _time:1h | sort by (duration_ms desc) | limit 20
 
 # Uploads that started and never finished — the OOM-kill / proxy-timeout shape.
 # Every start line should have a completion line with the same request_id.
-{namespace="damson-prod"} | json | phase = "start" | line_format "{{.request_id}} {{.path}} {{.content_length}}"
+namespace:="damson-prod" phase:="start" | fields _time, request_id, path, content_length
 
 # How far a failed transfer actually got, and whether the client walked away
-{namespace="damson-prod"} | json | path =~ "/api/imports.*" | status >= 400
-  | line_format "{{.status}} {{.bytes_in}} {{.client_aborted}} {{.err}} {{.request_id}}"
+namespace:="damson-prod" path:"/api/imports" status:>=400
+  | fields _time, status, bytes_in, client_aborted, err, request_id
 ```

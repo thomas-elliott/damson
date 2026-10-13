@@ -536,7 +536,6 @@ func requestLogger() gin.HandlerFunc {
 	}
 }
 
-// newLogger writes to w, which is os.Stdout outside tests.
 func newLogger(w io.Writer) *slog.Logger {
 	level := slog.LevelInfo
 	switch os.Getenv("DAMSON_LOG_LEVEL") {
