@@ -4,6 +4,11 @@
 # the Go and e2e suites. It binds 55432 so it does not collide with a system
 # Postgres on 5432. To use your own Postgres instead, set DAMSON_POSTGRES_DSN /
 # DAMSON_TEST_POSTGRES_DSN (in `.env` or the environment) and skip this file.
+#
+# The fixed name makes every checkout of the repo, worktrees included, share
+# this one server instead of each starting its own on the same port.
+name: damson
+
 services:
   postgres:
     image: postgres:16-alpine
