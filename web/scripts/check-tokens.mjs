@@ -1,11 +1,8 @@
-// Ported from dialogue-db/web/scripts/check-tokens.mjs. Fix bugs there too.
-//
 // Fails the build on a token name this project has retired, on a raw colour
 // outside tokens.css, on a typing surface below the 16px floor, or on any text
-// below the 12px floor. The vocabulary is the shared contract's
-// (design.smol.cloud/r/tokens.json).
+// below the 12px floor.
 // Colour values live in tokens.css; the scale literals live in globals.css's
-// second @theme block, which is the only thing `shadcn add` will not regenerate.
+// second @theme block.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

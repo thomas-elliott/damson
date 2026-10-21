@@ -18,49 +18,25 @@ Intent: apply the one-line fix that makes the `storybook` Vitest project emit Ta
 what it finds.
 
 Why now: the gate has been green while checking unstyled components since it was added, so
-`a11y.test = "error"` currently proves nothing about colour. The config half is a known one-liner,
-already proven in `shared-design` (`4135476`); the work is the palette decisions behind it.
-`web/vitest.config.ts` replaces `vite.config.ts` rather than extending it, so the `storybook`
-project gets no `@tailwindcss/vite`; the fix is `tailwindcss()` in that project's `plugins`.
+`a11y.test = "error"` currently proves nothing about colour. The config half is a known one-liner;
+the work is the palette decisions behind it. `web/vitest.config.ts` replaces `vite.config.ts`
+rather than extending it, so the `storybook` project gets no `@tailwindcss/vite`; the fix is
+`tailwindcss()` in that project's `plugins`.
 
 Decisions so far: none — that is the point. Measured 2026-08-15, the fix yields 9 failures over 4
 story files and three questions. **(a)** `--subtle-foreground` is used for 10–12px labels on
 `--card` at 3.96–4.34:1, and the tier is documented as deliberately sub-AA decorative — so either
-those labels move to `--muted-foreground`, or the tier is exempted where it is genuinely decorative,
-per `shared-design`'s `TextTiers` precedent. **(b)** a `destructive`-on-`destructive-soft` pairing
-at 4.42:1. **(c)** a Markdown link at 1.13:1 against surrounding body text, which is a link-affordance
-question, not just a colour one. Note `shared-design` darkened its own `--destructive` for (b)-shaped
-reasons; damson overrides that token, so it does not inherit the fix.
+those labels move to `--muted-foreground`, or the tier is exempted where it is genuinely
+decorative. **(b)** a `destructive`-on-`destructive-soft` pairing at 4.42:1. **(c)** a Markdown link
+at 1.13:1 against surrounding body text, which is a link-affordance question, not just a colour
+one.
 
-**(a) now has an upstream answer.** `shared-design` 0.1.7 raised its own `--subtle-foreground` to
-pass AA (`8c7cee3`) rather than exempting the tier. damson overrides the value so it does not inherit
-it, but the estate has taken the decision once — which makes this a question of following or
-diverging, not of deciding from scratch. Pairs with the 0.1.7 uptake below.
+**(a) leans towards raising `--subtle-foreground` to pass AA** rather than exempting the tier, which
+makes it a decision to confirm rather than one to make from scratch.
 
 Spec-ready: no — (c) still needs a decision, and (a) needs confirming rather than taking.
 
-### 2. Contribute damson's icon-slot field API to `@shared/input`
-
-A leading-icon / trailing-slot input is primitive-shaped and not damson-specific, so by the estate's
-own rule it belongs in the registry. The path `IconButton` took. Deferred out of the 0.1.7 uptake
-because it would have blocked that slice on a `shared-design` change; taking it would let damson
-retire three owned primitives (`Input`, `SearchInput`, `Textarea`).
-
-Blocked on nothing but sequencing. Spec-ready: nearly — the API is already designed, because damson
-is running it.
-
-### 3. Tell `shared-design` its `@theme inline` self-mapping is a cycle
-
-The 0.1.7 uptake found that the CLI generates `--radius-md: var(--radius-md)` — the same name on
-both sides — which is invalid at computed-value time and destroys any other declaration of that
-name. Every consumer that deletes the appended reference `:root`, which `consuming.md` instructs
-them to do, silently loses the whole non-colour scale. damson has a local workaround
-(`docs/design-system.md`, **Tailwind mapping**); the fix belongs in `gen-tokens-item.mjs`.
-
-Not damson work, but damson found it and nobody else has hit it yet. Spec-ready: n/a — it is an
-upstream issue, not a slice.
-
-*Nothing else queued. Promote something from `Shaped` when these land.*
+*Nothing else queued. Promote something from `Shaped` when this lands.*
 
 ---
 
@@ -117,9 +93,10 @@ built-vs-not-built answerable by location rather than by reading.
 
 ## Ideas  (unshaped maybes — one to three lines each)
 
-- **Adopt the package's `Chip`, `Tag` and `SegmentedControl`** — `@telliott/shared-ui` exports all
-  three, Damson hand-writes its own, and nothing records why. Move onto the package, or find the
-  divergence and record it beside Input/Textarea in `design-system.md`. Unscoped.
+- **Drop the self-mappings from the first `@theme` block** — `globals.css` still maps
+  `--radius-md: var(--radius-md)` and friends, a cycle the second block papers over by restating the
+  scales as literals. Nothing regenerates the first block any more, so the two could become one.
+  Unscoped.
 - **Local auth hardening** — in-memory rate limiting only (no shared store across replicas), no MFA,
   a minimum-length password floor and nothing else. Fine for dev and small installs, which is what
   it is documented as; a real multi-replica deployment changes that. Unscoped.

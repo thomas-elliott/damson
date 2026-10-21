@@ -17,8 +17,5 @@
     "utils": "@/design-system/utils",
     "hooks": "@/hooks"
   },
-  "iconLibrary": "lucide",
-  "registries": {
-    "@shared": "https://design.smol.cloud/r/{name}.json"
-  }
+  "iconLibrary": "lucide"
 }

@@ -31,7 +31,6 @@ agreed and built.
 | `preview-feasibility-brief.md` | Scoping brief narrowing that survey to a feasible slice | `specs/2026-06-18-file-previews.md` |
 | `preview-feasibility-research-prompt.md` | The research prompt that produced `preview-research.md` | — |
 | `preview-processing-queue-brief.md` | Brief on making preview work observable and retryable | `specs/2026-06-18-preview-processing-queue.md` |
-| `shared-design-adoption.md` | Brief for moving onto the shared design system, measured 2026-08-15 | `specs/history/2026-08-15-shared-design-system.md` |
 | `dependency-audit.md` | Pre-alpha major-version upgrade audit, audited 2026-04-26 | The pre-alpha bump pass. Stale — it predates the SQLite removal and the React Router / Vitest / TypeScript majors |
 
 For the **current** state of the project see:

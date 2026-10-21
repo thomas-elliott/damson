@@ -9,21 +9,16 @@
 
 @import "tailwindcss";
 
-/* Supplies the `animate-in` / `data-[state=open]:` utilities the registry Dialog
-   uses. `shadcn add` installs the package but never writes this import, and the
-   missing classes are silent — the dialog just snaps. */
+/* Supplies the `animate-in` / `data-[state=open]:` utilities Dialog uses. The
+   missing classes are silent — without it the dialog just snaps. */
 @import "tw-animate-css";
-
-/* Tailwind never scans node_modules: without this every @telliott/shared-ui
-   component renders unstyled, with no error. `just lint frontend` guards it. */
-@source "../../node_modules/@telliott/shared-ui/dist";
 
 @plugin '@tailwindcss/typography';
 
 @custom-variant dark (&:is(.dark *));
 
-/* CLI-owned: `shadcn add @shared/tokens` regenerates this block wholesale.
-   Damson's own entries go in the second one below, out of its reach. */
+/* The contract's vocabulary, mapped to tokens.css. Damson's own entries go in
+   the second block below. */
 @theme inline {
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
@@ -102,9 +97,9 @@
 }
 
 /* Damson's block. Tailwind merges @theme blocks with the later one winning, so
- * this is also the only place that can override the generated block above — the
- * contract's scales are restated here as literals because the form it generates,
- * `--radius-md: var(--radius-md)`, is a self-reference that computes to nothing.
+ * this block overrides the one above — the contract's scales are restated here as
+ * literals because the form above, `--radius-md: var(--radius-md)`, is a
+ * self-reference that computes to nothing.
  * See the naming note in tokens.css. */
 @theme inline {
   --color-unknown: var(--unknown);
