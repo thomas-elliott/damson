@@ -44,8 +44,9 @@ _default:
 dev: backend frontend
 
 # A fresh clone runs with no `.env`: the backend defaults to the compose
-# database and a throwaway local admin. Anything set in `.env` or the
-# environment wins over these.
+# database and a throwaway local admin, listening on loopback only, which Vite
+# proxies to. Anything set in `.env` or the environment wins over these.
+DEV_LISTEN_ADDR := "127.0.0.1:8080"
 DEV_PG_DSN := "postgres://damson:damson@localhost:55432/damson?sslmode=disable"
 DEV_ADMIN_EMAIL := "dev@example.com"
 DEV_ADMIN_PASSWORD := "password1"
@@ -63,6 +64,7 @@ backend:
       export DAMSON_LOCAL_ADMIN_EMAIL="{{ DEV_ADMIN_EMAIL }}"
       export DAMSON_LOCAL_ADMIN_PASSWORD="{{ DEV_ADMIN_PASSWORD }}"
     fi
+    export DAMSON_LISTEN_ADDR="${DAMSON_LISTEN_ADDR:-{{ DEV_LISTEN_ADDR }}}"
     command -v air >/dev/null || go install github.com/air-verse/air@{{ AIR_VERSION }}
     exec air
 
