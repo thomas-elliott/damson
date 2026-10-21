@@ -1,6 +1,5 @@
 // Package config loads the server's bootstrap configuration from environment
-// variables. Runtime-editable settings live in the database; see
-// docs/archive/technical-design.md §14.
+// variables. Runtime-editable settings live in the database.
 package config
 
 import (

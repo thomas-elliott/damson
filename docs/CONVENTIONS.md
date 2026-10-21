@@ -154,9 +154,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 embeds it via `go:embed`, and a minimal runtime as a non-root `damson` user with a `HEALTHCHECK` on
 `/api/health`. Base-image versions live in the Dockerfile.
 
-**CI/CD is Woodpecker** (`.woodpecker.yml`), not GitHub Actions. A push to `main` runs the full suite then builds and pushes `ghcr.io/thomas-elliott/damson:main-<sha>` and bumps the test environment's kustomize tag. Pushing a `v*.*.*` tag does **not** rebuild — it promotes that already-tested `main-<sha>` image to the `{version}`, `{major}.{minor}` and `{major}` tags with `crane`, then bumps prod. So a tag is only releasable if its commit was previously built on `main`.
-
-`just release {patch,minor,major}` cuts the tag from an up-to-date `main`; they don't re-run checks locally. Run `just check` yourself first. Note that the Playwright step's image tag must match `@playwright/test` in `web/package.json` exactly — bumping one means bumping the other.
+`just release {patch,minor,major}` cuts the tag from an up-to-date `main`; it doesn't re-run checks locally. Run `just check` yourself first.
 
 Don't commit `web/static/` build output — it's gitignored except for the `.gitkeep` placeholder that lets `//go:embed` succeed when the SPA hasn't been built yet.
 

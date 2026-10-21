@@ -4,8 +4,7 @@ import { File } from "lucide-react";
 import { cn } from "@/design-system/utils";
 
 /**
- * Procedural asset thumbnails — deterministic by seed/palette. Ported from
- * docs/mockup/src/thumbnails.jsx with identical geometry; palette is
+ * Procedural asset thumbnails — deterministic by seed/palette. The palette is
  * caller-provided so fixtures can stay stable across themes.
  */
 

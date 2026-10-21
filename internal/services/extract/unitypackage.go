@@ -1,8 +1,6 @@
 // Package extract handles reading archive formats into flat file manifests
 // suitable for storage as asset_files. The first entry is .unitypackage;
-// .zip support lives alongside it when added.
-//
-// See docs/archive/technical-design.md §9.2 for the format description.
+// .zip support lives alongside it.
 package extract
 
 import (

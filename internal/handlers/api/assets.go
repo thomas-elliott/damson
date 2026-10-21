@@ -265,7 +265,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 	if f.Query != "" {
 		// Prefix-aware to_tsquery, so "pack" matches "package".
 		// The LIKE branch is unreachable: Postgres is the only database, in
-		// tests too (docs/roadmap.md, Ideas: remove it).
+		// tests too.
 		if db.Dialector.Name() == "postgres" {
 			q = q.Where("a.search_vector @@ to_tsquery('simple', ?)", buildPrefixTsQuery(f.Query))
 		} else {

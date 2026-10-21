@@ -73,9 +73,9 @@ file before trusting a release.
 - **Don't assume reset clears stored objects.** It clears the database only; blobs persist in
   `E2E_DATA_DIR` (default `web/e2e/.e2e-data`) across tests and runs, so a re-uploaded fixture can
   dedupe onto an object an earlier test wrote.
-- **Stop `just dev` / `just backend` before `just test e2e`.** Outside CI Playwright reuses whatever
-  already answers on `:8080` and `:5173`: the dev server listens on the same port, and a leftover
-  e2e-server runs the old code.
+- **Kill a leftover e2e-server before `just test e2e`.** Outside CI, Playwright reuses whatever
+  already answers on `:8081` and `:5174`, so a stale server runs the old code. `just dev` uses
+  other ports and can stay up.
 - **Don't write a spec that needs store lookups or metadata enrichment.** The e2e server does not
   wire them, so those endpoints answer 503.
 - **List `noConsoleErrors` in the test's arguments.** It is opt-in, not automatic; a happy-path spec
@@ -83,6 +83,3 @@ file before trusting a release.
 - **Wait on a response or a locator, never `waitForTimeout`.** Use `page.waitForResponse` or the
   auto-waiting `expect`; a sleep turns a race into a flake.
 - **Select by role, not `data-testid`.** Roles double as an accessibility check.
-- **Bump the Woodpecker e2e image with `@playwright/test`.** The `mcr.microsoft.com/playwright` tag
-  in `.woodpecker.yml` must match the version in `web/package.json` exactly, or the bundled browsers
-  are not found.

@@ -366,8 +366,7 @@ func (h *Handler) getDetectLicenceFromFiles(c *gin.Context) {
 }
 
 // pickLicenceCandidate scans the manifest for common licence filenames.
-// Order mirrors docs/archive/technical-design.md §10.1: root-level LICENSE/COPYING
-// variants, case-insensitive.
+// It looks for root-level LICENSE/COPYING variants, case-insensitively.
 func pickLicenceCandidate(files []models.AssetFile) *models.AssetFile {
 	names := []string{"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING", "COPYING.LESSER", "UNLICENSE"}
 	// Prefer root-level (no `/` in the remainder after the package folder).

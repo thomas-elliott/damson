@@ -277,8 +277,8 @@ func (h *Handler) getProjectAudit(c *gin.Context) {
 //     to spot bursts (e.g. "library X had 200 deletions in the last hour")
 //     without joining each library individually.
 //
-// Restricted to sysadmin per docs/archive/technical-design.md §13. The
-// scope=all rows carry library_name so the UI can group by source library.
+// Restricted to sysadmin. The scope=all rows carry library_name so the UI
+// can group by source library.
 func (h *Handler) getAdminAudit(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
