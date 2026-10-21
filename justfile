@@ -43,9 +43,28 @@ _default:
 [parallel]
 dev: backend frontend
 
+# A fresh clone runs with no `.env`: the backend defaults to the compose
+# database and a throwaway local admin. Anything set in `.env` or the
+# environment wins over these.
+DEV_PG_DSN := "postgres://damson:damson@localhost:55432/damson?sslmode=disable"
+DEV_ADMIN_EMAIL := "dev@example.com"
+DEV_ADMIN_PASSWORD := "password1"
+AIR_VERSION := "v1.67.4"
+
 # Go API with air hot-reload
 backend:
-    air
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "${DAMSON_POSTGRES_DSN:-}${DAMSON_POSTGRES_DSN_FILE:-}" ]; then
+      just db up
+      export DAMSON_POSTGRES_DSN="{{ DEV_PG_DSN }}"
+    fi
+    if [ -z "${DAMSON_LOCAL_ADMIN_EMAIL:-}${DAMSON_LOCAL_ADMIN_PASSWORD:-}${DAMSON_LOCAL_ADMIN_PASSWORD_FILE:-}" ]; then
+      export DAMSON_LOCAL_ADMIN_EMAIL="{{ DEV_ADMIN_EMAIL }}"
+      export DAMSON_LOCAL_ADMIN_PASSWORD="{{ DEV_ADMIN_PASSWORD }}"
+    fi
+    command -v air >/dev/null || go install github.com/air-verse/air@{{ AIR_VERSION }}
+    exec air
 
 # Vite dev server for the SPA
 [working-directory('web')]

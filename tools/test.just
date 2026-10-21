@@ -28,10 +28,15 @@ backend *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
     export DAMSON_TEST_POSTGRES_DSN="$(just _test-dsn)"
+    race=-race
+    if ! command -v "$(go env CC)" >/dev/null; then
+      echo "warning: no C compiler ($(go env CC)), so running without -race" >&2
+      race=
+    fi
     if [ -z "{{ ARGS }}" ]; then
-      go test -count=1 -race ./...
+      go test -count=1 $race ./...
     else
-      go test -count=1 -race {{ ARGS }}
+      go test -count=1 $race {{ ARGS }}
     fi
 
 # FILE runs one test file; bare runs the whole unit project.
