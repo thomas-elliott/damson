@@ -54,9 +54,8 @@ For OIDC and S3 see [Configuration](#configuration) below.
 - Node 24+
 - [pnpm](https://pnpm.io) — frontend package manager (run `corepack enable` to
   use the version pinned in `web/package.json`)
-- Postgres 14+ (or higher)
+- Docker with Compose, for the dev Postgres — or your own Postgres 14+
 - [just](https://just.systems) — workflow runner
-- [air](https://github.com/air-verse/air) — Go hot-reload
 - For the Storybook test project: a Chromium install via
   `npx playwright install chromium`
 
@@ -66,20 +65,26 @@ For OIDC and S3 see [Configuration](#configuration) below.
 # 1. clone, then install all deps (Go modules, web deps via pnpm, Playwright browsers):
 just install
 
-# 2. point at a Postgres
-cp .env.example .env
-$EDITOR .env       # set DAMSON_POSTGRES_DSN
-
-# 3. dev loop — backend + Vite SPA in parallel
+# 2. dev loop — Postgres, backend and Vite SPA
 just dev
+
+# 3. in another terminal, optionally load sample packs
+just seed
 ```
 
-Migrations apply on startup. The SPA's first request will hit
-`GET /api/auth/mode` and route you to `/bootstrap` — submit an email +
-password and you're in.
+Open <http://localhost:5173> and sign in as `dev@example.com` / `password1`.
+
+`just dev` needs no configuration. It starts Postgres from `compose.yaml` on
+port 55432, applies migrations, creates that dev admin and installs
+[air](https://github.com/air-verse/air) for Go hot-reload if it is missing. To
+use your own Postgres or a different admin, set `DAMSON_POSTGRES_DSN` or
+`DAMSON_LOCAL_ADMIN_EMAIL` / `DAMSON_LOCAL_ADMIN_PASSWORD` in a `.env` (see
+`.env.example`); those win over the defaults.
 
 `just backend` runs the backend only (no Vite). Useful when you don't need
 SPA changes or you're running Vite separately via `just frontend`.
+
+`just db up`, `down`, `reset` and `psql` manage the dev Postgres directly.
 
 ### Tests
 
