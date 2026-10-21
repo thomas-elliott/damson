@@ -11,21 +11,22 @@
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# Load `.env` into every recipe, so a DSN set there wins over the defaults below.
+set dotenv-load
+
 mod build 'tools/build.just'
 mod check 'tools/check.just'
+mod db 'tools/db.just'
 mod format 'tools/format.just'
 mod lint 'tools/lint.just'
 mod release 'tools/release.just'
 mod test 'tools/test.just'
 
 # Every Go test and the e2e server run against Postgres — there is no SQLite
-# backend. They default to the shared local Postgres on 5432, isolating
-# themselves in a dedicated `damson_test` database rather than a per-project
-# container. CI sets DAMSON_TEST_POSTGRES_DSN to Woodpecker's own
-# `services: postgres` (.woodpecker.yml), which wins over these.
-TEST_PG_DSN := "postgres://postgres:postgres@localhost:5432/damson_test?sslmode=disable"
-TEST_PG_ADMIN_DSN := "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
-TEST_PG_DB := "damson_test"
+# backend. They default to the compose Postgres on 55432 (`just db up`),
+# isolating themselves in a dedicated `damson_test` database. An exported
+# DAMSON_TEST_POSTGRES_DSN, from CI or `.env`, wins over these.
+TEST_PG_DSN := "postgres://damson:damson@localhost:55432/damson_test?sslmode=disable"
 
 _default:
     @just --list --list-submodules
@@ -83,12 +84,12 @@ clean:
     rm -rf web/dist web/e2e/.bin web/storybook-static web/static
 
 # Resolve the DSN the Go suite and the e2e server run against. An explicit
-# DAMSON_TEST_POSTGRES_DSN wins and is left alone; otherwise this creates
-# `damson_test` on the shared local Postgres and prints its DSN. It prints rather
-# than exports because a recipe cannot export into its caller — the callers read
-# it as `DAMSON_TEST_POSTGRES_DSN="$(just _test-dsn)"`.
+# DAMSON_TEST_POSTGRES_DSN wins; otherwise this starts the compose Postgres, which
+# creates `damson_test` on first start. It prints rather than exports because a
+# recipe cannot export into its caller — the callers read it as
+# `DAMSON_TEST_POSTGRES_DSN="$(just _test-dsn)"`.
 
-# Print the test Postgres DSN, creating the database if it is the local default
+# Print the test Postgres DSN, starting the compose Postgres if it is the default
 [private]
 _test-dsn:
     #!/usr/bin/env bash
@@ -97,13 +98,7 @@ _test-dsn:
       echo "$DAMSON_TEST_POSTGRES_DSN"
       exit 0
     fi
-    if command -v psql >/dev/null; then
-      psql "{{ TEST_PG_ADMIN_DSN }}" -c "CREATE DATABASE {{ TEST_PG_DB }}" >/dev/null 2>&1 || true
-    else
-      # Without this the suite fails as `database "{{ TEST_PG_DB }}" does not
-      # exist`, which reads as a broken Postgres rather than a missing client.
-      echo "warning: psql not found — create {{ TEST_PG_DB }} yourself, or set DAMSON_TEST_POSTGRES_DSN." >&2
-    fi
+    just db up >&2
     echo "{{ TEST_PG_DSN }}"
 
 # Task ran this as a `status:` guard on every frontend recipe. `just` always runs

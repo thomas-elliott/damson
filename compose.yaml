@@ -1,0 +1,26 @@
+# Postgres for local development and the test suites — `just db up`.
+#
+# One server holds both databases: `damson` for `just dev` and `damson_test` for
+# the Go and e2e suites. It binds 55432 so it does not collide with a system
+# Postgres on 5432. To use your own Postgres instead, set DAMSON_POSTGRES_DSN /
+# DAMSON_TEST_POSTGRES_DSN (in `.env` or the environment) and skip this file.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: damson
+      POSTGRES_PASSWORD: damson
+      POSTGRES_DB: damson
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./database/dev/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U damson -d damson"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres:
