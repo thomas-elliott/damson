@@ -16,7 +16,8 @@ import { test, expect } from "../fixtures";
 
 const AUTHORITY = "https://oidc-mock.test";
 const CLIENT_ID = "damson-test";
-const REDIRECT_URI = "http://localhost:5173/auth/callback";
+// Port default matches FRONTEND_PORT in playwright.config.ts.
+const REDIRECT_URI = `http://localhost:${process.env.E2E_PORT ?? 5174}/auth/callback`;
 const SCOPE = "openid profile email";
 
 const STATE_ID = "state-per78-fixed";

@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(dirname, "..");
 
-const FRONTEND_PORT = Number(process.env.E2E_PORT ?? 5173);
-const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8080);
+// One above `just dev`'s 5173/8080, so the suite can run while dev is up
+// instead of reusing the dev servers and their database.
+const FRONTEND_PORT = Number(process.env.E2E_PORT ?? 5174);
+const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8081);
 const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 const E2E_DATA_DIR = process.env.E2E_DATA_DIR ?? path.join(dirname, "e2e", ".e2e-data");
@@ -65,13 +67,13 @@ export default defineConfig({
       stdout: "pipe",
       stderr: "pipe",
       env: {
-        E2E_LISTEN_ADDR: `:${BACKEND_PORT}`,
+        E2E_LISTEN_ADDR: `127.0.0.1:${BACKEND_PORT}`,
         E2E_DATA_DIR,
         E2E_BASE_URL: BACKEND_URL,
         // The e2e binary is Postgres-only and requires this DSN; it opens
         // Postgres and runs the SQL migrations. Forwarded from the process
-        // env (set by `just test e2e`, which defaults it to the shared local
-        // Postgres on 5432).
+        // env (set by `just test e2e`, which defaults it to the compose
+        // Postgres on 55432).
         DAMSON_TEST_POSTGRES_DSN: process.env.DAMSON_TEST_POSTGRES_DSN ?? "",
       },
       cwd: repoRoot,
@@ -83,6 +85,7 @@ export default defineConfig({
       timeout: 120_000,
       stdout: "pipe",
       stderr: "pipe",
+      env: { DAMSON_API_PROXY: BACKEND_URL },
       // No OIDC env here: the SPA reads its OIDC config from /api/auth/mode
       // at runtime, which the oidc-callback spec mocks with page.route().
     },
