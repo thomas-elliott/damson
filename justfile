@@ -68,6 +68,12 @@ backend:
     command -v air >/dev/null || go install github.com/air-verse/air@{{ AIR_VERSION }}
     exec air
 
+# Load sample packs into the dev library; run while `just dev` is up
+seed:
+    DAMSON_LOCAL_ADMIN_EMAIL="${DAMSON_LOCAL_ADMIN_EMAIL:-{{ DEV_ADMIN_EMAIL }}}" \
+    DAMSON_LOCAL_ADMIN_PASSWORD="${DAMSON_LOCAL_ADMIN_PASSWORD:-{{ DEV_ADMIN_PASSWORD }}}" \
+    go run ./tools/devseed
+
 # Vite dev server for the SPA
 [working-directory('web')]
 frontend:
