@@ -37,8 +37,8 @@ var allowedThumbContentTypes = map[string]bool{
 //     than rendering — neutralises stored XSS via uploaded HTML/SVG.
 //   - X-Content-Type-Options: nosniff blocks MIME sniffing fallbacks.
 //
-// See docs/archive/technical-design.md §8 (frontend token storage) for why we treat
-// served blobs as hostile content.
+// Served blobs are hostile content because the SPA keeps its bearer in
+// localStorage, where any script on this origin can read it.
 func (h *Handler) getFile(c *gin.Context) {
 	lib := getLibrary(c)
 	key := c.Param("objectKey")

@@ -14,8 +14,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/imaging"
 )
 
-// resampleMaxEdge is the long-edge size of generated thumbnails. 512 matches
-// docs/archive/technical-design.md §11.1.
+// resampleMaxEdge is the long-edge size of generated thumbnails.
 const resampleMaxEdge = 512
 
 // jpegQuality is the encoder quality for photographic thumbnails; PNG is

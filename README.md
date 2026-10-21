@@ -8,22 +8,17 @@ by Postgres and an S3-compatible object store (or a local filesystem).
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — architecture, data
-  model, API surface, shipped decisions
+- [`AGENTS.md`](AGENTS.md) — start here: commands, conventions and the
+  dev loop, for people and coding agents alike
+- [`docs/architecture.md`](docs/architecture.md) — how the system fits
+  together, and the traps
 - [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) — coding standards,
   handler patterns, test helpers
-- [`docs/design-system.md`](docs/design-system.md) — frontend design
-  system spec
-- [`docs/progress.md`](docs/progress.md) — what has landed, slice by slice
-- [`docs/specs/`](docs/specs/) — signed-off specs; post-MVP work is
-  spec-driven and each file records the *why* behind one slice
+- [`docs/design-system.md`](docs/design-system.md) — frontend tokens and
+  primitives
 - [`docs/observability.md`](docs/observability.md) — logging shape and
-  LogQL queries
+  queries
 - [`docs/e2e-flows.md`](docs/e2e-flows.md) — Playwright coverage
-- [`docs/archive/`](docs/archive/) — original design documents and
-  point-in-time research, kept for historical reference (no longer
-  maintained against the code)
-- [`AGENTS.md`](AGENTS.md) — quick-start guidance for agentic coding
 
 ## Quick start (Docker)
 
@@ -174,7 +169,7 @@ Alternatives:
   `services/{audit,extract,licence,storage,thumbnail}`, …)
 - `database/migrations/` — `NNN_*.sql` migrations applied at startup
 - `web/` — React SPA (Vite build output at `web/static/`)
-- `docs/` — architecture, conventions, design system, progress
+- `docs/` — architecture, conventions, design system
 - `damson.go` — module-root file holding the `//go:embed` directives
   for migrations and SPA assets. Lives at the root because
   `//go:embed` cannot traverse upward from `internal/`.
@@ -184,14 +179,10 @@ Alternatives:
 
 ## Releases
 
-CI runs on [Woodpecker](https://woodpecker-ci.org) (`.woodpecker.yml`):
-
-- **push to `main`** — tests → build & push
-  `ghcr.io/thomas-elliott/damson:main-<sha>` + `:latest` → bump the `damson-test`
-  gitops deployment.
-- **tag `v*.*.*`** — promotes the already-built, already-tested `main-<sha>`
-  image to the `{version}`, `{major}.{minor}`, and `{major}` tags (a retag, no
-  rebuild) → bump the `damson` (prod) gitops deployment.
+Images are published to `ghcr.io/thomas-elliott/damson`. A push to `main`
+publishes `main-<sha>` and `latest`; a `v*.*.*` tag promotes the
+already-tested `main-<sha>` image to the `{version}`, `{major}.{minor}` and
+`{major}` tags without a rebuild.
 
 Locally, `just check` runs the same preflight (lint + format check + go.mod tidy +
 SPA build + unit tests + e2e) before you push.

@@ -100,8 +100,7 @@ func BootstrapFirstAdmin(ctx context.Context, db *gorm.DB, u *models.User) error
 var ErrAlreadyBootstrapped = errors.New("already bootstrapped")
 
 // MinPasswordLength is the minimum length we accept for a local-auth
-// password. Local auth is a development/testing-grade credential — see
-// docs/archive/technical-design.md §8.1; OIDC remains the recommended path for any
+// password. Local auth is a development/testing-grade credential; OIDC remains the recommended path for any
 // deployment where account security matters. Eight characters reflects that
 // floor without making the bootstrap flow unusable.
 const MinPasswordLength = 8

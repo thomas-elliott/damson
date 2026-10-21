@@ -20,9 +20,9 @@ are the field names VictoriaLogs treats as the native message and timestamp; a
 line without `_msg` is ingested but shows up empty in VL's default view and
 trips its `missing _msg field` warning.
 
-Doing the rename at the source makes it collector-independent: it does not
-depend on the cluster's ingest URL setting `_msg_field=msg`, which the shared
-`k8s-monitoring` chart does not do and which is not ours to change.
+Doing the rename at the source means it works with any collector, so the
+ingest side does not need to be configured with `_msg_field=msg`. Other log
+stores read the fields as ordinary JSON keys.
 
 The rename is skipped for the text handler (local dev reads better as plain
 `msg=`) and for attributes nested inside an `slog` group — a group attribute
@@ -96,46 +96,44 @@ Because the DB row is the durable source of truth in both cases, a log line
 is a *diagnostic*, not the record — to ask "what failed and why", query
 `asset_imports.error` / `preview_status` rather than reconstructing from logs.
 
-## Shipping to VictoriaLogs
+## Shipping logs
 
-Damson runs on the k8s cluster, where the cluster-wide Alloy collector
-(the `k8s-monitoring` chart) already tails every pod's stdout and pushes it to
-VictoriaLogs — no per-app collector or config is needed. VictoriaLogs
-auto-parses the JSON line into queryable fields. Damson emits `_msg` and
-`_time` itself (see "Field names" above), so the message and timestamp land on
-VL's native fields regardless of the chart's `_msg_field` configuration. The
-remaining slog keys (`level`, `status`, `path`, `duration_ms`, `request_id`,
-`err`, …) become queryable fields as-is.
+Damson writes one JSON object per line to stdout and needs no log config of its
+own. Point whatever collector you run at the container's stdout. VictoriaLogs
+picks up `_msg` and `_time` as its native fields (see "Field names" above).
+Any store that parses JSON can query the remaining slog keys (`level`,
+`status`, `path`, `duration_ms`, `request_id`, `err`, …) as fields.
 
-Logs are scoped by k8s namespace: `damson-prod` (prod) and `damson-test`
-(test).
+### Useful queries
 
-### Useful LogsQL queries
+These are written in LogsQL (VictoriaLogs). Add whatever stream selector your
+setup uses to scope them to one deployment, such as a Kubernetes namespace or
+`service:="damson"`.
 
 ```logsql
 # Every server error with its cause and correlation id
-namespace:="damson-prod" status:>=500 | fields _time, path, err, request_id, user_id
+status:>=500 | fields _time, path, err, request_id, user_id
 
 # Trace one request end-to-end
-namespace:="damson-prod" request_id:"<id from the X-Request-Id response header>"
+request_id:"<id from the X-Request-Id response header>"
 
 # Upload failures, direct and chunked (the async pipeline is the next query)
-namespace:="damson-prod" path:"/api/imports" status:>=500 | fields _time, err, request_id
+path:"/api/imports" status:>=500 | fields _time, err, request_id
 
 # Async import pipeline failures
-namespace:="damson-prod" _msg:"imports: pipeline failed" | fields _time, import_id, library_id, reason
+_msg:"imports: pipeline failed" | fields _time, import_id, library_id, reason
 
 # Background job failures across the queues (preview failures are warn, not error)
-namespace:="damson-prod" level:in("ERROR", "WARN") _msg:~"queue|preview|imports" | fields _time, _msg, err, reason
+level:in("ERROR", "WARN") _msg:~"queue|preview|imports" | fields _time, _msg, err, reason
 
 # Slowest requests in the last hour
-namespace:="damson-prod" _time:1h | sort by (duration_ms desc) | limit 20
+_time:1h | sort by (duration_ms desc) | limit 20
 
 # Uploads that started and never finished — the OOM-kill / proxy-timeout shape.
 # Every start line should have a completion line with the same request_id.
-namespace:="damson-prod" phase:="start" | fields _time, request_id, path, content_length
+phase:="start" | fields _time, request_id, path, content_length
 
 # How far a failed transfer actually got, and whether the client walked away
-namespace:="damson-prod" path:"/api/imports" status:>=400
+path:"/api/imports" status:>=400
   | fields _time, status, bytes_in, client_aborted, err, request_id
 ```
