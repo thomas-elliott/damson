@@ -25,7 +25,7 @@ All workflows go through [just](https://just.systems) (`justfile`, plus modules 
 
 **`just check` is the full preflight, not a quick one.** Run `just check` before pushing — it is what CI gates on.
 
-Run one Go test — `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` for you, defaulting to the shared local Postgres on 5432 via the `damson_test` database:
+Run one Go test — `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` for you, defaulting to the `damson_test` database on the compose Postgres (`:55432`), which it starts if needed:
 
 ```
 just test backend ./internal/handlers/api -run '^TestName$'
@@ -46,7 +46,20 @@ Vitest single-file:
 just test frontend src/path/to/file.test.tsx
 ```
 
-Local dev sign-in (`just dev`, local auth mode) uses a throwaway account — email `dev@example.com`, password `password1`, seeded from `DAMSON_LOCAL_ADMIN_EMAIL` / `DAMSON_LOCAL_ADMIN_PASSWORD` in the gitignored `.env`; a fresh clone must set them there. Not a real credential; it exists so the SPA can be driven end-to-end against the dev server.
+## Running the app
+
+`just dev` needs no `.env`. It starts the compose Postgres, seeds a throwaway local admin — `dev@example.com` / `password1` — and serves the API on `127.0.0.1:8080` and the SPA on <http://localhost:5173>, which proxies `/api` to it. While it is up, `just seed` loads three sample packs into the admin's library. Anything set in `.env` or the environment wins over these defaults. `just db reset` empties both databases.
+
+Driving it as an agent:
+
+1. Start `just dev` as a background process, then poll until `curl -sf localhost:5173/api/health` succeeds. The first run also installs air and the web packages.
+2. Sign in through the SPA with the dev admin. For the API, `POST /api/auth/login` with `{"email","password"}` returns a bearer token, which `dmsn --token` also accepts.
+3. Look at the UI with the Playwright in `web/node_modules`; `just install` fetches its Chromium.
+4. Stop it by killing the whole process group. Killing only `just` leaves Vite holding :5173.
+
+`just test e2e` uses its own servers on 5174/8081 and the `damson_test` database, so it can run while `just dev` is up.
+
+Docker installed as a snap cannot see `/tmp`, so a worktree there cannot start the compose Postgres; keep worktrees under the home directory.
 
 ## Conventions
 
