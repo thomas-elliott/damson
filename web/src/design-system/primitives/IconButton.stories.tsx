@@ -8,10 +8,6 @@ const meta: Meta<typeof IconButton> = {
   component: IconButton,
   args: { "aria-label": "More actions", children: <MoreHorizontal /> },
   argTypes: {
-    variant: {
-      control: { type: "select" },
-      options: ["primary", "secondary", "ghost", "destructive"],
-    },
     size: {
       control: { type: "inline-radio" },
       options: ["sm", "md", "lg"],

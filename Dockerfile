@@ -2,9 +2,8 @@ FROM node:24-alpine AS spa
 WORKDIR /app/web
 RUN corepack enable
 # pnpm version is pinned via the "packageManager" field in package.json.
-# .npmrc (the @telliott scope, read anonymously) and pnpm-workspace.yaml (pnpm's
-# build-script approvals) must land here, not in the `COPY web/ ./` below.
-COPY web/package.json web/pnpm-lock.yaml web/.npmrc web/pnpm-workspace.yaml ./
+# pnpm-workspace.yaml (pnpm's build-script approvals) must land here, not in the `COPY web/ ./` below.
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm run build

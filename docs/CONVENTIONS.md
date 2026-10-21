@@ -119,8 +119,8 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Never log tokens or raw session values.
 
 ### Styling
-- The token **vocabulary** is the shared contract's (`design.smol.cloud/r/tokens.json`); the **values** are Damson's. OKLCH colour values live in `src/design-system/tokens/tokens.css`. Light is the base (`:root`); dark opts in via a `.dark` class on `<html>` (`applyTheme` in `design-system/tokens/`). There is no `data-theme` attribute.
-- The size, radius, motion and elevation scales are **not** in `tokens.css` — they are literals in the second `@theme inline` block of `src/styles/globals.css`, the one block `shadcn add` will not regenerate. `docs/design-system.md` explains why; the short version is that the CLI's generated `--radius-md: var(--radius-md)` is a self-reference that destroys any declaration of that name.
+- The token **vocabulary** is shadcn's, extended; the **values** are Damson's. OKLCH colour values live in `src/design-system/tokens/tokens.css`. Light is the base (`:root`); dark opts in via a `.dark` class on `<html>` (`applyTheme` in `design-system/tokens/`). There is no `data-theme` attribute.
+- The size, radius, motion and elevation scales are **not** in `tokens.css` — they are literals in the second `@theme inline` block of `src/styles/globals.css`. `docs/design-system.md` explains why; the short version is that the first block's `--radius-md: var(--radius-md)` is a self-reference that destroys any declaration of that name.
 - Tailwind's theme exposes the tokens as utility classes (`bg-background`, `bg-card`, `text-muted-foreground`, `text-subtle-foreground`, `border-border`, `bg-primary-soft`, `text-success`, `rounded-md`, `shadow-lg`, …) — prefer these over raw `var(--token)`.
 - `web/scripts/check-tokens.mjs` fails the build on a retired token name, a raw colour outside `tokens.css`, or a typing surface below the 16px floor. It runs as part of `just lint frontend`.
 - `@tailwindcss/typography` for markdown content.

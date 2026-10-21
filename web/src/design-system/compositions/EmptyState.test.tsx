@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { EmptyState } from "@/design-system/compositions/EmptyState";
 
 describe("EmptyState", () => {
-  it("keeps the status role the registry component does not set", () => {
+  it("announces itself as a status", () => {
     render(<EmptyState title="Nothing here" />);
     expect(screen.getByRole("status")).toHaveTextContent("Nothing here");
   });

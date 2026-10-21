@@ -10,7 +10,7 @@ Before making non-trivial changes, read the docs in `docs/`. They describe the c
 
 - `docs/architecture.md` — current architecture and data model
 - `docs/CONVENTIONS.md` — formatting rules, handler patterns, test helpers
-- `docs/design-system.md` — tokens, primitives and the `@telliott/shared-ui` boundary. Read before touching a token, a primitive, `globals.css`'s imports, or bumping the package
+- `docs/design-system.md` — tokens, primitives and the traps. Read before touching a token, a primitive or `globals.css`'s imports
 - `docs/roadmap.md` — what *isn't* built: the queue (`Next`), scoped-but-unqueued work (`Shaped`), unshaped maybes (`Ideas`). Read this before starting a new slice, and before proposing anything — it carries decisions already banked, so `/spec` confirms rather than re-decides
 - `docs/progress.md` — the rejection log (Known gaps) and where the code diverges from the archived drafts. Read before proposing something, so a rejected idea is not re-analysed
 - `docs/specs/` — signed-off specs, `YYYY-MM-DD-slug.md`. Post-MVP work is spec-driven: each file is the agreed scope for one slice, written before implementation and left afterwards as the record of *why* it was built that way. **The top level is what is in flight; `docs/specs/history/` is what shipped**, with its own index README — so built-vs-not-built is answerable by location without reading anything. Never rewrite a spec after the fact: a changed decision is a new dated spec — though appending a `## What implementation found` section to record where the tree disagreed with the plan is encouraged. Shipping a spec — flipping its Status, moving it to `history/` → `docs/specs/history/README.md`. **Do not write into `docs/` during a run** — record what the change made untrue in the spec and leave the docs to `/distil`
@@ -66,7 +66,7 @@ Docker installed as a snap cannot see `/tmp`, so a worktree there cannot start t
 The full rules live in `docs/CONVENTIONS.md`. Load-bearing ones worth keeping in mind while editing:
 
 - **500 always returns the generic `"internal error"`** — never leak internals. Status mapping → `docs/CONVENTIONS.md`, Error responses; the transaction sentinels → `docs/architecture.md`, Request lifecycle.
-- **Never fork a component out of `@telliott/shared-ui` into the tree.** A Damson-specific difference goes in a token override or a wrapper — `design-system/primitives/Button.tsx` is the worked example. `shadcn add` still works as a one-off escape hatch, but it takes that component off the upgrade path, and every install re-appends the contract's reference palette to `globals.css`; delete it, and `just lint frontend` will tell you if you forget.
+- **Delete the palette `shadcn add` appends to `globals.css`.** It lands as an unlayered `:root` / `.dark` that beats `tokens.css` and silently repaints the app; `just lint frontend` will tell you if you forget.
 - **Frontend API discipline.** Never call `fetch` directly from components — go through `fetchJson` / `fetchMaybeJson` in `src/api.ts` so bearer-token attachment, 401 renewal, and `ApiError` shape stay uniform. Query keys live in `lib/queryKeys.ts` only. Data-fetching hooks wrap TanStack Query in `hooks/useDataQueries.ts` and return the normalized `{ data, loading, error, reload }` shape (`useAuthMode` excepted).
 - **Never log tokens or raw session values.** Applies to `slog` debug output, error wraps, anything that might end up in a log collector.
 - **Mirror existing patterns; don't refactor unrelated code.** Focused changes only.

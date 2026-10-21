@@ -41,8 +41,7 @@ Thumbnails and previews are decoded in pure Go (§11). Both binaries build with 
 to open Unity's local purchases cache (`cmd/dmsn/purchases_cache.go`).
 
 **Frontend.** React, TypeScript (strict), Vite, TanStack Query, React Router, Tailwind.
-`@telliott/shared-ui` supplies the contract primitives; Radix plus hand-rolled components under
-`web/src/design-system/` cover the rest (docs/design-system.md).
+Radix plus hand-rolled components under `web/src/design-system/` (docs/design-system.md).
 Two TypeScript compilers are installed side by side: the `typescript` dependency is aliased to
 `@typescript/typescript6`, which is what `tsc -b` runs; `@typescript/native` sits alongside it.
 Check `web/package.json` before assuming which one a given script uses.
@@ -766,8 +765,7 @@ from a `ResizeObserver`-driven hook, and keyboard selection scrolls into view th
 ### 16.6 Design system
 
 `web/src/design-system/`, in three tiers — primitives, compositions, domain — behind the
-`@/design-system` barrel, with contract components from `@telliott/shared-ui`. The contract, the
-package boundary and the traps: `docs/design-system.md`.
+`@/design-system` barrel. The token contract and the traps: `docs/design-system.md`.
 
 ### 16.7 Notification centre
 
