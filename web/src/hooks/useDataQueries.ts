@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/api";
 import { fetchAuthMode, type AuthModeInfo } from "@/lib/authMode";
@@ -155,23 +155,34 @@ function filtersToQuery(f: AssetFilters | undefined): string {
   return s ? `?${s}` : "";
 }
 
-export function useAssets(filters?: AssetFilters, enabled: boolean = true) {
+export interface AssetPage {
+  limit: number;
+  offset: number;
+}
+
+// Without `page` the API's default page applies. With it, the previous page
+// stays on screen while the next one loads; `placeholder` says when that is
+// what `data` and `total` hold.
+export function useAssets(filters?: AssetFilters, enabled: boolean = true, page?: AssetPage) {
+  const params = page ? { ...filters, ...page } : filters;
   const keyed =
-    filters && Object.keys(filters).length > 0
+    params && Object.keys(params).length > 0
       ? (Object.fromEntries(
-          Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""),
+          Object.entries(params).filter(([, v]) => v !== undefined && v !== ""),
         ) as Record<string, string | number | boolean>)
       : undefined;
   const q = useQuery({
     queryKey: queryKeys.assets(keyed),
-    queryFn: () => fetchJson<AssetListResponse>(`/api/assets${filtersToQuery(filters)}`),
+    queryFn: () => fetchJson<AssetListResponse>(`/api/assets${filtersToQuery(params)}`),
     staleTime: 30 * 1000,
     gcTime: 10 * MINUTE,
     enabled,
+    placeholderData: page ? keepPreviousData : undefined,
   });
   return {
     data: q.data?.assets ?? [],
     total: q.data?.total ?? 0,
+    placeholder: q.isPlaceholderData,
     loading: q.isPending,
     error: q.error,
     reload: q.refetch,
