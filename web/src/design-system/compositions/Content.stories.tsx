@@ -27,6 +27,7 @@ import { DetailPanel } from "./DetailPanel";
 import { DropOverlay } from "./DropOverlay";
 import { EmptyState } from "./EmptyState";
 import { FullPageView } from "./FullPageView";
+import { Pager } from "./Pager";
 import { SelectionBar } from "./SelectionBar";
 import { Toolbar, ToolbarSpacer } from "./Toolbar";
 
@@ -222,6 +223,33 @@ export const SelectionBarExample: Story = {
             </>
           }
         />
+      </div>
+    );
+  },
+};
+
+export const PagerExample: Story = {
+  parameters: { layout: "centered" },
+  render: function PagerExampleDemo() {
+    const [page, setPage] = useState(4);
+    const [pageSize, setPageSize] = useState(50);
+    return (
+      <div className="flex flex-col items-start gap-4 bg-background p-4">
+        <Pager
+          aria-label="Interactive pagination"
+          page={page}
+          pageCount={9}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          pageSizes={[25, 50, 100, 200]}
+          onPageSizeChange={(s) => {
+            setPageSize(s);
+            setPage(1);
+          }}
+        />
+        <Pager aria-label="First page" page={1} pageCount={9} onPageChange={() => {}} />
+        <Pager aria-label="Last page" page={9} pageCount={9} onPageChange={() => {}} />
+        <Pager aria-label="Single page" page={1} pageCount={1} onPageChange={() => {}} />
       </div>
     );
   },
