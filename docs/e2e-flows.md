@@ -30,7 +30,8 @@ it intercepts `/api/auth/mode` and the IdP endpoints with `page.route`.
 ## Contract
 
 Covered, one spec per flow in `web/e2e/tests/`: first-run bootstrap and the AuthGuard redirects,
-local login, the library page rendering a seeded asset, a UI upload accepted and shown as a
+local login, the library page rendering a seeded asset, paging through the library with the page
+in the URL (reload, back/forward, page size, clamping, reset on search), a UI upload accepted and shown as a
 placeholder, library switching without leaking the other library's assets, tag and licence edits
 surviving a reload, the OIDC callback and sign-out, project pins, collection add/remove, search,
 sysadmin gating of the audit page, and library settings surviving a reload.
