@@ -326,8 +326,11 @@ carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.
 - **Routes** are in `App.tsx`. `components/Shell.tsx` frames every authenticated page. The asset
   panel is URL-addressable (`/library/:assetId`).
 - **Server state** goes through TanStack Query. Keys live in `lib/queryKeys.ts`, read hooks in
-  `hooks/useDataQueries.ts` and mutations in `hooks/useMutations.ts`. **Filter and search state
-  lives in the URL** (`lib/libraryFilters.ts`).
+  `hooks/useDataQueries.ts` and mutations in `hooks/useMutations.ts`. **Filter, search and paging
+  state lives in the URL** (`lib/libraryFilters.ts`: `page` and `page_size` beside the filters).
+  Anything that changes the filters, search or sort writes through `withPage(search, 1)` so the
+  view starts again from page 1; a page past the end is moved to the last page once the total is
+  known.
 - **API calls** go through `fetchJson` / `fetchMaybeJson` / `fetchBlob` in `src/api.ts`. These
   attach the bearer, renew once on a 401, and throw `ApiError`.
 - **Auth.** The SPA learns the mode from `GET /api/auth/mode` (`useAuthMode()`), and
