@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   FILTERS_OPEN_KEY,
+  DEFAULT_PAGE_SIZE,
   activeFilterCount,
   parseAssetFilters,
+  parsePaging,
   readFiltersOpen,
+  withPage,
   writeFiltersOpen,
 } from "./libraryFilters";
 
@@ -119,5 +122,41 @@ describe("parseAssetFilters — storefront metadata filters", () => {
     // The sort is a visible toolbar control, like the search box.
     expect(activeFilterCount(parse("sort=released_desc"))).toBe(0);
     expect(activeFilterCount(parse("sort=released_desc&store=unity"))).toBe(1);
+  });
+});
+
+describe("parsePaging", () => {
+  const paging = (qs: string) => parsePaging(new URLSearchParams(qs));
+
+  it("defaults to the first page at the default size", () => {
+    expect(paging("")).toEqual({ page: 1, pageSize: DEFAULT_PAGE_SIZE });
+  });
+
+  it("reads the page and an offered page size", () => {
+    expect(paging("page=3&page_size=100")).toEqual({ page: 3, pageSize: 100 });
+  });
+
+  it("falls back to the defaults for invalid values", () => {
+    for (const qs of ["page=0", "page=-2", "page=1.5", "page=abc", "page="]) {
+      expect(paging(qs).page, qs).toBe(1);
+    }
+    // 30 is inside the API's limit but not a size the pager offers.
+    for (const qs of ["page_size=0", "page_size=500", "page_size=30", "page_size=x"]) {
+      expect(paging(qs).pageSize, qs).toBe(DEFAULT_PAGE_SIZE);
+    }
+  });
+
+  it("is not counted as a filter", () => {
+    expect(activeFilterCount(parse("page=2&page_size=25"))).toBe(0);
+  });
+});
+
+describe("withPage", () => {
+  it("sets the page and keeps the other params", () => {
+    expect(withPage(new URLSearchParams("q=castle"), 4).toString()).toBe("q=castle&page=4");
+  });
+
+  it("drops the param for page 1", () => {
+    expect(withPage(new URLSearchParams("q=castle&page=4"), 1).toString()).toBe("q=castle");
   });
 });
