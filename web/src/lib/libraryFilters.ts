@@ -40,6 +40,36 @@ export function parseAssetFilters(search: URLSearchParams): AssetFilters {
   return f;
 }
 
+// The page sizes the pager offers, all inside the API's 1-200 limit.
+export const PAGE_SIZES = [25, 50, 100, 200] as const;
+export const DEFAULT_PAGE_SIZE = 50;
+
+export interface LibraryPaging {
+  /** 1-based. Not clamped to the last page: only the caller knows the total. */
+  page: number;
+  pageSize: number;
+}
+
+// Reads `page` and `page_size`; anything that isn't a positive integer, or a
+// page size the pager doesn't offer, falls back to the default.
+export function parsePaging(search: URLSearchParams): LibraryPaging {
+  const page = Number(search.get("page"));
+  const size = Number(search.get("page_size"));
+  return {
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    pageSize: (PAGE_SIZES as readonly number[]).includes(size) ? size : DEFAULT_PAGE_SIZE,
+  };
+}
+
+// Returns a copy of `search` showing `page`, leaving the param off for page 1
+// so the default view keeps a clean URL.
+export function withPage(search: URLSearchParams, page: number): URLSearchParams {
+  const next = new URLSearchParams(search);
+  if (page > 1) next.set("page", String(page));
+  else next.delete("page");
+  return next;
+}
+
 // Counts the sidebar filters only: the search term has its own visible input,
 // so badging it would flag something already on screen.
 export function activeFilterCount(filters: AssetFilters): number {
