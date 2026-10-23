@@ -7,6 +7,7 @@ export * from "./EmptyState";
 export * from "./FilterSidebar";
 export * from "./FullPageView";
 export * from "./NavRail";
+export * from "./Pager";
 export * from "./ResizeHandle";
 export * from "./Section";
 export * from "./SelectionBar";
