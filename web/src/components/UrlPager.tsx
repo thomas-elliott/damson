@@ -10,19 +10,22 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES, parsePaging, withPage } from "@/lib/libr
  * forward step through pages; a new page size starts again from page 1.
  *
  * A page past the end (a stale link, or entries gone) moves to the last
- * page once `settled` says `total` is the real total for this URL, not a
- * placeholder carried over from the previous one or a failed fetch.
+ * page once `query` has settled, so `total` is the real total for this URL,
+ * not a placeholder carried over from the previous one or a failed fetch.
  */
 export function UrlPager({
   total,
-  settled,
+  query,
+  className,
   "aria-label": ariaLabel,
 }: {
   total: number;
-  settled: boolean;
+  query: { loading: boolean; placeholder: boolean; error: unknown };
+  className?: string;
   "aria-label": string;
 }) {
   const [search, setSearch] = useSearchParams();
+  const settled = !query.loading && !query.placeholder && !query.error;
   const { page, pageSize } = parsePaging(search);
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
@@ -43,6 +46,7 @@ export function UrlPager({
   return (
     <Pager
       aria-label={ariaLabel}
+      className={className}
       page={Math.min(page, pageCount)}
       pageCount={pageCount}
       onPageChange={(next) => setSearch(withPage(search, next))}
