@@ -220,7 +220,6 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/assets/:id/rescan", h.postAssetRescan)
 	scoped.POST("/assets/:id/metadata/fetch", h.postAssetMetadataFetch)
 	scoped.POST("/assets/:id/metadata/apply", h.postAssetMetadataApply)
-	scoped.POST("/assets/:id/metadata/gallery/backfill", h.postAssetGalleryBackfill)
 	scoped.POST("/store-lookups", h.postStoreLookups)
 	scoped.GET("/store-lookups/batches/:id", h.getStoreLookupBatch)
 	scoped.GET("/metadata/preview", h.getMetadataPreview)
@@ -242,7 +241,6 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.GET("/imports", h.getImports)
 	scoped.GET("/imports/events", h.getImportEvents)
 	scoped.GET("/imports/:id", h.getImport)
-	scoped.GET("/imports/:id/events", h.getImportEventsByID)
 	scoped.POST("/imports/:id/retry", h.postImportRetry)
 	scoped.PATCH("/assets/:id/versions/:vid", h.patchAssetVersion)
 	scoped.DELETE("/assets/:id/versions/:vid", h.deleteAssetVersion)
@@ -269,11 +267,9 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.DELETE("/assets/:id/tags/:tagId", h.deleteAssetTag)
 
 	// Licences (M3)
-	scoped.GET("/assets/:id/licence", h.getLicence)
 	scoped.PUT("/assets/:id/licence", h.putLicence)
 	scoped.POST("/assets/:id/licence/review", h.postLicenceReview)
 	scoped.POST("/licences/detect", h.postDetectLicence)
-	scoped.GET("/assets/:id/licence/detect", h.getDetectLicenceFromFiles)
 
 	// Projects (M4)
 	scoped.GET("/projects", h.getProjects)
@@ -294,7 +290,6 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.DELETE("/collections/:id/assets/:assetId", h.deleteCollectionAsset)
 
 	// Search — convenience alias over /assets that always expects `q`.
-	scoped.GET("/search", h.getAssets)
 
 	// Library settings (M5)
 	scoped.GET("/settings", h.getLibrarySettings)
