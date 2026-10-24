@@ -123,3 +123,23 @@ func TestBroadcaster_UnsubscribeDuringPublishDoesNotPanic(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
+
+// Close ends open streams so the server can shut down, and a stream opened
+// after it ends at once.
+func TestBroadcaster_CloseEndsSubscriptions(t *testing.T) {
+	b := NewBroadcaster()
+	open, unsub := b.Subscribe(1)
+
+	b.Close()
+	if _, ok := <-open; ok {
+		t.Fatal("subscription still open after Close")
+	}
+	unsub() // must not close the channel a second time
+	b.Publish(1, Event{ID: 1})
+
+	late, unsubLate := b.Subscribe(1)
+	defer unsubLate()
+	if _, ok := <-late; ok {
+		t.Fatal("subscription opened after Close is not closed")
+	}
+}

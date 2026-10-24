@@ -261,17 +261,28 @@ func main() {
 		}
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	cancelPurge()
-	// Drain in-flight jobs before stopping the HTTP server. Anything still
-	// running when ctx expires is abandoned; the next boot's reconcile picks up
-	// whatever remained non-terminal.
-	if err := jobQueue.Stop(shutdownCtx); err != nil {
-		slog.Warn("queue stop", "err", err)
+	shutdown(srv, jobQueue, 10*time.Second, broadcaster.Close, previewBroadcaster.Close)
+}
+
+// shutdown stops HTTP first, ending the SSE streams so they don't hold it to
+// the timeout, and lets in-flight requests finish enqueueing their jobs. Then
+// it drains the queue. Each step gets its own timeout; work still running
+// when one expires is abandoned, and the next boot's reconcile picks up
+// whatever remained non-terminal.
+func shutdown(srv *http.Server, jobs interface{ Stop(context.Context) error }, timeout time.Duration, closeStreams ...func()) {
+	for _, closeStream := range closeStreams {
+		srv.RegisterOnShutdown(closeStream)
 	}
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	httpCtx, cancelHTTP := context.WithTimeout(context.Background(), timeout)
+	defer cancelHTTP()
+	if err := srv.Shutdown(httpCtx); err != nil {
 		slog.Error("shutdown", "err", err)
+	}
+	queueCtx, cancelQueue := context.WithTimeout(context.Background(), timeout)
+	defer cancelQueue()
+	if err := jobs.Stop(queueCtx); err != nil {
+		slog.Warn("queue stop", "err", err)
 	}
 }
 
