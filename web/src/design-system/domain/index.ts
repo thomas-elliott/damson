@@ -1,6 +1,5 @@
 export * from "./ActivityRow";
 export * from "./AssetCard";
-export * from "./AssetListRow";
 export * from "./AssetThumb";
 export * from "./CollectionCard";
 export * from "./FieldRow";
@@ -20,6 +19,5 @@ export * from "./LicenceBar";
 export * from "./LicencePill";
 export * from "./ProjectCard";
 export * from "./ProjectGlyph";
-export * from "./ProjectListRow";
 export * from "./QueueItem";
 export * from "./VersionItem";
