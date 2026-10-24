@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 
 import { AuditList } from "@/components/AuditList";
@@ -19,7 +18,7 @@ export function AuditPage() {
   const [search, setSearch] = useSearchParams();
   const action = search.get("action") ?? "";
   const q = search.get("q") ?? "";
-  const { page, pageSize } = useMemo(() => parsePaging(search), [search]);
+  const { page, pageSize } = parsePaging(search);
 
   const {
     data: entries,
@@ -83,13 +82,12 @@ export function AuditPage() {
             ) : (
               <AuditList entries={entries} linkTargets />
             )}
-            <div className="mt-2 flex justify-end">
-              <UrlPager
-                aria-label="Audit log pages"
-                total={total}
-                settled={!loading && !placeholder && !error}
-              />
-            </div>
+            <UrlPager
+              aria-label="Audit log pages"
+              className="mt-2 justify-end"
+              total={total}
+              query={{ loading, placeholder, error }}
+            />
           </div>
         </>
       }

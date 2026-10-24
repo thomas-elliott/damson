@@ -50,11 +50,3 @@ var ActionTypes = []string{
 	"admin.server_settings.update",
 	"admin.storage.orphan_delete",
 }
-
-var knownActionTypes = func() map[string]bool {
-	m := make(map[string]bool, len(ActionTypes))
-	for _, a := range ActionTypes {
-		m[a] = true
-	}
-	return m
-}()

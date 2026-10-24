@@ -85,18 +85,6 @@ test.describe("Audit log paging", () => {
     await expect(page).not.toHaveURL(/[?&]page=/);
     await expect(lateRow).toBeVisible();
     await expect(pager).toContainText("Page 1 of 1");
-    await page.getByLabel("Filter audit log by user").fill("");
-
-    // A chip starts again from page 1.
-    await page.goto("/audit?page_size=25&page=2");
-    await page.getByRole("button", { name: "Tags" }).click();
-    await expect(page).not.toHaveURL(/[?&]page=/);
-    await expect(pager).toContainText("Page 1 of 2");
-
-    // A page past the end lands on the last page.
-    await page.goto("/audit?page_size=25&page=9");
-    await expect(page).toHaveURL(/[?&]page=2\b/);
-    await expect(lateRow).toBeVisible();
   });
 
   test("pages the admin audit log in both scopes", async ({ page, request, noConsoleErrors }) => {

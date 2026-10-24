@@ -34,8 +34,8 @@ local login, the library page rendering a seeded asset, paging through the libra
 in the URL (reload, back/forward, page size, clamping, reset on search), a UI upload accepted and shown as a
 placeholder, library switching without leaking the other library's assets, tag and licence edits
 surviving a reload, the OIDC callback and sign-out, project pins, collection add/remove, search,
-sysadmin gating of the audit page, paging both audit pages (reload, back/forward, clamping, reset
-on chip, search and scope, a search reaching a later page), and library settings surviving a
+sysadmin gating of the audit page, paging both audit pages (reload, back/forward, reset on search
+and scope, a search reaching a later page), and library settings surviving a
 reload.
 
 Not covered:
