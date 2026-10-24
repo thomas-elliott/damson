@@ -110,7 +110,7 @@ func (e *ZipExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult, 
 		key, wsize, serr := e.Storage.PutBlob(ctx, io.LimitReader(rc, maxEntry+1), e.EntryMeta)
 		rc.Close()
 		if serr != nil {
-			return nil, fmt.Errorf("put blob %s: %w", f.Name, serr)
+			return nil, fmt.Errorf("put blob %s: %w: %w", f.Name, ErrStorage, serr)
 		}
 		// UncompressedSize64 above is only the declared size; the streamed
 		// bytes are the real guard against a lying central directory (zip bomb).
