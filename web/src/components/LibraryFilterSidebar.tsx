@@ -10,6 +10,7 @@ import {
   type LicenceStatus,
   type TagView,
 } from "@/hooks/useDataQueries";
+import { withPage } from "@/lib/libraryFilters";
 import { storeLabel } from "@/lib/stores";
 
 const LICENCE_STATUSES: { value: LicenceStatus; label: string }[] = [
@@ -45,8 +46,9 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
   const { data: projects } = useProjects();
   const { data: facets } = useAssetFacets();
 
+  // A new filter starts again from the first page.
   const setParam = (key: string, value: string | null) => {
-    const next = new URLSearchParams(search);
+    const next = withPage(search, 1);
     if (value && value !== "") next.set(key, value);
     else next.delete(key);
     setSearch(next, { replace: true });
