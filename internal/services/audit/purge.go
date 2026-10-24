@@ -20,9 +20,9 @@ type Purger struct {
 	Interval time.Duration
 }
 
-// Run blocks until ctx is cancelled, calling PurgeOnce on every Interval
-// tick. The first sweep happens after one Interval — startup stays
-// uncluttered. Failures are logged; the loop never aborts.
+// Run blocks until ctx is cancelled, calling PurgeOnce when it starts and
+// then on every Interval tick, so a restart applies retention without
+// waiting an Interval. Failures are logged; the loop never aborts.
 func (p *Purger) Run(ctx context.Context) {
 	if p.Interval <= 0 {
 		slog.Warn("audit purge worker: non-positive interval, worker disabled", "interval", p.Interval)
@@ -32,14 +32,14 @@ func (p *Purger) Run(ctx context.Context) {
 	defer t.Stop()
 	slog.Info("audit purge worker started", "interval", p.Interval)
 	for {
+		if _, err := PurgeOnce(ctx, p.DB, time.Now()); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Warn("audit purge sweep failed", "err", err)
+		}
 		select {
 		case <-ctx.Done():
 			slog.Info("audit purge worker stopping")
 			return
 		case <-t.C:
-			if _, err := PurgeOnce(ctx, p.DB, time.Now()); err != nil && !errors.Is(err, context.Canceled) {
-				slog.Warn("audit purge sweep failed", "err", err)
-			}
 		}
 	}
 }
