@@ -15,6 +15,7 @@ import {
   Badge,
   Button,
   EmptyState,
+  Pager,
   SearchInput,
   Toolbar,
   ToolbarSpacer,
@@ -25,9 +26,13 @@ import { AssetSortMenu, DEFAULT_ASSET_SORT } from "@/components/AssetSortMenu";
 import { useAssets, useMe, type AssetFilters, type AssetRow } from "@/hooks/useDataQueries";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import {
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZES,
   activeFilterCount,
   parseAssetFilters,
+  parsePaging,
   readFiltersOpen,
+  withPage,
   writeFiltersOpen,
 } from "@/lib/libraryFilters";
 
@@ -51,7 +56,30 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
     writeFiltersOpen(next);
   };
 
-  const { data: assets, total, loading } = useAssets(filters, hasLibrary);
+  const { page, pageSize } = useMemo(() => parsePaging(search), [search]);
+  const {
+    data: assets,
+    total,
+    loading,
+    placeholder,
+  } = useAssets(filters, hasLibrary, { limit: pageSize, offset: (page - 1) * pageSize });
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  // A page past the end (a stale link, or the last assets deleted) moves to
+  // the last page. Wait for real data: a placeholder carries the old total.
+  useEffect(() => {
+    if (loading || placeholder || page <= pageCount) return;
+    setSearch(withPage(search, pageCount), { replace: true });
+  }, [loading, placeholder, page, pageCount, search, setSearch]);
+
+  // Paging pushes history entries, so back and forward step through pages.
+  const onPageChange = (next: number) => setSearch(withPage(search, next));
+  const onPageSizeChange = (size: number) => {
+    const next = withPage(search, 1);
+    if (size === DEFAULT_PAGE_SIZE) next.delete("page_size");
+    else next.set("page_size", String(size));
+    setSearch(next);
+  };
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   // Reset the selection when the search/filter scope changes — a render-time
@@ -77,7 +105,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   );
 
   const onSearchChange = (next: string) => {
-    const params = new URLSearchParams(search);
+    const params = withPage(search, 1);
     if (next) params.set("q", next);
     else params.delete("q");
     setSearch(params, { replace: true });
@@ -228,7 +256,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AssetSortMenu
                 value={filters.sort}
                 onChange={(sort) => {
-                  const next = new URLSearchParams(search);
+                  const next = withPage(search, 1);
                   if (sort === DEFAULT_ASSET_SORT) next.delete("sort");
                   else next.set("sort", sort);
                   setSearch(next, { replace: true });
@@ -252,14 +280,31 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 Loading assets…
               </div>
             ) : (
-              <AssetGrid
-                assets={assets}
-                onOpen={onOpenAsset}
-                selectedId={assetId}
-                selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
-                onColumnsChange={onColumnsChange}
-              />
+              <>
+                <AssetGrid
+                  // A new page starts scrolled to the top.
+                  key={`${page}/${pageSize}`}
+                  assets={assets}
+                  onOpen={onOpenAsset}
+                  selectedId={assetId}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelect}
+                  onColumnsChange={onColumnsChange}
+                />
+                {total > 0 && (
+                  <div className="flex shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5">
+                    <Pager
+                      aria-label="Library pages"
+                      page={Math.min(page, pageCount)}
+                      pageCount={pageCount}
+                      onPageChange={onPageChange}
+                      pageSize={pageSize}
+                      pageSizes={PAGE_SIZES}
+                      onPageSizeChange={onPageSizeChange}
+                    />
+                  </div>
+                )}
+              </>
             )}
             {selectedList.length > 0 && (
               <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
