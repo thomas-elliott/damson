@@ -321,8 +321,9 @@ carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.
 - **Pass the mutation's `tx` to `audit.Write`, not `h.db`.** Otherwise the audit row commits even
   when the change rolls back.
 - **A new action type needs a filter chip.** The audit page's chips (`ACTION_FILTERS` in
-  `pages/AuditPage.tsx`) list action types, or `family.*` prefixes, for the `action_type` filter. A
-  type no chip covers shows only under All. Give it a verb in `lib/auditFormat.ts` too.
+  `lib/auditFilters.ts`) list action types, or `family.*` prefixes, for the `action_type` filter. A
+  type no chip covers shows only under All. Give it a verb in `lib/auditFormat.ts` too; a test
+  checks every type with a verb has a chip.
 
 ## Frontend
 
