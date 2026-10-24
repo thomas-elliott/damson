@@ -96,6 +96,20 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return errors.New(reason)
 	}
 
+	// retry leaves the row in flight and returns the error, so the queue
+	// retries a transient failure and marks the row failed only once the
+	// attempts run out.
+	retry := func(op string, err error) error {
+		slog.Warn("imports: pipeline will retry",
+			"import_id", jc.importID,
+			"asset_id", jc.asset.ID,
+			"library_id", jc.libraryID,
+			"object_key", jc.version.OriginalPackageObjectKey,
+			"op", op,
+			"err", err)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
 	// A library mismatch is a terminal input error: mark failed so the queue
 	// cancels rather than retries.
 	if job.LibraryID != 0 && jc.libraryID != job.LibraryID {
@@ -114,7 +128,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	if jc.isArchive {
 		blob, gerr := OpenOriginal(ctx, deps.Storage, jc.version)
 		if gerr != nil {
-			return fail("fetch blob: " + gerr.Error())
+			return retry("fetch blob", gerr)
 		}
 		var (
 			res  *extract.UnityResult
@@ -145,6 +159,9 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 			res, xerr = ex.Extract(ctx, blob)
 		}
 		blob.Close()
+		if errors.Is(xerr, extract.ErrStorage) {
+			return retry("extract", xerr)
+		}
 		if xerr != nil {
 			return fail("extract: " + xerr.Error())
 		}
