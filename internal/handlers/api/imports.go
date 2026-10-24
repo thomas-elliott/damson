@@ -15,6 +15,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
@@ -317,7 +318,14 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 			return err
 		}
 		newImportID = nextImp.ID
-		return nil
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "asset.import.retry",
+			TargetType: "asset",
+			TargetID:   &asset.ID,
+			Diff:       audit.Created(map[string]any{"import_id": nextImp.ID, "retried_import_id": imp.ID}),
+		})
 	})
 	if err != nil {
 		respond500(c, err)

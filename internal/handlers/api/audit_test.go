@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
@@ -389,4 +391,59 @@ func TestGetLibraryAudit_PagesTiedTimestampsOnce(t *testing.T) {
 	if len(seen) != n {
 		t.Fatalf("saw %d distinct entries across pages, want %d", len(seen), n)
 	}
+}
+
+// requireAuditRow fails unless the user wrote one action row against the
+// asset in the library.
+func requireAuditRow(t *testing.T, db *gorm.DB, action string, assetID, userID, libID uint) {
+	t.Helper()
+	var row models.AuditLog
+	if err := db.Where("action_type = ? AND target_id = ?", action, assetID).First(&row).Error; err != nil {
+		t.Fatalf("no %s audit row: %v", action, err)
+	}
+	if row.UserID == nil || *row.UserID != userID || row.LibraryID == nil || *row.LibraryID != libID {
+		t.Fatalf("%s row names user %v in library %v, want %d in %d", action, row.UserID, row.LibraryID, userID, libID)
+	}
+}
+
+func TestPostReExtract_Audits(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	pkg := buildUnityPackage(t, []unityPkgEntry{{guid: testGUID(0x05), pathname: "Assets/a.bin", content: []byte("a")}})
+	body, ctype := buildMultipart(t, "file", "Pack.unitypackage", pkg)
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	imported := jsonResponse[importEnqueueResponse](t, w)
+	var asset models.Asset
+	if err := db.First(&asset, imported.AssetID).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	path := fmt.Sprintf("/api/assets/%d/versions/%d/reextract", asset.ID, *asset.CurrentVersionID)
+	requireStatus(t, performRequest(r, http.MethodPost, path, nil), http.StatusCreated)
+
+	requireAuditRow(t, db, "asset.version.reextract", asset.ID, u.ID, lib.ID)
+}
+
+func TestPostImportRetry_Audits(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	body, ctype := buildMultipart(t, "file", "tile.png", makeTestPNG(t, 8, 8))
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	imported := jsonResponse[importEnqueueResponse](t, w)
+	if err := db.Model(&models.AssetImport{}).Where("id = ?", imported.ImportID).Update("stage", "failed").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	path := fmt.Sprintf("/api/imports/%d/retry", imported.ImportID)
+	requireStatus(t, performRequest(r, http.MethodPost, path, nil), http.StatusAccepted)
+
+	requireAuditRow(t, db, "asset.import.retry", imported.AssetID, u.ID, lib.ID)
 }
