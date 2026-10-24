@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -66,6 +67,22 @@ func TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail(t *testing.T) {
 			requireStatus(t, w, http.StatusOK)
 			if pins := jsonResponse[projectDetailView](t, w).Pins; len(pins) != 1 || pins[0].LicenceStatus != tc.want {
 				t.Fatalf("project pins = %+v, want status %q", pins, tc.want)
+			}
+
+			w = performGET(r, "/api/projects")
+			requireStatus(t, w, http.StatusOK)
+			list := jsonResponse[struct {
+				Projects []projectView `json:"projects"`
+			}](t, w)
+			if len(list.Projects) != 1 {
+				t.Fatalf("project list = %+v, want one project", list.Projects)
+			}
+			c := list.Projects[0].LicenceCounts
+			got := map[string]int{"ok": c.OK, "warn": c.Warn, "err": c.Err, "unk": c.Unk}
+			want := map[string]int{"ok": 0, "warn": 0, "err": 0, "unk": 0}
+			want[tc.want] = 1
+			if !maps.Equal(got, want) {
+				t.Fatalf("project card licence counts = %v, want %v", got, want)
 			}
 
 			for _, status := range []string{"ok", "warn", "err", "unk"} {

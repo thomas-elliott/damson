@@ -13,13 +13,14 @@ import {
   ToolbarSpacer,
   useConfirm,
 } from "@/design-system";
-import { useAssets, useCollection } from "@/hooks/useDataQueries";
+import { useAssets, useCollection, useLibrarySettings } from "@/hooks/useDataQueries";
 import { useDeleteCollection } from "@/hooks/useMutations";
 
 export function CollectionDetailPage() {
   const { id } = useParams();
   const collectionId = id ? Number(id) : null;
   const { data: collection, loading } = useCollection(collectionId);
+  const { data: settings } = useLibrarySettings();
   const { data: assets } = useAssets(
     collectionId ? { collection_id: collectionId } : undefined,
     collectionId != null,
@@ -83,7 +84,11 @@ export function CollectionDetailPage() {
               description="Add assets from their detail panels."
             />
           ) : (
-            <AssetGrid assets={assets} onOpen={(id) => navigate(`/library/${id}`)} />
+            <AssetGrid
+              assets={assets}
+              onOpen={(id) => navigate(`/library/${id}`)}
+              density={settings?.grid_density_default}
+            />
           )}
           {confirmDialog}
         </>
