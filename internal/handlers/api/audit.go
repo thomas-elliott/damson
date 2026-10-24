@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -52,7 +53,13 @@ type auditFilters struct {
 	Until       *time.Time
 }
 
-func parseAuditFilters(c *gin.Context) auditFilters {
+// maxAuditActionTypes bounds the action_type list: each entry is a bind
+// parameter, and the chips need far fewer.
+const maxAuditActionTypes = 50
+
+// parseAuditFilters reads the shared filters, answering 400 and returning
+// false when action_type lists more than maxAuditActionTypes entries.
+func parseAuditFilters(c *gin.Context) (auditFilters, bool) {
 	f := auditFilters{
 		TargetType: strings.TrimSpace(c.Query("target_type")),
 	}
@@ -60,6 +67,10 @@ func parseAuditFilters(c *gin.Context) auditFilters {
 		if a = strings.TrimSpace(a); a != "" {
 			f.ActionTypes = append(f.ActionTypes, a)
 		}
+	}
+	if len(f.ActionTypes) > maxAuditActionTypes {
+		respond400(c, fmt.Errorf("action_type lists more than %d types", maxAuditActionTypes))
+		return f, false
 	}
 	if s := c.Query("user_id"); s != "" {
 		if n, err := strconv.ParseUint(s, 10, 64); err == nil && n > 0 {
@@ -83,7 +94,7 @@ func parseAuditFilters(c *gin.Context) auditFilters {
 			f.Until = &t
 		}
 	}
-	return f
+	return f, true
 }
 
 // applyAuditFilters layers the shared WHERE chain onto a base query that has
@@ -192,7 +203,10 @@ func (h *Handler) getLibraryAudit(c *gin.Context) {
 		respond500(c, errRequestContextIncomplete)
 		return
 	}
-	f := parseAuditFilters(c)
+	f, ok := parseAuditFilters(c)
+	if !ok {
+		return
+	}
 	limit, offset := parsePagination(c)
 
 	base := h.db.WithContext(c.Request.Context()).
@@ -232,7 +246,10 @@ func (h *Handler) getAssetAudit(c *gin.Context) {
 		return
 	}
 
-	f := parseAuditFilters(c)
+	f, ok := parseAuditFilters(c)
+	if !ok {
+		return
+	}
 	limit, offset := parsePagination(c)
 	base := h.db.WithContext(c.Request.Context()).
 		Table("audit_log AS a").
@@ -270,7 +287,10 @@ func (h *Handler) getProjectAudit(c *gin.Context) {
 		return
 	}
 
-	f := parseAuditFilters(c)
+	f, ok := parseAuditFilters(c)
+	if !ok {
+		return
+	}
 	limit, offset := parsePagination(c)
 	base := h.db.WithContext(c.Request.Context()).
 		Table("audit_log AS a").
@@ -298,7 +318,10 @@ func (h *Handler) getAdminAudit(c *gin.Context) {
 	if !requireSysadmin(c) {
 		return
 	}
-	f := parseAuditFilters(c)
+	f, ok := parseAuditFilters(c)
+	if !ok {
+		return
+	}
 	limit, offset := parsePagination(c)
 	scope := strings.ToLower(strings.TrimSpace(c.Query("scope")))
 	includeLibraryName := scope == "all"
