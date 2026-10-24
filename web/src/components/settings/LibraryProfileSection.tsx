@@ -22,11 +22,7 @@ import { useSavedFlash } from "@/hooks/useSavedFlash";
 
 /**
  * Library name + description editor. Admins can save changes; everyone else
- * sees the values rendered as a read-only summary. The library description
- * isn't loaded into `MeLibrary` today; pull it from elsewhere when we add
- * a /api/libraries/:id GET. For now the editor opens with whatever is in
- * the membership view's name and lets admins update both fields blind —
- * it's still better than the no-editor M5 baseline.
+ * sees the values rendered as a read-only summary.
  *
  * Admins also see a danger zone with the library deletion action.
  */
@@ -37,12 +33,12 @@ export function LibraryProfileSection({
   library: MeLibrary;
   isAdmin: boolean;
 }) {
-  // `name` seeds from the library and is reset across libraries by the
-  // key={library.id} the parent puts on this section (see SettingsPage), so no
-  // sync effect is needed here.
+  // `name` and `description` seed from the library and are reset across
+  // libraries by the key={library.id} the parent puts on this section (see
+  // SettingsPage), so no sync effect is needed here.
   const patch = usePatchLibrary();
   const [name, setName] = useState(library.name);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(library.description);
   const { saved, flash } = useSavedFlash();
 
   const submit = () => {

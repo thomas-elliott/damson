@@ -14,9 +14,10 @@ import (
 )
 
 type currentLibrary struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
-	Role string `json:"role"` // 'admin' | 'member'
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Role        string `json:"role"` // 'admin' | 'member'
 }
 
 type meResponse struct {
@@ -126,22 +127,24 @@ func (h *Handler) respondMe(c *gin.Context, u *models.User) {
 		// points to a library they're no longer a member of, omit the block
 		// (the SPA then surfaces the "no library access yet" state).
 		type row struct {
-			Name string
-			Role string
+			Name        string
+			Description string
+			Role        string
 		}
 		var r row
 		err := h.db.WithContext(c.Request.Context()).
 			Table("library_memberships AS lm").
-			Select("l.name, lm.role").
+			Select("l.name, l.description, lm.role").
 			Joins("JOIN libraries l ON l.id = lm.library_id").
 			Where("lm.library_id = ? AND lm.user_id = ?", *u.CurrentLibraryID, u.ID).
 			Take(&r).Error
 		switch {
 		case err == nil:
 			resp.CurrentLibrary = &currentLibrary{
-				ID:   *u.CurrentLibraryID,
-				Name: r.Name,
-				Role: r.Role,
+				ID:          *u.CurrentLibraryID,
+				Name:        r.Name,
+				Description: r.Description,
+				Role:        r.Role,
 			}
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			// User's current_library points at a library they've been removed

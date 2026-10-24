@@ -27,6 +27,7 @@ export function useAuthMode() {
 export interface MeLibrary {
   id: number;
   name: string;
+  description: string;
   role: "admin" | "member";
 }
 
