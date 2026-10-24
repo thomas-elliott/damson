@@ -235,10 +235,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
   if (detail) {
     const asset = ASSETS.get(Number(detail[1]));
     if (!asset) return new Response("not found", { status: 404 });
-    if (init?.method === "DELETE") {
-      ASSETS.delete(asset.id);
-      return new Response(null, { status: 204 });
-    }
+    if (init?.method === "DELETE") return new Response(null, { status: 204 });
     if (init?.method === "PATCH" && typeof init.body === "string") {
       ASSETS.set(asset.id, { ...asset, ...(JSON.parse(init.body) as Partial<AssetDetailView>) });
     }
