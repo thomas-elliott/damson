@@ -42,18 +42,24 @@ type auditListResponse struct {
 // (library, per-asset, per-project, sysadmin). Each filter ANDs with the
 // rest, mirroring the assets list semantics.
 type auditFilters struct {
-	UserID     *uint
-	ActionType string
-	TargetType string
-	TargetID   *uint
-	Since      *time.Time
-	Until      *time.Time
+	UserID *uint
+	// ActionTypes comes from a comma-separated action_type; a row matches any
+	// entry, and an entry ending in ".*" matches every type under that prefix.
+	ActionTypes []string
+	TargetType  string
+	TargetID    *uint
+	Since       *time.Time
+	Until       *time.Time
 }
 
 func parseAuditFilters(c *gin.Context) auditFilters {
 	f := auditFilters{
-		ActionType: strings.TrimSpace(c.Query("action_type")),
 		TargetType: strings.TrimSpace(c.Query("target_type")),
+	}
+	for _, a := range strings.Split(c.Query("action_type"), ",") {
+		if a = strings.TrimSpace(a); a != "" {
+			f.ActionTypes = append(f.ActionTypes, a)
+		}
 	}
 	if s := c.Query("user_id"); s != "" {
 		if n, err := strconv.ParseUint(s, 10, 64); err == nil && n > 0 {
@@ -86,8 +92,17 @@ func applyAuditFilters(q *gorm.DB, f auditFilters) *gorm.DB {
 	if f.UserID != nil {
 		q = q.Where("a.user_id = ?", *f.UserID)
 	}
-	if f.ActionType != "" {
-		q = q.Where("a.action_type = ?", f.ActionType)
+	if len(f.ActionTypes) > 0 {
+		conds := make([]string, len(f.ActionTypes))
+		args := make([]any, len(f.ActionTypes))
+		for i, a := range f.ActionTypes {
+			if prefix, ok := strings.CutSuffix(a, ".*"); ok {
+				conds[i], args[i] = "starts_with(a.action_type, ?)", prefix+"."
+			} else {
+				conds[i], args[i] = "a.action_type = ?", a
+			}
+		}
+		q = q.Where("("+strings.Join(conds, " OR ")+")", args...)
 	}
 	if f.TargetType != "" {
 		q = q.Where("a.target_type = ?", f.TargetType)
