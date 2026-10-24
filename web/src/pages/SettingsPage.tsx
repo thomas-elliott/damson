@@ -281,7 +281,7 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
       <Section title="Audit" defaultOpen>
         <FormRow
           label="Retention (days)"
-          help="Leave blank for unbounded. The retention policy is recorded but not yet enforced."
+          help="Entries older than this are deleted once a day. Leave blank to keep them all."
         >
           <RetentionInput
             key={String(settings.audit_retention_days)}
