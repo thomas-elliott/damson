@@ -16,6 +16,7 @@ const library = vi.hoisted(() => ({
 
 vi.mock("@/hooks/useDataQueries", () => ({
   useMe: () => ({ data: { id: 1, current_library: { id: 1, name: "Main" } } }),
+  useLibrarySettings: () => ({ data: null }),
   useAssets: (_filters: unknown, _enabled: boolean, page?: { limit: number; offset: number }) => {
     library.pages.push(page);
     return { data: assets, total: library.total, loading: false, placeholder: false };
