@@ -3,7 +3,7 @@
 // keeps the verb mapping in one place so new entries don't need bespoke
 // rendering at every call site.
 
-const VERBS: Record<string, string> = {
+export const VERBS: Record<string, string> = {
   "asset.create": "imported",
   "asset.update": "updated",
   "asset.delete": "deleted",
