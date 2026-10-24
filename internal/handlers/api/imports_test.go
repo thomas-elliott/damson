@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -180,5 +181,38 @@ func TestPostImport_MarksFailedOnExtractError(t *testing.T) {
 	}
 	if failed != 1 {
 		t.Fatalf("expected 1 failed import row, got %d", failed)
+	}
+}
+
+// Imports with the same updated_at still page in a fixed order: each shows on
+// exactly one page.
+func TestGetImports_PagesTiedTimestampsOnce(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	asset := models.Asset{LibraryID: lib.ID, Name: "x"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().UTC().Truncate(time.Second)
+	const n = 23
+	for i := 0; i < n; i++ {
+		if err := db.Create(&models.AssetImport{AssetID: asset.ID, Stage: "done", UpdatedAt: at}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := setupRouter(h, u)
+
+	seen := map[uint]int{}
+	for offset := 0; offset < n; offset += 5 {
+		w := performGET(r, fmt.Sprintf("/api/imports?stage=all&limit=5&offset=%d", offset))
+		requireStatus(t, w, http.StatusOK)
+		for _, imp := range jsonResponse[importListResponse](t, w).Imports {
+			seen[imp.ID]++
+		}
+	}
+	if len(seen) != n {
+		t.Fatalf("saw %d distinct imports across pages, want %d", len(seen), n)
 	}
 }
