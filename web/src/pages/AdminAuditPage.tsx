@@ -30,6 +30,7 @@ export function AdminAuditPage() {
     total,
     loading,
     placeholder,
+    error,
   } = useAdminAudit({ limit: pageSize, offset: (page - 1) * pageSize, scope }, isSysadmin);
 
   if (meLoading) {
@@ -99,7 +100,11 @@ export function AdminAuditPage() {
               />
             )}
             <div className="mt-2 flex justify-end">
-              <UrlPager aria-label="Audit log pages" total={total} settled={!loading && !placeholder} />
+              <UrlPager
+                aria-label="Audit log pages"
+                total={total}
+                settled={!loading && !placeholder && !error}
+              />
             </div>
           </div>
         </>

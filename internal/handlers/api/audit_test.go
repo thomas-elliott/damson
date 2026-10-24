@@ -361,3 +361,32 @@ func TestGetAdminAudit_Searches(t *testing.T) {
 		}
 	}
 }
+
+// Entries with the same created_at still page in a fixed order: each shows
+// on exactly one page.
+func TestGetLibraryAudit_PagesTiedTimestampsOnce(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	at := time.Now().UTC().Truncate(time.Second)
+	const n = 23
+	for i := 0; i < n; i++ {
+		if err := db.Create(&models.AuditLog{LibraryID: &lib.ID, UserID: &u.ID, ActionType: "asset.update", TargetType: "asset", CreatedAt: at}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := setupRouter(h, u)
+
+	seen := map[uint]int{}
+	for offset := 0; offset < n; offset += 5 {
+		w := performGET(r, fmt.Sprintf("/api/audit?limit=5&offset=%d", offset))
+		requireStatus(t, w, http.StatusOK)
+		for _, e := range jsonResponse[auditListResponse](t, w).Entries {
+			seen[e.ID]++
+		}
+	}
+	if len(seen) != n {
+		t.Fatalf("saw %d distinct entries across pages, want %d", len(seen), n)
+	}
+}
