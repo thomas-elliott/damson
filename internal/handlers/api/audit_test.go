@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -219,4 +220,55 @@ func TestPostImport_AuditsTheAssetAndVersionUnderTheImporter(t *testing.T) {
 			t.Fatalf("%s row names user %v in library %v, want %d in %d", action, row.UserID, row.LibraryID, u.ID, lib.ID)
 		}
 	}
+}
+
+// action_type takes a comma-separated list so one filter chip can cover a
+// family of events; an entry ending in ".*" matches every type under it.
+func TestGetLibraryAudit_ActionTypeListAndPrefix(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	for _, action := range []string{
+		"asset.tag", "asset.untag", "asset.licence.set", "asset.licence.update",
+		"asset.licence_note", "asset.create",
+	} {
+		if err := db.Create(&models.AuditLog{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: action,
+			TargetType: "asset",
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := setupRouter(h, u)
+
+	for _, tc := range []struct {
+		query string
+		want  int64
+	}{
+		{"asset.tag", 1},
+		{"asset.tag,asset.untag", 2},
+		{"asset.licence.*", 2},
+		{"asset.licence.*,asset.create", 3},
+	} {
+		w := performGET(r, "/api/audit?action_type="+tc.query)
+		requireStatus(t, w, http.StatusOK)
+		if got := jsonResponse[auditListResponse](t, w).Total; got != tc.want {
+			t.Errorf("action_type=%s: got %d rows, want %d", tc.query, got, tc.want)
+		}
+	}
+}
+
+// An unbounded action_type list would outrun Postgres's bind-parameter limit
+// and fail as a 500; past the cap it is the caller's error.
+func TestGetLibraryAudit_RejectsOverlongActionTypeList(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	list := strings.TrimSuffix(strings.Repeat("asset.tag,", maxAuditActionTypes+1), ",")
+	requireStatus(t, performGET(r, "/api/audit?action_type="+list), http.StatusBadRequest)
 }

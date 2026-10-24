@@ -6,16 +6,7 @@ import { Shell } from "@/components/Shell";
 import { Breadcrumb, BreadcrumbItem, SearchInput, Toolbar } from "@/design-system";
 import { cn } from "@/design-system/utils";
 import { useLibraryAudit } from "@/hooks/useDataQueries";
-
-const ACTION_FILTERS = [
-  { label: "All", value: "" },
-  { label: "Imports", value: "asset.create" },
-  { label: "Updates", value: "asset.update" },
-  { label: "Reviews", value: "asset.review" },
-  { label: "Licences", value: "asset.licence.update" },
-  { label: "Tags", value: "asset.tag" },
-  { label: "Projects", value: "project.update" },
-];
+import { ACTION_FILTERS } from "@/lib/auditFilters";
 
 /**
  * Library-scoped audit log. Filterable by action type via the chip bar +

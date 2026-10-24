@@ -23,7 +23,13 @@ import {
 } from "@/design-system";
 import { FolderOpen, Library as LibraryIcon } from "lucide-react";
 import { AssetSortMenu, DEFAULT_ASSET_SORT } from "@/components/AssetSortMenu";
-import { useAssets, useMe, type AssetFilters, type AssetRow } from "@/hooks/useDataQueries";
+import {
+  useAssets,
+  useLibrarySettings,
+  useMe,
+  type AssetFilters,
+  type AssetRow,
+} from "@/hooks/useDataQueries";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import {
   DEFAULT_PAGE_SIZE,
@@ -38,6 +44,7 @@ import {
 
 export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const { data: me } = useMe();
+  const { data: settings } = useLibrarySettings(!!me?.current_library);
   const params = useParams();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
@@ -290,6 +297,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                   selectedIds={selectedIds}
                   onToggleSelect={toggleSelect}
                   onColumnsChange={onColumnsChange}
+                  density={settings?.grid_density_default}
                 />
                 {total > 0 && (
                   <div className="flex shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5">

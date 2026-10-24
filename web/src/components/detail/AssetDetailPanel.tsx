@@ -194,13 +194,22 @@ export function AssetDetailPanel({
           key={asset.id}
           asset={asset}
           onBrowse={onBrowse ? () => onBrowse(asset.id) : undefined}
+          onDeleted={onClose}
         />
       )}
     </DetailPanel>
   );
 }
 
-function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse?: () => void }) {
+function AssetDetailBody({
+  asset,
+  onBrowse,
+  onDeleted,
+}: {
+  asset: AssetDetailView;
+  onBrowse?: () => void;
+  onDeleted: () => void;
+}) {
   const review = useReviewAsset();
   const del = useDeleteAsset();
   const addTag = useAddAssetTag();
@@ -413,7 +422,7 @@ function AssetDetailBody({ asset, onBrowse }: { asset: AssetDetailView; onBrowse
                 confirmLabel: "Delete asset",
                 tone: "destructive",
               });
-              if (ok) del.mutate(asset.id);
+              if (ok) del.mutate(asset.id, { onSuccess: onDeleted });
             }}
           >
             Delete asset

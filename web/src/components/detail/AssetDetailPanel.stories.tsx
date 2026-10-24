@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import type { AssetDetailView, AuditEntry } from "@/hooks/useDataQueries";
 
@@ -173,7 +173,11 @@ const REFERENCE: AssetDetailView = {
   ],
 };
 
-const ASSETS = new Map([ASSET, NO_DESCRIPTION, SPARSE, EDITING, REFERENCE].map((a) => [a.id, a]));
+const DELETING: AssetDetailView = { ...SPARSE, id: 6, name: "Throwaway Pack" };
+
+const ASSETS = new Map(
+  [ASSET, NO_DESCRIPTION, SPARSE, EDITING, REFERENCE, DELETING].map((a) => [a.id, a]),
+);
 
 const AUDIT: AuditEntry[] = [
   {
@@ -231,6 +235,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
   if (detail) {
     const asset = ASSETS.get(Number(detail[1]));
     if (!asset) return new Response("not found", { status: 404 });
+    if (init?.method === "DELETE") return new Response(null, { status: 204 });
     if (init?.method === "PATCH" && typeof init.body === "string") {
       ASSETS.set(asset.id, { ...asset, ...(JSON.parse(init.body) as Partial<AssetDetailView>) });
     }
@@ -243,10 +248,15 @@ function PanelHarness({ assetId }: { assetId: number }) {
   const [client] = useState(
     () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
   );
+  const [open, setOpen] = useState(true);
   return (
     <QueryClientProvider client={client}>
       <div className="relative h-[900px] w-full overflow-hidden bg-background">
-        <AssetDetailPanel assetId={assetId} onClose={() => {}} onBrowse={() => {}} />
+        <AssetDetailPanel
+          assetId={open ? assetId : null}
+          onClose={() => setOpen(false)}
+          onBrowse={() => {}}
+        />
       </div>
     </QueryClientProvider>
   );
@@ -302,5 +312,18 @@ export const Reference: Story = {
     // A reference asset's pin has no version, so it reads as Reference, not blank.
     await userEvent.click(canvas.getByRole("button", { name: /^Projects/ }));
     await expect(await canvas.findByText("Reference")).toBeVisible();
+  },
+};
+
+/** Deleting the asset closes the panel rather than leaving it on a deleted id. */
+export const DeleteCloses: Story = {
+  render: () => <PanelHarness assetId={DELETING.id} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("button", { name: "Delete asset" }));
+    const dialog = await body.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete asset" }));
+    await waitFor(() => expect(canvas.queryByText("Throwaway Pack")).not.toBeInTheDocument());
   },
 };

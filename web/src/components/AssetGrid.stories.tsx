@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 
 import type { AssetRow } from "@/hooks/useDataQueries";
 
@@ -47,5 +47,43 @@ export const WithReferenceAsset: Story = {
     await expect(await canvas.findByText("Reference")).toBeVisible();
     await expect(canvas.getByText("1284 files")).toBeVisible();
     await expect(canvas.queryByText("0 B")).not.toBeInTheDocument();
+  },
+};
+
+const MANY: AssetRow[] = Array.from({ length: 12 }, (_, i) => ({
+  ...STORED,
+  id: 100 + i,
+  name: `Pack ${i + 1}`,
+}));
+
+// The library's grid density sets the minimum cell width, so at a fixed 800px
+// a smaller density fits more cards on a row.
+function FixedWidth(Story: () => React.ReactNode) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: 800, height: 600 }}>
+      {Story()}
+    </div>
+  );
+}
+
+function firstRowCards(canvasElement: HTMLElement) {
+  return canvasElement.querySelector('[data-index="0"]')?.children.length;
+}
+
+/** Small density: more, smaller cards per row. */
+export const SmallDensity: Story = {
+  args: { assets: MANY, density: "small" },
+  decorators: [FixedWidth],
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(firstRowCards(canvasElement)).toBe(5));
+  },
+};
+
+/** Large density: fewer, bigger cards per row. */
+export const LargeDensity: Story = {
+  args: { assets: MANY, density: "large" },
+  decorators: [FixedWidth],
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(firstRowCards(canvasElement)).toBe(3));
   },
 };
