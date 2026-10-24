@@ -99,13 +99,12 @@ export function AdminAuditPage() {
                 }
               />
             )}
-            <div className="mt-2 flex justify-end">
-              <UrlPager
-                aria-label="Audit log pages"
-                total={total}
-                settled={!loading && !placeholder && !error}
-              />
-            </div>
+            <UrlPager
+              aria-label="Audit log pages"
+              className="mt-2 justify-end"
+              total={total}
+              query={{ loading, placeholder, error }}
+            />
           </div>
         </>
       }
