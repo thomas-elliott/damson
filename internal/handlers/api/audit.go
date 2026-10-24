@@ -176,7 +176,8 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 	if includeLibraryName {
 		page = page.Joins("LEFT JOIN libraries l ON l.id = a.library_id")
 	}
-	err := page.Order("a.created_at DESC").
+	// id breaks created_at ties, so a row never shows on two pages.
+	err := page.Order("a.created_at DESC, a.id DESC").
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows).Error

@@ -11,7 +11,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES, parsePaging, withPage } from "@/lib/libr
  *
  * A page past the end (a stale link, or entries gone) moves to the last
  * page once `settled` says `total` is the real total for this URL, not a
- * placeholder carried over from the previous one.
+ * placeholder carried over from the previous one or a failed fetch.
  */
 export function UrlPager({
   total,
