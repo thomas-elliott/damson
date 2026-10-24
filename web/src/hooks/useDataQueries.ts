@@ -601,6 +601,8 @@ export interface AuditFilters {
   target_id?: number;
   since?: string;
   until?: string;
+  /** Matches the user's name or email, or the action type, as a substring. */
+  q?: string;
   limit?: number;
   offset?: number;
 }
@@ -626,6 +628,9 @@ function auditQuery(f?: object): string {
   return s ? `?${s}` : "";
 }
 
+// The audit pages page through these two feeds: the previous page stays on
+// screen while the next one loads, and `placeholder` says when that is what
+// `data` and `total` hold.
 export function useLibraryAudit(filters?: AuditFilters, enabled: boolean = true) {
   const keyed =
     filters && Object.keys(filters).length > 0
@@ -639,10 +644,12 @@ export function useLibraryAudit(filters?: AuditFilters, enabled: boolean = true)
     staleTime: 30 * 1000,
     gcTime: 5 * MINUTE,
     enabled,
+    placeholderData: keepPreviousData,
   });
   return {
     data: q.data?.entries ?? [],
     total: q.data?.total ?? 0,
+    placeholder: q.isPlaceholderData,
     loading: q.isPending,
     error: q.error,
     reload: q.refetch,
@@ -665,10 +672,12 @@ export function useAdminAudit(
     staleTime: 30 * 1000,
     gcTime: 5 * MINUTE,
     enabled,
+    placeholderData: keepPreviousData,
   });
   return {
     data: q.data?.entries ?? [],
     total: q.data?.total ?? 0,
+    placeholder: q.isPlaceholderData,
     loading: q.isPending,
     error: q.error,
     reload: q.refetch,
