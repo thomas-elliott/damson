@@ -6,6 +6,7 @@ package licence
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/google/licensecheck"
@@ -75,27 +76,13 @@ func Detect(text string) Result {
 	// Flag it but don't rewrite the original — canonical_diff in the UI is
 	// advisory.
 	if cov.Percent < 98 {
-		result.CanonicalDiff = "coverage " + strings.TrimRight(floatToPct(cov.Percent), "0.") + "%"
+		result.CanonicalDiff = coverageNote(cov.Percent)
 	}
 	return result
 }
 
-func floatToPct(f float64) string {
-	i := int(f)
-	return strPad(i)
-}
-
-func strPad(i int) string {
-	// cheap itoa to avoid pulling in strconv here for one call
-	if i == 0 {
-		return "0"
-	}
-	s := ""
-	for i > 0 {
-		s = string(rune('0'+i%10)) + s
-		i /= 10
-	}
-	return s
+func coverageNote(percent float64) string {
+	return "coverage " + strconv.Itoa(int(percent)) + "%"
 }
 
 // AttributesForType returns the known attribute set for an SPDX id or
