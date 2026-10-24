@@ -2,7 +2,10 @@
 // an entry ending in ".*" matches every action under that prefix.
 export const ACTION_FILTERS = [
   { label: "All", value: "" },
-  { label: "Imports", value: "asset.create,asset.version.create,asset.reference.create,asset.import.retry" },
+  {
+    label: "Imports",
+    value: "asset.create,asset.version.create,asset.reference.create,asset.import.retry",
+  },
   {
     label: "Updates",
     value:
