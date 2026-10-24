@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -271,4 +272,92 @@ func TestGetLibraryAudit_RejectsOverlongActionTypeList(t *testing.T) {
 
 	list := strings.TrimSuffix(strings.Repeat("asset.tag,", maxAuditActionTypes+1), ",")
 	requireStatus(t, performGET(r, "/api/audit?action_type="+list), http.StatusBadRequest)
+}
+
+// q searches every entry in the feed, not one page of it: user name, user
+// email and action type, case-insensitively, with LIKE wildcards literal.
+func TestGetLibraryAudit_SearchesEveryEntry(t *testing.T) {
+	h, db := newTestHandler(t)
+	alice := seedUser(t, db, "alice@example.com")
+	alice.DisplayName = "Alice Liddell"
+	if err := db.Save(alice).Error; err != nil {
+		t.Fatal(err)
+	}
+	bob := seedUser(t, db, "bob@example.com")
+	lib := seedLibraryAndSwitch(t, h, alice)
+	other := seedLibrary(t, db, "Other")
+
+	now := time.Now().UTC()
+	// Bob's one entry is the oldest, so it is not on the first page of the
+	// unfiltered feed.
+	rows := []models.AuditLog{
+		{LibraryID: &lib.ID, UserID: &bob.ID, ActionType: "asset.delete", TargetType: "asset", CreatedAt: now.Add(-time.Hour)},
+		// Another library's row matches q but must not leak.
+		{LibraryID: &other.ID, UserID: &bob.ID, ActionType: "asset.create", TargetType: "asset", CreatedAt: now},
+	}
+	for i := 0; i < 5; i++ {
+		rows = append(rows, models.AuditLog{LibraryID: &lib.ID, UserID: &alice.ID, ActionType: "asset.create", TargetType: "asset", CreatedAt: now.Add(time.Duration(i) * time.Second)})
+	}
+	for _, row := range rows {
+		if err := db.Create(&row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := setupRouter(h, alice)
+
+	for _, tc := range []struct {
+		q    string
+		want int64
+	}{
+		{"BOB@", 1},      // email
+		{"liddell", 5},   // display name
+		{"asset.del", 1}, // action type
+		{"%", 0},         // a wildcard matches only itself
+		{"alice bob", 0}, // one substring, not words
+		{"", 6},          // no search
+	} {
+		w := performGET(r, "/api/audit?limit=2&q="+url.QueryEscape(tc.q))
+		requireStatus(t, w, http.StatusOK)
+		body := jsonResponse[auditListResponse](t, w)
+		if body.Total != tc.want {
+			t.Errorf("q=%q: got %d rows, want %d", tc.q, body.Total, tc.want)
+		}
+		if tc.q == "BOB@" && (len(body.Entries) != 1 || body.Entries[0].UserEmail != "bob@example.com") {
+			t.Errorf("q=%q: want bob's entry on the page, got %+v", tc.q, body.Entries)
+		}
+	}
+}
+
+func TestGetAdminAudit_Searches(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "root@example.com")
+	u.Role = "sysadmin"
+	if err := db.Save(u).Error; err != nil {
+		t.Fatal(err)
+	}
+	lib := seedLibrary(t, db, "Alpha")
+	for _, row := range []models.AuditLog{
+		{LibraryID: nil, UserID: &u.ID, ActionType: "library.delete", TargetType: "library"},
+		{LibraryID: nil, UserID: &u.ID, ActionType: "admin.user.update", TargetType: "user"},
+		{LibraryID: &lib.ID, UserID: &u.ID, ActionType: "asset.delete", TargetType: "asset"},
+	} {
+		if err := db.Create(&row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := setupRouter(h, u)
+
+	for _, tc := range []struct {
+		query string
+		want  int64
+	}{
+		{"q=delete", 1},
+		{"q=delete&scope=all", 2},
+	} {
+		w := performGET(r, "/api/admin/audit?"+tc.query)
+		requireStatus(t, w, http.StatusOK)
+		if got := jsonResponse[auditListResponse](t, w).Total; got != tc.want {
+			t.Errorf("%s: got %d rows, want %d", tc.query, got, tc.want)
+		}
+	}
 }
