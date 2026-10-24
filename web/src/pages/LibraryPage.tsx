@@ -11,11 +11,11 @@ import { FileBrowser } from "@/components/filebrowser/FileBrowser";
 import { LibraryFilterSidebar } from "@/components/LibraryFilterSidebar";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { Shell } from "@/components/Shell";
+import { UrlPager } from "@/components/UrlPager";
 import {
   Badge,
   Button,
   EmptyState,
-  Pager,
   SearchInput,
   Toolbar,
   ToolbarSpacer,
@@ -32,8 +32,6 @@ import {
 } from "@/hooks/useDataQueries";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import {
-  DEFAULT_PAGE_SIZE,
-  PAGE_SIZES,
   activeFilterCount,
   parseAssetFilters,
   parsePaging,
@@ -69,24 +67,8 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
     total,
     loading,
     placeholder,
+    error,
   } = useAssets(filters, hasLibrary, { limit: pageSize, offset: (page - 1) * pageSize });
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-
-  // A page past the end (a stale link, or the last assets deleted) moves to
-  // the last page. Wait for real data: a placeholder carries the old total.
-  useEffect(() => {
-    if (loading || placeholder || page <= pageCount) return;
-    setSearch(withPage(search, pageCount), { replace: true });
-  }, [loading, placeholder, page, pageCount, search, setSearch]);
-
-  // Paging pushes history entries, so back and forward step through pages.
-  const onPageChange = (next: number) => setSearch(withPage(search, next));
-  const onPageSizeChange = (size: number) => {
-    const next = withPage(search, 1);
-    if (size === DEFAULT_PAGE_SIZE) next.delete("page_size");
-    else next.set("page_size", String(size));
-    setSearch(next);
-  };
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   // Reset the selection when the search/filter scope changes — a render-time
@@ -299,19 +281,12 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                   onColumnsChange={onColumnsChange}
                   density={settings?.grid_density_default}
                 />
-                {total > 0 && (
-                  <div className="flex shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5">
-                    <Pager
-                      aria-label="Library pages"
-                      page={Math.min(page, pageCount)}
-                      pageCount={pageCount}
-                      onPageChange={onPageChange}
-                      pageSize={pageSize}
-                      pageSizes={PAGE_SIZES}
-                      onPageSizeChange={onPageSizeChange}
-                    />
-                  </div>
-                )}
+                <UrlPager
+                  aria-label="Library pages"
+                  className="shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5"
+                  total={total}
+                  query={{ loading, placeholder, error }}
+                />
               </>
             )}
             {selectedList.length > 0 && (

@@ -2,8 +2,10 @@ import { useSearchParams, Link, Navigate } from "react-router";
 
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
+import { UrlPager } from "@/components/UrlPager";
 import { Breadcrumb, BreadcrumbItem, SegmentedControl, Toolbar } from "@/design-system";
 import { useAdminAudit, useMe, type AdminAuditScope } from "@/hooks/useDataQueries";
+import { parsePaging, withPage } from "@/lib/libraryFilters";
 
 /**
  * Sysadmin audit log. Two scopes:
@@ -22,7 +24,14 @@ export function AdminAuditPage() {
   const isSysadmin = me?.role === "sysadmin";
   const [params, setParams] = useSearchParams();
   const scope: AdminAuditScope = params.get("scope") === "all" ? "all" : "server";
-  const { data: entries, total, loading } = useAdminAudit({ limit: 200, scope }, isSysadmin);
+  const { page, pageSize } = parsePaging(params);
+  const {
+    data: entries,
+    total,
+    loading,
+    placeholder,
+    error,
+  } = useAdminAudit({ limit: pageSize, offset: (page - 1) * pageSize, scope }, isSysadmin);
 
   if (meLoading) {
     return (
@@ -40,7 +49,7 @@ export function AdminAuditPage() {
   }
 
   const setScope = (next: AdminAuditScope) => {
-    const p = new URLSearchParams(params);
+    const p = withPage(params, 1);
     if (next === "server") p.delete("scope");
     else p.set("scope", next);
     setParams(p, { replace: true });
@@ -90,6 +99,12 @@ export function AdminAuditPage() {
                 }
               />
             )}
+            <UrlPager
+              aria-label="Audit log pages"
+              className="mt-2 justify-end"
+              total={total}
+              query={{ loading, placeholder, error }}
+            />
           </div>
         </>
       }
