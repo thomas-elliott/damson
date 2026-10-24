@@ -175,7 +175,8 @@ export function useDeleteAsset() {
       await fetchMaybeJson(`/api/assets/${id}`, { method: "DELETE" });
       return id;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
+      qc.removeQueries({ queryKey: queryKeys.asset(id) });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
     },
   });
