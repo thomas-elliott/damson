@@ -16,6 +16,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    allowedHosts: [".ts.net"],
     proxy: {
       "/api": {
         target: process.env.DAMSON_API_PROXY ?? "http://localhost:8080",
