@@ -14,20 +14,43 @@ import (
 )
 
 type projectView struct {
-	ID                 uint      `json:"id"`
-	Name               string    `json:"name"`
-	Description        string    `json:"description"`
-	TargetDistribution string    `json:"target_distribution"`
-	Glyph              string    `json:"glyph"`
-	GlyphColor         string    `json:"glyph_color"`
-	AssetCount         int       `json:"asset_count"`
-	UpdatesAvailable   int       `json:"updates_available"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	ID                 uint          `json:"id"`
+	Name               string        `json:"name"`
+	Description        string        `json:"description"`
+	TargetDistribution string        `json:"target_distribution"`
+	Glyph              string        `json:"glyph"`
+	GlyphColor         string        `json:"glyph_color"`
+	AssetCount         int           `json:"asset_count"`
+	UpdatesAvailable   int           `json:"updates_available"`
+	LicenceCounts      licenceCounts `json:"licence_counts"`
+	CreatedAt          time.Time     `json:"created_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
 }
 
-// getProjects lists projects in the library with pin count + updates-available
-// count (pins whose pinned_version_id is not the asset's current_version_id).
+// licenceCounts tallies a project's pins by licence status (licenceStatusSQL).
+type licenceCounts struct {
+	OK   int `json:"ok"`
+	Warn int `json:"warn"`
+	Err  int `json:"err"`
+	Unk  int `json:"unk"`
+}
+
+func (lc *licenceCounts) add(status string) {
+	switch status {
+	case "ok":
+		lc.OK++
+	case "warn":
+		lc.Warn++
+	case "err":
+		lc.Err++
+	default:
+		lc.Unk++
+	}
+}
+
+// getProjects lists projects in the library with pin count, updates-available
+// count (pins whose pinned_version_id is not the asset's current_version_id)
+// and the pins' licence statuses.
 func (h *Handler) getProjects(c *gin.Context) {
 	lib := getLibrary(c)
 	type row struct {
@@ -41,15 +64,26 @@ func (h *Handler) getProjects(c *gin.Context) {
 		UpdatedAt          time.Time
 		AssetCount         int
 		UpdatesAvailable   int
+		LicenceOK          int
+		LicenceWarn        int
+		LicenceErr         int
+		LicenceUnk         int
 	}
+	status := licenceStatusSQL("l")
 	var rows []row
 	err := h.db.WithContext(c.Request.Context()).
 		Table("projects AS p").
 		Select(`p.id, p.name, p.description, p.target_distribution, p.glyph, p.glyph_color, p.created_at, p.updated_at,
 			COALESCE(COUNT(pin.id), 0) AS asset_count,
-			COALESCE(SUM(CASE WHEN a.current_version_id IS NOT NULL AND a.current_version_id <> pin.pinned_version_id THEN 1 ELSE 0 END), 0) AS updates_available`).
+			COALESCE(SUM(CASE WHEN a.current_version_id IS NOT NULL AND a.current_version_id <> pin.pinned_version_id THEN 1 ELSE 0 END), 0) AS updates_available,
+			COUNT(pin.id) FILTER (WHERE `+status+` = 'ok') AS licence_ok,
+			COUNT(pin.id) FILTER (WHERE `+status+` = 'warn') AS licence_warn,
+			COUNT(pin.id) FILTER (WHERE `+status+` = 'err') AS licence_err,
+			COUNT(pin.id) FILTER (WHERE `+status+` = 'unk') AS licence_unk`,
+			permissiveLicences, permissiveLicences, permissiveLicences, permissiveLicences).
 		Joins("LEFT JOIN project_asset_pins pin ON pin.project_id = p.id").
 		Joins("LEFT JOIN assets a ON a.id = pin.asset_id").
+		Joins("LEFT JOIN licences l ON l.id = a.licence_id").
 		Where("p.library_id = ?", lib.ID).
 		Group("p.id").
 		Order("p.name").
@@ -69,6 +103,7 @@ func (h *Handler) getProjects(c *gin.Context) {
 			GlyphColor:         r.GlyphColor,
 			AssetCount:         r.AssetCount,
 			UpdatesAvailable:   r.UpdatesAvailable,
+			LicenceCounts:      licenceCounts{OK: r.LicenceOK, Warn: r.LicenceWarn, Err: r.LicenceErr, Unk: r.LicenceUnk},
 			CreatedAt:          r.CreatedAt,
 			UpdatedAt:          r.UpdatedAt,
 		}
@@ -267,6 +302,7 @@ func (h *Handler) getProject(c *gin.Context) {
 		if detail.HasUpdate {
 			out.UpdatesAvailable++
 		}
+		out.LicenceCounts.add(r.LicenceStatus)
 		out.Pins = append(out.Pins, detail)
 	}
 	c.JSON(http.StatusOK, out)
