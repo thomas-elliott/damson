@@ -121,6 +121,9 @@ func (w *importWorker) Work(ctx context.Context, job *river.Job[ImportArgs]) err
 	if err == nil {
 		return nil
 	}
+	// The job's own context may have timed out, so the checks below run
+	// without it.
+	ctx = context.WithoutCancel(ctx)
 	// The pipeline marks the row failed for terminal input errors (missing
 	// source blob, library mismatch). Those won't succeed on retry — cancel so
 	// River stops instead of burning attempts.
