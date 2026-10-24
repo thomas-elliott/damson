@@ -3,42 +3,38 @@ import { useSearchParams } from "react-router";
 
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
+import { UrlPager } from "@/components/UrlPager";
 import { Breadcrumb, BreadcrumbItem, SearchInput, Toolbar } from "@/design-system";
 import { cn } from "@/design-system/utils";
 import { useLibraryAudit } from "@/hooks/useDataQueries";
 import { ACTION_FILTERS } from "@/lib/auditFilters";
+import { parsePaging, withPage } from "@/lib/libraryFilters";
 
 /**
- * Library-scoped audit log. Filterable by action type via the chip bar +
- * by free-text user/target via the search input (server-side
- * filtering for action_type; the search input narrows by user_email
- * client-side because the audit endpoint doesn't accept a free-text
- * query — small enough at v1 row volumes).
+ * Library-scoped audit log, paged. The chip bar filters by action type and
+ * the search input by user name, email or action type, both on the server;
+ * changing either starts again from page 1.
  */
 export function AuditPage() {
   const [search, setSearch] = useSearchParams();
   const action = search.get("action") ?? "";
   const q = search.get("q") ?? "";
+  const { page, pageSize } = useMemo(() => parsePaging(search), [search]);
 
-  const filters = useMemo(
-    () => (action ? { action_type: action, limit: 200 } : { limit: 200 }),
-    [action],
-  );
-  const { data: entries, total, loading } = useLibraryAudit(filters);
-
-  const filtered = useMemo(() => {
-    if (!q) return entries;
-    const needle = q.toLowerCase();
-    return entries.filter(
-      (e) =>
-        (e.user_email ?? "").toLowerCase().includes(needle) ||
-        (e.user_display_name ?? "").toLowerCase().includes(needle) ||
-        e.action_type.toLowerCase().includes(needle),
-    );
-  }, [entries, q]);
+  const {
+    data: entries,
+    total,
+    loading,
+    placeholder,
+  } = useLibraryAudit({
+    action_type: action || undefined,
+    q: q || undefined,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
 
   const setParam = (key: string, value: string) => {
-    const next = new URLSearchParams(search);
+    const next = withPage(search, 1);
     if (value) next.set(key, value);
     else next.delete(key);
     setSearch(next, { replace: true });
@@ -84,8 +80,11 @@ export function AuditPage() {
                 Loading…
               </div>
             ) : (
-              <AuditList entries={filtered} linkTargets />
+              <AuditList entries={entries} linkTargets />
             )}
+            <div className="mt-2 flex justify-end">
+              <UrlPager aria-label="Audit log pages" total={total} settled={!loading && !placeholder} />
+            </div>
           </div>
         </>
       }
