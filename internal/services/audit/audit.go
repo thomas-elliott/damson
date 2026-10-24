@@ -5,6 +5,7 @@ package audit
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"gorm.io/gorm"
 
@@ -29,6 +30,9 @@ type Entry struct {
 func Write(tx *gorm.DB, e Entry) error {
 	if e.ActionType == "" || e.TargetType == "" {
 		return fmt.Errorf("audit: action_type and target_type required")
+	}
+	if !slices.Contains(ActionTypes, e.ActionType) {
+		return fmt.Errorf("audit: unknown action_type %q; add it to ActionTypes", e.ActionType)
 	}
 	row := models.AuditLog{
 		LibraryID:  e.LibraryID,
