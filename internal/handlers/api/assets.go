@@ -105,13 +105,14 @@ func updatesAvailableSQL() string {
 
 // assetSortColumns maps the sort query values to their ORDER BY clause. Only
 // these values are accepted, so the clause is never built from user input.
-// Release-date sorts put assets with no release date last either way.
+// Release-date sorts put assets with no release date last either way. Each
+// clause ends on a.id so tied rows keep one order across LIMIT/OFFSET pages.
 var assetSortColumns = map[string]string{
-	"created_desc":  "a.created_at DESC",
-	"created_asc":   "a.created_at ASC",
-	"released_desc": "a.released_at DESC NULLS LAST",
-	"released_asc":  "a.released_at ASC NULLS LAST",
-	"name_asc":      "a.name ASC",
+	"created_desc":  "a.created_at DESC, a.id DESC",
+	"created_asc":   "a.created_at ASC, a.id ASC",
+	"released_desc": "a.released_at DESC NULLS LAST, a.id DESC",
+	"released_asc":  "a.released_at ASC NULLS LAST, a.id ASC",
+	"name_asc":      "a.name ASC, a.id ASC",
 }
 
 const defaultAssetSort = "created_desc"

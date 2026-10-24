@@ -103,7 +103,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
 - Custom hooks live in `hooks/useDataQueries.ts` and wrap `useQuery`, returning a normalized `{ data, loading, error, reload }` shape.
 - Cache policy uses constants from `lib/cachePolicy` (`SECOND`, `MINUTE`, `HOUR`, `DAY`). Set `staleTime` and `gcTime` explicitly per endpoint.
 - Client config in `lib/queryClient.ts`: 5 min default stale, no refetch on focus.
-- Paginated lists: `limit`/`offset` query params on the server. The library pages with the `Pager` composition, not infinite scroll: `useAssets` takes a `{ limit, offset }` page, keeps the previous page on screen while the next loads (`keepPreviousData`), and the grid virtualises the one page it holds.
+- Paginated lists: `limit`/`offset` query params on the server. End every paged `ORDER BY` on a unique column (`a.id`), or tied rows can land on two pages or none. The library pages with the `Pager` composition, not infinite scroll: `useAssets` takes a `{ limit, offset }` page, keeps the previous page on screen while the next loads (`keepPreviousData`), and the grid virtualises the one page it holds.
 - Server-sent events (imports, previews) are subscriptions, not queries: the DB row is the source of truth and the stream is a nudge to refetch, so a dropped event must always be recoverable.
 
 ### API layer (`src/api.ts`)
