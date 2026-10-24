@@ -72,6 +72,10 @@ const (
 	maxPreviewBuffer = 64 << 20 // 64 MiB
 )
 
+// ErrStorage marks an extraction that failed writing to the object store
+// rather than on the archive itself, so the caller can retry it.
+var ErrStorage = errors.New("storage write failed")
+
 var guidPrefix = regexp.MustCompile(`^([0-9a-f]{32})(?:/|$)`)
 
 // imageExts are the asset extensions whose embedded preview.png is a real
@@ -200,7 +204,7 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 			}
 			key, size, perr := e.Storage.PutBlob(ctx, io.LimitReader(tr, maxEntry+1), e.EntryMeta)
 			if perr != nil {
-				return nil, fmt.Errorf("put blob %s: %w", hdr.Name, perr)
+				return nil, fmt.Errorf("put blob %s: %w: %w", hdr.Name, ErrStorage, perr)
 			}
 			if size > maxEntry {
 				return nil, fmt.Errorf("extract: entry %q exceeds per-entry cap", hdr.Name)
@@ -267,7 +271,7 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 		sum := sha256.Sum256(data)
 		key := hex.EncodeToString(sum[:])
 		if perr := e.Storage.PutThumb(ctx, key, bytes.NewReader(data)); perr != nil {
-			return nil, fmt.Errorf("put thumb: %w", perr)
+			return nil, fmt.Errorf("put thumb: %w: %w", ErrStorage, perr)
 		}
 		result.ThumbObjectKey = key
 		result.ThumbContentType = previewContentType
