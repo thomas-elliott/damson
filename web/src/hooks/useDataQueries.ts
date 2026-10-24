@@ -27,6 +27,7 @@ export function useAuthMode() {
 export interface MeLibrary {
   id: number;
   name: string;
+  description: string;
   role: "admin" | "member";
 }
 
@@ -443,6 +444,8 @@ export interface ProjectView {
   glyph_color: string;
   asset_count: number;
   updates_available: number;
+  /** The pins' licence statuses, counted. */
+  licence_counts: Record<LicenceStatus, number>;
   created_at: string;
   updated_at: string;
 }

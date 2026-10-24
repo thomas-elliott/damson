@@ -96,7 +96,7 @@ export function ProjectsPage() {
                       </span>
                     )}
                   </div>
-                  <LicenceBar counts={{ ok: 0, warn: 0, err: 0, unk: p.asset_count }} />
+                  <LicenceBar counts={p.licence_counts} />
                 </ProjectCard>
               ))}
               <ProjectCardNew onClick={() => setDialogOpen(true)} />

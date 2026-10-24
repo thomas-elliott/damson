@@ -32,6 +32,26 @@ func TestGetMe_ReturnsUser(t *testing.T) {
 	}
 }
 
+// The settings form seeds the library description from /api/me, so a save
+// that doesn't touch it must not blank it.
+func TestGetMe_CurrentLibraryCarriesDescription(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryForUser(t, db, u, "Main")
+	if err := db.Model(lib).Update("description", "Shared kit").Error; err != nil {
+		t.Fatalf("set description: %v", err)
+	}
+	r := setupRouter(h, u)
+
+	w := performGET(r, "/api/me")
+	requireStatus(t, w, http.StatusOK)
+
+	body := jsonResponse[meResponse](t, w)
+	if body.CurrentLibrary == nil || body.CurrentLibrary.Description != "Shared kit" {
+		t.Fatalf("current_library: got %+v, want description %q", body.CurrentLibrary, "Shared kit")
+	}
+}
+
 // A user the IdP authenticated by `sub` with no email claim is flagged
 // needs_profile so the SPA shows the first-login profile step.
 func TestGetMe_NeedsProfile_WhenNoEmail(t *testing.T) {

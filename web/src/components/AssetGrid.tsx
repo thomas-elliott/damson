@@ -3,14 +3,16 @@ import { FilePlus2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { AssetCard, Checkbox, EmptyState, cn, formatBytes } from "@/design-system";
-import type { AssetRow } from "@/hooks/useDataQueries";
+import type { AssetRow, LibrarySettings } from "@/hooks/useDataQueries";
 import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 
-// The grid auto-fills as many cells as fit (min 180px wide), recomputed on
-// resize. Row height is measured per row (measureElement) since the square
-// thumbnail makes it track the responsive cell width; the constants below only
-// seed the pre-measurement estimate.
-const MIN_CELL_WIDTH = 180;
+type GridDensity = LibrarySettings["grid_density_default"];
+
+// The grid auto-fills as many cells as fit (at least the density's minimum
+// width), recomputed on resize. Row height is measured per row
+// (measureElement) since the square thumbnail makes it track the responsive
+// cell width; the constants below only seed the pre-measurement estimate.
+const MIN_CELL_WIDTH: Record<GridDensity, number> = { small: 140, medium: 180, large: 240 };
 const FOOTER_HEIGHT = 44; // name + meta line under the square thumbnail.
 const GAP = 12;
 
@@ -27,6 +29,7 @@ export function AssetGrid({
   selectedIds,
   onToggleSelect,
   onColumnsChange,
+  density = "medium",
 }: {
   assets: AssetRow[];
   onOpen?: (id: number) => void;
@@ -35,9 +38,12 @@ export function AssetGrid({
   onToggleSelect?: (id: number) => void;
   /** Reports how many cards a row shows, so keyboard moves can go one row. */
   onColumnsChange?: (columns: number) => void;
+  /** The library's grid density; sets the minimum card width. */
+  density?: GridDensity;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { columns, cellWidth } = useGridMetrics(scrollRef);
+  const minCellWidth = MIN_CELL_WIDTH[density] ?? MIN_CELL_WIDTH.medium;
+  const { columns, cellWidth } = useGridMetrics(scrollRef, minCellWidth);
   useEffect(() => {
     onColumnsChange?.(columns);
   }, [columns, onColumnsChange]);
@@ -50,8 +56,8 @@ export function AssetGrid({
     return out;
   }, [assets, columns]);
 
-  const estimateRef = useRef(MIN_CELL_WIDTH + FOOTER_HEIGHT + GAP);
-  estimateRef.current = (cellWidth || MIN_CELL_WIDTH) + FOOTER_HEIGHT + GAP;
+  const estimateRef = useRef(minCellWidth + FOOTER_HEIGHT + GAP);
+  estimateRef.current = (cellWidth || minCellWidth) + FOOTER_HEIGHT + GAP;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -191,18 +197,21 @@ function GridCard({
 // width based on the scroll container's measured width. Recomputes on resize so
 // density toggles and window resizes both work. The cell width lets the caller
 // estimate row height (thumbnails are square) before the row is measured.
-function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>): {
+function useGridMetrics(
+  ref: React.RefObject<HTMLDivElement | null>,
+  minCellWidth: number,
+): {
   columns: number;
   cellWidth: number;
 } {
-  const [metrics, setMetrics] = useState({ columns: 4, cellWidth: MIN_CELL_WIDTH });
+  const [metrics, setMetrics] = useState({ columns: 4, cellWidth: minCellWidth });
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const compute = () => {
       if (!el.isConnected) return;
       const w = el.clientWidth - 28; // subtract the p-3.5 (14px each side).
-      const columns = Math.max(1, Math.floor((w + GAP) / (MIN_CELL_WIDTH + GAP)));
+      const columns = Math.max(1, Math.floor((w + GAP) / (minCellWidth + GAP)));
       const cellWidth = (w - (columns - 1) * GAP) / columns;
       setMetrics((prev) =>
         prev.columns === columns && prev.cellWidth === cellWidth ? prev : { columns, cellWidth },
@@ -212,6 +221,6 @@ function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>): {
     const ro = new ResizeObserver(compute);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ref]);
+  }, [ref, minCellWidth]);
   return metrics;
 }
