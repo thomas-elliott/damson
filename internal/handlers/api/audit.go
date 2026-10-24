@@ -51,6 +51,9 @@ type auditFilters struct {
 	TargetID    *uint
 	Since       *time.Time
 	Until       *time.Time
+	// Search is q: a case-insensitive substring of the user's name or email,
+	// or of the action type.
+	Search string
 }
 
 // maxAuditActionTypes bounds the action_type list: each entry is a bind
@@ -62,6 +65,7 @@ const maxAuditActionTypes = 50
 func parseAuditFilters(c *gin.Context) (auditFilters, bool) {
 	f := auditFilters{
 		TargetType: strings.TrimSpace(c.Query("target_type")),
+		Search:     strings.TrimSpace(c.Query("q")),
 	}
 	for _, a := range strings.Split(c.Query("action_type"), ",") {
 		if a = strings.TrimSpace(a); a != "" {
@@ -98,8 +102,13 @@ func parseAuditFilters(c *gin.Context) (auditFilters, bool) {
 }
 
 // applyAuditFilters layers the shared WHERE chain onto a base query that has
-// already applied any scope-specific predicates (e.g. library_id, target).
+// already applied any scope-specific predicates (e.g. library_id, target)
+// and joined users as u.
 func applyAuditFilters(q *gorm.DB, f auditFilters) *gorm.DB {
+	if f.Search != "" {
+		like := "%" + escapeLikePattern(f.Search) + "%"
+		q = q.Where(`(u.display_name ILIKE ? ESCAPE '\' OR u.email ILIKE ? ESCAPE '\' OR a.action_type ILIKE ? ESCAPE '\')`, like, like, like)
+	}
 	if f.UserID != nil {
 		q = q.Where("a.user_id = ?", *f.UserID)
 	}
@@ -133,11 +142,11 @@ func applyAuditFilters(q *gorm.DB, f auditFilters) *gorm.DB {
 // loadAuditPage returns a page of audit entries for the supplied base query.
 // The base query must already have the scope filter applied (library_id,
 // target=asset/project/etc.) — this helper layers the shared filter set,
-// pagination, and the user join. When includeLibraryName is true the
+// the user join, and pagination. When includeLibraryName is true the
 // returned rows carry the library's name (joined via libraries) so the
 // sysadmin "all" feed can render the source library.
 func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset int, includeLibraryName bool) ([]auditEntryView, int64, error) {
-	q := applyAuditFilters(base, f)
+	q := applyAuditFilters(base.Joins("LEFT JOIN users u ON u.id = a.user_id"), f)
 
 	var total int64
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
@@ -163,8 +172,7 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 	}
 	var rows []row
 	page := q.Session(&gorm.Session{}).
-		Select(selectCols).
-		Joins("LEFT JOIN users u ON u.id = a.user_id")
+		Select(selectCols)
 	if includeLibraryName {
 		page = page.Joins("LEFT JOIN libraries l ON l.id = a.library_id")
 	}
