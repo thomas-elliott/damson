@@ -70,23 +70,26 @@ func (h *Handler) getFile(c *gin.Context) {
 	if ref.RelativePath == "" {
 		// Also check original_package_object_key — Unity originals don't have
 		// asset_files rows and live under the originals/ prefix.
-		var asset models.Asset
+		var original struct {
+			Name        string
+			PackageKind string
+		}
 		err := h.db.WithContext(c.Request.Context()).
 			Table("assets AS a").
-			Select("a.name").
+			Select("a.name, v.package_kind").
 			Joins("JOIN asset_versions v ON v.asset_id = a.id").
 			Where("a.library_id = ? AND v.original_package_object_key = ? AND v.package_kind IN ? AND v.original_package_purged = false", lib.ID, key, []string{"unitypackage", "zip"}).
 			Limit(1).
-			Scan(&asset).Error
+			Scan(&original).Error
 		if err != nil {
 			respond500(c, err)
 			return
 		}
-		if asset.Name == "" {
+		if original.Name == "" {
 			respond404(c, "not found")
 			return
 		}
-		ref.RelativePath = asset.Name + ".unitypackage"
+		ref.RelativePath = original.Name + "." + original.PackageKind
 		fromOriginal = true
 	}
 
