@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -258,4 +259,16 @@ func TestGetLibraryAudit_ActionTypeListAndPrefix(t *testing.T) {
 			t.Errorf("action_type=%s: got %d rows, want %d", tc.query, got, tc.want)
 		}
 	}
+}
+
+// An unbounded action_type list would outrun Postgres's bind-parameter limit
+// and fail as a 500; past the cap it is the caller's error.
+func TestGetLibraryAudit_RejectsOverlongActionTypeList(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	list := strings.TrimSuffix(strings.Repeat("asset.tag,", maxAuditActionTypes+1), ",")
+	requireStatus(t, performGET(r, "/api/audit?action_type="+list), http.StatusBadRequest)
 }
