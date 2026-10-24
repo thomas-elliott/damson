@@ -71,8 +71,8 @@ func (b *Broadcaster) Subscribe(libraryID uint) (<-chan Event, func()) {
 				delete(b.subs, libraryID)
 			}
 		}
-		b.mu.Unlock()
 		close(s.ch)
+		b.mu.Unlock()
 	}
 	return s.ch, unsub
 }
@@ -82,14 +82,11 @@ func (b *Broadcaster) Subscribe(libraryID uint) (<-chan Event, func()) {
 // a warn line. The DB row is authoritative, so a dropped event is recoverable
 // by the next stage transition or a refresh.
 func (b *Broadcaster) Publish(libraryID uint, ev Event) {
+	// Sends happen under the lock, so an unsubscribe cannot close a channel
+	// mid-send. They never block, so holding it is cheap.
 	b.mu.Lock()
-	set := b.subs[libraryID]
-	targets := make([]*subscription, 0, len(set))
-	for s := range set {
-		targets = append(targets, s)
-	}
-	b.mu.Unlock()
-	for _, s := range targets {
+	defer b.mu.Unlock()
+	for s := range b.subs[libraryID] {
 		select {
 		case s.ch <- ev:
 		default:
