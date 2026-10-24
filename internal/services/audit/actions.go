@@ -1,0 +1,60 @@
+package audit
+
+// ActionTypes is every action_type the backend writes. Write refuses any
+// other, and web/src/lib/auditActionTypes.json is a copy kept in step by
+// TestActionTypesMatchWebCopy, so the SPA can check each has a label and a
+// filter chip. admin.* types and library.delete are server-level.
+var ActionTypes = []string{
+	"asset.create",
+	"asset.update",
+	"asset.delete",
+	"asset.merge",
+	"asset.rescan",
+	"asset.review",
+	"asset.unreview",
+	"asset.tag",
+	"asset.untag",
+	"asset.metadata.apply",
+	"asset.licence.set",
+	"asset.licence.update",
+	"asset.licence.review",
+	"asset.reference.create",
+	"asset.reference.update",
+	"asset.version.create",
+	"asset.version.update",
+	"asset.version.delete",
+	"asset.version.subset",
+	"tag.create",
+	"tag.delete",
+	"project.create",
+	"project.update",
+	"project.delete",
+	"project.pin",
+	"project.pin.upgrade",
+	"project.unpin",
+	"collection.create",
+	"collection.update",
+	"collection.delete",
+	"collection.add",
+	"collection.remove",
+	"token.create",
+	"token.revoke",
+	"library.create",
+	"library.update",
+	"library.delete",
+	"library.settings.update",
+	"library.member.add",
+	"library.member.role.update",
+	"library.member.remove",
+	"admin.user.update",
+	"admin.server_settings.update",
+	"admin.storage.orphan_delete",
+}
+
+var knownActionTypes = func() map[string]bool {
+	m := make(map[string]bool, len(ActionTypes))
+	for _, a := range ActionTypes {
+		m[a] = true
+	}
+	return m
+}()
