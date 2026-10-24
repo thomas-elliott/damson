@@ -381,3 +381,35 @@ func TestStoreLookups_RunOneAtATime(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+// A job that times out on its last attempt arrives with an expired context.
+// The row must still be marked failed, or it stays in flight until the next
+// start.
+func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
+	gdb := testdb.NewPostgres(t)
+	importID, libID := seedImportRow(t, gdb, true)
+	store, err := storage.NewLocalFS(t.TempDir(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &importWorker{deps: imports.Deps{DB: gdb, Storage: store}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	<-ctx.Done()
+	job := &river.Job[ImportArgs]{
+		JobRow: &rivertype.JobRow{Attempt: 5, MaxAttempts: 5},
+		Args:   ImportArgs{ImportID: importID, LibraryID: libID},
+	}
+	if err := w.Work(ctx, job); err == nil {
+		t.Fatal("work: want the timeout returned")
+	}
+
+	var imp models.AssetImport
+	if err := gdb.First(&imp, importID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if imp.Stage != imports.StageFailed {
+		t.Fatalf("stage = %q, want %q", imp.Stage, imports.StageFailed)
+	}
+}
