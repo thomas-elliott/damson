@@ -10,13 +10,14 @@ import { AuditPage } from "./AuditPage";
 // Each test sets the feed's total; the hooks record what they were asked for.
 const feed = vi.hoisted(() => ({
   total: 0,
+  error: null as Error | null,
   requests: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/hooks/useDataQueries", () => {
   const audit = (filters: Record<string, unknown>) => {
     feed.requests.push(filters);
-    return { data: [], total: feed.total, loading: false, placeholder: false };
+    return { data: [], total: feed.total, loading: false, placeholder: false, error: feed.error };
   };
   return {
     useMe: () => ({ data: { id: 1, role: "sysadmin" }, loading: false }),
@@ -35,6 +36,7 @@ function Location() {
 
 beforeEach(() => {
   feed.total = 120;
+  feed.error = null;
   feed.requests = [];
 });
 
@@ -71,6 +73,14 @@ describe("AuditPage paging", () => {
 
   it("moves a page past the end to the last page", () => {
     mount("/audit?page=9");
+    expect(query()).toBe("?page=3");
+  });
+
+  // A failed fetch has no total, which must not read as an empty feed.
+  it("keeps the page when the fetch fails", () => {
+    feed.total = 0;
+    feed.error = new Error("network");
+    mount("/audit?page=3");
     expect(query()).toBe("?page=3");
   });
 

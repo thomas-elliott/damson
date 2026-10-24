@@ -26,6 +26,7 @@ export function AuditPage() {
     total,
     loading,
     placeholder,
+    error,
   } = useLibraryAudit({
     action_type: action || undefined,
     q: q || undefined,
@@ -83,7 +84,11 @@ export function AuditPage() {
               <AuditList entries={entries} linkTargets />
             )}
             <div className="mt-2 flex justify-end">
-              <UrlPager aria-label="Audit log pages" total={total} settled={!loading && !placeholder} />
+              <UrlPager
+                aria-label="Audit log pages"
+                total={total}
+                settled={!loading && !placeholder && !error}
+              />
             </div>
           </div>
         </>
