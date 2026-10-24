@@ -195,3 +195,39 @@ func TestPurger_RunDisabledOnNonPositiveInterval(t *testing.T) {
 		t.Fatalf("Run with zero interval did not return immediately")
 	}
 }
+
+// TestPurger_RunSweepsAtStart checks the first sweep runs when Run starts,
+// not one Interval later, so a restart applies retention without waiting a
+// day.
+func TestPurger_RunSweepsAtStart(t *testing.T) {
+	db := newPurgeDB(t)
+	ensureLibraries(t, db, 1)
+	days := 7
+	if err := db.Create(&models.LibrarySettings{LibraryID: 1, AuditRetentionDays: &days}).Error; err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	lib := uint(1)
+	old := models.AuditLog{LibraryID: &lib, ActionType: "x", TargetType: "y", CreatedAt: time.Now().UTC().Add(-30 * 24 * time.Hour)}
+	if err := db.Create(&old).Error; err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go (&Purger{DB: db, Interval: time.Hour}).Run(ctx)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var n int64
+		if err := db.Model(&models.AuditLog{}).Where("id = ?", old.ID).Count(&n).Error; err != nil {
+			t.Fatalf("count: %v", err)
+		}
+		if n == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("old row still there 5s after Run started")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
