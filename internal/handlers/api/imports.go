@@ -133,7 +133,7 @@ func (h *Handler) getImports(c *gin.Context) {
 	var rows []importScanRow
 	err := q.Session(&gorm.Session{}).
 		Select(importRowSelect).
-		Order("i.updated_at DESC").
+		Order("i.updated_at DESC, i.id DESC").
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows).Error
