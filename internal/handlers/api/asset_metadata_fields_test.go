@@ -390,6 +390,38 @@ func TestAssetSort_ByReleaseDate(t *testing.T) {
 	}
 }
 
+func TestAssetSort_PagesTiedRowsOnce(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	// Every asset ties on every sort column: same name, same created_at and no
+	// release date. Only the id tiebreaker gives the pages a stable order.
+	const n = 23
+	created := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	want := map[uint]bool{}
+	for i := 0; i < n; i++ {
+		a := seedAssetWithFields(t, db, lib.ID, "pack", map[string]any{"created_at": created})
+		want[a.ID] = true
+	}
+
+	r := setupRouter(h, u)
+	for sort := range assetSortColumns {
+		seen := map[uint]int{}
+		for offset := 0; offset < n; offset += 5 {
+			query := "/api/assets?limit=5&sort=" + sort + "&offset=" + strconv.Itoa(offset)
+			for _, id := range listAssetIDs(t, r, query) {
+				seen[id]++
+			}
+		}
+		for id := range want {
+			if seen[id] != 1 {
+				t.Errorf("sort=%s: asset %d appeared on %d pages, want 1", sort, id, seen[id])
+			}
+		}
+	}
+}
+
 func TestGetAssetFacets(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")
