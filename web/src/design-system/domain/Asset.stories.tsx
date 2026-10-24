@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 
 import { AssetCard } from "./AssetCard";
-import { AssetListHead, AssetListRow } from "./AssetListRow";
 import { LicencePill } from "./LicencePill";
 import { ASSET_FIXTURES, formatBytes } from "./_fixtures";
 
@@ -41,37 +40,6 @@ export const Grid: Story = {
             onSelect={() => setSelected((prev) => (prev === a.id ? null : a.id))}
           />
         ))}
-      </div>
-    );
-  },
-};
-
-export const ListView: Story = {
-  parameters: { layout: "padded" },
-  render: function ListViewDemo() {
-    const [selected, setSelected] = useState<string | null>(null);
-    return (
-      <div className="overflow-hidden rounded-md border border-border bg-background">
-        <table className="w-full border-separate border-spacing-0">
-          <AssetListHead columns={["Type", "Licence", "Size", "Imported"]} />
-          <tbody>
-            {ASSET_FIXTURES.map((a) => (
-              <AssetListRow
-                key={a.id}
-                name={a.name}
-                thumb={a.thumb}
-                selected={selected === a.id}
-                onSelect={() => setSelected((prev) => (prev === a.id ? null : a.id))}
-                cells={[
-                  <span className="text-mono text-subtle-foreground">{a.type}</span>,
-                  <LicencePill status={a.licenceStatus} spdx={a.spdx} noDot />,
-                  <span className="text-mono text-subtle-foreground">{formatBytes(a.size)}</span>,
-                  <span className="text-mono text-subtle-foreground">{a.imported}</span>,
-                ]}
-              />
-            ))}
-          </tbody>
-        </table>
       </div>
     );
   },
