@@ -23,6 +23,8 @@ export const VERBS: Record<string, string> = {
   "asset.version.update": "updated a version of",
   "asset.version.delete": "deleted a version of",
   "asset.version.subset": "created a subset version of",
+  "asset.version.reextract": "re-extracted a version of",
+  "asset.import.retry": "retried the import of",
   "tag.create": "created tag",
   "tag.delete": "deleted tag",
   "project.create": "created project",
