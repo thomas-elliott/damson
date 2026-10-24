@@ -97,23 +97,3 @@ func ReplaySnapshot(ctx context.Context, db *gorm.DB, libraryID uint) ([]Event, 
 	}
 	return out, nil
 }
-
-// LoadEvent fetches the wire-shape Event for one import id, library-gated.
-// Returns ok=false if the row doesn't exist or belongs to another library.
-func LoadEvent(ctx context.Context, db *gorm.DB, libraryID, importID uint) (Event, bool, error) {
-	var r eventRow
-	err := db.WithContext(ctx).
-		Table("asset_imports AS i").
-		Joins("JOIN assets a ON a.id = i.asset_id").
-		Where("i.id = ? AND a.library_id = ?", importID, libraryID).
-		Select("i.id, i.asset_id, a.name AS asset_name, i.stage, i.error, i.updated_at, a.created_at, a.needs_review").
-		Limit(1).
-		Scan(&r).Error
-	if err != nil {
-		return Event{}, false, err
-	}
-	if r.ID == 0 {
-		return Event{}, false, nil
-	}
-	return r.toEvent(), true, nil
-}
