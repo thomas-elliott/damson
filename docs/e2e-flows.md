@@ -43,7 +43,7 @@ Not covered:
 - No spec watches an import reach `done` through the UI. The upload spec stops at the 202 and the
   placeholder; `uploadImport` reaches `done` only as API seeding.
 - Accessibility is checked only by the story suite (`just test stories`, axe at
-  `a11y.test = "error"`), and no gate runs it: not `just test`, not `just check`, not CI.
+  `a11y.test = "error"`), which `just check` and CI run but `just test` does not.
 - Visual regression has no owner.
 - Chunked uploads, below.
 
