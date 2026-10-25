@@ -19,7 +19,10 @@ import (
 // a request did before the server looks anything up.
 type heldLookups struct{ ids []uint }
 
-func (q *heldLookups) EnqueueStoreLookup(id uint) { q.ids = append(q.ids, id) }
+func (q *heldLookups) EnqueueStoreLookup(_ *gorm.DB, id uint) error {
+	q.ids = append(q.ids, id)
+	return nil
+}
 
 // runAll runs every held lookup as the queue's worker would.
 func (q *heldLookups) runAll(t *testing.T, h *Handler) {

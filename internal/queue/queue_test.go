@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
@@ -38,6 +39,7 @@ func newQueueEnv(t *testing.T) (*Queue, *gorm.DB, storage.Service, string) {
 
 	q, err := New(context.Background(), Config{
 		DSN:            dsn,
+		DB:             gdb,
 		Schema:         schema,
 		ImportWorkers:  1,
 		PreviewWorkers: 1,
@@ -56,6 +58,14 @@ func newQueueEnv(t *testing.T) (*Queue, *gorm.DB, storage.Service, string) {
 		_ = q.Stop(ctx)
 	})
 	return q, gdb, store, schema
+}
+
+// enqueue fails the test on an enqueue error.
+func enqueue(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
 }
 
 func renderableBMP(t *testing.T) []byte {
@@ -194,7 +204,7 @@ func TestQueue_ImportTerminalErrorCancels(t *testing.T) {
 	q, gdb, _, _ := newQueueEnv(t)
 	importID, libID := seedImportRow(t, gdb, false)
 
-	q.Imports().Enqueue(imports.Job{ImportID: importID, LibraryID: libID})
+	enqueue(t, q.Imports().Enqueue(gdb, imports.Job{ImportID: importID, LibraryID: libID}))
 
 	waitForImportStage(t, gdb, importID, imports.StageFailed)
 	waitForRiverState(t, gdb, "import", "cancelled")
@@ -207,7 +217,7 @@ func TestQueue_ImportTerminalErrorCancels(t *testing.T) {
 func TestQueue_ImportTransientErrorRetries(t *testing.T) {
 	q, gdb, _, _ := newQueueEnv(t)
 
-	q.Imports().Enqueue(imports.Job{ImportID: 999999, LibraryID: 0})
+	enqueue(t, q.Imports().Enqueue(gdb, imports.Job{ImportID: 999999, LibraryID: 0}))
 
 	waitForRiverState(t, gdb, "import", "retryable")
 	if got := riverJobState(t, gdb, "import"); got == "cancelled" || got == "discarded" {
@@ -218,11 +228,11 @@ func TestQueue_ImportTransientErrorRetries(t *testing.T) {
 // TestWorkerTimeouts proves the per-queue job timeout is wired from config onto
 // the workers.
 func TestWorkerTimeouts(t *testing.T) {
-	iw := &importWorker{timeout: 7 * time.Minute}
+	iw := &worker[ImportArgs]{kind: importKind(nil, imports.Deps{}, 1, 7*time.Minute)}
 	if got := iw.Timeout(nil); got != 7*time.Minute {
 		t.Fatalf("import worker timeout: got %v, want 7m", got)
 	}
-	pw := &previewWorker{timeout: 3 * time.Minute}
+	pw := &worker[PreviewArgs]{kind: previewKind(nil, preview.Deps{}, 1, 3*time.Minute)}
 	if got := pw.Timeout(nil); got != 3*time.Minute {
 		t.Fatalf("preview worker timeout: got %v, want 3m", got)
 	}
@@ -236,7 +246,7 @@ func TestQueue_PreviewJobRunsToDone(t *testing.T) {
 	q, gdb, store, _ := newQueueEnv(t)
 	libID, versionID, fileID := seedQueuedFile(t, gdb, store, renderableBMP(t), "tex.bmp")
 
-	q.Previews().Enqueue(preview.Job{LibraryID: libID, VersionID: versionID})
+	enqueue(t, q.Previews().Enqueue(gdb, preview.Job{LibraryID: libID, VersionID: versionID}))
 
 	waitForStatus(t, gdb, fileID, preview.StatusDone)
 }
@@ -276,7 +286,7 @@ func TestQueue_PreviewJobMarksFailedOnBadRender(t *testing.T) {
 	q, gdb, store, _ := newQueueEnv(t)
 	libID, versionID, fileID := seedQueuedFile(t, gdb, store, []byte("not a real psd"), "art.psd")
 
-	q.Previews().Enqueue(preview.Job{LibraryID: libID, VersionID: versionID, FileID: fileID})
+	enqueue(t, q.Previews().Enqueue(gdb, preview.Job{LibraryID: libID, VersionID: versionID, FileID: fileID}))
 
 	waitForStatus(t, gdb, fileID, preview.StatusFailed)
 }
@@ -304,11 +314,19 @@ func (r *concurrencyRunner) Run(_ context.Context, id uint) error {
 
 func (r *concurrencyRunner) Fail(context.Context, uint, string) error { return nil }
 
+func (r *concurrencyRunner) Resume(context.Context, enrich.LookupEnqueuer) (int, error) {
+	return 0, nil
+}
+
 // failingRunner fails every lookup and records which it was told were failed.
 type failingRunner struct{ failed []uint }
 
 func (r *failingRunner) Run(context.Context, uint) error {
 	return errors.New("database unreachable")
+}
+
+func (r *failingRunner) Resume(context.Context, enrich.LookupEnqueuer) (int, error) {
+	return 0, nil
 }
 
 func (r *failingRunner) Fail(_ context.Context, id uint, _ string) error {
@@ -318,7 +336,7 @@ func (r *failingRunner) Fail(_ context.Context, id uint, _ string) error {
 
 func TestStoreLookupWorker_LastAttemptMarksTheLookupFailed(t *testing.T) {
 	runner := &failingRunner{}
-	w := &storeLookupWorker{run: runner}
+	w := &worker[StoreLookupArgs]{kind: storeLookupKind(nil, runner)}
 	job := func(attempt int) *river.Job[StoreLookupArgs] {
 		return &river.Job[StoreLookupArgs]{
 			JobRow: &rivertype.JobRow{Attempt: attempt, MaxAttempts: 5},
@@ -347,7 +365,7 @@ func TestStoreLookups_RunOneAtATime(t *testing.T) {
 	gdb := testdb.OpenSchema(t, dsn, schema, true)
 	runner := &concurrencyRunner{}
 	q, err := New(context.Background(), Config{
-		DSN: dsn, Schema: schema, ImportWorkers: 4, PreviewWorkers: 4,
+		DSN: dsn, DB: gdb, Schema: schema, ImportWorkers: 4, PreviewWorkers: 4,
 		ImportDeps: imports.Deps{DB: gdb}, PreviewDeps: preview.Deps{DB: gdb}, StoreLookups: runner,
 	})
 	if err != nil {
@@ -363,7 +381,7 @@ func TestStoreLookups_RunOneAtATime(t *testing.T) {
 	})
 
 	for id := uint(1); id <= 5; id++ {
-		q.StoreLookups().EnqueueStoreLookup(id)
+		enqueue(t, q.StoreLookups().EnqueueStoreLookup(gdb, id))
 	}
 	deadline := time.Now().Add(15 * time.Second)
 	for {
@@ -394,7 +412,7 @@ func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
 	events := imports.NewBroadcaster()
 	ch, unsub := events.Subscribe(libID)
 	defer unsub()
-	w := &importWorker{deps: imports.Deps{DB: gdb, Storage: store, Broadcaster: events}}
+	w := &worker[ImportArgs]{kind: importKind(nil, imports.Deps{DB: gdb, Storage: store, Broadcaster: events}, 1, 0)}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
@@ -422,5 +440,40 @@ func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
 		}
 	default:
 		t.Error("no failed event published")
+	}
+}
+
+// A job is inserted in the transaction that creates its row, so a request
+// that fails after enqueuing leaves no job behind, and one that commits
+// leaves exactly its job.
+func TestEnqueue_JoinsTheCreatingTransaction(t *testing.T) {
+	q, gdb, _, _ := newQueueEnv(t)
+	countJobs := func() int64 {
+		var n int64
+		if err := gdb.Raw(`SELECT count(*) FROM river_job WHERE kind = 'import'`).Scan(&n).Error; err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	failed := errors.New("the request failed after enqueuing")
+	err := gdb.Transaction(func(tx *gorm.DB) error {
+		enqueue(t, q.Imports().Enqueue(tx, imports.Job{ImportID: 999999, LibraryID: 1}))
+		return failed
+	})
+	if !errors.Is(err, failed) {
+		t.Fatalf("transaction: %v", err)
+	}
+	if n := countJobs(); n != 0 {
+		t.Fatalf("%d import jobs after a rolled-back request, want none", n)
+	}
+
+	if err := gdb.Transaction(func(tx *gorm.DB) error {
+		return q.Imports().Enqueue(tx, imports.Job{ImportID: 999999, LibraryID: 1})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if n := countJobs(); n != 1 {
+		t.Fatalf("%d import jobs after a committed request, want 1", n)
 	}
 }

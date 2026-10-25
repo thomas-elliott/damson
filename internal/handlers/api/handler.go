@@ -11,23 +11,11 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
-
-// ImportEnqueuer submits import jobs to the background queue. Decouples the
-// handlers from the concrete pool so production can inject a River-backed
-// enqueuer while tests inject a synchronous one.
-type ImportEnqueuer interface {
-	Enqueue(imports.Job)
-}
-
-// StoreLookupEnqueuer queues one background store lookup by its
-// store_lookups row. Production injects River's; tests run the lookup inline.
-type StoreLookupEnqueuer interface {
-	EnqueueStoreLookup(lookupID uint)
-}
 
 // Handler carries dependencies used by every API handler. Construct with
 // New(Deps{...}); register routes with AddRoutes. Exported so cmd/server (and
@@ -38,12 +26,12 @@ type Handler struct {
 	local              *auth.LocalAuthenticator // non-nil only in local mode
 	storage            storage.Service          // nil in tests that don't exercise uploads
 	loginRate          *auth.LoginThrottle
-	importPool         ImportEnqueuer
+	importPool         imports.Enqueuer
 	broadcaster        *imports.Broadcaster
 	previewPool        preview.Enqueuer
 	previewBroadcaster *preview.Broadcaster
 	metadata           metadataService // nil in tests that don't exercise enrichment
-	storeLookups       StoreLookupEnqueuer
+	storeLookups       enrich.LookupEnqueuer
 	orphanMinAge       time.Duration
 	chunkSize          int64
 	// oidcAuthority / oidcClientID are the non-secret OIDC client config
@@ -66,7 +54,7 @@ type Deps struct {
 	// ImportPool drains async import jobs. Tests that don't exercise the
 	// import flow can leave it nil; tests that do should pass a synchronous
 	// pool (importstest.NewSync) so stage transitions stay deterministic.
-	ImportPool ImportEnqueuer
+	ImportPool imports.Enqueuer
 	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
 	// the pipeline tolerates a missing broadcaster.
 	Broadcaster *imports.Broadcaster
@@ -80,7 +68,7 @@ type Deps struct {
 	Metadata metadataService
 	// StoreLookups queues background store lookups. Optional — nil disables
 	// the endpoints that queue them (they return 503).
-	StoreLookups StoreLookupEnqueuer
+	StoreLookups enrich.LookupEnqueuer
 	// OrphanMinAge is the minimum object age the storage-cleanup sweep respects.
 	// Zero means "use the built-in default" so tests need not set it.
 	OrphanMinAge time.Duration

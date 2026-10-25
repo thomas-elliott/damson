@@ -133,16 +133,24 @@ func (l *Lookups) Fail(ctx context.Context, lookupID uint, reason string) error 
 		Updates(map[string]any{"status": models.StoreLookupFailed, "error": reason}).Error
 }
 
-// Resume re-enqueues every lookup still queued, for one whose enqueue failed
-// or whose job was lost. River dedupes by args, so this is safe on every boot.
-func (l *Lookups) Resume(ctx context.Context, enq interface{ EnqueueStoreLookup(uint) }) (int, error) {
+// LookupEnqueuer puts a store lookup job on the background queue in tx, so
+// the job commits or rolls back with its store_lookups row.
+type LookupEnqueuer interface {
+	EnqueueStoreLookup(tx *gorm.DB, lookupID uint) error
+}
+
+// Resume re-enqueues every lookup still queued, for one whose job was lost.
+// River dedupes by args, so this is safe on every boot.
+func (l *Lookups) Resume(ctx context.Context, enq LookupEnqueuer) (int, error) {
 	var ids []uint
 	if err := l.DB.WithContext(ctx).Model(&models.StoreLookup{}).
 		Where("status = ?", models.StoreLookupQueued).Order("id").Pluck("id", &ids).Error; err != nil {
 		return 0, err
 	}
-	for _, id := range ids {
-		enq.EnqueueStoreLookup(id)
+	for i, id := range ids {
+		if err := enq.EnqueueStoreLookup(l.DB.WithContext(ctx), id); err != nil {
+			return i, err
+		}
 	}
 	return len(ids), nil
 }

@@ -525,6 +525,8 @@ github.com/leodido/go-urn v1.4.0 h1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=
 github.com/leodido/go-urn v1.4.0/go.mod h1:bvxc+MVxLKB4z00jd1z+Dvzr47oO32F/QSNjSBOlFxI=
 github.com/leonklingele/grouper v1.1.2 h1:o1ARBDLOmmasUaNDesWqWCIFH3u7hoFlM84YrjT3mIY=
 github.com/leonklingele/grouper v1.1.2/go.mod h1:6D0M/HVkhs2yRKRFZUoGjeDy7EZTfFBE9gl4kjmIGkA=
+github.com/lib/pq v1.12.3 h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ=
+github.com/lib/pq v1.12.3/go.mod h1:/p+8NSbOcwzAEI7wiMXFlgydTwcgTr3OSKMsD2BitpA=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/macabu/inamedparam v0.2.0 h1:VyPYpOc10nkhI2qeNUdh3Zket4fcZjEWe35poddBCpE=
@@ -656,6 +658,8 @@ github.com/riverqueue/river v0.40.0 h1:4dynKqqU1P22iPmwWDfDj/YZXnuUTZysXXF3wNHek
 github.com/riverqueue/river v0.40.0/go.mod h1:auvB4kHqM97tnshEQxzy2E7aFvJFhl010NB6N29DXXc=
 github.com/riverqueue/river/riverdriver v0.40.0 h1:QjBHHh+kaxgUgK9tPumrfx7W14vhAHLIt+0dK40ikI8=
 github.com/riverqueue/river/riverdriver v0.40.0/go.mod h1:7wEqxsqvtjGk3hBKGKK3IvdnULlPZltpAfkbMr9M2VY=
+github.com/riverqueue/river/riverdriver/riverdatabasesql v0.40.0 h1:EtKlKjaKzkNckyGrFnrpK5mcc7+xnp7Z3IV9XVRf+7E=
+github.com/riverqueue/river/riverdriver/riverdatabasesql v0.40.0/go.mod h1:Si7twoX1cou3msM9G6rYCKelaSHLqTgJ65H/m3Zi8rk=
 github.com/riverqueue/river/riverdriver/riverpgxv5 v0.40.0 h1:WbzXgGukvOqYpsORX4rr03sPZfasjoMckLr4On+Je+4=
 github.com/riverqueue/river/riverdriver/riverpgxv5 v0.40.0/go.mod h1:HtgFIcn/eJ9O3f371S1cSb0ttS7xJMMkkTD/K6gQKQg=
 github.com/riverqueue/river/rivershared v0.40.0 h1:6ZX1Ok94Nkcx/WpHPhexpfdkRB1BqRWFEWrbDszg+JY=

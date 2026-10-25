@@ -1,6 +1,7 @@
 package api
 
 import (
+	"gorm.io/gorm"
 	"net/http"
 	"testing"
 	"time"
@@ -18,7 +19,10 @@ type spyPreviewEnqueuer struct {
 	jobCalls []preview.Job
 }
 
-func (s *spyPreviewEnqueuer) Enqueue(j preview.Job) { s.jobCalls = append(s.jobCalls, j) }
+func (s *spyPreviewEnqueuer) Enqueue(_ *gorm.DB, j preview.Job) error {
+	s.jobCalls = append(s.jobCalls, j)
+	return nil
+}
 
 // TestPreviewRequeue_RoutesThroughEnqueuerSeam injects a non-pool enqueuer and
 // asserts the requeue handler enqueues the version through the interface.

@@ -29,6 +29,12 @@ type Job struct {
 	LibraryID uint
 }
 
+// Enqueuer puts an import job on the background queue in tx, so the job
+// commits or rolls back with the rows it is for.
+type Enqueuer interface {
+	Enqueue(tx *gorm.DB, job Job) error
+}
+
 // Deps are the long-lived collaborators every pipeline run needs. They live
 // on the Pool and are passed into Run.
 type Deps struct {
