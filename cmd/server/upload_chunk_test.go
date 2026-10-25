@@ -14,6 +14,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/imports/importstest"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/testdb"
 )
@@ -59,7 +60,7 @@ func TestUploadChunk_FullSizeChunkPassesTheServerStack(t *testing.T) {
 
 	h := api.New(api.Deps{
 		DB: db, AuthMode: config.AuthModeLocal, Local: local, Storage: store,
-		ImportPool:  imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: imports.NewBroadcaster()}),
+		ImportPool:  importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: imports.NewBroadcaster()}),
 		Broadcaster: imports.NewBroadcaster(),
 	})
 	r, err := newRouter("", nil)

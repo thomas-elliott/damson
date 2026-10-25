@@ -2,7 +2,6 @@ package imports
 
 import (
 	"context"
-	"log/slog"
 
 	"gorm.io/gorm"
 
@@ -48,25 +47,4 @@ type Deps struct {
 	Previews PreviewEnqueuer
 	// Metadata drives the auto-enrichment stage. Optional — nil skips it.
 	Metadata MetadataEnricher
-}
-
-// Pool is a synchronous enqueuer that runs the import pipeline inline on the
-// calling goroutine. Production uses the River-backed queue; this remains for
-// tests (via NewSync) that need deterministic stage transitions without a
-// running River client. It satisfies the api ImportEnqueuer seam.
-type Pool struct {
-	deps Deps
-}
-
-// NewSync returns a pool whose Enqueue runs the pipeline on the calling
-// goroutine. Used by tests to keep stage transitions deterministic.
-func NewSync(deps Deps) *Pool {
-	return &Pool{deps: deps}
-}
-
-// Enqueue runs the pipeline inline.
-func (p *Pool) Enqueue(job Job) {
-	if err := Run(context.Background(), p.deps, job); err != nil {
-		slog.Error("sync import pipeline failed", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
-	}
 }

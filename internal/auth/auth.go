@@ -76,9 +76,3 @@ func GetUser(c *gin.Context) *models.User {
 	u, _ := v.(*models.User)
 	return u
 }
-
-// SetUserForTest is used by test helpers that bypass the real middleware.
-// Not intended for production code paths.
-func SetUserForTest(c *gin.Context, u *models.User) {
-	setUser(c, u)
-}

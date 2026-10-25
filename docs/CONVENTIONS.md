@@ -71,9 +71,9 @@ Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON hand
 Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers live in the package's `*_test.go` files — the core ones in `api_test.go`, seed helpers beside the feature they seed:
 
 - `newTestHandler(t)` — returns `(*Handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires `DAMSON_TEST_POSTGRES_DSN` (see `docs/architecture.md` §4.6)
-- Import and preview pools are synchronous (`NewSync`), so a 202 import is already terminal when the handler returns; River's async behaviour is only exercised by e2e.
+- Import and preview pools are synchronous (`importstest.NewSync`, `previewtest.NewSync`), so a 202 import is already terminal when the handler returns; River's async behaviour is only exercised by e2e.
 - `newTestHandlerLocal(t)` — same but in local-auth mode, with a `*auth.LocalAuthenticator` returned alongside
-- `setupRouter(h, asUser)` — registers routes under `/api`; bypasses real auth by injecting `asUser` via `auth.SetUserForTest`
+- `setupRouter(h, asUser)` — registers routes under `/api` behind the real `auth.Middleware`, with an authenticator that signs every request in as `asUser` (401 when nil)
 - `performGET(r, path)`, `performRequest(r, method, path, body)` — issue requests
 - `requireStatus(t, w, code)`, `jsonResponse[T]` — assertions
 - `seedUser`, `seedLocalUser`, `seedLibrary`, `seedMembership`, `seedLibraryAndSwitch` — seed data
