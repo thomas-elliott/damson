@@ -117,3 +117,11 @@ Mode: committing, one commit per stage, on branch `dam-60-domain-rules`.
 - Stage 4, `internal/services/preview/process.go`: previews gain a final-failure handler, `preview.FailJob`, which marks the files a given-up job left queued or processing failed. Before, they stayed queued until the next boot.
 - Stage 4, `internal/services/imports/importstest` and `internal/services/preview/previewtest`: the synchronous test pools run the job inside the enqueuing transaction, as if it ran once that transaction committed.
 - Stage 5, `internal/handlers/api/library.go`: library delete deletes the libraries row and lets the cascades remove the rest; `users.current_library_id ON DELETE SET NULL` clears the members' current library, so only the token watermark is bumped by hand.
+
+### Handoff (session 1, paused by the operator)
+
+Stages 1–5 are built and committed (`1e68abf`, `6f91bb4`, `b4db1f3`, `c5f6c64`, `e0e3794`). Stage 6 is in progress and **uncommitted** in the working tree. It builds and vets, but no test has run against it:
+
+- Done: `imports.ChooseCurrent` (`internal/services/imports/version.go`). It skips versions whose latest import failed or is still running, except the version being finished. The import pipeline's finalize now uses it. `imports.Reextract` (`reextract.go`) is wired into `postReExtract`. `internal/services/assets/lifecycle.go` has `Delete`, `DeleteVersion`, `Merge` and `Subset`, each calling `ChooseCurrent`.
+- Not done: point `deleteAsset`, bulk delete, `deleteAssetVersion`, `postAssetMerge` and `postAssetVersionSubset` at `assets.*`, and delete `deleteAssetTx`, `nextCurrentVersion`, `versionDisplayName`, the merge helpers in `merge.go` and the body of `subset.go`. Map `assets.ErrConflict`/`ErrBadRequest` in `respondGORM`. Add tests for the current-version acceptance line: import v1.0 after v2.0, re-extracting an old version, merge, subset tie, and version delete. Update the architecture doc. Commit.
+- Not run this session: the closing steps. That means the build gate, the `review` subagent over stages 1–6, real proof and `just check`. Each stage was proved only with its own narrow tests. The full `internal/handlers/api` suite passed once, after stage 4.
