@@ -211,11 +211,10 @@ func (h *Handler) patchLibrary(c *gin.Context) {
 // deleteLibrary tears down a library and every row scoped to it. Library
 // admins (or sysadmins) may call this — same gate as patchLibrary.
 //
-// Postgres FK cascades reach assets/projects/collections/tags/settings/
-// memberships from the libraries row directly, plus their child rows.
-// SQLite (test backend) does not enforce FKs by default, so we walk the
-// child tables explicitly inside the same transaction; the writes are
-// idempotent against Postgres.
+// FK cascades reach assets/projects/collections/tags/settings/memberships
+// from the libraries row directly, plus their child rows. The child tables
+// are also walked explicitly inside the same transaction, which the cascades
+// make redundant.
 //
 // The deletion event is recorded with library_id=NULL so the row survives
 // `audit_log.library_id ON DELETE CASCADE`. The diff carries the library
@@ -254,7 +253,7 @@ func (h *Handler) deleteLibrary(c *gin.Context) {
 		}
 		memberCount = len(memberIDs)
 
-		// Walk the children that the SQLite test path doesn't cascade.
+		// Walk the children the cascades would remove anyway.
 		// Order matters: leaf rows first, then the rows they reference.
 		var assetIDs []uint
 		if err := tx.Model(&models.Asset{}).
@@ -321,8 +320,7 @@ func (h *Handler) deleteLibrary(c *gin.Context) {
 			return err
 		}
 		// Audit_log.library_id ON DELETE CASCADE means in-library audit rows
-		// disappear with the library. Drop them explicitly for the SQLite
-		// test path; harmless on Postgres.
+		// disappear with the library; this delete is redundant.
 		if err := tx.Where("library_id = ?", libID).Delete(&models.AuditLog{}).Error; err != nil {
 			return err
 		}
