@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestLocalFS_PutBlob_RoundTrip(t *testing.T) {
+func TestLocalFS_Put_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	s, err := NewLocalFS(dir)
 	if err != nil {
@@ -51,7 +51,7 @@ func TestLocalFS_PutBlob_RoundTrip(t *testing.T) {
 	_ = expected // asserted indirectly via Get
 }
 
-func TestLocalFS_PutBlob_Dedupes(t *testing.T) {
+func TestLocalFS_Put_Dedupes(t *testing.T) {
 	dir := t.TempDir()
 	s, err := NewLocalFS(dir)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestLocalFS_PutBlob_Dedupes(t *testing.T) {
 	}
 }
 
-func TestLocalFS_HeadBlob_Missing(t *testing.T) {
+func TestLocalFS_Stat_Missing(t *testing.T) {
 	dir := t.TempDir()
 	s, err := NewLocalFS(dir)
 	if err != nil {

@@ -180,7 +180,7 @@ func TestLocalFS_ListStatDelete(t *testing.T) {
 	}
 }
 
-func TestLocalFS_PutBlob_EmptyMetaWritesNoSidecar(t *testing.T) {
+func TestLocalFS_Put_EmptyMetaWritesNoSidecar(t *testing.T) {
 	dir := t.TempDir()
 	s, err := NewLocalFS(dir)
 	if err != nil {

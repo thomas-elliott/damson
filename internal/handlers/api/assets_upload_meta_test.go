@@ -64,7 +64,7 @@ func TestPostImport_StampsMetadata(t *testing.T) {
 	_ = seedLibraryAndSwitch(t, h, u)
 	r := setupRouter(h, u)
 
-	// Unity → PutOriginal carries filename + all owning IDs + kind.
+	// Unity → Put under Originals carries filename + all owning IDs + kind.
 	pkg := buildUnityPackage(t, []unityPkgEntry{
 		{guid: testGUID(0x06), pathname: "Assets/x.bin", content: []byte("x")},
 	})
@@ -87,7 +87,7 @@ func TestPostImport_StampsMetadata(t *testing.T) {
 		t.Fatalf("original meta kind: got %q", got.Kind)
 	}
 
-	// Loose → PutBlob carries filename + owning IDs + loose kind.
+	// Loose → Put under Blobs carries filename + owning IDs + loose kind.
 	lb, lc := buildMultipart(t, "file", "logo.png", []byte("png"))
 	lw := postMultipart(r, "/api/imports", lb, lc)
 	requireStatus(t, lw, http.StatusAccepted)
