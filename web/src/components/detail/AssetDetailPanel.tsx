@@ -16,9 +16,12 @@ import {
   X,
 } from "lucide-react";
 
+import { isNotFound } from "@/api";
 import {
   Button,
   DetailPanel,
+  EmptyState,
+  ErrorState,
   FieldRow,
   IconButton,
   Input,
@@ -100,7 +103,7 @@ export function AssetDetailPanel({
    */
   onReservedWidthChange?: (width: number) => void;
 }) {
-  const { data: asset, loading } = useAssetDetail(assetId);
+  const { data: asset, loading, error, failed, reload } = useAssetDetail(assetId);
   const [width, setWidth] = useState<number>(readStoredWidth);
   const [userFullscreen, setUserFullscreen] = useState(false);
   const [autoFullscreen, setAutoFullscreen] = useState(false);
@@ -189,14 +192,18 @@ export function AssetDetailPanel({
     >
       {/* key by asset id so edit state re-initialises from props when a
           different asset opens, instead of syncing via an effect. */}
-      {asset && (
+      {asset ? (
         <AssetDetailBody
           key={asset.id}
           asset={asset}
           onBrowse={onBrowse ? () => onBrowse(asset.id) : undefined}
           onDeleted={onClose}
         />
-      )}
+      ) : failed && isNotFound(error) ? (
+        <EmptyState title="Asset not found" description="It may have been deleted." />
+      ) : failed ? (
+        <ErrorState title="Couldn't load this asset" onRetry={reload} />
+      ) : null}
     </DetailPanel>
   );
 }
