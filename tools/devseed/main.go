@@ -1,8 +1,9 @@
-// Command devseed fills a dev library with a few sample packs, so a fresh
-// `just dev` has something to browse. Run it as `just seed` while the backend is
-// up. It generates the packs into tmp/seed, signs in as the dev admin and
-// uploads them with dmsn; packs the library already holds are skipped, so it is
-// safe to run again.
+// Command devseed fills a dev library with a few sample packs and about 300
+// reference assets, so a fresh `just dev` has something to browse at scale. Run
+// it as `just seed` while the backend is up. It generates the packs into
+// tmp/seed, signs in as the dev admin and uploads them with dmsn, then writes
+// the reference assets straight into the dev Postgres. Packs and references
+// the library already holds are skipped, so it is safe to run again.
 package main
 
 import (
@@ -23,6 +24,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+
+	"github.com/thomas-elliott/damson/internal/db"
 )
 
 const (
@@ -55,6 +59,73 @@ func main() {
 	if err := cmd.Run(); err != nil {
 		log.Fatal(err)
 	}
+
+	libraryID, err := currentLibrary(server, token)
+	if err != nil {
+		log.Fatalf("find %s's library: %v", email, err)
+	}
+	dsn, err := postgresDSN()
+	if err != nil {
+		log.Fatal(err)
+	}
+	gdb, err := db.Open(dsn)
+	if err != nil {
+		log.Fatalf("open the dev database: %v", err)
+	}
+	created, skipped, err := writeReferences(gdb, libraryID)
+	if err != nil {
+		log.Fatalf("write reference assets: %v", err)
+	}
+	log.Printf("reference assets: %d written, %d already there", created, skipped)
+}
+
+// currentLibrary is the signed-in user's current library, as /api/me reports it.
+func currentLibrary(server, token string) (uint, error) {
+	req, err := http.NewRequest(http.MethodGet, server+"/api/me", nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("%s: %s", resp.Status, msg)
+	}
+	var me struct {
+		CurrentLibrary *struct {
+			ID uint `json:"id"`
+		} `json:"current_library"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
+		return 0, err
+	}
+	if me.CurrentLibrary == nil {
+		return 0, fmt.Errorf("no current library")
+	}
+	return me.CurrentLibrary.ID, nil
+}
+
+// postgresDSN reads the database the server uses, as internal/config does:
+// DAMSON_POSTGRES_DSN, or the file DAMSON_POSTGRES_DSN_FILE names.
+func postgresDSN() (string, error) {
+	direct, file := os.Getenv("DAMSON_POSTGRES_DSN"), os.Getenv("DAMSON_POSTGRES_DSN_FILE")
+	switch {
+	case direct != "" && file != "":
+		return "", fmt.Errorf("set either DAMSON_POSTGRES_DSN or DAMSON_POSTGRES_DSN_FILE, not both")
+	case file != "":
+		b, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("read DAMSON_POSTGRES_DSN_FILE: %w", err)
+		}
+		return strings.TrimRight(string(b), "\r\n"), nil
+	case direct != "":
+		return direct, nil
+	}
+	return "", fmt.Errorf("DAMSON_POSTGRES_DSN (or DAMSON_POSTGRES_DSN_FILE) is not set")
 }
 
 func login(server, email, password string) (string, error) {
