@@ -2,7 +2,6 @@ package preview
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -19,36 +18,6 @@ type Job struct {
 	LibraryID uint
 	VersionID uint
 	FileID    uint
-}
-
-// Pool is a synchronous enqueuer that runs preview processing inline on the
-// calling goroutine. Production uses the River-backed queue; this remains for
-// tests (via NewSync) that need deterministic status transitions without a
-// running River client. It satisfies the api PreviewEnqueuer seam and the
-// import pipeline's PreviewEnqueuer.
-type Pool struct {
-	deps Deps
-}
-
-// NewSync returns a pool whose Enqueue runs processing on the calling
-// goroutine. Used by tests (and the synchronous import test pool) to keep
-// status transitions deterministic.
-func NewSync(deps Deps) *Pool {
-	return &Pool{deps: deps}
-}
-
-// Enqueue runs processing inline.
-func (p *Pool) Enqueue(job Job) {
-	if err := ProcessVersion(context.Background(), p.deps, job.LibraryID, job.VersionID, job.FileID); err != nil {
-		slog.Warn("sync preview pipeline failed", "version_id", job.VersionID, "err", err)
-	}
-}
-
-// EnqueueVersion enqueues every queued file in a version. It satisfies the
-// enqueuer interface the import pipeline depends on, so imports can hand off
-// preview work without importing the concrete pool type.
-func (p *Pool) EnqueueVersion(libraryID, versionID uint) {
-	p.Enqueue(Job{LibraryID: libraryID, VersionID: versionID})
 }
 
 // ResumeInFlight recovers preview work interrupted by a crash or deploy. Files

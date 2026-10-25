@@ -72,7 +72,7 @@ type Deps struct {
 	LoginThrottle *auth.LoginThrottle
 	// ImportPool drains async import jobs. Tests that don't exercise the
 	// import flow can leave it nil; tests that do should pass a synchronous
-	// pool (imports.NewSync) so stage transitions stay deterministic.
+	// pool (importstest.NewSync) so stage transitions stay deterministic.
 	ImportPool ImportEnqueuer
 	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
 	// the pipeline tolerates a missing broadcaster.
