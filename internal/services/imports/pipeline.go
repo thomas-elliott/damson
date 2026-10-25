@@ -228,35 +228,9 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		// asset_files row (so the pipeline could read filename/content
 		// type for thumbnail detection); nothing to do here.
 
-		var asset models.Asset
-		if err := tx.First(&asset, jc.asset.ID).Error; err != nil {
-			return err
-		}
-		// A retried or resumed import of an older version finishes without
-		// taking the asset back to it, or its cover, once a newer version
-		// is current.
-		makeCurrent := true
-		if asset.CurrentVersionID != nil && *asset.CurrentVersionID != jc.version.ID {
-			var current models.AssetVersion
-			if err := tx.First(&current, *asset.CurrentVersionID).Error; err != nil {
-				return err
-			}
-			makeCurrent = !current.ImportDate.After(jc.version.ImportDate)
-		}
-		if makeCurrent {
-			vid := jc.version.ID
-			asset.CurrentVersionID = &vid
-		}
-		// A storefront cover outlives later extractions, as it does for
-		// rescan and re-extract.
-		if makeCurrent && thumbKey != "" && !asset.ThumbnailFromStore {
-			asset.ThumbnailObjectKey = thumbKey
-			asset.ThumbnailContentType = thumbType
-		}
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-		return nil
+		// An import of an older version finishes without taking the asset
+		// back to it, or its cover.
+		return chooseCurrentAndCover(tx, jc.asset.ID, jc.version.ID, jc.version.ID, thumbKey, thumbType)
 	})
 	if err != nil {
 		return fail("finalize: " + err.Error())

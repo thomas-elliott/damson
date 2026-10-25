@@ -117,6 +117,9 @@ Mode: committing, one commit per stage, on branch `dam-60-domain-rules`.
 - Stage 4, `internal/services/preview/process.go`: previews gain a final-failure handler, `preview.FailJob`, which marks the files a given-up job left queued or processing failed. Before, they stayed queued until the next boot.
 - Stage 4, `internal/services/imports/importstest` and `internal/services/preview/previewtest`: the synchronous test pools run the job inside the enqueuing transaction, as if it ran once that transaction committed.
 - Stage 5, `internal/handlers/api/library.go`: library delete deletes the libraries row and lets the cascades remove the rest; `users.current_library_id ON DELETE SET NULL` clears the members' current library, so only the token watermark is bumped by hand.
+- Stage 6, `internal/services/imports/version.go`: `ChooseCurrent` is in `imports`, the package that parses store versions. It breaks a final tie by the newest row and passes over a version whose latest import failed or is still running, except the import finishing in that transaction, so a version is never current before its files are.
+- Stage 6, `internal/services/imports/reextract.go`: a re-extract's harvested cover replaces the asset's only when the re-extracted version is current.
+- Stage 6, `internal/services/assets/lifecycle.go`: the domain functions refuse with `assets.ErrConflict` and `assets.ErrBadRequest`, which `respondGORM` maps like the handler sentinels. Subset now reads the request body before the asset, and a missing asset or version both answer "asset or version not found".
 
 ### Handoff (session 1, paused by the operator)
 

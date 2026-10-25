@@ -38,7 +38,7 @@ filesystem.
 | `internal/handlers/api` | Every HTTP handler, as methods on one `*Handler` |
 | `internal/auth` | Authenticators (local, OIDC, personal access tokens), middleware and bootstrap |
 | `internal/models` | GORM structs |
-| `internal/services/*` | Domain logic: `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
+| `internal/services/*` | Domain logic: `assets`, `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
 | `internal/queue` | River setup and job kinds |
 | `internal/config` | Every environment variable and its default |
 | `internal/{toon,axi,tagpath,importstage,importsource,unitycache,buildinfo}` | Leaf packages that the CLI shares with the server |
