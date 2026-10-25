@@ -49,7 +49,9 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, enq Enqueuer) (int, error)
 		return 0, err
 	}
 	for _, r := range refs {
-		enq.Enqueue(Job{LibraryID: r.LibraryID, VersionID: r.VersionID})
+		if err := enq.Enqueue(db.WithContext(ctx), Job{LibraryID: r.LibraryID, VersionID: r.VersionID}); err != nil {
+			return 0, err
+		}
 	}
 	return len(refs), nil
 }

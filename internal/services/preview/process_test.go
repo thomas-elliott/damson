@@ -203,7 +203,10 @@ func TestQueue_SingleFile(t *testing.T) {
 
 type jobRecorder struct{ jobs []Job }
 
-func (r *jobRecorder) Enqueue(j Job) { r.jobs = append(r.jobs, j) }
+func (r *jobRecorder) Enqueue(_ *gorm.DB, j Job) error {
+	r.jobs = append(r.jobs, j)
+	return nil
+}
 
 // Every hand-off obeys the library's previews toggle: with previews off,
 // Queue marks nothing and enqueues nothing.
@@ -248,5 +251,41 @@ func TestQueue_ObeysTheLibrarysPreviewsToggle(t *testing.T) {
 	db.First(&got, f.ID)
 	if got.PreviewStatus != StatusQueued || len(rec.jobs) != 1 || rec.jobs[0] != job {
 		t.Fatalf("status %q, jobs %v: want the file queued and the job enqueued", got.PreviewStatus, rec.jobs)
+	}
+}
+
+// Once the queue gives up on a job, the files it left in flight are failed,
+// and files it finished are left alone.
+func TestFailJob_FailsOnlyTheFilesLeftInFlight(t *testing.T) {
+	ctx := context.Background()
+	db := newProcessDB(t)
+	ensureLibrary(t, db, 1)
+	asset := models.Asset{LibraryID: 1, Name: "a"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	version := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatal(err)
+	}
+	files := []models.AssetFile{
+		{AssetVersionID: version.ID, RelativePath: "a.bmp", ObjectKey: "k1", ContentHash: "k1", PreviewStatus: StatusQueued},
+		{AssetVersionID: version.ID, RelativePath: "b.bmp", ObjectKey: "k2", ContentHash: "k2", PreviewStatus: StatusProcessing},
+		{AssetVersionID: version.ID, RelativePath: "c.bmp", ObjectKey: "k3", ContentHash: "k3", PreviewStatus: StatusDone},
+	}
+	if err := db.Create(&files).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if err := FailJob(ctx, db, Job{LibraryID: 1, VersionID: version.ID}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{StatusFailed, StatusFailed, StatusDone}
+	for i, f := range files {
+		var got models.AssetFile
+		db.First(&got, f.ID)
+		if got.PreviewStatus != want[i] {
+			t.Errorf("%s: status %q, want %q", f.RelativePath, got.PreviewStatus, want[i])
+		}
 	}
 }

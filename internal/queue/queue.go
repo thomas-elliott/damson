@@ -10,6 +10,7 @@ package queue
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"runtime"
@@ -18,10 +19,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverdatabasesql"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
+	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/db"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 )
@@ -72,92 +76,129 @@ type StoreLookupArgs struct {
 // Kind identifies the job type in the river_job table.
 func (StoreLookupArgs) Kind() string { return "store_lookup" }
 
-// StoreLookupRunner runs one queued store lookup. *enrich.Lookups is the
+// StoreLookupRunner runs queued store lookups. *enrich.Lookups is the
 // production one.
 type StoreLookupRunner interface {
 	Run(ctx context.Context, lookupID uint) error
 	// Fail records a lookup failed once River has given up on it.
 	Fail(ctx context.Context, lookupID uint, reason string) error
+	// Resume re-enqueues every lookup left queued.
+	Resume(ctx context.Context, enq enrich.LookupEnqueuer) (int, error)
 }
 
-// storeLookupWorker runs store lookups.
-type storeLookupWorker struct {
-	river.WorkerDefaults[StoreLookupArgs]
-	run StoreLookupRunner
-}
-
-func (w *storeLookupWorker) Work(ctx context.Context, job *river.Job[StoreLookupArgs]) error {
-	if w.run == nil {
-		return fmt.Errorf("queue: no store lookup runner configured")
-	}
-	err := w.run.Run(ctx, job.Args.LookupID)
-	// On the last attempt, mark the row failed so it doesn't stay queued, and
-	// dmsn doesn't wait on it, until the next start. The job's own context may
-	// have timed out, so the mark runs without it.
-	if err != nil && job.Attempt >= job.MaxAttempts {
-		if merr := w.run.Fail(context.WithoutCancel(ctx), job.Args.LookupID, err.Error()); merr != nil {
-			slog.Warn("queue: mark store lookup failed on last attempt", "lookup_id", job.Args.LookupID, "err", merr)
-		}
-	}
-	return err
-}
-
-func (w *storeLookupWorker) Timeout(*river.Job[StoreLookupArgs]) time.Duration {
-	return storeLookupTimeout
-}
-
-// importWorker runs the import pipeline for one job. timeout is the per-job
-// ceiling for this queue.
-type importWorker struct {
-	river.WorkerDefaults[ImportArgs]
-	deps    imports.Deps
+// kind is one job kind: the queue it runs on, how it runs, what marks its row
+// failed once River gives up, and the boot sweep that re-enqueues the rows
+// left unfinished. Every kind has all of them, so no row is left in flight.
+type kind[A river.JobArgs] struct {
+	queue   string
+	workers int
 	timeout time.Duration
+	run     func(context.Context, A) error
+	// terminal reports that run already marked the row failed, so River
+	// cancels the job instead of retrying it. Optional.
+	terminal func(context.Context, A) bool
+	fail     func(context.Context, A, string) error
+	resume   func(context.Context) (int, error)
 }
 
-func (w *importWorker) Work(ctx context.Context, job *river.Job[ImportArgs]) error {
-	err := imports.Run(ctx, w.deps, imports.Job{ImportID: job.Args.ImportID, LibraryID: job.Args.LibraryID})
+// worker runs one kind's jobs for River.
+type worker[A river.JobArgs] struct {
+	river.WorkerDefaults[A]
+	kind kind[A]
+}
+
+func (w *worker[A]) Work(ctx context.Context, job *river.Job[A]) error {
+	err := w.kind.run(ctx, job.Args)
 	if err == nil {
 		return nil
 	}
 	// The job's own context may have timed out, so the checks below run
 	// without it.
 	ctx = context.WithoutCancel(ctx)
-	// The pipeline marks the row failed for terminal input errors (missing
-	// source blob, library mismatch). Those won't succeed on retry — cancel so
-	// River stops instead of burning attempts.
-	if imports.IsFailed(ctx, w.deps.DB, job.Args.ImportID) {
+	if w.kind.terminal != nil && w.kind.terminal(ctx, job.Args) {
 		return river.JobCancel(err)
 	}
-	// Transient error: let River retry with backoff. On the final attempt, mark
-	// the row failed so it doesn't sit non-terminal forever.
+	// On the last attempt, mark the row failed so it doesn't stay in flight
+	// until the next start.
 	if job.Attempt >= job.MaxAttempts {
-		if merr := imports.FailImport(ctx, w.deps, job.Args.ImportID, err.Error()); merr != nil {
-			slog.Warn("queue: mark import failed on last attempt", "import_id", job.Args.ImportID, "err", merr)
+		if merr := w.kind.fail(ctx, job.Args, err.Error()); merr != nil {
+			slog.Warn("queue: mark job failed on last attempt", "kind", job.Kind, "job_id", job.ID, "err", merr)
 		}
 	}
 	return err
 }
 
-func (w *importWorker) Timeout(*river.Job[ImportArgs]) time.Duration { return w.timeout }
+func (w *worker[A]) Timeout(*river.Job[A]) time.Duration { return w.kind.timeout }
 
-// previewWorker runs preview processing for one job.
-type previewWorker struct {
-	river.WorkerDefaults[PreviewArgs]
-	deps    preview.Deps
-	timeout time.Duration
+// sweep is one kind's boot-time resume.
+type sweep struct {
+	queue  string
+	resume func(context.Context) (int, error)
 }
 
-func (w *previewWorker) Work(ctx context.Context, job *river.Job[PreviewArgs]) error {
-	return preview.ProcessVersion(ctx, w.deps, job.Args.LibraryID, job.Args.VersionID, job.Args.FileID)
+// register adds a kind's worker, queue and sweep.
+func register[A river.JobArgs](q *Queue, workers *river.Workers, queues map[string]river.QueueConfig, k kind[A]) {
+	river.AddWorker(workers, &worker[A]{kind: k})
+	queues[k.queue] = river.QueueConfig{MaxWorkers: k.workers}
+	q.sweeps = append(q.sweeps, sweep{queue: k.queue, resume: k.resume})
 }
 
-func (w *previewWorker) Timeout(*river.Job[PreviewArgs]) time.Duration { return w.timeout }
+func importKind(q *Queue, deps imports.Deps, workers int, timeout time.Duration) kind[ImportArgs] {
+	return kind[ImportArgs]{
+		queue: QueueImport, workers: workers, timeout: timeout,
+		run: func(ctx context.Context, a ImportArgs) error {
+			return imports.Run(ctx, deps, imports.Job{ImportID: a.ImportID, LibraryID: a.LibraryID})
+		},
+		// The pipeline marks the row failed for terminal input errors
+		// (missing source blob, library mismatch), which no retry fixes.
+		terminal: func(ctx context.Context, a ImportArgs) bool { return imports.IsFailed(ctx, deps.DB, a.ImportID) },
+		fail: func(ctx context.Context, a ImportArgs, reason string) error {
+			return imports.FailImport(ctx, deps, a.ImportID, reason)
+		},
+		resume: func(ctx context.Context) (int, error) { return imports.ResumeInFlight(ctx, deps.DB, q.Imports()) },
+	}
+}
+
+func previewKind(q *Queue, deps preview.Deps, workers int, timeout time.Duration) kind[PreviewArgs] {
+	return kind[PreviewArgs]{
+		queue: QueuePreview, workers: workers, timeout: timeout,
+		run: func(ctx context.Context, a PreviewArgs) error {
+			return preview.ProcessVersion(ctx, deps, a.LibraryID, a.VersionID, a.FileID)
+		},
+		fail: func(ctx context.Context, a PreviewArgs, _ string) error {
+			return preview.FailJob(ctx, deps.DB, preview.Job{LibraryID: a.LibraryID, VersionID: a.VersionID, FileID: a.FileID})
+		},
+		// Files an earlier build could not render are queued first, so the
+		// resume enqueues them with the rest.
+		resume: func(ctx context.Context) (int, error) {
+			if _, err := preview.QueueNewlySupported(ctx, deps.DB); err != nil {
+				return 0, err
+			}
+			return preview.ResumeInFlight(ctx, deps.DB, q.Previews())
+		},
+	}
+}
+
+func storeLookupKind(q *Queue, r StoreLookupRunner) kind[StoreLookupArgs] {
+	return kind[StoreLookupArgs]{
+		// One lookup at a time, so the store sees one caller however many
+		// lookups are queued.
+		queue: QueueStoreLookup, workers: 1, timeout: storeLookupTimeout,
+		run: func(ctx context.Context, a StoreLookupArgs) error { return r.Run(ctx, a.LookupID) },
+		fail: func(ctx context.Context, a StoreLookupArgs, reason string) error {
+			return r.Fail(ctx, a.LookupID, reason)
+		},
+		resume: func(ctx context.Context) (int, error) { return r.Resume(ctx, q.StoreLookups()) },
+	}
+}
 
 // Config configures the queue. ImportDeps.Previews is overwritten with the
 // River-backed preview enqueuer so the import→preview handoff also flows through
 // River.
 type Config struct {
 	DSN string
+	// DB is the GORM database whose transactions jobs are inserted in.
+	DB *gorm.DB
 
 	ImportWorkers  int
 	PreviewWorkers int
@@ -165,8 +206,10 @@ type Config struct {
 	ImportJobTimeout  time.Duration
 	PreviewJobTimeout time.Duration
 
-	ImportDeps   imports.Deps
-	PreviewDeps  preview.Deps
+	ImportDeps  imports.Deps
+	PreviewDeps preview.Deps
+	// StoreLookups runs store lookups. Without it the queue has no
+	// store_lookup kind.
 	StoreLookups StoreLookupRunner
 
 	Logger *slog.Logger
@@ -177,10 +220,14 @@ type Config struct {
 	Schema string
 }
 
-// Queue owns the River client and its dedicated connection pool.
+// Queue owns the River clients. The worker client runs on its own pgx pool;
+// the insert-only client runs on GORM's connections, so a job is inserted in
+// the transaction that creates its row.
 type Queue struct {
-	pool   *pgxpool.Pool
-	client *river.Client[pgx.Tx]
+	pool     *pgxpool.Pool
+	client   *river.Client[pgx.Tx]
+	inserter *river.Client[*sql.Tx]
+	sweeps   []sweep
 }
 
 // New builds the dedicated pgxpool, applies River's schema migrations, and
@@ -228,27 +275,38 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 	importDeps.Previews = PreviewEnqueuer{q: q}
 
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &importWorker{deps: importDeps, timeout: importTimeout})
-	river.AddWorker(workers, &previewWorker{deps: cfg.PreviewDeps, timeout: previewTimeout})
-	river.AddWorker(workers, &storeLookupWorker{run: cfg.StoreLookups})
+	queues := map[string]river.QueueConfig{}
+	register(q, workers, queues, importKind(q, importDeps, importWorkers, importTimeout))
+	register(q, workers, queues, previewKind(q, cfg.PreviewDeps, previewWorkers, previewTimeout))
+	if cfg.StoreLookups != nil {
+		register(q, workers, queues, storeLookupKind(q, cfg.StoreLookups))
+	}
 
 	client, err := river.NewClient(driver, &river.Config{
 		Logger:     cfg.Logger,
 		JobTimeout: DefaultJobTimeout,
 		Schema:     cfg.Schema,
-		Queues: map[string]river.QueueConfig{
-			QueueImport:  {MaxWorkers: importWorkers},
-			QueuePreview: {MaxWorkers: previewWorkers},
-			// One lookup at a time, so the store sees one caller however many
-			// lookups are queued.
-			QueueStoreLookup: {MaxWorkers: 1},
-		},
-		Workers: workers,
+		Queues:     queues,
+		Workers:    workers,
 	})
 	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("queue: new client: %w", err)
 	}
+	sqlDB, err := cfg.DB.DB()
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("queue: gorm sql.DB: %w", err)
+	}
+	inserter, err := river.NewClient(riverdatabasesql.New(sqlDB), &river.Config{
+		Logger: cfg.Logger,
+		Schema: cfg.Schema,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("queue: new insert client: %w", err)
+	}
+	q.inserter = inserter
 	q.client = client
 	return q, nil
 }
@@ -270,6 +328,43 @@ func migrateLocked(ctx context.Context, pool *pgxpool.Pool, migrator *rivermigra
 
 	_, err = migrator.Migrate(ctx, rivermigrate.DirectionUp, nil)
 	return err
+}
+
+// Resume runs every kind's boot sweep, re-enqueueing the rows left
+// unfinished by a crash or deploy, and logs what each found. River dedupes by
+// args, so it is safe on every boot.
+func (q *Queue) Resume(ctx context.Context) {
+	for _, s := range q.sweeps {
+		if n, err := s.resume(ctx); err != nil {
+			slog.Warn("queue: resume failed", "queue", s.queue, "err", err)
+		} else if n > 0 {
+			slog.Info("queue: resumed", "queue", s.queue, "enqueued", n)
+		}
+	}
+}
+
+// insert adds a job in db's transaction, so it commits or rolls back with the
+// row it is for. Outside a transaction it is inserted on its own.
+func (q *Queue) insert(db *gorm.DB, args river.JobArgs, queue string) error {
+	opts := &river.InsertOpts{
+		Queue:       queue,
+		MaxAttempts: maxAttempts,
+		UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: activeStates},
+	}
+	ctx := db.Statement.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var err error
+	if tx, ok := db.Statement.ConnPool.(*sql.Tx); ok {
+		_, err = q.inserter.InsertTx(ctx, tx, args, opts)
+	} else {
+		_, err = q.inserter.Insert(ctx, args, opts)
+	}
+	if err != nil {
+		return fmt.Errorf("queue: insert %s job: %w", args.Kind(), err)
+	}
+	return nil
 }
 
 // Start begins fetching and working jobs.

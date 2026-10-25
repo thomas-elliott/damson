@@ -28,19 +28,20 @@ type Deps struct {
 	Broadcaster Publisher
 }
 
-// Enqueuer puts a preview job on the background queue.
+// Enqueuer puts a preview job on the background queue in tx, so the job
+// commits or rolls back with the files it is for.
 type Enqueuer interface {
-	Enqueue(Job)
+	Enqueue(tx *gorm.DB, job Job) error
 }
 
 // ErrDisabled is Queue's answer for a library with previews turned off.
 var ErrDisabled = errors.New("previews are disabled for this library")
 
 // Queue hands a version to the preview queue once its files are written: it
-// marks the supported files queued and the rest unsupported, then enqueues
-// the job. With job.FileID set, only that file. It returns how many files it
-// queued, or ErrDisabled, touching nothing, when the library has previews
-// off. A nil enq marks the files without enqueuing; the boot-time
+// marks the supported files queued and the rest unsupported, and enqueues the
+// job, in one transaction. With job.FileID set, only that file. It returns how
+// many files it queued, or ErrDisabled, touching nothing, when the library has
+// previews off. A nil enq marks the files without enqueuing; the boot-time
 // ResumeInFlight picks them up.
 func Queue(ctx context.Context, db *gorm.DB, enq Enqueuer, job Job) (int, error) {
 	settings, err := library.Settings(db.WithContext(ctx), job.LibraryID)
@@ -50,22 +51,37 @@ func Queue(ctx context.Context, db *gorm.DB, enq Enqueuer, job Job) (int, error)
 	if !settings.PreviewsEnabled {
 		return 0, ErrDisabled
 	}
-	queued, err := markQueued(ctx, db, job.VersionID, job.FileID)
-	if err != nil {
-		return queued, err
+	queued := 0
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		if queued, err = markQueued(tx, job.VersionID, job.FileID); err != nil {
+			return err
+		}
+		if enq == nil {
+			return nil
+		}
+		return enq.Enqueue(tx, job)
+	})
+	return queued, err
+}
+
+// FailJob marks the files a job left queued or processing failed, once the
+// queue has given up on it.
+func FailJob(ctx context.Context, db *gorm.DB, job Job) error {
+	q := db.WithContext(ctx).Model(&models.AssetFile{}).
+		Where("asset_version_id = ? AND preview_status IN ?", job.VersionID, []string{StatusQueued, StatusProcessing})
+	if job.FileID != 0 {
+		q = q.Where("id = ?", job.FileID)
 	}
-	if enq != nil {
-		enq.Enqueue(job)
-	}
-	return queued, nil
+	return q.Updates(map[string]any{"preview_status": StatusFailed, "preview_updated_at": time.Now().UTC()}).Error
 }
 
 // markQueued classifies a version's files and writes their starting preview
 // status: supported files become 'queued', everything else 'unsupported'.
 // With fileID != 0 only that file is (re)classified. Returns the number of
 // files left queued.
-func markQueued(ctx context.Context, db *gorm.DB, versionID, fileID uint) (int, error) {
-	q := db.WithContext(ctx).Where("asset_version_id = ?", versionID)
+func markQueued(tx *gorm.DB, versionID, fileID uint) (int, error) {
+	q := tx.Where("asset_version_id = ?", versionID)
 	if fileID != 0 {
 		q = q.Where("id = ?", fileID)
 	}
@@ -80,7 +96,7 @@ func markQueued(ctx context.Context, db *gorm.DB, versionID, fileID uint) (int, 
 			status = StatusQueued
 			queued++
 		}
-		if err := db.WithContext(ctx).Model(&models.AssetFile{}).
+		if err := tx.Model(&models.AssetFile{}).
 			Where("id = ?", f.ID).
 			Updates(map[string]any{
 				"preview_status":     status,

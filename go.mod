@@ -23,6 +23,7 @@ require (
 	github.com/mrjoshuak/go-openexr v1.4.38
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f
 	github.com/riverqueue/river v0.40.0
+	github.com/riverqueue/river/riverdriver/riverdatabasesql v0.40.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.40.0
 	github.com/riverqueue/river/rivertype v0.40.0
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
@@ -195,6 +196,7 @@ require (
 	github.com/ldez/usetesting v0.5.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/leonklingele/grouper v1.1.2 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/macabu/inamedparam v0.2.0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect

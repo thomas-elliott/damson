@@ -134,7 +134,6 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 
 	var (
 		batch   models.StoreLookupBatch
-		queued  []uint
 		skipped int
 	)
 	err := db.Transaction(func(tx *gorm.DB) error {
@@ -147,20 +146,15 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 				skipped++
 				continue
 			}
-			id, err := createStoreLookupTx(tx, batch, a.ID)
-			if err != nil {
+			if err := h.queueStoreLookupTx(tx, batch, a.ID); err != nil {
 				return err
 			}
-			queued = append(queued, id)
 		}
 		return nil
 	})
 	if err != nil {
 		respondGORM(c, err, "batch not found")
 		return
-	}
-	for _, id := range queued {
-		h.storeLookups.EnqueueStoreLookup(id)
 	}
 
 	resp, err := h.storeLookupBatchStatus(c.Request.Context(), batch)
@@ -196,14 +190,14 @@ func lookupKind(refresh bool) string {
 	return "fill-blanks"
 }
 
-// createStoreLookupTx adds one queued lookup to the batch. The caller enqueues
-// its job after the transaction commits, so the job never runs ahead of it.
-func createStoreLookupTx(tx *gorm.DB, batch models.StoreLookupBatch, assetID uint) (uint, error) {
+// queueStoreLookupTx adds one queued lookup to the batch and enqueues its
+// job in the same transaction, so neither outlives the other.
+func (h *Handler) queueStoreLookupTx(tx *gorm.DB, batch models.StoreLookupBatch, assetID uint) error {
 	lk := models.StoreLookup{BatchID: batch.ID, LibraryID: batch.LibraryID, AssetID: assetID, Status: models.StoreLookupQueued}
 	if err := tx.Create(&lk).Error; err != nil {
-		return 0, err
+		return err
 	}
-	return lk.ID, nil
+	return h.storeLookups.EnqueueStoreLookup(tx, lk.ID)
 }
 
 func uniqueIDs(ids []uint) map[uint]bool {
