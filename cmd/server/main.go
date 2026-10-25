@@ -225,6 +225,10 @@ func run() error {
 	})
 	api.AddRoutes(apiGroup, auth.Middleware(authenticator, auth.NewTokenAuthenticator(gormDB)), h)
 
+	if err := damsonweb.Mount(r); err != nil {
+		return fmt.Errorf("mount spa: %w", err)
+	}
+
 	// The queue starts only now: store lookup jobs run through the handler,
 	// which is built after the queue it enqueues on. Start with a long-lived
 	// context: cancelling Start's context soft-stops the client, so shutdown is
@@ -240,10 +244,6 @@ func run() error {
 		slog.Info("store lookup reconcile", "enqueued", resumed)
 	}
 
-	if err := damsonweb.Mount(r); err != nil {
-		return fmt.Errorf("mount spa: %w", err)
-	}
-
 	srv, stopStreams := newHTTPServer(cfg.ListenAddr, r)
 
 	errCh := make(chan error, 1)
@@ -255,18 +255,20 @@ func run() error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
+	// A listen failure still stops the queue, so no worker outlives the pool.
+	var listenErr error
 	select {
 	case sig := <-stop:
 		slog.Info("shutting down", "signal", sig.String())
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("listen: %w", err)
+			listenErr = fmt.Errorf("listen: %w", err)
 		}
 	}
 
 	cancelBackground()
 	shutdown(srv, jobQueue, shutdownTimeout, stopStreams)
-	return nil
+	return listenErr
 }
 
 // shutdownTimeout bounds each step of shutdown.
@@ -324,8 +326,7 @@ func closeDB(gormDB *gorm.DB) {
 
 // shutdown stops HTTP first, ending the SSE streams through stopStreams so
 // they don't hold it to the timeout, and lets in-flight requests finish
-// enqueueing their jobs. Then
-// it drains the queue. Each step gets its own timeout; work still running
+// enqueueing their jobs. Then it drains the queue. Each step gets its own timeout; work still running
 // when one expires is abandoned, and the next boot's reconcile picks up
 // whatever remained non-terminal.
 func shutdown(srv *http.Server, jobs interface{ Stop(context.Context) error }, timeout time.Duration, stopStreams func()) {
@@ -621,14 +622,12 @@ func newLogger(w io.Writer) (*slog.Logger, error) {
 		errs = append(errs, fmt.Errorf("config: DAMSON_LOG_LEVEL must be debug, info, warn or error, got %q", v))
 	}
 	opts := &slog.HandlerOptions{Level: level, AddSource: true}
-	var h slog.Handler
+	var h slog.Handler = slog.NewJSONHandler(w, opts)
 	switch v := os.Getenv("DAMSON_LOG_FORMAT"); v {
 	case "", "json":
-		h = slog.NewJSONHandler(w, opts)
 	case "text":
 		h = slog.NewTextHandler(w, opts)
 	default:
-		h = slog.NewJSONHandler(w, opts)
 		errs = append(errs, fmt.Errorf("config: DAMSON_LOG_FORMAT must be json or text, got %q", v))
 	}
 	return slog.New(h).With("service", "damson", "version", readVersion()), errors.Join(errs...)

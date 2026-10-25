@@ -96,6 +96,14 @@ Because the DB row is the durable source of truth in both cases, a log line
 is a *diagnostic*, not the record — to ask "what failed and why", query
 `asset_imports.error` / `preview_status` rather than reconstructing from logs.
 
+## Database
+
+GORM logs through the same `slog` handler as `"SQL executed"`, with a `trace` group carrying
+`sql`, `duration`, `rows` and, on failure, `error` (`internal/db/db.go`). A query slower than
+200ms logs at `warn`; a failed one at `error`. The SQL keeps its `$1` placeholders and never
+carries the bound values. A record-not-found, a unique violation (answered with 409) and a
+query cancelled because its request went away are not logged.
+
 ## Shipping logs
 
 Damson writes one JSON object per line to stdout and needs no log config of its
