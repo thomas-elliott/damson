@@ -466,11 +466,7 @@ func (h *Handler) postImport(c *gin.Context) {
 	}
 
 	meta := spec.objectMeta(rows.assetID, rows.versionID)
-	var (
-		objectKey string
-		size      int64
-	)
-	objectKey, size, err = h.storage.Put(c.Request.Context(), spec.storagePrefix(), src, meta)
+	objectKey, size, err := h.storage.Put(c.Request.Context(), spec.storagePrefix(), src, meta)
 	// The rows exist by now, so any failure past this point has to undo them.
 	// Detached from the request context, which a client abort has cancelled.
 	abandon := func() {

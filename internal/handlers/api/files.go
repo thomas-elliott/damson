@@ -104,7 +104,6 @@ func (h *Handler) getFile(c *gin.Context) {
 		respond404(c, "not found")
 		return
 	}
-	size := info.Size
 	r, err := h.storage.Get(c.Request.Context(), prefix, key)
 	if err != nil {
 		respond404(c, "not found")
@@ -113,7 +112,7 @@ func (h *Handler) getFile(c *gin.Context) {
 	defer r.Close()
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("Content-Disposition", `attachment; filename="`+sanitiseFilename(ref.RelativePath)+`"`)
-	c.Header("Content-Length", strconv.FormatInt(size, 10))
+	c.Header("Content-Length", strconv.FormatInt(info.Size, 10))
 	c.Header("Cache-Control", "private, max-age=3600")
 	if _, err := io.Copy(c.Writer, r); err != nil {
 		// Can't reset the status once bytes have gone out; just log.

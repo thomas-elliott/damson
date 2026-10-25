@@ -35,10 +35,6 @@ func NewLocalFS(root string) (*LocalFS, error) {
 	return &LocalFS{root: root}, nil
 }
 
-func (l *LocalFS) Put(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	return l.putHashed(ctx, prefix, r, meta)
-}
-
 func (l *LocalFS) Get(_ context.Context, prefix Prefix, key string) (io.ReadCloser, error) {
 	p, err := l.pathFor(prefix, key)
 	if err != nil {
@@ -144,10 +140,10 @@ func touchFile(path string) (bool, error) {
 	return err == nil, err
 }
 
-// putHashed streams r to a temp file, computes its SHA-256, renames into the
+// Put streams r to a temp file, computes its SHA-256, renames into the
 // final two-char-sharded path. If the file already exists we delete the temp
 // and return the existing key — same contract as the S3 backend.
-func (l *LocalFS) putHashed(_ context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
+func (l *LocalFS) Put(_ context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	tmp, err := os.CreateTemp(l.root, "upload-*")
 	if err != nil {
 		return "", 0, err

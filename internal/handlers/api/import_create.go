@@ -85,10 +85,7 @@ func (s importSpec) objectMeta(assetID, versionID uint) storage.ObjectMeta {
 }
 
 func (s importSpec) storagePrefix() storage.Prefix {
-	if s.isArchive {
-		return storage.Originals
-	}
-	return storage.Blobs
+	return ingest.OriginalPrefix(s.packageKind)
 }
 
 // checkImportConflict answers "would this upload be rejected?" without
