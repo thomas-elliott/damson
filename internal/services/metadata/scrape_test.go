@@ -16,7 +16,7 @@ func readFixture(t *testing.T, name string) []byte {
 }
 
 func TestParseHTML_OGAndJSONLD(t *testing.T) {
-	m := ParseHTML(readFixture(t, "kenney.html"), "https://kenney.nl/assets/platformer-pack-redux")
+	m := parseHTML(readFixture(t, "kenney.html"), "https://kenney.nl/assets/platformer-pack-redux")
 
 	if m.Title != "Platformer Pack Redux" {
 		t.Errorf("title: got %q", m.Title)
@@ -42,7 +42,7 @@ func TestParseHTML_OGAndJSONLD(t *testing.T) {
 }
 
 func TestParseHTML_GraphArrayAndFloatPrice(t *testing.T) {
-	m := ParseHTML(readFixture(t, "og_array_offers.html"), "https://example.com/x")
+	m := parseHTML(readFixture(t, "og_array_offers.html"), "https://example.com/x")
 
 	if m.Title != "Graph Product" {
 		t.Errorf("title from JSON-LD name: got %q", m.Title)
@@ -62,14 +62,14 @@ func TestParseHTML_GraphArrayAndFloatPrice(t *testing.T) {
 func TestParseHTML_TitleFallback(t *testing.T) {
 	// No og:title, no JSON-LD name — must fall back to <title>.
 	html := []byte(`<html><head><title>Bare Title</title></head><body></body></html>`)
-	m := ParseHTML(html, "https://example.com")
+	m := parseHTML(html, "https://example.com")
 	if m.Title != "Bare Title" {
 		t.Errorf("title fallback: got %q", m.Title)
 	}
 }
 
 func TestParseHTML_Garbage(t *testing.T) {
-	m := ParseHTML([]byte("not html <<< at all"), "https://example.com")
+	m := parseHTML([]byte("not html <<< at all"), "https://example.com")
 	if m == nil {
 		t.Fatal("ParseHTML must never return nil")
 	}

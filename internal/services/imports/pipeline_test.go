@@ -22,7 +22,7 @@ import (
 func TestRun_OlderVersionImportDoesNotRollBackCurrentVersion(t *testing.T) {
 	db := enrichTestDB(t)
 	ctx := context.Background()
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func (s flakyStore) PutBlob(ctx context.Context, r io.Reader, meta storage.Objec
 func seedZipImport(t *testing.T, payload []byte) (*gorm.DB, storage.Service, models.AssetImport) {
 	t.Helper()
 	db := enrichTestDB(t)
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

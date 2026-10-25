@@ -35,7 +35,7 @@ func (m *metaRecordingStorage) PutBlob(ctx context.Context, r io.Reader, meta st
 func newRecordingHandler(t *testing.T) (*Handler, *metaRecordingStorage, *gorm.DB) {
 	t.Helper()
 	db := newTestDB(t)
-	lfs, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
+	lfs, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("new local storage: %v", err)
 	}

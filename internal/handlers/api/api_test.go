@@ -88,7 +88,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 
 func newTestStorage(t *testing.T) storage.Service {
 	t.Helper()
-	s, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
+	s, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("new local storage: %v", err)
 	}

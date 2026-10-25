@@ -10,7 +10,7 @@ func itchFixtureMetadata(t *testing.T) *Metadata {
 	t.Helper()
 	body := readFixture(t, "itch_info_panel.html")
 	page := "https://kenney.itch.io/kenney-game-assets"
-	m := ParseHTML(body, page)
+	m := parseHTML(body, page)
 	m.Store = StoreItch
 	rows := itchInfoRows(body)
 	if label, href := itchLicenceFromRows(rows); label != "" {
@@ -144,7 +144,7 @@ func TestItchRowTimePrefersAbbrTitle(t *testing.T) {
 func TestItchInfoRowsIgnoresEverythingOutsideTheInfoPanel(t *testing.T) {
 	body := readFixture(t, "itch_listing_page.html")
 	page := "https://kenney.itch.io/kenney-game-assets"
-	m := ParseHTML(body, page)
+	m := parseHTML(body, page)
 	rows := itchInfoRows(body)
 	itchApplyRows(m, rows, page)
 

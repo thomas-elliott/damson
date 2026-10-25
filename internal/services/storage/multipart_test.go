@@ -24,7 +24,7 @@ func multipartBackends(t *testing.T) []multipartBackend {
 	t.Helper()
 
 	root := t.TempDir()
-	lfs, err := NewLocalFS(root, "http://localhost:8080")
+	lfs, err := NewLocalFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestMultipart_RejectsOutOfRangePart(t *testing.T) {
 // server-side via Content-Length. Without the check a truncated chunk would
 // be stored silently and only surface as a hash mismatch at complete.
 func TestLocalMultipart_RejectsShortPart(t *testing.T) {
-	lfs, err := NewLocalFS(t.TempDir(), "http://localhost:8080")
+	lfs, err := NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +243,7 @@ func TestLocalMultipart_RejectsShortPart(t *testing.T) {
 // the round-trip through the upload id.
 func TestLocalMultipart_ResumeKeepsMetadata(t *testing.T) {
 	root := t.TempDir()
-	lfs, err := NewLocalFS(root, "http://localhost:8080")
+	lfs, err := NewLocalFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestLocalMultipart_ResumeKeepsMetadata(t *testing.T) {
 // TestLocalMultipart_ResumeRejectsUnknownUpload keeps a stale or forged id
 // from silently opening a fresh upload that would complete with missing parts.
 func TestLocalMultipart_ResumeRejectsUnknownUpload(t *testing.T) {
-	lfs, err := NewLocalFS(t.TempDir(), "http://localhost:8080")
+	lfs, err := NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestLocalMultipart_ResumeRejectsUnknownUpload(t *testing.T) {
 // same key without corrupting the winner's object.
 func TestMultipart_DedupesOntoAnExistingObject(t *testing.T) {
 	root := t.TempDir()
-	lfs, err := NewLocalFS(root, "http://localhost:8080")
+	lfs, err := NewLocalFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -142,7 +142,7 @@ func TestUnityFetch_LiveListingClearsDeprecated(t *testing.T) {
 
 type failingFetcher struct{}
 
-func (failingFetcher) Fetch(context.Context, *Client, string) (*Metadata, error) {
+func (failingFetcher) Fetch(context.Context, *httpClient, string) (*Metadata, error) {
 	return nil, errors.New("adapter broke")
 }
 
@@ -150,7 +150,7 @@ func (failingFetcher) Fetch(context.Context, *Client, string) (*Metadata, error)
 // kept but marked, so callers can report the store lookup as failed.
 func TestRegistryFetch_MarksGenericFallback(t *testing.T) {
 	page := []byte(`<html><head><meta property="og:title" content="Some Pack"></head></html>`)
-	r := NewRegistry(fakeStoreClient(t, ClientOptions{HostMinGap: time.Millisecond},
+	r := newRegistry(fakeStoreClient(t, ClientOptions{HostMinGap: time.Millisecond},
 		func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(page) }), time.Millisecond)
 	r.RegisterHost("store.example.com", failingFetcher{})
 

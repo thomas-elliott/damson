@@ -18,7 +18,7 @@ const testKey = "aa" + "bbccddeeff00112233445566778899aabbccddeeff00112233445566
 func newEnv(t *testing.T) (*gorm.DB, *storage.LocalFS) {
 	t.Helper()
 	db := testdb.NewPostgres(t)
-	store, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

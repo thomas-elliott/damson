@@ -119,7 +119,7 @@ type unityCategory struct {
 // the caller keeps the Coveo-only metadata rather than failing the fetch. The
 // one error returned is the store asking for a pause, which the caller must
 // wait out rather than save a lookup with the page's details missing.
-func unityFetchListing(ctx context.Context, client *Client, listingURL, productID string) (*unityListing, string, error) {
+func unityFetchListing(ctx context.Context, client *httpClient, listingURL, productID string) (*unityListing, string, error) {
 	if listingURL == "" {
 		return nil, "", nil
 	}
