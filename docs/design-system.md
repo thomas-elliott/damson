@@ -54,8 +54,8 @@ other. Radii nest by subtraction (`inner = outer − padding`), not by ratio.
 
 `just lint frontend` (and so `just check`) runs `web/scripts/check-tokens.mjs`. It fails on a
 retired token name, a raw hex in a stylesheet outside `tokens.css`, an arbitrary colour utility, a
-`:root` or `.dark` block in `globals.css`, and a typing surface below `text-field`. CI does not
-run it.
+`:root` or `.dark` block in `globals.css`, and a typing surface below `text-field`. CI runs it
+too.
 
 ### Stories and tests
 
@@ -67,7 +67,7 @@ components rendered with their real hooks against a stubbed `window.fetch` — l
 There are two Vitest projects. `unit` (`just test frontend`) is jsdom. `storybook`
 (`just test stories`) runs every story in Playwright Chromium with axe-core, and
 `a11y.test = "error"` fails it on any violation; `STORYBOOK_THEME=light pnpm run test:stories`
-runs it in light. Neither `just check` nor CI runs the storybook project.
+runs it in light. `just check` and CI both run the storybook project.
 
 If axe flags contrast, fix the token or reach for a brighter tier before adding an exception. A
 legitimate decorative exception is `parameters.a11y.test = "todo"` on the story, with the reason in
@@ -91,7 +91,7 @@ Then run `just test stories` yourself — nothing else will.
 
 - **Delete the palette `shadcn add` appends.** Every install re-appends the contract's reference
   palette to the end of `globals.css` as an unlayered `:root` / `.dark`, which beats `tokens.css`
-  in the cascade and silently repaints the app. `just lint frontend` catches it; CI does not.
+  in the cascade and silently repaints the app. `just lint frontend` and CI catch it.
 - **Never give a `tokens.css` value the contract's own name, and never rename `--sans-stack`,
   `--mono-stack` or `--elevation-*` to the contract's spelling.** The contract block maps
   `--radius-md: var(--radius-md)` — a self-reference, invalid at computed-value time, which
