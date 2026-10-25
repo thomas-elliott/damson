@@ -19,7 +19,7 @@ func TestLocalFS_PutBlob_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	payload := []byte("hello damson")
-	key, size, err := s.PutBlob(ctx, bytes.NewReader(payload), ObjectMeta{})
+	key, size, err := s.Put(ctx, Blobs, bytes.NewReader(payload), ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put: %v", err)
 	}
@@ -33,10 +33,10 @@ func TestLocalFS_PutBlob_RoundTrip(t *testing.T) {
 
 	// File lives at blobs/<hh>/<hash>.
 	expected := filepath.Join(dir, "blobs", key[:2], key)
-	if sz, exists, err := s.HeadBlob(ctx, key); err != nil || !exists || sz != int64(len(payload)) {
-		t.Fatalf("head: size=%d exists=%v err=%v", sz, exists, err)
+	if info, exists, err := s.Stat(ctx, Blobs, key); err != nil || !exists || info.Size != int64(len(payload)) {
+		t.Fatalf("head: size=%d exists=%v err=%v", info.Size, exists, err)
 	}
-	r, err := s.GetBlob(ctx, key)
+	r, err := s.Get(ctx, Blobs, key)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -60,11 +60,11 @@ func TestLocalFS_PutBlob_Dedupes(t *testing.T) {
 	ctx := context.Background()
 
 	payload := []byte("same bytes, different uploads")
-	k1, _, err := s.PutBlob(ctx, bytes.NewReader(payload), ObjectMeta{})
+	k1, _, err := s.Put(ctx, Blobs, bytes.NewReader(payload), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	k2, _, err := s.PutBlob(ctx, bytes.NewReader(payload), ObjectMeta{})
+	k2, _, err := s.Put(ctx, Blobs, bytes.NewReader(payload), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,8 +80,7 @@ func TestLocalFS_HeadBlob_Missing(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 64 hex chars but not present.
-	_, exists, err := s.HeadBlob(context.Background(),
-		"0000000000000000000000000000000000000000000000000000000000000000")
+	_, exists, err := s.Stat(context.Background(), Blobs, "0000000000000000000000000000000000000000000000000000000000000000")
 	if err != nil {
 		t.Fatal(err)
 	}

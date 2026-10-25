@@ -27,7 +27,7 @@ func NewLocalFS(root string) (*LocalFS, error) {
 	if root == "" {
 		return nil, errors.New("local storage: root path required")
 	}
-	for _, sub := range []string{"blobs", "thumbs", "originals", uploadsDir} {
+	for _, sub := range []string{string(Blobs), string(Thumbs), string(Originals), uploadsDir} {
 		if err := os.MkdirAll(filepath.Join(root, sub), 0o755); err != nil {
 			return nil, fmt.Errorf("mkdir %s: %w", sub, err)
 		}
@@ -35,35 +35,19 @@ func NewLocalFS(root string) (*LocalFS, error) {
 	return &LocalFS{root: root}, nil
 }
 
-func (l *LocalFS) PutBlob(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	return l.putHashed(ctx, "blobs", r, meta)
+func (l *LocalFS) Put(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	return l.putHashed(ctx, prefix, r, meta)
 }
 
-func (l *LocalFS) GetBlob(ctx context.Context, key string) (io.ReadCloser, error) {
-	return l.openHashed("blobs", key)
+func (l *LocalFS) Get(_ context.Context, prefix Prefix, key string) (io.ReadCloser, error) {
+	p, err := l.pathFor(prefix, key)
+	if err != nil {
+		return nil, err
+	}
+	return os.Open(p)
 }
 
-func (l *LocalFS) HeadBlob(ctx context.Context, key string) (int64, bool, error) {
-	return l.statHashed("blobs", key)
-}
-
-func (l *LocalFS) PutOriginal(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	return l.putHashed(ctx, "originals", r, meta)
-}
-
-func (l *LocalFS) GetOriginal(ctx context.Context, key string) (io.ReadCloser, error) {
-	return l.openHashed("originals", key)
-}
-
-func (l *LocalFS) HeadOriginal(ctx context.Context, key string) (int64, bool, error) {
-	return l.statHashed("originals", key)
-}
-
-func (l *LocalFS) DeleteOriginal(ctx context.Context, key string) error {
-	return l.Delete(ctx, "originals", key)
-}
-
-func (l *LocalFS) Delete(_ context.Context, prefix, key string) error {
+func (l *LocalFS) Delete(_ context.Context, prefix Prefix, key string) error {
 	path, err := l.pathFor(prefix, key)
 	if err != nil {
 		return err
@@ -77,8 +61,8 @@ func (l *LocalFS) Delete(_ context.Context, prefix, key string) error {
 	return nil
 }
 
-func (l *LocalFS) List(_ context.Context, prefix string) ([]ObjectInfo, error) {
-	root := filepath.Join(l.root, prefix)
+func (l *LocalFS) List(_ context.Context, prefix Prefix) ([]ObjectInfo, error) {
+	root := filepath.Join(l.root, string(prefix))
 	var out []ObjectInfo
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -107,7 +91,7 @@ func (l *LocalFS) List(_ context.Context, prefix string) ([]ObjectInfo, error) {
 	return out, nil
 }
 
-func (l *LocalFS) StatMeta(_ context.Context, prefix, key string) (ObjectMeta, error) {
+func (l *LocalFS) StatMeta(_ context.Context, prefix Prefix, key string) (ObjectMeta, error) {
 	path, err := l.pathFor(prefix, key)
 	if err != nil {
 		return ObjectMeta{}, err
@@ -126,7 +110,7 @@ func (l *LocalFS) StatMeta(_ context.Context, prefix, key string) (ObjectMeta, e
 	return m, nil
 }
 
-func (l *LocalFS) Stat(_ context.Context, prefix, key string) (ObjectInfo, bool, error) {
+func (l *LocalFS) Stat(_ context.Context, prefix Prefix, key string) (ObjectInfo, bool, error) {
 	path, err := l.pathFor(prefix, key)
 	if err != nil {
 		return ObjectInfo{}, false, err
@@ -141,7 +125,7 @@ func (l *LocalFS) Stat(_ context.Context, prefix, key string) (ObjectInfo, bool,
 	return ObjectInfo{Key: key, Size: info.Size(), LastModified: info.ModTime()}, true, nil
 }
 
-func (l *LocalFS) Touch(_ context.Context, prefix, key string) (bool, error) {
+func (l *LocalFS) Touch(_ context.Context, prefix Prefix, key string) (bool, error) {
 	path, err := l.pathFor(prefix, key)
 	if err != nil {
 		return false, err
@@ -160,25 +144,10 @@ func touchFile(path string) (bool, error) {
 	return err == nil, err
 }
 
-func (l *LocalFS) PutThumb(ctx context.Context, key string, r io.Reader) error {
-	path, err := l.pathFor("thumbs", key)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return writeAtomic(path, r)
-}
-
-func (l *LocalFS) GetThumb(ctx context.Context, key string) (io.ReadCloser, error) {
-	return l.openHashed("thumbs", key)
-}
-
 // putHashed streams r to a temp file, computes its SHA-256, renames into the
 // final two-char-sharded path. If the file already exists we delete the temp
 // and return the existing key — same contract as the S3 backend.
-func (l *LocalFS) putHashed(_ context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
+func (l *LocalFS) putHashed(_ context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	tmp, err := os.CreateTemp(l.root, "upload-*")
 	if err != nil {
 		return "", 0, err
@@ -245,30 +214,7 @@ func writeSidecar(objectPath string, meta ObjectMeta) {
 	_ = os.WriteFile(objectPath+metaSuffix, data, 0o644)
 }
 
-func (l *LocalFS) openHashed(prefix, key string) (io.ReadCloser, error) {
-	p, err := l.pathFor(prefix, key)
-	if err != nil {
-		return nil, err
-	}
-	return os.Open(p)
-}
-
-func (l *LocalFS) statHashed(prefix, key string) (int64, bool, error) {
-	p, err := l.pathFor(prefix, key)
-	if err != nil {
-		return 0, false, err
-	}
-	info, err := os.Stat(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, err
-	}
-	return info.Size(), true, nil
-}
-
-func (l *LocalFS) pathFor(prefix, key string) (string, error) {
+func (l *LocalFS) pathFor(prefix Prefix, key string) (string, error) {
 	// Defense in depth: callers at the HTTP boundary already enforce a
 	// 64-hex-char shape, but the storage layer rejects anything that could
 	// climb out of `root` regardless. Empty keys, separators, ".."
@@ -276,7 +222,7 @@ func (l *LocalFS) pathFor(prefix, key string) (string, error) {
 	if len(key) < 2 || len(key) > 128 || !isHexKey(key) {
 		return "", fmt.Errorf("invalid object key %q", key)
 	}
-	return filepath.Join(l.root, prefix, key[:2], key), nil
+	return filepath.Join(l.root, string(prefix), key[:2], key), nil
 }
 
 func isHexKey(s string) bool {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"gorm.io/gorm"
@@ -13,21 +14,16 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
-var sweptPrefixes = []string{"blobs", "thumbs", "originals"}
+var sweptPrefixes = []storage.Prefix{storage.Blobs, storage.Thumbs, storage.Originals}
 
-func isSweptPrefix(p string) bool {
-	for _, s := range sweptPrefixes {
-		if s == p {
-			return true
-		}
-	}
-	return false
+func isSweptPrefix(p storage.Prefix) bool {
+	return slices.Contains(sweptPrefixes, p)
 }
 
 // Candidate is one orphaned object surfaced by a scan: present in the store but
 // referenced by no live DB row and older than the minimum age.
 type Candidate struct {
-	Prefix       string
+	Prefix       storage.Prefix
 	Key          string
 	Size         int64
 	LastModified time.Time
@@ -36,13 +32,13 @@ type Candidate struct {
 
 // Key identifies a single object for deletion.
 type Key struct {
-	Prefix string
+	Prefix storage.Prefix
 	Key    string
 }
 
 // SkippedObject is a requested deletion that was not performed, with the reason.
 type SkippedObject struct {
-	Prefix string
+	Prefix storage.Prefix
 	Key    string
 	Reason string
 }
@@ -160,8 +156,8 @@ func DeleteOrphans(ctx context.Context, store storage.Service, db *gorm.DB, keys
 
 // knownKeys builds the set of object keys referenced by live rows in
 // models.ObjectKeyColumns, keyed by prefix.
-func knownKeys(ctx context.Context, db *gorm.DB) (map[string]map[string]struct{}, error) {
-	known := map[string]map[string]struct{}{}
+func knownKeys(ctx context.Context, db *gorm.DB) (map[storage.Prefix]map[string]struct{}, error) {
+	known := map[storage.Prefix]map[string]struct{}{}
 	for _, p := range sweptPrefixes {
 		known[p] = map[string]struct{}{}
 	}
@@ -177,7 +173,7 @@ func knownKeys(ctx context.Context, db *gorm.DB) (map[string]map[string]struct{}
 		}
 		for _, k := range keys {
 			if k != "" {
-				known[col.Prefix][k] = struct{}{}
+				known[storage.Prefix(col.Prefix)][k] = struct{}{}
 			}
 		}
 	}

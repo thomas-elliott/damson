@@ -83,7 +83,7 @@ func TestSweep_KeepsAnObjectAnImportDedupsOnto(t *testing.T) {
 			ctx := context.Background()
 
 			payload := []byte("shared texture")
-			key, _, err := local.PutBlob(ctx, bytes.NewReader(payload), storage.ObjectMeta{})
+			key, _, err := local.Put(ctx, storage.Blobs, bytes.NewReader(payload), storage.ObjectMeta{})
 			if err != nil {
 				t.Fatalf("put: %v", err)
 			}
@@ -95,7 +95,7 @@ func TestSweep_KeepsAnObjectAnImportDedupsOnto(t *testing.T) {
 			}
 
 			dedup := func() {
-				if got, _, err := local.PutBlob(ctx, bytes.NewReader(payload), storage.ObjectMeta{}); err != nil || got != key {
+				if got, _, err := local.Put(ctx, storage.Blobs, bytes.NewReader(payload), storage.ObjectMeta{}); err != nil || got != key {
 					t.Fatalf("dedup put: key %s, err %v", got, err)
 				}
 			}
@@ -109,7 +109,7 @@ func TestSweep_KeepsAnObjectAnImportDedupsOnto(t *testing.T) {
 			if _, err := DeleteOrphans(ctx, store, db, []Key{{Prefix: "blobs", Key: key}}, minAge, time.Now(), nil); err != nil {
 				t.Fatalf("delete orphans: %v", err)
 			}
-			if _, exists, _ := local.HeadBlob(ctx, key); !exists {
+			if _, exists, _ := local.Stat(ctx, storage.Blobs, key); !exists {
 				t.Fatal("the sweep deleted an object an import had just deduped onto")
 			}
 		})
@@ -122,7 +122,7 @@ type beforeStat struct {
 	hook func()
 }
 
-func (b *beforeStat) Stat(ctx context.Context, prefix, key string) (storage.ObjectInfo, bool, error) {
+func (b *beforeStat) Stat(ctx context.Context, prefix storage.Prefix, key string) (storage.ObjectInfo, bool, error) {
 	if b.hook != nil {
 		b.hook()
 		b.hook = nil

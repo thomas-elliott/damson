@@ -92,7 +92,7 @@ func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (in
 }
 
 func renderCover(ctx context.Context, gen *thumbnail.Generator, store storage.Service, path, key string) (thumbnail.Result, error) {
-	blob, err := store.GetBlob(ctx, key)
+	blob, err := store.Get(ctx, storage.Blobs, key)
 	if err != nil {
 		return thumbnail.Result{}, err
 	}

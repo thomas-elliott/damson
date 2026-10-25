@@ -161,7 +161,7 @@ func (h *Handler) postUploadSession(c *gin.Context) {
 		SizeBytes:          req.SizeBytes,
 		Sha256:             digest,
 		ChunkSize:          h.chunkSize,
-		ObjectPrefix:       spec.storagePrefix(),
+		ObjectPrefix:       string(spec.storagePrefix()),
 		BackendUploadID:    up.ID(),
 		PartsJSON:          json.RawMessage("[]"),
 		StoreVersion:       spec.reqStoreVersion,
@@ -272,7 +272,7 @@ func (h *Handler) putUploadChunk(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	up, err := h.storage.ResumeMultipart(ctx, session.ObjectPrefix, session.Sha256, session.BackendUploadID)
+	up, err := h.storage.ResumeMultipart(ctx, storage.Prefix(session.ObjectPrefix), session.Sha256, session.BackendUploadID)
 	if err != nil {
 		respond500(c, fmt.Errorf("resume multipart (session %d): %w", session.ID, err))
 		return
@@ -352,7 +352,7 @@ func (h *Handler) postUploadComplete(c *gin.Context) {
 		return
 	}
 	got := hex.EncodeToString(running.Sum(nil))
-	up, err := h.storage.ResumeMultipart(ctx, session.ObjectPrefix, session.Sha256, session.BackendUploadID)
+	up, err := h.storage.ResumeMultipart(ctx, storage.Prefix(session.ObjectPrefix), session.Sha256, session.BackendUploadID)
 	if err != nil {
 		respond500(c, fmt.Errorf("resume multipart (session %d): %w", session.ID, err))
 		return
@@ -421,7 +421,7 @@ func (h *Handler) deleteUploadSession(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	up, err := h.storage.ResumeMultipart(ctx, session.ObjectPrefix, session.Sha256, session.BackendUploadID)
+	up, err := h.storage.ResumeMultipart(ctx, storage.Prefix(session.ObjectPrefix), session.Sha256, session.BackendUploadID)
 	if err != nil {
 		slog.Warn("upload session: could not reattach to abort",
 			"err", err, "upload_id", session.ID)

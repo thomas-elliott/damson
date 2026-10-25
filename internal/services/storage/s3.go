@@ -64,39 +64,27 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 	return &S3{client: client, uploader: manager.NewUploader(client), bucket: cfg.Bucket}, nil
 }
 
-func (s *S3) PutBlob(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	return s.putHashed(ctx, "blobs", r, meta)
+func (s *S3) Put(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	return s.putHashed(ctx, prefix, r, meta)
 }
 
-func (s *S3) GetBlob(ctx context.Context, key string) (io.ReadCloser, error) {
-	return s.get(ctx, "blobs/"+shardedKey(key))
+func (s *S3) Get(ctx context.Context, prefix Prefix, key string) (io.ReadCloser, error) {
+	objectKey := objectPath(prefix, key)
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: &s.bucket,
+		Key:    &objectKey,
+	})
+	if err != nil {
+		return nil, s.wrapS3("get", objectKey, err)
+	}
+	return out.Body, nil
 }
 
-func (s *S3) HeadBlob(ctx context.Context, key string) (int64, bool, error) {
-	return s.head(ctx, "blobs/"+shardedKey(key))
-}
-
-func (s *S3) PutOriginal(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	return s.putHashed(ctx, "originals", r, meta)
-}
-
-func (s *S3) GetOriginal(ctx context.Context, key string) (io.ReadCloser, error) {
-	return s.get(ctx, "originals/"+shardedKey(key))
-}
-
-func (s *S3) HeadOriginal(ctx context.Context, key string) (int64, bool, error) {
-	return s.head(ctx, "originals/"+shardedKey(key))
-}
-
-func (s *S3) DeleteOriginal(ctx context.Context, key string) error {
-	return s.Delete(ctx, "originals", key)
-}
-
-func (s *S3) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
+func (s *S3) List(ctx context.Context, prefix Prefix) ([]ObjectInfo, error) {
 	var out []ObjectInfo
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
 		Bucket: &s.bucket,
-		Prefix: aws.String(prefix + "/"),
+		Prefix: aws.String(string(prefix) + "/"),
 	})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -121,10 +109,10 @@ func (s *S3) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
 	return out, nil
 }
 
-func (s *S3) StatMeta(ctx context.Context, prefix, key string) (ObjectMeta, error) {
+func (s *S3) StatMeta(ctx context.Context, prefix Prefix, key string) (ObjectMeta, error) {
 	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: &s.bucket,
-		Key:    aws.String(prefix + "/" + shardedKey(key)),
+		Key:    aws.String(objectPath(prefix, key)),
 	})
 	if err != nil {
 		return ObjectMeta{}, err
@@ -132,8 +120,8 @@ func (s *S3) StatMeta(ctx context.Context, prefix, key string) (ObjectMeta, erro
 	return metaFromS3(out.Metadata), nil
 }
 
-func (s *S3) Stat(ctx context.Context, prefix, key string) (ObjectInfo, bool, error) {
-	objectKey := prefix + "/" + shardedKey(key)
+func (s *S3) Stat(ctx context.Context, prefix Prefix, key string) (ObjectInfo, bool, error) {
+	objectKey := objectPath(prefix, key)
 	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &objectKey})
 	if isNotFound(err) {
 		return ObjectInfo{}, false, nil
@@ -148,8 +136,8 @@ func (s *S3) Stat(ctx context.Context, prefix, key string) (ObjectInfo, bool, er
 	return info, true, nil
 }
 
-func (s *S3) Touch(ctx context.Context, prefix, key string) (bool, error) {
-	return s.touch(ctx, prefix+"/"+shardedKey(key))
+func (s *S3) Touch(ctx context.Context, prefix Prefix, key string) (bool, error) {
+	return s.touch(ctx, objectPath(prefix, key))
 }
 
 // touch refreshes an existing object's last-modified time by copying it onto
@@ -169,29 +157,12 @@ func (s *S3) touch(ctx context.Context, objectKey string) (bool, error) {
 	return true, nil
 }
 
-func (s *S3) Delete(ctx context.Context, prefix, key string) error {
+func (s *S3) Delete(ctx context.Context, prefix Prefix, key string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: &s.bucket,
-		Key:    aws.String(prefix + "/" + shardedKey(key)),
+		Key:    aws.String(objectPath(prefix, key)),
 	})
 	return err
-}
-
-func (s *S3) PutThumb(ctx context.Context, key string, r io.Reader) error {
-	body, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: &s.bucket,
-		Key:    aws.String("thumbs/" + shardedKey(key)),
-		Body:   bytes.NewReader(body),
-	})
-	return err
-}
-
-func (s *S3) GetThumb(ctx context.Context, key string) (io.ReadCloser, error) {
-	return s.get(ctx, "thumbs/"+shardedKey(key))
 }
 
 const (
@@ -220,7 +191,7 @@ const (
 // scratch. The key is the hash of the content, so a body too large to hash in
 // memory lands at a random staging key first and is copied server-side to its
 // final key once the hash is known; that copy never crosses this process.
-func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
+func (s *S3) putHashed(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	head := make([]byte, inlinePutBytes)
 	n, err := io.ReadFull(r, head)
 	switch {
@@ -232,10 +203,10 @@ func (s *S3) putHashed(ctx context.Context, prefix string, r io.Reader, meta Obj
 	return s.putStaged(ctx, prefix, io.MultiReader(bytes.NewReader(head), r), meta)
 }
 
-func (s *S3) putInline(ctx context.Context, prefix string, body []byte, meta ObjectMeta) (string, int64, error) {
+func (s *S3) putInline(ctx context.Context, prefix Prefix, body []byte, meta ObjectMeta) (string, int64, error) {
 	sum := sha256.Sum256(body)
 	key := hex.EncodeToString(sum[:])
-	objectKey := prefix + "/" + shardedKey(key)
+	objectKey := objectPath(prefix, key)
 
 	present, err := s.touch(ctx, objectKey)
 	if err != nil {
@@ -257,7 +228,7 @@ func (s *S3) putInline(ctx context.Context, prefix string, body []byte, meta Obj
 	return key, int64(len(body)), nil
 }
 
-func (s *S3) putStaged(ctx context.Context, prefix string, r io.Reader, meta ObjectMeta) (string, int64, error) {
+func (s *S3) putStaged(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
 	stagingKey, err := newStagingKey()
 	if err != nil {
 		return "", 0, err
@@ -288,7 +259,7 @@ func (s *S3) putStaged(ctx context.Context, prefix string, r io.Reader, meta Obj
 
 	size := counted.count()
 	key := hex.EncodeToString(h.Sum(nil))
-	objectKey := prefix + "/" + shardedKey(key)
+	objectKey := objectPath(prefix, key)
 
 	present, err := s.touch(ctx, objectKey)
 	if err != nil {
@@ -498,32 +469,9 @@ func metaFromS3(md map[string]string) ObjectMeta {
 	return m
 }
 
-func (s *S3) get(ctx context.Context, key string) (io.ReadCloser, error) {
-	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: &s.bucket,
-		Key:    &key,
-	})
-	if err != nil {
-		return nil, s.wrapS3("get", key, err)
-	}
-	return out.Body, nil
-}
-
-func (s *S3) head(ctx context.Context, key string) (int64, bool, error) {
-	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: &s.bucket,
-		Key:    &key,
-	})
-	if isNotFound(err) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, s.wrapS3("head", key, err)
-	}
-	if out.ContentLength == nil {
-		return 0, true, nil
-	}
-	return *out.ContentLength, true, nil
+// objectPath is the bucket key of a content-hash key under prefix.
+func objectPath(prefix Prefix, key string) string {
+	return string(prefix) + "/" + shardedKey(key)
 }
 
 func shardedKey(hash string) string {

@@ -1,25 +1,20 @@
-package storage
+package main
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/thomas-elliott/damson/internal/config"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
-var (
-	_ Service = (*S3)(nil)
-	_ Service = (*LocalFS)(nil)
-)
-
-// New constructs a Service from the supplied config. Picks between the local
-// filesystem and S3 backends based on cfg.StorageMode.
-func New(ctx context.Context, cfg config.Config) (Service, error) {
+// newStorage builds the object store that cfg.StorageMode names.
+func newStorage(ctx context.Context, cfg config.Config) (storage.Service, error) {
 	switch cfg.StorageMode {
 	case config.StorageModeLocal:
-		return NewLocalFS(cfg.StorageLocalPath)
+		return storage.NewLocalFS(cfg.StorageLocalPath)
 	case config.StorageModeS3:
-		return NewS3(ctx, S3Config{
+		return storage.NewS3(ctx, storage.S3Config{
 			Endpoint:       cfg.S3Endpoint,
 			Region:         cfg.S3Region,
 			Bucket:         cfg.S3Bucket,
