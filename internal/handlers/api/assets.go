@@ -18,6 +18,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/tags"
 )
@@ -240,7 +241,7 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 			q = q.Where("l.detected_type = ?", f.LicenceSPDX)
 		}
 		if f.LicenceStatus != "" {
-			q = q.Where(licenceStatusSQL("l")+" = ?", permissiveLicences, f.LicenceStatus)
+			q = q.Where(licence.StatusSQL("l")+" = ?", licence.PermissiveTypes, f.LicenceStatus)
 		}
 	}
 	if f.TagID != nil {
@@ -331,7 +332,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = a.current_version_id), 0) AS size_bytes,
 			COALESCE(cv2.package_kind, '') AS package_kind,
 			COALESCE(l2.detected_type, '') AS licence_spdx,
-			`+licenceStatusSQL("l2")+` AS licence_status`, permissiveLicences).
+			`+licence.StatusSQL("l2")+` AS licence_status`, licence.PermissiveTypes).
 		Joins("LEFT JOIN asset_versions cv2 ON cv2.id = a.current_version_id").
 		Joins("LEFT JOIN licences l2 ON l2.id = a.licence_id").
 		Group("a.id, cv2.package_kind, l2.detected_type, l2.attributes_json").

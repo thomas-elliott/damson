@@ -15,6 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/tags"
 )
@@ -326,7 +327,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 
 	if meta != nil && outcome != referenceExists {
 		prev := sourceRecordOf(&asset)
-		applied, conflicts := h.applyMetadata(ctx, lib.ID, &asset, meta, nil, false, "", u.ID)
+		applied, conflicts := h.applyMetadata(ctx, lib.ID, &asset, meta, nil, false, "", u.ID, licence.ByPerson)
 		h.saveLookupRecord(ctx, &asset, prev, meta, link, applied, conflictedFields(conflicts))
 	}
 

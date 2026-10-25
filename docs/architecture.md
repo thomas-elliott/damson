@@ -252,15 +252,15 @@ Store covers and gallery images are fetched server-side and stored under `thumbs
 
 `internal/services/licence` first checks a Unity Asset Store EULA fingerprint, then runs
 `google/licensecheck`. Detection runs on demand (rescan, the licence endpoints, storefront text),
-never during import.
+never during import. Every licence write goes through `licence.Replace`, which keeps a reviewed licence from an
+automatic writer (import enrichment, rescan, store lookups).
 
 ### Traps
 
-- Never let an automatic path replace a licence that has `reviewed_at` set.
 - Leave an unknown attribute `nil`, never `false`. `false` is shown to the user as a stated
   restriction.
-- Change a licence status rule in both `LicenceStatusFor` and `licenceStatusSQL` (`licences.go`).
-  The grid, project pins and the status filter use the SQL form.
+- Change a licence status rule in both `licence.StatusFor` and `licence.StatusSQL`
+  (`status.go`). The grid, project pins and the status filter use the SQL form.
   `TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail` checks that the two agree.
 
 ## Thumbnails and previews

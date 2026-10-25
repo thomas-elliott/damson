@@ -14,6 +14,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
@@ -359,7 +360,7 @@ func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
 		}
 		apply = withoutUnchangedCover(&asset, meta)
 	}
-	applied, conflicts := h.applyMetadata(ctx, lk.LibraryID, &asset, apply, confirm, false, "", userID)
+	applied, conflicts := h.applyMetadata(ctx, lk.LibraryID, &asset, apply, confirm, false, "", userID, licence.Automatic)
 	if refresh && len(applied) > 0 && !asset.NeedsReview {
 		if err := db.Model(&asset).Update("needs_review", true).Error; err != nil {
 			return err
