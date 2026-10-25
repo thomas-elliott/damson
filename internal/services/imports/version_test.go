@@ -114,7 +114,8 @@ func TestChooseCurrent(t *testing.T) {
 		{"a version still importing is passed over", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageExtracting}}}, -1, 0},
 		{"a version whose import failed is passed over", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageFailed}}}, -1, 0},
 		{"a retried import that finished counts", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageFailed, StageDone}}}, -1, 1},
-		{"the finishing import counts", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageEnriching}}}, 1, 1},
+		{"an import that is enriching counts", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageEnriching}}}, -1, 1},
+		{"the finishing import counts", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageThumbnailing}}}, 1, 1},
 		{"nothing finished leaves no current version", []version{{"1.0", time.Hour, []string{StageFailed}}}, -1, -1},
 	}
 	for _, tc := range cases {

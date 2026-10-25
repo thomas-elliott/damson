@@ -88,13 +88,14 @@ func StoreUpdateAvailable(latestStoreVersion string, heldVersions []string) (ava
 // ChooseCurrent points the asset at the version that should be current: the
 // highest parseable store version, then the newest import date, then the
 // newest row. Every version without a parseable store version ties below the
-// parseable ones. A version whose latest import failed or is still running is
-// passed over, except finishing: the version whose import is finishing in tx
-// (0 for none). It returns the version chosen, or nil when there is none.
+// parseable ones. A version whose latest import failed or has not committed
+// its files is passed over, except finishing: the version whose import is
+// committing them in tx (0 for none). An import past that point is still
+// enriching. It returns the version chosen, or nil when there is none.
 func ChooseCurrent(tx *gorm.DB, assetID, finishing uint) (*uint, error) {
 	var versions []models.AssetVersion
 	unfinished := tx.Table("asset_imports AS i").Select("1").
-		Where("i.asset_version_id = asset_versions.id AND i.stage <> ?", StageDone).
+		Where("i.asset_version_id = asset_versions.id AND i.stage NOT IN ?", []string{StageEnriching, StageDone}).
 		Where("NOT EXISTS (SELECT 1 FROM asset_imports j WHERE j.asset_version_id = i.asset_version_id AND j.id > i.id)")
 	if err := tx.Where("asset_id = ?", assetID).
 		Where("id = ? OR NOT EXISTS (?)", finishing, unfinished).
