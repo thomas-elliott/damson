@@ -289,7 +289,7 @@ type concurrencyRunner struct {
 	ran     []uint
 }
 
-func (r *concurrencyRunner) RunStoreLookup(_ context.Context, id uint) error {
+func (r *concurrencyRunner) Run(_ context.Context, id uint) error {
 	r.mu.Lock()
 	r.running++
 	r.most = max(r.most, r.running)
@@ -302,16 +302,16 @@ func (r *concurrencyRunner) RunStoreLookup(_ context.Context, id uint) error {
 	return nil
 }
 
-func (r *concurrencyRunner) FailStoreLookup(context.Context, uint, string) error { return nil }
+func (r *concurrencyRunner) Fail(context.Context, uint, string) error { return nil }
 
 // failingRunner fails every lookup and records which it was told were failed.
 type failingRunner struct{ failed []uint }
 
-func (r *failingRunner) RunStoreLookup(context.Context, uint) error {
+func (r *failingRunner) Run(context.Context, uint) error {
 	return errors.New("database unreachable")
 }
 
-func (r *failingRunner) FailStoreLookup(_ context.Context, id uint, _ string) error {
+func (r *failingRunner) Fail(_ context.Context, id uint, _ string) error {
 	r.failed = append(r.failed, id)
 	return nil
 }
@@ -345,15 +345,14 @@ func TestStoreLookups_RunOneAtATime(t *testing.T) {
 	dsn := testdb.RequireDSN(t)
 	schema := testdb.NewSchemaName(t)
 	gdb := testdb.OpenSchema(t, dsn, schema, true)
+	runner := &concurrencyRunner{}
 	q, err := New(context.Background(), Config{
 		DSN: dsn, Schema: schema, ImportWorkers: 4, PreviewWorkers: 4,
-		ImportDeps: imports.Deps{DB: gdb}, PreviewDeps: preview.Deps{DB: gdb},
+		ImportDeps: imports.Deps{DB: gdb}, PreviewDeps: preview.Deps{DB: gdb}, StoreLookups: runner,
 	})
 	if err != nil {
 		t.Fatalf("new queue: %v", err)
 	}
-	runner := &concurrencyRunner{}
-	q.SetStoreLookupRunner(runner)
 	if err := q.Start(context.Background()); err != nil {
 		t.Fatalf("start queue: %v", err)
 	}
