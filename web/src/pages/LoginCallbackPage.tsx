@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { Button } from "@/design-system";
 import { fetchAuthMode } from "@/lib/authMode";
 import { getUserManager } from "@/lib/oidc";
 
@@ -11,9 +12,11 @@ import { getUserManager } from "@/lib/oidc";
 // module scope — every invocation awaits the SAME promise, but each live mount
 // still drives its own navigation. One document = one callback; the
 // silent-renew iframe is its own document with fresh module state.
-let callbackInFlight: Promise<{ inIframe: boolean }> | null = null;
+type CallbackResult = { inIframe: boolean; error?: unknown };
 
-function runCallbackOnce(): Promise<{ inIframe: boolean }> {
+let callbackInFlight: Promise<CallbackResult> | null = null;
+
+function runCallbackOnce(): Promise<CallbackResult> {
   if (callbackInFlight) return callbackInFlight;
   callbackInFlight = (async () => {
     // This route is a cold load (the IdP redirected the whole browser back
@@ -34,9 +37,8 @@ function runCallbackOnce(): Promise<{ inIframe: boolean }> {
         await getUserManager().signinRedirectCallback();
       }
     } catch (err) {
-      // Even on failure, fall through to / — AuthGuard re-triggers the login
-      // redirect on the next render.
       console.error("OIDC callback failed", err);
+      return { inIframe, error: err };
     }
     return { inIframe };
   })();
@@ -45,17 +47,33 @@ function runCallbackOnce(): Promise<{ inIframe: boolean }> {
 
 export function LoginCallbackPage() {
   const navigate = useNavigate();
+  const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void runCallbackOnce().then(({ inIframe }) => {
+    void runCallbackOnce().then(({ inIframe, error }) => {
       // The iframe (silent renew) has no SPA route to drive; the parent frame
       // owns navigation there.
-      if (!cancelled && !inIframe) navigate("/", { replace: true });
+      if (cancelled || inIframe) return;
+      // A failed sign-in stays here: going to / would have AuthGuard send the
+      // browser straight back to the IdP.
+      if (error) setFailure(error instanceof Error ? error.message : "Sign-in failed.");
+      else navigate("/", { replace: true });
     });
     return () => {
       cancelled = true;
     };
   }, [navigate]);
+  if (failure) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-center">
+        <p className="text-subhead font-medium text-foreground">Sign-in didn't complete</p>
+        <p className="max-w-[42ch] text-body text-muted-foreground">{failure}</p>
+        <Button variant="primary" onClick={() => navigate("/", { replace: true })}>
+          Sign in again
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-screen items-center justify-center text-ui text-subtle-foreground">
       Completing sign-in…

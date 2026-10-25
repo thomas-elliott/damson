@@ -26,6 +26,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from "./Breadcrumb";
 import { DetailPanel } from "./DetailPanel";
 import { DropOverlay } from "./DropOverlay";
 import { EmptyState } from "./EmptyState";
+import { ErrorState } from "./ErrorState";
 import { FullPageView } from "./FullPageView";
 import { Pager } from "./Pager";
 import { SelectionBar } from "./SelectionBar";
@@ -269,6 +270,15 @@ export const EmptyStateExample: Story = {
           </Button>
         }
       />
+    </div>
+  ),
+};
+
+export const ErrorStateExample: Story = {
+  parameters: { layout: "centered" },
+  render: () => (
+    <div className="h-[360px] w-[640px] border border-border bg-background">
+      <ErrorState title="Couldn't load assets" onRetry={() => {}} />
     </div>
   ),
 };

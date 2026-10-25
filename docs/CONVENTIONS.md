@@ -100,7 +100,7 @@ Test mode is set once in `init()` with `gin.SetMode(gin.TestMode)`.
       filters ? (["assets", filters] as const) : (["assets"] as const),
   } as const;
   ```
-- Custom hooks live in `hooks/useDataQueries.ts` and wrap `useQuery`, returning a normalized `{ data, loading, error, reload }` shape.
+- Custom hooks live in `hooks/useDataQueries.ts` and wrap `useQuery`, returning a normalized `{ data, loading, error, reload }` shape. A hook behind a screen also returns `failed`: an error with no data to show, which the screen renders as `ErrorState`. A failed refetch over data already on screen leaves `failed` false.
 - Cache policy uses constants from `lib/cachePolicy` (`SECOND`, `MINUTE`, `HOUR`, `DAY`). Set `staleTime` and `gcTime` explicitly per endpoint.
 - Client config in `lib/queryClient.ts`: 5 min default stale, no refetch on focus.
 - Paginated lists: `limit`/`offset` query params on the server. End every paged `ORDER BY` on a unique column (`a.id`), or tied rows can land on two pages or none. The library pages with the `Pager` composition, not infinite scroll: `useAssets` takes a `{ limit, offset }` page, keeps the previous page on screen while the next loads (`keepPreviousData`), and the grid virtualises the one page it holds.

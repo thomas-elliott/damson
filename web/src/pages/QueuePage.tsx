@@ -20,6 +20,7 @@ import {
   BreadcrumbItem,
   Button,
   EmptyState,
+  ErrorState,
   QueueItem,
   Toolbar,
   cn,
@@ -49,7 +50,7 @@ function plainSnippet(md: string): string {
  * and mark-reviewed actions without leaving the queue.
  */
 export function QueuePage() {
-  const { data: imports, finished, loading } = useImports("in_flight");
+  const { data: imports, finished, loading, failed, reload } = useImports("in_flight");
   const { data: me } = useMe();
   useImportEvents(me?.current_library?.id);
   const [search, setSearch] = useSearchParams();
@@ -78,6 +79,8 @@ export function QueuePage() {
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading queue…
             </div>
+          ) : failed ? (
+            <ErrorState title="Couldn't load the import queue" onRetry={reload} />
           ) : imports.length === 0 && finished.length === 0 ? (
             <EmptyState
               icon={<Inbox size={28} />}
