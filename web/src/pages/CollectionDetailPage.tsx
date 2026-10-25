@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "react-router";
 import { ChevronLeft, Trash2 } from "lucide-react";
 
+import { isNotFound } from "@/api";
 import { AssetGrid } from "@/components/AssetGrid";
 import { Shell } from "@/components/Shell";
 import {
@@ -9,6 +10,7 @@ import {
   BreadcrumbSeparator,
   Button,
   EmptyState,
+  ErrorState,
   Toolbar,
   ToolbarSpacer,
   useConfirm,
@@ -19,7 +21,7 @@ import { useDeleteCollection } from "@/hooks/useMutations";
 export function CollectionDetailPage() {
   const { id } = useParams();
   const collectionId = id ? Number(id) : null;
-  const { data: collection, loading } = useCollection(collectionId);
+  const { data: collection, loading, error, failed, reload } = useCollection(collectionId);
   const { data: settings } = useLibrarySettings();
   const { data: assets } = useAssets(
     collectionId ? { collection_id: collectionId } : undefined,
@@ -76,6 +78,8 @@ export function CollectionDetailPage() {
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading…
             </div>
+          ) : failed && !isNotFound(error) ? (
+            <ErrorState title="Couldn't load this collection" onRetry={reload} />
           ) : !collection ? (
             <EmptyState title="Collection not found" />
           ) : assets.length === 0 ? (

@@ -25,6 +25,12 @@ export function isAuthRedirectError(err: unknown): err is AuthRedirectError {
   return err instanceof AuthRedirectError;
 }
 
+// A lookup by id that names nothing: 404, or 400 for an id the server cannot
+// parse (a malformed id in the URL).
+export function isNotFound(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 404 || err.status === 400);
+}
+
 export class UploadAbortedError extends Error {
   constructor() {
     super("upload aborted");

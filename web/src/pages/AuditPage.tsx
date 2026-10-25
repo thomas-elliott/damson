@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router";
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import { UrlPager } from "@/components/UrlPager";
-import { Breadcrumb, BreadcrumbItem, SearchInput, Toolbar } from "@/design-system";
+import { Breadcrumb, BreadcrumbItem, ErrorState, SearchInput, Toolbar } from "@/design-system";
 import { cn } from "@/design-system/utils";
 import { useLibraryAudit } from "@/hooks/useDataQueries";
 import { ACTION_FILTERS } from "@/lib/auditFilters";
@@ -26,6 +26,8 @@ export function AuditPage() {
     loading,
     placeholder,
     error,
+    failed,
+    reload,
   } = useLibraryAudit({
     action_type: action || undefined,
     q: q || undefined,
@@ -79,6 +81,8 @@ export function AuditPage() {
               <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
                 Loading…
               </div>
+            ) : failed ? (
+              <ErrorState title="Couldn't load the audit log" onRetry={reload} />
             ) : (
               <AuditList entries={entries} linkTargets />
             )}
