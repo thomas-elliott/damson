@@ -8,6 +8,7 @@ import {
   BreadcrumbItem,
   Button,
   EmptyState,
+  ErrorState,
   QueueItem,
   Toolbar,
 } from "@/design-system";
@@ -22,7 +23,7 @@ import { usePreviewEvents } from "@/hooks/usePreviewEvents";
  * actions live on the asset/file detail panels, so rows here just open the asset.
  */
 export function PreviewQueuePage() {
-  const { data: previews, finished, loading } = usePreviewQueue();
+  const { data: previews, finished, loading, failed, reload } = usePreviewQueue();
   const { data: me } = useMe();
   usePreviewEvents(me?.current_library?.id);
   const navigate = useNavigate();
@@ -39,6 +40,8 @@ export function PreviewQueuePage() {
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading queue…
             </div>
+          ) : failed ? (
+            <ErrorState title="Couldn't load the processing queue" onRetry={reload} />
           ) : previews.length === 0 && finished.length === 0 ? (
             <EmptyState
               icon={<Images size={28} />}

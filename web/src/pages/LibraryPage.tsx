@@ -16,6 +16,7 @@ import {
   Badge,
   Button,
   EmptyState,
+  ErrorState,
   SearchInput,
   Toolbar,
   ToolbarSpacer,
@@ -68,6 +69,8 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
     loading,
     placeholder,
     error,
+    failed,
+    reload,
   } = useAssets(filters, hasLibrary, { limit: pageSize, offset: (page - 1) * pageSize });
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
@@ -268,6 +271,8 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
                 Loading assets…
               </div>
+            ) : failed ? (
+              <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
             ) : (
               <>
                 <AssetGrid

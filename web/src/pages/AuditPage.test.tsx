@@ -11,13 +11,23 @@ import { AuditPage } from "./AuditPage";
 const feed = vi.hoisted(() => ({
   total: 0,
   error: null as Error | null,
+  failed: false,
+  reload: () => {},
   requests: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/hooks/useDataQueries", () => {
   const audit = (filters: Record<string, unknown>) => {
     feed.requests.push(filters);
-    return { data: [], total: feed.total, loading: false, placeholder: false, error: feed.error };
+    return {
+      data: [],
+      total: feed.total,
+      loading: false,
+      placeholder: false,
+      error: feed.error,
+      failed: feed.failed,
+      reload: feed.reload,
+    };
   };
   return {
     useMe: () => ({ data: { id: 1, role: "sysadmin" }, loading: false }),
@@ -37,6 +47,8 @@ function Location() {
 beforeEach(() => {
   feed.total = 120;
   feed.error = null;
+  feed.failed = false;
+  feed.reload = vi.fn();
   feed.requests = [];
 });
 
@@ -110,5 +122,26 @@ describe("AdminAuditPage paging", () => {
     await userEvent.click(screen.getByRole("radio", { name: "All libraries" }));
     expect(query()).toBe("?scope=all");
     expect(lastRequest()).toMatchObject({ scope: "all", offset: 0 });
+  });
+});
+
+describe.each([
+  ["AuditPage", "/audit"],
+  ["AdminAuditPage", "/admin/audit"],
+])("%s load failure", (_name, path) => {
+  it("shows the error with a Retry instead of an empty log", async () => {
+    feed.total = 0;
+    feed.error = new Error("network");
+    feed.failed = true;
+    mount(path);
+    expect(screen.getByText("Couldn't load the audit log")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(feed.reload).toHaveBeenCalled();
+  });
+
+  it("keeps showing the log when only a refetch failed", () => {
+    feed.error = new Error("network");
+    mount(path);
+    expect(screen.queryByText("Couldn't load the audit log")).toBeNull();
   });
 });

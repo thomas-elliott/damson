@@ -1,9 +1,16 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
 
-import { fetchJson } from "@/api";
+import { fetchJson, isAuthRedirectError } from "@/api";
 import { fetchAuthMode, type AuthModeInfo } from "@/lib/authMode";
 import { HOUR, MINUTE } from "@/lib/cachePolicy";
 import { queryKeys } from "@/lib/queryKeys";
+
+// A query that failed with nothing to show: a failed first load or page
+// change. A failed refetch over data on screen is not one, and neither is an
+// expired session, which the login redirect deals with.
+function failedToLoad(q: UseQueryResult<unknown>): boolean {
+  return q.isError && q.data === undefined && !isAuthRedirectError(q.error);
+}
 
 // -- /api/auth/mode ---------------------------------------------------------
 
@@ -186,6 +193,7 @@ export function useAssets(filters?: AssetFilters, enabled: boolean = true, page?
     placeholder: q.isPlaceholderData,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -388,6 +396,7 @@ export function useAssetDetail(id: number | null) {
     data: q.data ?? null,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -483,6 +492,7 @@ export function useProjects(enabled: boolean = true) {
     data: q.data?.projects ?? [],
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -499,6 +509,7 @@ export function useProject(id: number | null) {
     data: q.data ?? null,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -526,6 +537,7 @@ export function useCollections(enabled: boolean = true) {
     data: q.data?.collections ?? [],
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -542,6 +554,7 @@ export function useCollection(id: number | null) {
     data: q.data ?? null,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -652,6 +665,7 @@ export function useLibraryAudit(filters?: AuditFilters, enabled: boolean = true)
     placeholder: q.isPlaceholderData,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -680,6 +694,7 @@ export function useAdminAudit(
     placeholder: q.isPlaceholderData,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -759,6 +774,7 @@ export function useImports(
     total: q.data?.total ?? 0,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -803,6 +819,7 @@ export function usePreviewQueue(enabled: boolean = true) {
     total: q.data?.total ?? 0,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
