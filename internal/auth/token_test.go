@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -220,13 +221,13 @@ func TestTokenAuthenticator_Rejects(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("unknown secret", func(t *testing.T) {
-		if _, err := ta.Authenticate(ctx, TokenPrefix+"never-issued"); err != ErrUnauthenticated {
+		if _, err := ta.Authenticate(ctx, TokenPrefix+"never-issued"); !errors.Is(err, ErrUnauthenticated) {
 			t.Fatalf("got %v want ErrUnauthenticated", err)
 		}
 	})
 
 	t.Run("not a token bearer", func(t *testing.T) {
-		if _, err := ta.Authenticate(ctx, "some.jwt.value"); err != ErrUnauthenticated {
+		if _, err := ta.Authenticate(ctx, "some.jwt.value"); !errors.Is(err, ErrUnauthenticated) {
 			t.Fatalf("got %v want ErrUnauthenticated", err)
 		}
 	})
@@ -236,7 +237,7 @@ func TestTokenAuthenticator_Rejects(t *testing.T) {
 		secret := mintToken(t, db, userID, libID, ScopeWrite, func(tok *models.APIToken) {
 			tok.RevokedAt = &now
 		})
-		if _, err := ta.Authenticate(ctx, secret); err != ErrUnauthenticated {
+		if _, err := ta.Authenticate(ctx, secret); !errors.Is(err, ErrUnauthenticated) {
 			t.Fatalf("got %v want ErrUnauthenticated", err)
 		}
 	})
@@ -246,7 +247,7 @@ func TestTokenAuthenticator_Rejects(t *testing.T) {
 		secret := mintToken(t, db, userID, libID, ScopeWrite, func(tok *models.APIToken) {
 			tok.ExpiresAt = &past
 		})
-		if _, err := ta.Authenticate(ctx, secret); err != ErrUnauthenticated {
+		if _, err := ta.Authenticate(ctx, secret); !errors.Is(err, ErrUnauthenticated) {
 			t.Fatalf("got %v want ErrUnauthenticated", err)
 		}
 	})
@@ -260,7 +261,7 @@ func TestTokenAuthenticator_Rejects(t *testing.T) {
 			Delete(&models.LibraryMembership{}).Error; err != nil {
 			t.Fatalf("drop membership: %v", err)
 		}
-		if _, err := ta.Authenticate(ctx, secret); err != ErrUnauthenticated {
+		if _, err := ta.Authenticate(ctx, secret); !errors.Is(err, ErrUnauthenticated) {
 			t.Fatalf("got %v want ErrUnauthenticated — a token must die with its membership", err)
 		}
 	})
