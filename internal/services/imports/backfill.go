@@ -42,8 +42,8 @@ func BackfillCovers(ctx context.Context, db *gorm.DB, store storage.Service) (in
 		Where("NOT a.is_reference AND NOT a.thumbnail_from_store").
 		Where("a.thumbnail_object_key = '' OR a.thumbnail_content_type NOT IN ?", browserCoverTypes).
 		Where("COALESCE(s.thumbnails_raster_enabled, true)").
-		Where("v.package_kind <> ?", "unitypackage").
-		Where("v.package_kind <> ? OR f.size_bytes <= ?", "zip", extract.MaxZipCoverBytes).
+		Where("v.package_kind <> ?", models.PackageKindUnityPackage).
+		Where("v.package_kind <> ? OR f.size_bytes <= ?", models.PackageKindZip, extract.MaxZipCoverBytes).
 		Order("a.id, f.relative_path").
 		Select("a.id AS asset_id, v.id AS version_id, f.relative_path, f.object_key").
 		Scan(&rows).Error

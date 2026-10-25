@@ -46,10 +46,6 @@ type assetListResponse struct {
 }
 
 const (
-	packageKindLoose        = "loose"
-	packageKindUnityPackage = "unitypackage"
-	packageKindZip          = "zip"
-
 	// MaxBytesReader caps the whole multipart body, not just the file, so the
 	// limit needs headroom for the boundary and part-header framing.
 	multipartOverheadBytes = 1 << 20
