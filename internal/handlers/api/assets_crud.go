@@ -15,7 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/assets"
 	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 )
 
 // assetDetailView is the shape returned by GET /api/assets/:id and is the
@@ -166,15 +166,15 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	// import-date-ordered rows here, versioned rows first (descending) and
 	// unversioned rows kept in import-date order after them.
 	sort.SliceStable(versions, func(i, j int) bool {
-		a, aok := imports.ParseStoreVersion(versions[i].StoreVersion)
-		b, bok := imports.ParseStoreVersion(versions[j].StoreVersion)
+		a, aok := ingest.ParseStoreVersion(versions[i].StoreVersion)
+		b, bok := ingest.ParseStoreVersion(versions[j].StoreVersion)
 		if aok != bok {
 			return aok
 		}
 		if !aok {
 			return false
 		}
-		return imports.CompareStoreVersions(a, b) > 0
+		return ingest.CompareStoreVersions(a, b) > 0
 	})
 	for _, v := range versions {
 		originalKey := ""
@@ -541,7 +541,7 @@ func (h *Handler) patchAssetVersion(c *gin.Context) {
 	if req.StoreVersion != nil {
 		trimmed := strings.TrimSpace(*req.StoreVersion)
 		if trimmed != "" {
-			if _, valid := imports.ParseStoreVersion(trimmed); !valid {
+			if _, valid := ingest.ParseStoreVersion(trimmed); !valid {
 				respond400(c, asError("store_version must be a dotted number like 1.1"))
 				return
 			}

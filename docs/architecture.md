@@ -38,7 +38,7 @@ filesystem.
 | `internal/handlers/api` | Every HTTP handler, as methods on one `*Handler` |
 | `internal/auth` | Authenticators (local, OIDC, personal access tokens), middleware and bootstrap |
 | `internal/models` | GORM structs |
-| `internal/services/*` | Domain logic: `assets`, `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
+| `internal/services/*` | Domain logic: `assets`, `ingest`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
 | `internal/queue` | River setup and job kinds |
 | `internal/config` | Every environment variable and its default |
 | `internal/{toon,axi,tagpath,importstage,importsource,unitycache,buildinfo}` | Leaf packages that the CLI shares with the server |
@@ -204,17 +204,19 @@ Bytes arrive by one of two transports, which share `import_create.go`:
 
 Clients pick the transport by size. The handler creates the asset, version and import rows, stores
 the bytes, then enqueues an `import` job in the transaction that records them.
-`internal/services/imports.Run` moves the import through the stages (`internal/importstage`):
+`internal/services/ingest.Run` moves the import through the stages (`internal/importstage`):
 `uploaded` → `extracting` → `detecting` → `thumbnailing` → `enriching` → `done` | `failed`.
 `asset_imports.stage` is the record. SSE on
-`/api/imports/events` only announces transitions.
+`/api/imports/events` only announces transitions. The steps are the `stages` list in
+`pipeline.go`, and `ingest.Reextract` runs its extract, cover and write steps on a retained Unity
+package.
 
 Extraction (`internal/services/extract`) handles `.unitypackage`, a tar of GUID bundles, and
 `.zip`. Both enforce size and entry-count caps and skip unsafe paths. Zip needs random access, so
 the archive is copied to a local temp file first. Thumbnailing and enrichment are best-effort and
 never fail an import. Once the files are committed, the version is handed to the preview queue.
 An import creates its version with `files_pending` set. The transaction that writes the files
-clears it, and `imports.ChooseCurrent` passes over a pending version, so an import that fails
+clears it, and `ingest.ChooseCurrent` passes over a pending version, so an import that fails
 after that point keeps a version that can still be current.
 
 In the SPA, the upload queue is in the notification centre (`components/notifications/`). It is

@@ -15,7 +15,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/tags"
 )
@@ -78,7 +78,7 @@ type assetListFilters struct {
 // a non-numeric segment would otherwise abort the whole query, and WHERE-clause
 // conjuncts have no guaranteed evaluation order. Trailing .0 segments are
 // trimmed first so 1.0 and 1 compare equal, matching
-// imports.CompareStoreVersions.
+// ingest.CompareStoreVersions.
 func storeVersionArraySQL(column string) string {
 	return `CASE WHEN ` + column + ` ~ '^[0-9]+(\.[0-9]+)*$'
 		THEN string_to_array(regexp_replace(` + column + `, '(\.0)+$', ''), '.')::int[] END`
@@ -185,7 +185,7 @@ func storeUpdateAvailable(deprecated bool, latestStoreVersion string, heldVersio
 	if deprecated {
 		return false
 	}
-	available, _ := imports.StoreUpdateAvailable(latestStoreVersion, heldVersions)
+	available, _ := ingest.StoreUpdateAvailable(latestStoreVersion, heldVersions)
 	return available
 }
 
@@ -446,7 +446,7 @@ func (h *Handler) postImport(c *gin.Context) {
 	spec.reqStoreVersion = strings.TrimLeft(strings.TrimSpace(form.get("store_version")), "vV")
 	spec.sourceKind = strings.TrimSpace(form.get("source_kind"))
 
-	sourceRelativePath, err := imports.ValidateSource(spec.sourceKind, form.get("source_relative_path"))
+	sourceRelativePath, err := ingest.ValidateSource(spec.sourceKind, form.get("source_relative_path"))
 	if err != nil {
 		slog.Warn("import: invalid source hint",
 			"err", err, "library_id", lib.ID, "source_kind", spec.sourceKind)
@@ -547,7 +547,7 @@ func (h *Handler) cleanupFailedVersionUpload(ctx context.Context, versionID, imp
 
 // postReExtract re-reads the .unitypackage archive retained when the version
 // was imported and rewrites that version's files in place; it creates no new
-// version. See imports.Reextract.
+// version. See ingest.Reextract.
 func (h *Handler) postReExtract(c *gin.Context) {
 	if h.storage == nil {
 		respond500(c, errStorageNotConfigured)
@@ -594,12 +594,12 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
-	out, err := imports.Reextract(c.Request.Context(), imports.Deps{DB: h.db, Storage: h.storage, Previews: h.previewPool}, asset, source, u.ID)
+	out, err := ingest.Reextract(c.Request.Context(), ingest.Deps{DB: h.db, Storage: h.storage, Previews: h.previewPool}, asset, source, u.ID)
 	switch {
-	case errors.Is(err, imports.ErrNoRetainedPackage):
+	case errors.Is(err, ingest.ErrNoRetainedPackage):
 		respond409(c, err.Error())
 		return
-	case errors.Is(err, imports.ErrBadPackage):
+	case errors.Is(err, ingest.ErrBadPackage):
 		slog.Warn("unity re-extract failed", "err", err, "asset_id", asset.ID, "version_id", source.ID)
 		respond400Msg(c, err, err.Error())
 		return
