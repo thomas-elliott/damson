@@ -124,3 +124,8 @@ Mode: committing — feature branch `dam-59-backend-hygiene`, one commit per sta
   `upload_errors.go`.
 - The SQLite comments on the hand-written child deletes now say the cascades make them redundant;
   the deletes themselves stay for the library and asset work in DAM-60.
+- `go.mod`: golangci-lint v2.14.0 (v2.15.0 was under two weeks old). Tool dependencies share the
+  module graph, so adding it raised `golang.org/x/crypto` 0.54→0.57, `golang.org/x/net`
+  0.57→0.59 and `golang.org/x/text` 0.40→0.42 for the server too.
+- `.golangci.yml`: only the three named linters (`default: none`), with the per-linter and
+  same-issue caps off so the gate shows every finding.

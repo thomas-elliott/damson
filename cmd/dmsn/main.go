@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -60,7 +61,7 @@ func dispatch(ctx context.Context, cmd *command, args []string, w io.Writer) int
 
 	if err := fs.Parse(permute(fs, args)); err != nil {
 		// -h / --help is a request, not a failure: one screen, exit 0.
-		if err == flag.ErrHelp {
+		if errors.Is(err, flag.ErrHelp) {
 			writeCommandHelp(w, cmd)
 			return axi.ExitOK
 		}
