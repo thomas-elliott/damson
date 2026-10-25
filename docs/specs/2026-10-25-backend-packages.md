@@ -60,3 +60,19 @@ By: recommended, operator said "go" (2026-10-25)
 ## Deferred follow-ups
 
 - blocked: DAM-60 should land first; it shrinks what has to move here.
+
+## Implementation report
+
+Mode: committing, one commit per stage, on branch `dam-61-backend-packages`.
+
+### Stages
+
+1. `models`: `PackageKind` constants, one `HasDownloadableOriginal` predicate (Go and SQL) used by every copy of the rule, and `ObjectKeyColumns`, read by cleanup, with a test that every `*_object_key` column is listed.
+2. Import pipeline: `Run` becomes a list of stages that loads library settings once; `Reextract` runs the same stages; the package is renamed `ingest`.
+3. Storage: `Service` narrows to a typed `Prefix` and about eight methods; `storage.New(config)` moves to `cmd/server`.
+4. Flatten `internal/services/*` to `internal/*` and bring the repository map in `docs/architecture.md` up to date.
+
+### Choices made
+- Stage 1, `internal/models/package.go`: the package kinds are untyped string constants beside `AssetVersion.PackageKind`, which stays a `string`, so JSON, GORM and the handlers' filters are unchanged. `HasDownloadableOriginal` has a SQL twin, `DownloadableOriginalSQL(table)`, because the file download, asset detail, purge and sweep all decide in a query.
+- Stage 1, `internal/services/imports/pipeline.go`: the purge's "another live version still uses this original" check now uses the same rule, so a loose version whose blob key equals an archive's hash no longer keeps the archive.
+- Stage 1, `internal/models/package.go`: `ObjectKeyColumns` carries each column's storage prefix as a string, because `models` imports nothing from `storage`; the cleanup test checks each prefix is one the sweep lists.

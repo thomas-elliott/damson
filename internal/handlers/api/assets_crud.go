@@ -149,7 +149,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	err := h.db.WithContext(c.Request.Context()).
 		Table("asset_versions AS v").
 		Select(`v.id, v.version_label, v.store_version, v.notes, v.import_date, v.package_kind,
-			CASE WHEN v.original_package_object_key IS NOT NULL AND v.original_package_object_key <> '' AND v.original_package_purged = false THEN true ELSE false END AS has_original,
+			`+models.DownloadableOriginalSQL("v")+` AS has_original,
 			v.original_package_object_key,
 			COALESCE(COUNT(f.id), 0) AS file_count,
 			COALESCE(SUM(f.size_bytes), 0) AS size_bytes`).

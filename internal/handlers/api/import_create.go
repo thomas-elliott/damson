@@ -48,14 +48,14 @@ func newImportSpec(libraryID, userID uint, filename, contentType string) importS
 		userID:      userID,
 		filename:    name,
 		contentType: contentType,
-		packageKind: packageKindLoose,
+		packageKind: models.PackageKindLoose,
 	}
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".unitypackage":
-		s.packageKind = packageKindUnityPackage
+		s.packageKind = models.PackageKindUnityPackage
 		s.isArchive = true
 	case ".zip":
-		s.packageKind = packageKindZip
+		s.packageKind = models.PackageKindZip
 		s.isArchive = true
 	}
 	return s

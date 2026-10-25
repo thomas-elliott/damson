@@ -158,56 +158,28 @@ func DeleteOrphans(ctx context.Context, store storage.Service, db *gorm.DB, keys
 	return res, nil
 }
 
-// knownKeys builds the set of object keys referenced by live DB rows, keyed by
-// the prefix each column maps to. Purged originals are excluded so a failed
-// purge becomes a legitimate cleanup target; loose uploads' original keys live
-// in blobs/ and are already covered by asset_files.object_key.
+// knownKeys builds the set of object keys referenced by live rows in
+// models.ObjectKeyColumns, keyed by prefix.
 func knownKeys(ctx context.Context, db *gorm.DB) (map[string]map[string]struct{}, error) {
-	known := map[string]map[string]struct{}{
-		"blobs":     {},
-		"thumbs":    {},
-		"originals": {},
+	known := map[string]map[string]struct{}{}
+	for _, p := range sweptPrefixes {
+		known[p] = map[string]struct{}{}
 	}
-	add := func(prefix string, keys []string) {
+	db = db.WithContext(ctx)
+	for _, col := range models.ObjectKeyColumns {
+		q := db.Table(col.Table).Distinct()
+		if col.Live != "" {
+			q = q.Where(col.Live)
+		}
+		var keys []string
+		if err := q.Pluck(col.Column, &keys).Error; err != nil {
+			return nil, fmt.Errorf("pluck %s.%s: %w", col.Table, col.Column, err)
+		}
 		for _, k := range keys {
 			if k != "" {
-				known[prefix][k] = struct{}{}
+				known[col.Prefix][k] = struct{}{}
 			}
 		}
 	}
-	db = db.WithContext(ctx)
-
-	var fileKeys []string
-	if err := db.Model(&models.AssetFile{}).Distinct().Pluck("object_key", &fileKeys).Error; err != nil {
-		return nil, fmt.Errorf("pluck file keys: %w", err)
-	}
-	add("blobs", fileKeys)
-
-	var assetThumbs []string
-	if err := db.Model(&models.Asset{}).Distinct().Pluck("thumbnail_object_key", &assetThumbs).Error; err != nil {
-		return nil, fmt.Errorf("pluck asset thumbs: %w", err)
-	}
-	add("thumbs", assetThumbs)
-
-	var galleryKeys []string
-	if err := db.Model(&models.AssetImage{}).Distinct().Pluck("object_key", &galleryKeys).Error; err != nil {
-		return nil, fmt.Errorf("pluck gallery keys: %w", err)
-	}
-	add("thumbs", galleryKeys)
-
-	var previewKeys []string
-	if err := db.Model(&models.AssetFile{}).Distinct().Pluck("preview_object_key", &previewKeys).Error; err != nil {
-		return nil, fmt.Errorf("pluck preview keys: %w", err)
-	}
-	add("thumbs", previewKeys)
-
-	var origKeys []string
-	if err := db.Model(&models.AssetVersion{}).
-		Where("original_package_purged = ? AND package_kind IN ?", false, []string{"unitypackage", "zip"}).
-		Distinct().Pluck("original_package_object_key", &origKeys).Error; err != nil {
-		return nil, fmt.Errorf("pluck original keys: %w", err)
-	}
-	add("originals", origKeys)
-
 	return known, nil
 }

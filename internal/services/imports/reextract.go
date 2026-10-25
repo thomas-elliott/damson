@@ -33,7 +33,7 @@ type Reextracted struct {
 // make it current, and only a current version's harvested cover replaces the
 // asset's. The rewritten files are handed to the preview queue.
 func Reextract(ctx context.Context, deps Deps, asset models.Asset, version models.AssetVersion, userID uint) (Reextracted, error) {
-	if version.OriginalPackageObjectKey == "" || version.PackageKind != "unitypackage" || version.OriginalPackagePurged {
+	if !version.HasDownloadableOriginal() || version.PackageKind != models.PackageKindUnityPackage {
 		return Reextracted{}, ErrNoRetainedPackage
 	}
 	blob, err := OpenOriginal(ctx, deps.Storage, version)

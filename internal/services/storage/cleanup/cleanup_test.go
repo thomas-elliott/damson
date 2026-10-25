@@ -189,3 +189,31 @@ func TestDeleteOrphans(t *testing.T) {
 		t.Fatalf("audit rows: got %d, want 1", auditCount)
 	}
 }
+
+// The sweep keeps only what models.ObjectKeyColumns lists, so an object key
+// column missing from the list would have its objects deleted.
+func TestObjectKeyColumns_ListsEveryKeyColumn(t *testing.T) {
+	_, db, _ := newEnv(t)
+	var inSchema []string
+	if err := db.Raw(`SELECT table_name || '.' || column_name FROM information_schema.columns
+		WHERE table_schema = current_schema() AND column_name LIKE '%object\_key'
+		ORDER BY 1`).Scan(&inSchema).Error; err != nil {
+		t.Fatal(err)
+	}
+	listed := map[string]bool{}
+	for _, col := range models.ObjectKeyColumns {
+		listed[col.Table+"."+col.Column] = true
+		if !isSweptPrefix(col.Prefix) {
+			t.Errorf("%s.%s maps to %q, which the sweep does not list", col.Table, col.Column, col.Prefix)
+		}
+	}
+	for _, c := range inSchema {
+		if !listed[c] {
+			t.Errorf("%s holds object keys but is not in models.ObjectKeyColumns", c)
+		}
+		delete(listed, c)
+	}
+	for c := range listed {
+		t.Errorf("models.ObjectKeyColumns lists %s, which is not in the schema", c)
+	}
+}

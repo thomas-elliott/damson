@@ -275,8 +275,8 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 	}
 
 	var sourceKey string
-	if verr == nil && version.PackageKind == packageKindUnityPackage {
-		if version.OriginalPackageObjectKey != "" && !version.OriginalPackagePurged {
+	if verr == nil && version.PackageKind == models.PackageKindUnityPackage {
+		if version.HasDownloadableOriginal() {
 			sourceKey = version.OriginalPackageObjectKey
 		}
 	} else if verr == nil {
