@@ -115,8 +115,9 @@ just image-build     # multi-stage container image → damson:local
 
 Config is loaded from environment variables once at startup
 (`internal/config/config.go`). A `.env` in the repo root is
-auto-loaded; real env vars win on conflict. Missing required values
-panic at startup. See [`.env.example`](.env.example) for the full set.
+auto-loaded; real env vars win on conflict. A missing required value
+or one that does not parse stops startup with exit status 1 and a log
+line naming the variable. See [`.env.example`](.env.example) for the full set.
 
 The only **always**-required value is `DAMSON_POSTGRES_DSN`. The auth
 and storage modes default to `local`, which is the zero-config path.
@@ -134,7 +135,7 @@ Common knobs:
 
 Secrets accept a `<NAME>_FILE` variant that reads from a path — for
 Docker Secrets / Kubernetes secrets. Setting both the direct var and
-the `_FILE` form panics at startup.
+the `_FILE` form stops startup.
 
 For mode-specific variables (OIDC, S3, local-mode bootstrap, JWT
 signing key) see the comments in `.env.example`.

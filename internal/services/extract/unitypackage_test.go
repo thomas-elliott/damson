@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
@@ -132,10 +131,6 @@ func (f *fakeStorage) PutThumb(_ context.Context, key string, r io.Reader) error
 
 func (f *fakeStorage) GetThumb(_ context.Context, key string) (io.ReadCloser, error) {
 	return io.NopCloser(bytes.NewReader(f.thumbs[key])), nil
-}
-
-func (f *fakeStorage) PresignGet(_ context.Context, key string, _ time.Duration) (string, error) {
-	return "http://fake/" + key, nil
 }
 
 func (f *fakeStorage) BeginMultipart(_ context.Context, prefix, key string, meta storage.ObjectMeta) (storage.MultipartUpload, error) {

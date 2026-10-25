@@ -48,9 +48,6 @@ type assetListResponse struct {
 }
 
 const (
-	defaultLimit = 50
-	maxLimit     = 200
-
 	packageKindLoose        = "loose"
 	packageKindUnityPackage = "unitypackage"
 	packageKindZip          = "zip"
@@ -676,42 +673,6 @@ func (h *Handler) postReExtract(c *gin.Context) {
 	h.rescanPreviews(c, lib.ID, source.ID)
 
 	c.JSON(http.StatusCreated, resp)
-}
-
-func parseIDParam(c *gin.Context, key string) (uint, bool) {
-	s := c.Param(key)
-	n, err := parsePositiveID(s)
-	if err != nil {
-		respond400Msg(c, fmt.Errorf("invalid %s %q: %w", key, s, err), "invalid "+key)
-		return 0, false
-	}
-	return n, true
-}
-
-func parsePositiveID(s string) (uint, error) {
-	n, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	if n == 0 {
-		return 0, errors.New("must be a positive integer")
-	}
-	return uint(n), nil
-}
-
-func parsePagination(c *gin.Context) (limit, offset int) {
-	limit = defaultLimit
-	if s := c.Query("limit"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= maxLimit {
-			limit = n
-		}
-	}
-	if s := c.Query("offset"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil && n >= 0 {
-			offset = n
-		}
-	}
-	return
 }
 
 // buildPrefixTsQuery converts a raw search string into a to_tsquery expression

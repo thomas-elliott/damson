@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,15 +18,12 @@ import (
 // S3 convention (`blobs/<hh>/<hash>`, `thumbs/<hh>/<hash>`) so operators can
 // later migrate a deployment between backends with a plain copy.
 type LocalFS struct {
-	root    string
-	baseURL string // used to build presigned-equivalent URLs served by the server
+	root string
 }
 
 // NewLocalFS creates (if necessary) the root directory and returns a
-// filesystem-backed Service. baseURL is the public base URL of the server —
-// presigned URLs point back at the server's /api/files endpoint since local
-// storage has no native signed-URL concept.
-func NewLocalFS(root, baseURL string) (*LocalFS, error) {
+// filesystem-backed Service.
+func NewLocalFS(root string) (*LocalFS, error) {
 	if root == "" {
 		return nil, errors.New("local storage: root path required")
 	}
@@ -36,7 +32,7 @@ func NewLocalFS(root, baseURL string) (*LocalFS, error) {
 			return nil, fmt.Errorf("mkdir %s: %w", sub, err)
 		}
 	}
-	return &LocalFS{root: root, baseURL: baseURL}, nil
+	return &LocalFS{root: root}, nil
 }
 
 func (l *LocalFS) PutBlob(ctx context.Context, r io.Reader, meta ObjectMeta) (string, int64, error) {
@@ -177,13 +173,6 @@ func (l *LocalFS) PutThumb(ctx context.Context, key string, r io.Reader) error {
 
 func (l *LocalFS) GetThumb(ctx context.Context, key string) (io.ReadCloser, error) {
 	return l.openHashed("thumbs", key)
-}
-
-func (l *LocalFS) PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error) {
-	// Local storage has no native signing; hand back a URL that routes to the
-	// server's blob handler. The TTL is advisory.
-	u := l.baseURL + "/api/files/" + url.PathEscape(key)
-	return u, nil
 }
 
 // putHashed streams r to a temp file, computes its SHA-256, renames into the

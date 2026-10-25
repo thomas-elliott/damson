@@ -45,7 +45,7 @@ func (r *Registry) SearchStores(ctx context.Context, query string) ([]Candidate,
 	var wg sync.WaitGroup
 	for _, s := range r.searchers {
 		wg.Add(1)
-		go func(s Searcher) {
+		go func(s searcher) {
 			defer wg.Done()
 			sctx, cancel := context.WithTimeout(ctx, perStoreSearchTimeout)
 			defer cancel()
@@ -80,7 +80,7 @@ func (r *Registry) SearchStores(ctx context.Context, query string) ([]Candidate,
 const sketchfabSearchURL = "https://api.sketchfab.com/v3/search?type=models&q="
 
 // Search queries Sketchfab's official search API.
-func (SketchfabAdapter) Search(ctx context.Context, client *Client, query string) ([]Candidate, error) {
+func (sketchfabAdapter) Search(ctx context.Context, client *httpClient, query string) ([]Candidate, error) {
 	resp, err := client.Get(ctx, sketchfabSearchURL+url.QueryEscape(query), nil)
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func parseSketchfabSearch(body []byte) []Candidate {
 const itchSearchURL = "https://itch.io/search?q="
 
 // Search scrapes itch.io's HTML search results.
-func (ItchAdapter) Search(ctx context.Context, client *Client, query string) ([]Candidate, error) {
+func (itchAdapter) Search(ctx context.Context, client *httpClient, query string) ([]Candidate, error) {
 	resp, err := client.Get(ctx, itchSearchURL+url.QueryEscape(query), nil)
 	if err != nil {
 		return nil, err
