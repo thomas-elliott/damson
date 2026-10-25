@@ -3,13 +3,11 @@ package enrich
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"log/slog"
 
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
@@ -135,8 +133,8 @@ func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetc
 			slog.Warn("gallery repair: load asset", "err", err, "asset_id", assetID)
 			continue
 		}
-		var rec metadata.SourceRecord
-		if err := json.Unmarshal(asset.SourceMetadataJSON, &rec); err != nil || rec.Metadata == nil {
+		rec := SourceRecordOf(&asset)
+		if rec == nil {
 			slog.Warn("gallery repair: no readable listing to refetch from", "asset_id", assetID)
 			continue
 		}

@@ -76,7 +76,7 @@ func licenceChangedSince(ctx context.Context, db *gorm.DB, asset *models.Asset, 
 		}
 		return false, err
 	}
-	if lic.ReviewedByUserID != nil {
+	if lic.ReviewedAt != nil {
 		return true, nil
 	}
 	want := listingLicence(last)

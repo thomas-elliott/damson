@@ -230,7 +230,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 
 		// An import of an older version finishes without taking the asset
 		// back to it, or its cover.
-		return chooseCurrentAndCover(tx, jc.asset.ID, jc.version.ID, jc.version.ID, thumbKey, thumbType)
+		return commitFiles(tx, jc.asset.ID, jc.version.ID, thumbKey, thumbType)
 	})
 	if err != nil {
 		return fail("finalize: " + err.Error())
