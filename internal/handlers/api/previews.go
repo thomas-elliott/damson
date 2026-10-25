@@ -221,10 +221,7 @@ func (h *Handler) getPreviewEvents(c *gin.Context) {
 			return
 		case <-stopping:
 			return
-		case ev, ok := <-ch:
-			if !ok {
-				return
-			}
+		case ev := <-ch:
 			if !writePreviewSSE(c.Writer, ev) {
 				return
 			}

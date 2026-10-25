@@ -152,7 +152,7 @@ func TestRegistryFetch_MarksGenericFallback(t *testing.T) {
 	page := []byte(`<html><head><meta property="og:title" content="Some Pack"></head></html>`)
 	r := newRegistry(fakeStoreClient(t, ClientOptions{HostMinGap: time.Millisecond},
 		func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(page) }), time.Millisecond)
-	r.RegisterHost("store.example.com", failingFetcher{})
+	r.registerHost("store.example.com", failingFetcher{})
 
 	md, err := r.Fetch(context.Background(), "https://store.example.com/pack")
 	if err != nil {

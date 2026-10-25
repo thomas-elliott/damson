@@ -46,9 +46,9 @@ func (e *RateLimitedError) Error() string {
 	return fmt.Sprintf("metadata: %s asked for a pause until %s", e.Host, e.Until.UTC().Format(time.RFC3339))
 }
 
-// httpClient is the shared outbound HTTP httpClient for all fetchers. It screens
+// httpClient is the shared outbound HTTP client for all fetchers. It screens
 // destination IPs before dialling (SSRF), caps body size, redirects, and
-// time, and rate-limits per host. Construct with NewClient; the zero value
+// time, and rate-limits per host. Construct with newHTTPClient; the zero value
 // is not usable.
 type httpClient struct {
 	http      *http.Client
@@ -57,7 +57,7 @@ type httpClient struct {
 	userAgent string
 }
 
-// ClientOptions tunes a Client. Zero values fall back to package defaults.
+// ClientOptions tunes the HTTP client. Zero values fall back to package defaults.
 type ClientOptions struct {
 	Timeout     time.Duration
 	MaxBody     int64
@@ -135,7 +135,7 @@ type response struct {
 
 // Get performs a rate-limited, SSRF-guarded GET. headers is optional. The
 // body is read up to the client's size cap; exceeding it returns
-// ErrBodyTooLarge.
+// errBodyTooLarge.
 func (c *httpClient) Get(ctx context.Context, rawURL string, headers map[string]string) (*response, error) {
 	return c.Do(ctx, http.MethodGet, rawURL, nil, headers)
 }

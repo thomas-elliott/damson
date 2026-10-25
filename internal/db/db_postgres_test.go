@@ -40,6 +40,10 @@ func TestOpen_LogsSQLAsJSONWithoutParameterValues(t *testing.T) {
 	if err := gdb.Exec("SELECT ?::int FROM no_such_table", secret).Error; err == nil {
 		t.Fatal("failing query succeeded")
 	}
+	// A unique violation is answered with 409, so it is not an error line.
+	if err := gdb.Exec("DO $$ BEGIN RAISE unique_violation; END $$").Error; err == nil {
+		t.Fatal("unique violation succeeded")
+	}
 
 	var levels []string
 	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {

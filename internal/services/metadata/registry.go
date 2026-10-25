@@ -60,32 +60,23 @@ func newRegistry(client *httpClient, lookupInterval time.Duration) *Registry {
 // host. Callers pass zero options for defaults.
 func Default(opts ClientOptions) *Registry {
 	r := newRegistry(newHTTPClient(opts), opts.StoreLookupInterval)
-	r.RegisterHost(unityHost, unityAdapter{})
-	r.RegisterHost("sketchfab.com", sketchfabAdapter{})
-	r.RegisterHost("itch.io", itchAdapter{})
-	r.RegisterSearcher(unityAdapter{})
-	r.RegisterSearcher(sketchfabAdapter{})
-	r.RegisterSearcher(itchAdapter{})
+	r.registerHost(unityHost, unityAdapter{})
+	r.registerHost("sketchfab.com", sketchfabAdapter{})
+	r.registerHost("itch.io", itchAdapter{})
+	r.registerSearcher(unityAdapter{})
+	r.registerSearcher(sketchfabAdapter{})
+	r.registerSearcher(itchAdapter{})
 	return r
 }
 
-// RegisterHost associates a host suffix with a fetcher adapter.
-func (r *Registry) RegisterHost(hostSuffix string, f fetcher) {
+// registerHost associates a host suffix with a fetcher adapter.
+func (r *Registry) registerHost(hostSuffix string, f fetcher) {
 	r.byHost[strings.ToLower(strings.TrimPrefix(hostSuffix, "."))] = f
 }
 
-// RegisterSearcher adds a searcher to the name-search fan-out.
-func (r *Registry) RegisterSearcher(s searcher) {
+// registerSearcher adds a searcher to the name-search fan-out.
+func (r *Registry) registerSearcher(s searcher) {
 	r.searchers = append(r.searchers, s)
-}
-
-// Searchers returns the registered searchers for the fan-out endpoint.
-func (r *Registry) Searchers() []searcher { return r.searchers }
-
-// FetcherFor resolves the adapter for a URL's host, or the generic scraper.
-func (r *Registry) FetcherFor(rawURL string) fetcher {
-	f, _ := r.resolve(rawURL)
-	return f
 }
 
 // resolve returns the URL's fetcher and the key its lookups are spaced by: the
