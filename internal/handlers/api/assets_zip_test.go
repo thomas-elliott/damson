@@ -103,7 +103,7 @@ func TestPostImport_Zip_ExtractsFilesAsOneAsset(t *testing.T) {
 		t.Fatalf("zip archive not stored under originals/")
 	}
 	if _, ok, _ := h.storage.Stat(ctx, storage.Blobs, version.OriginalPackageObjectKey); ok {
-		t.Fatalf("zip archive leaked into blobs/ — routing regressed to PutBlob")
+		t.Fatalf("zip archive leaked into blobs/ — routing regressed to the Blobs prefix")
 	}
 
 	// The bundled image is harvested as the asset cover.

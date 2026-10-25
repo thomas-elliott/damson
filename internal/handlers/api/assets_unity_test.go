@@ -176,7 +176,7 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 		t.Fatalf("unity archive not stored under originals/")
 	}
 	if _, ok, _ := h.storage.Stat(ctx, storage.Blobs, uv.OriginalPackageObjectKey); ok {
-		t.Fatalf("unity archive leaked into blobs/ — routing regressed to PutBlob")
+		t.Fatalf("unity archive leaked into blobs/ — routing regressed to the Blobs prefix")
 	}
 
 	// A loose upload's content stays in blobs/ and is absent from originals/.

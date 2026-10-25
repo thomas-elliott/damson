@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"testing"
 
@@ -71,5 +73,47 @@ func TestImport_KeepsOriginalWhenRetentionOn(t *testing.T) {
 	}
 	if _, ok, _ := h.storage.Stat(context.Background(), storage.Originals, v.OriginalPackageObjectKey); !ok {
 		t.Fatalf("original archive should be retained in storage")
+	}
+}
+
+func TestImport_PurgeKeepsAnOriginalAnotherArchiveStillUses(t *testing.T) {
+	for name, tc := range map[string]struct {
+		otherKind string
+		wantKept  bool
+	}{
+		"live archive keeps it": {models.PackageKindUnityPackage, true},
+		"loose blob does not":   {models.PackageKindLoose, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, db := newTestHandler(t)
+			u := seedUser(t, db, "librarian@example.com")
+			lib := seedLibraryAndSwitch(t, h, u)
+			s := models.LibrarySettings{LibraryID: lib.ID, GridDensityDefault: "medium"}
+			if err := db.Create(&s).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&s).Update("retain_original_packages", false).Error; err != nil {
+				t.Fatal(err)
+			}
+
+			pkg := buildUnityPackage(t, []unityPkgEntry{
+				{guid: testGUID(0x0a), pathname: "Assets/s.bin", content: []byte("s")},
+			})
+			sum := sha256.Sum256(pkg)
+			key := hex.EncodeToString(sum[:])
+			other := seedAsset(t, db, lib.ID, "other")
+			if err := db.Create(&models.AssetVersion{AssetID: other.ID, PackageKind: tc.otherKind, OriginalPackageObjectKey: key}).Error; err != nil {
+				t.Fatal(err)
+			}
+
+			r := setupRouter(h, u)
+			body, ctype := buildMultipart(t, "file", "Shared.unitypackage", pkg)
+			w := postMultipart(r, "/api/imports", body, ctype)
+			requireStatus(t, w, http.StatusAccepted)
+
+			if _, ok, _ := h.storage.Stat(context.Background(), storage.Originals, key); ok != tc.wantKept {
+				t.Fatalf("shared original kept = %v, want %v", ok, tc.wantKept)
+			}
+		})
 	}
 }

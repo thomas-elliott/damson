@@ -18,11 +18,17 @@ import (
 	"github.com/thomas-elliott/damson/internal/thumbnail"
 )
 
-func OpenOriginal(ctx context.Context, s storage.Service, v models.AssetVersion) (io.ReadCloser, error) {
-	if models.IsArchiveKind(v.PackageKind) {
-		return s.Get(ctx, storage.Originals, v.OriginalPackageObjectKey)
+// OriginalPrefix is where an upload of the given package kind is stored: an
+// archive under Originals, anything else under Blobs.
+func OriginalPrefix(packageKind string) storage.Prefix {
+	if models.IsArchiveKind(packageKind) {
+		return storage.Originals
 	}
-	return s.Get(ctx, storage.Blobs, v.OriginalPackageObjectKey)
+	return storage.Blobs
+}
+
+func OpenOriginal(ctx context.Context, s storage.Service, v models.AssetVersion) (io.ReadCloser, error) {
+	return s.Get(ctx, OriginalPrefix(v.PackageKind), v.OriginalPackageObjectKey)
 }
 
 // storageReader tags a failed read of an original as a storage error, so a
@@ -59,7 +65,7 @@ type jobContext struct {
 	inCommit func(tx *gorm.DB) error
 }
 
-// stage is one step of the pipeline. Run records and announces announce, when
+// stage is one step of the pipeline. Run records and broadcasts announce, when
 // set, before the step runs. A step's error fails the import, unless it is a
 // retryError, which leaves the import in flight for the queue to retry.
 type stage struct {
@@ -264,8 +270,8 @@ func chooseCover(ctx context.Context, deps Deps, jc *jobContext) error {
 }
 
 // writeFiles writes the extracted files and commits them in one transaction.
-// A loose upload's single asset_files row was written by the upload handler,
-// so the pipeline could read its filename and content type.
+// A loose upload's one asset_files row comes from the upload handler, which
+// writes it so the pipeline can read its filename and content type.
 func writeFiles(ctx context.Context, deps Deps, jc *jobContext) error {
 	err := deps.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if jc.extracted != nil {
@@ -340,8 +346,7 @@ func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 }
 
 // enqueuePreviews hands a committed version to the preview queue. A library
-// with previews off skips it. preview.Queue reads the previews setting itself,
-// as it does for every caller.
+// with previews off skips it. preview.Queue reads the previews setting itself.
 func enqueuePreviews(ctx context.Context, deps Deps, jc jobContext) {
 	_, err := preview.Queue(ctx, deps.DB, deps.Previews, preview.Job{LibraryID: jc.libraryID, VersionID: jc.version.ID})
 	if err != nil && !errors.Is(err, preview.ErrDisabled) {

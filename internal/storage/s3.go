@@ -64,10 +64,6 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 	return &S3{client: client, uploader: manager.NewUploader(client), bucket: cfg.Bucket}, nil
 }
 
-func (s *S3) Put(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	return s.putHashed(ctx, prefix, r, meta)
-}
-
 func (s *S3) Get(ctx context.Context, prefix Prefix, key string) (io.ReadCloser, error) {
 	objectKey := objectPath(prefix, key)
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
@@ -187,18 +183,19 @@ const (
 	s3MaxParts = 10000
 )
 
-// putHashed writes r to its content-addressed key without spooling to local
+// Put writes r to its content-addressed key without spooling to local
 // scratch. The key is the hash of the content, so a body too large to hash in
 // memory lands at a random staging key first and is copied server-side to its
 // final key once the hash is known; that copy never crosses this process.
-func (s *S3) putHashed(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	head := make([]byte, inlinePutBytes)
-	n, err := io.ReadFull(r, head)
-	switch {
-	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
-		return s.putInline(ctx, prefix, head[:n], meta)
-	case err != nil:
+func (s *S3) Put(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
+	// ReadAll grows with the body, so a small thumbnail does not cost a
+	// full inlinePutBytes buffer.
+	head, err := io.ReadAll(io.LimitReader(r, inlinePutBytes))
+	if err != nil {
 		return "", 0, err
+	}
+	if len(head) < inlinePutBytes {
+		return s.putInline(ctx, prefix, head, meta)
 	}
 	return s.putStaged(ctx, prefix, io.MultiReader(bytes.NewReader(head), r), meta)
 }
