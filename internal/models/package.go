@@ -10,11 +10,8 @@ const (
 	PackageKindLoose        = "loose"
 )
 
-// ArchiveKinds are the package kinds whose original is an archive kept under
+// IsArchiveKind reports whether kind's original is an archive kept under
 // originals/. A loose upload's original key is the blobs/ key of its one file.
-var ArchiveKinds = []string{PackageKindUnityPackage, PackageKindZip}
-
-// IsArchiveKind reports whether kind is one of ArchiveKinds.
 func IsArchiveKind(kind string) bool {
 	return kind == PackageKindUnityPackage || kind == PackageKindZip
 }
