@@ -213,14 +213,34 @@ func TestDeleteLibrary_CascadesAndAudits(t *testing.T) {
 	if err := db.Create(&models.AssetFile{AssetVersionID: version.ID, RelativePath: "a", SizeBytes: 1, ContentHash: "h", ObjectKey: "o"}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Create(&models.Project{LibraryID: lib.ID, Name: "p"}).Error; err != nil {
+	project := models.Project{LibraryID: lib.ID, Name: "p"}
+	collection := models.Collection{LibraryID: lib.ID, Name: "c"}
+	tag := models.Tag{LibraryID: lib.ID, Path: "tag"}
+	licence := models.Licence{AssetID: asset.ID, DetectedType: "MIT", OriginalText: "x"}
+	batch := models.StoreLookupBatch{LibraryID: lib.ID}
+	for _, row := range []any{&project, &collection, &tag, &licence, &batch} {
+		if err := db.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The asset points at its current version and licence, as a real one does.
+	if err := db.Model(&asset).Updates(map[string]any{"current_version_id": version.ID, "licence_id": licence.ID}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Create(&models.Collection{LibraryID: lib.ID, Name: "c"}).Error; err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Create(&models.Tag{LibraryID: lib.ID, Path: "tag"}).Error; err != nil {
-		t.Fatal(err)
+	for _, row := range []any{
+		&models.AssetImport{AssetID: asset.ID, AssetVersionID: &version.ID, Stage: "done"},
+		&models.AssetTag{AssetID: asset.ID, TagID: tag.ID},
+		&models.CollectionAsset{CollectionID: collection.ID, AssetID: asset.ID},
+		&models.ProjectAssetPin{ProjectID: project.ID, AssetID: asset.ID, PinnedVersionID: &version.ID},
+		&models.AssetImage{AssetID: asset.ID, SourceURL: "https://example.com/1.png", ObjectKey: "g"},
+		&models.StoreLookup{BatchID: batch.ID, LibraryID: lib.ID, AssetID: asset.ID, Status: models.StoreLookupQueued},
+		&models.APIToken{UserID: u.ID, LibraryID: lib.ID, TokenHash: "digest"},
+		&models.UploadSession{LibraryID: lib.ID, UserID: u.ID, Filename: "f", SizeBytes: 1, Sha256: "s", ChunkSize: 1, ObjectPrefix: "p", ExpiresAt: time.Now().Add(time.Hour)},
+		&models.LibrarySettings{LibraryID: lib.ID, GridDensityDefault: "medium"},
+	} {
+		if err := db.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
 	}
 	// In-library audit row that will cascade away with the library.
 	libID := lib.ID
@@ -257,7 +277,12 @@ func TestDeleteLibrary_CascadesAndAudits(t *testing.T) {
 		t.Fatalf("library not deleted")
 	}
 
-	for _, table := range []string{"assets", "asset_versions", "asset_files", "projects", "collections", "tags", "library_memberships"} {
+	for _, table := range []string{
+		"assets", "asset_versions", "asset_files", "asset_imports", "asset_tags", "asset_images", "licences",
+		"projects", "project_asset_pins", "collections", "collection_assets", "tags",
+		"store_lookup_batches", "store_lookups", "api_tokens", "upload_sessions", "library_settings",
+		"library_memberships",
+	} {
 		var n int64
 		if err := db.Table(table).Count(&n).Error; err != nil {
 			t.Fatalf("count %s: %v", table, err)
