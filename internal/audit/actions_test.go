@@ -11,7 +11,7 @@ import (
 // The SPA's label and chip tests read this copy, so a type added here
 // without updating it would escape them.
 func TestActionTypesMatchWebCopy(t *testing.T) {
-	const path = "../../../web/src/lib/auditActionTypes.json"
+	const path = "../../web/src/lib/auditActionTypes.json"
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)

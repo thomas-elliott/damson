@@ -84,3 +84,28 @@ Mode: committing, one commit per stage, on branch `dam-61-backend-packages`.
 - Stage 3, `internal/models/package.go`: `ObjectKeyColumn.Prefix` stays a string and cleanup converts it, because `models` importing `storage` would pull the S3 SDK into every importer of `models`. `upload_sessions.object_prefix` likewise stays text and is converted where it is read.
 - Stage 3, `cmd/server/storage.go`: `newStorage(ctx, cfg)` replaces `storage.New`; `storage` no longer imports `config`.
 - Stage 4: every `internal/services/<pkg>` moved to `internal/<pkg>` under the same package name, subpackages included (`storage/cleanup`, `ingest/ingesttest`, `preview/previewtest`, `imaging/imagingtest`). Paths named in the stage 1–3 lines above are as they were before this move. The repository map now also lists `db`, `testdb`, `broadcast` and `web`, which it left out before.
+
+### Review — stages 1…4
+
+#### Verdict
+No blockers
+
+#### Checked
+documented hazards (library_id scoping, 500 generic body, never log tokens, schema change in migration and struct, docs updated with the change, `cmd/dmsn` imports only leaf packages, `just check tidy` on new imports), mechanical (shape conformance, completeness honesty, coverage, cross-boundary contract), logic, error handling, silent failure, input validation, idempotency & resilience, credentials & secrets, security, concurrency, resource management, logging & observability, performance, smells · issues in: none · n/a: external contracts (no new external calls), shared-library precedence (no UI added) · validation: in-context, 0 candidates, 0 confirmed, 0 refuted · notes: `ObjectKeyColumns` reproduces the old `knownKeys` sets exactly, including the archive-only live filter on originals; `Run` keeps the old fail reasons, retry ops, settings-failure defaults and purge-after-done order; re-extract's 500-on-storage-error, Unity cover setting and version-id tagging are declared in Choices made; `TestObjectKeyColumns_ListsEveryKeyColumn` meets the acceptance line; no stale `internal/services`, `importstest`, `knownKeys` doc trap or `Head*`/`*Thumb` callers remain; `just test backend ./internal/storage/... ./internal/ingest/... ./internal/models/...` passes
+
+#### Smells
+possible Speculative Generality — `ArchiveKinds` is exported and unused, while `IsArchiveKind` and `DownloadableOriginalSQL` each restate the two kinds; delete it, or have both read from it (internal/models/package.go:15) → fixed: deleted; its comment moved to `IsArchiveKind`
+
+### Results
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| The repository map in `docs/architecture.md` matches the new layout | passed | Each of the 30 directories under `internal/` is named in the map (checked by a loop over `ls internal` against the map section); no `internal/services` remains in `docs/` or `AGENTS.md`. A doc check, not a test: nothing reads the map |
+| The `knownKeys` and "downloadable original" traps are gone from the doc | passed | `grep knownKeys\|downloadable original only docs/*.md` finds nothing; both rules now live in the Data model and Object storage descriptions, naming `models.HasDownloadableOriginal` and `models.ObjectKeyColumns` |
+| A new `*_object_key` column missing from `ObjectKeyColumns` fails a test | passed | `TestObjectKeyColumns_ListsEveryKeyColumn` (Postgres `information_schema`); fails when `asset_files.preview_object_key` is dropped from the list (confirmed) |
+| Re-extract runs the pipeline's own stages rather than a copy of them | passed | `ingest.Reextract` runs the `stages` entries marked `reextract`; `TestUnityPreviewSetting_ControlsTheCoverOnImportAndReextract` fails against the old copied extraction, which ignored the Unity preview setting (confirmed) |
+| Decision: the asset detail query checks `package_kind` | passed | `TestGetAssetDetail_OffersOnlyARetainedArchive`; fails without the stage 1 query change (a loose version was offered, confirmed) |
+| real proof: stages 1, 2, 4 | passed | Discharged by Postgres-backed tests that use the real LocalFS backend: the two tests above, `TestRun_*`, the `TestPostReExtract_*` set and the cleanup sweep tests; stage 4 by the full gate |
+| real proof: stage 3, S3 backend | passed | The S3 tests reach only `fakeS3` on `httptest`, so the server ran with `DAMSON_STORAGE_MODE=s3` against a throwaway single-node Garage (`dxflrs/garage:v1.0.1`). Results: a `.unitypackage` and a PNG imported to `done`; the original and the loose blob downloaded byte-identical; the PNG thumbnail (`/api/thumbs`) and an SVG's rendered preview (`/api/previews`, `image/png`) were served; re-extract answered 201; the orphan scan listed every prefix. No `level=error` lines. The container, its config, the `damson_s3proof` database and the binary were removed afterwards |
+| review: stages 1…4 | passed | `### Review — stages 1…4`: no blockers, 1 smell, fixed |
+| gate | passed | `just check` EXIT=0 after the last edit: lint (0 errors; 22 frontend warnings in untouched code), format, tidy, 23 Go packages ok, Vitest 339 and 94, e2e 20. The first run failed `TestActionTypesMatchWebCopy`, whose relative path to `web/` lost a level in the stage 4 move; fixed, and the rerun is the one recorded |
