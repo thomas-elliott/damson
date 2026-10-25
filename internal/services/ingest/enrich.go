@@ -1,4 +1,4 @@
-package imports
+package ingest
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
@@ -26,12 +25,8 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 	if deps.Metadata == nil {
 		return
 	}
-	settings, err := library.Settings(deps.DB.WithContext(ctx), jc.libraryID)
-	if err != nil {
-		slog.Warn("enrich: load settings", "err", err, "library_id", jc.libraryID)
-		return
-	}
-	if !settings.AutoEnrichEnabled {
+	settings := jc.settings
+	if settings == nil || !settings.AutoEnrichEnabled {
 		return
 	}
 

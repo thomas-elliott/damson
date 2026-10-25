@@ -21,7 +21,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -120,7 +120,7 @@ func (h *Handler) postUploadSession(c *gin.Context) {
 	spec.targetAssetID = req.AssetID
 	spec.reqStoreVersion = strings.TrimLeft(strings.TrimSpace(req.StoreVersion), "vV")
 	spec.sourceKind = strings.TrimSpace(req.SourceKind)
-	spec.sourceRelativePath, err = imports.ValidateSource(spec.sourceKind, req.SourceRelativePath)
+	spec.sourceRelativePath, err = ingest.ValidateSource(spec.sourceKind, req.SourceRelativePath)
 	if err != nil {
 		slog.Warn("upload session: invalid source hint",
 			"err", err, "library_id", lib.ID, "source_kind", spec.sourceKind)

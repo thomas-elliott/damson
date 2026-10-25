@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 )
 
 const cachePath = "Demigiant/ScriptingAnimation/DOTween HOTween v2.unitypackage"
@@ -33,12 +33,12 @@ func TestPostImport_RecordsSourceFields(t *testing.T) {
 	_ = seedLibraryAndSwitch(t, h, u)
 
 	v := postCacheImport(t, h, u, "DOTween HOTween v2.unitypackage", map[string]string{
-		"source_kind":          imports.SourceKindUnityCache,
+		"source_kind":          ingest.SourceKindUnityCache,
 		"source_relative_path": cachePath,
 	})
 
-	if v.SourceKind == nil || *v.SourceKind != imports.SourceKindUnityCache {
-		t.Errorf("SourceKind = %v, want %q", v.SourceKind, imports.SourceKindUnityCache)
+	if v.SourceKind == nil || *v.SourceKind != ingest.SourceKindUnityCache {
+		t.Errorf("SourceKind = %v, want %q", v.SourceKind, ingest.SourceKindUnityCache)
 	}
 	if v.SourceRelativePath == nil || *v.SourceRelativePath != cachePath {
 		t.Errorf("SourceRelativePath = %v, want %q", v.SourceRelativePath, cachePath)
@@ -57,7 +57,7 @@ func TestPostImport_UnityCacheSuppressesFilenameVersion(t *testing.T) {
 	_ = seedLibraryAndSwitch(t, h, u)
 
 	cached := postCacheImport(t, h, u, "DOTween HOTween v2.unitypackage", map[string]string{
-		"source_kind":          imports.SourceKindUnityCache,
+		"source_kind":          ingest.SourceKindUnityCache,
 		"source_relative_path": cachePath,
 	})
 	if cached.StoreVersion != "" {
@@ -72,7 +72,7 @@ func TestPostImport_UnityCacheSuppressesFilenameVersion(t *testing.T) {
 
 	// An explicit store_version still wins over the suppression.
 	explicit := postCacheImport(t, h, u, "Third Pack v2.unitypackage", map[string]string{
-		"source_kind":          imports.SourceKindUnityCache,
+		"source_kind":          ingest.SourceKindUnityCache,
 		"source_relative_path": "Pub/Audio/Third Pack v2.unitypackage",
 		"store_version":        "3.1.0",
 	})
@@ -91,15 +91,15 @@ func TestPostImport_RejectsBadSource(t *testing.T) {
 		fields map[string]string
 	}{
 		{"absolute path", map[string]string{
-			"source_kind":          imports.SourceKindUnityCache,
+			"source_kind":          ingest.SourceKindUnityCache,
 			"source_relative_path": "/etc/passwd.unitypackage",
 		}},
 		{"traversal", map[string]string{
-			"source_kind":          imports.SourceKindUnityCache,
+			"source_kind":          ingest.SourceKindUnityCache,
 			"source_relative_path": "Pub/../../etc/Pack.unitypackage",
 		}},
 		{"newline", map[string]string{
-			"source_kind":          imports.SourceKindUnityCache,
+			"source_kind":          ingest.SourceKindUnityCache,
 			"source_relative_path": "Pub/Au\ndio/Pack.unitypackage",
 		}},
 		{"unknown kind", map[string]string{
@@ -110,7 +110,7 @@ func TestPostImport_RejectsBadSource(t *testing.T) {
 			"source_relative_path": "Pub/Audio/Pack.unitypackage",
 		}},
 		{"kind without path", map[string]string{
-			"source_kind": imports.SourceKindUnityCache,
+			"source_kind": ingest.SourceKindUnityCache,
 		}},
 	}
 

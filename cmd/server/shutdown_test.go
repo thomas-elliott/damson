@@ -15,7 +15,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/testdb"
 )
@@ -57,7 +57,7 @@ func TestShutdown_EndsSSEStreamsThenStopsTheQueue(t *testing.T) {
 	}
 	h := api.New(api.Deps{
 		DB: db, AuthMode: config.AuthModeOIDC,
-		Broadcaster:        imports.NewBroadcaster(),
+		Broadcaster:        ingest.NewBroadcaster(),
 		PreviewBroadcaster: preview.NewBroadcaster(),
 	})
 	r, err := newRouter("", nil)

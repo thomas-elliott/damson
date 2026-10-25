@@ -88,7 +88,7 @@ queues. River emits its own lifecycle logging through the same `slog`
 handler.
 
 Import pipeline failures are logged at `error` as `"imports: pipeline failed"` with `import_id`,
-`library_id` and the cause in `reason`, not `err` (`internal/services/imports/pipeline.go`); the
+`library_id` and the cause in `reason`, not `err` (`internal/services/ingest/pipeline.go`); the
 reason is also persisted to `asset_imports.error` and streamed over SSE. Preview failures log at
 `warn` and land against `asset_files.preview_status`.
 

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 )
 
 // TestGetImportEvents_StreamsBroadcasterEvents verifies that the SSE
@@ -39,7 +39,7 @@ func TestGetImportEvents_StreamsBroadcasterEvents(t *testing.T) {
 	if err := db.Raw("SELECT id FROM assets WHERE library_id = ? LIMIT 1", lib.ID).Scan(&assetID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Exec("INSERT INTO asset_imports (asset_id, stage, updated_at) VALUES (?, ?, ?)", assetID, imports.StageExtracting, time.Now().UTC()).Error; err != nil {
+	if err := db.Exec("INSERT INTO asset_imports (asset_id, stage, updated_at) VALUES (?, ?, ?)", assetID, ingest.StageExtracting, time.Now().UTC()).Error; err != nil {
 		t.Fatal(err)
 	}
 	var importID uint
@@ -68,7 +68,7 @@ func TestGetImportEvents_StreamsBroadcasterEvents(t *testing.T) {
 
 	// First frame should be the seeded extracting row from ReplaySnapshot.
 	first := readEvent(t, resp.Body)
-	if first.ID != importID || first.Stage != imports.StageExtracting {
+	if first.ID != importID || first.Stage != ingest.StageExtracting {
 		t.Fatalf("snapshot frame: got %+v", first)
 	}
 
@@ -77,16 +77,16 @@ func TestGetImportEvents_StreamsBroadcasterEvents(t *testing.T) {
 	go func() {
 		// Small delay to ensure the reader is parked on the channel.
 		time.Sleep(20 * time.Millisecond)
-		h.broadcaster.Publish(lib.ID, imports.Event{
+		h.broadcaster.Publish(lib.ID, ingest.Event{
 			ID:        importID,
 			AssetID:   assetID,
 			AssetName: "Pending package",
-			Stage:     imports.StageThumbnailing,
+			Stage:     ingest.StageThumbnailing,
 			UpdatedAt: time.Now().UTC(),
 		})
 	}()
 	second := readEvent(t, resp.Body)
-	if second.ID != importID || second.Stage != imports.StageThumbnailing {
+	if second.ID != importID || second.Stage != ingest.StageThumbnailing {
 		t.Fatalf("live frame: got %+v", second)
 	}
 }
@@ -96,10 +96,10 @@ func TestGetImportEvents_StreamsBroadcasterEvents(t *testing.T) {
 // happens on a goroutine so the test can bail with a clear failure message
 // if no event arrives within the timeout (instead of the test framework's
 // generic 30s panic).
-func readEvent(t *testing.T, body io.Reader) imports.Event {
+func readEvent(t *testing.T, body io.Reader) ingest.Event {
 	t.Helper()
 	type result struct {
-		ev  imports.Event
+		ev  ingest.Event
 		err error
 	}
 	resCh := make(chan result, 1)
@@ -117,7 +117,7 @@ func readEvent(t *testing.T, body io.Reader) imports.Event {
 			}
 			if strings.HasPrefix(line, "data: ") {
 				payload := strings.TrimPrefix(line, "data: ")
-				var ev imports.Event
+				var ev ingest.Event
 				if err := json.Unmarshal([]byte(payload), &ev); err != nil {
 					resCh <- result{err: err}
 					return
@@ -135,6 +135,6 @@ func readEvent(t *testing.T, body io.Reader) imports.Event {
 		return r.ev
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for SSE event")
-		return imports.Event{}
+		return ingest.Event{}
 	}
 }

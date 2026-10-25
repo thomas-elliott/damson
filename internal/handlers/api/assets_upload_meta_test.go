@@ -9,8 +9,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/config"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/imports/importstest"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
+	"github.com/thomas-elliott/damson/internal/services/ingest/ingesttest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/preview/previewtest"
 	"github.com/thomas-elliott/damson/internal/services/storage"
@@ -40,10 +40,10 @@ func newRecordingHandler(t *testing.T) (*Handler, *metaRecordingStorage, *gorm.D
 		t.Fatalf("new local storage: %v", err)
 	}
 	store := &metaRecordingStorage{LocalFS: lfs}
-	bc := imports.NewBroadcaster()
+	bc := ingest.NewBroadcaster()
 	pbc := preview.NewBroadcaster()
 	previewPool := previewtest.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
-	pool := importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
+	pool := ingesttest.NewSync(ingest.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	h := New(Deps{
 		DB:                 db,
 		AuthMode:           config.AuthModeOIDC,
