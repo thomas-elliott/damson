@@ -133,7 +133,7 @@ func (w *importWorker) Work(ctx context.Context, job *river.Job[ImportArgs]) err
 	// Transient error: let River retry with backoff. On the final attempt, mark
 	// the row failed so it doesn't sit non-terminal forever.
 	if job.Attempt >= job.MaxAttempts {
-		if merr := imports.MarkImportFailed(w.deps.DB.WithContext(ctx), job.Args.ImportID, err.Error()); merr != nil {
+		if merr := imports.FailImport(ctx, w.deps, job.Args.ImportID, err.Error()); merr != nil {
 			slog.Warn("queue: mark import failed on last attempt", "import_id", job.Args.ImportID, "err", merr)
 		}
 	}

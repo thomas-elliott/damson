@@ -68,7 +68,7 @@ func (h *Handler) getFile(c *gin.Context) {
 	}
 	fromOriginal := false
 	if ref.RelativePath == "" {
-		// Also check original_package_object_key — Unity originals don't have
+		// Also check original_package_object_key — archive originals don't have
 		// asset_files rows and live under the originals/ prefix.
 		var original struct {
 			Name        string

@@ -13,8 +13,7 @@ export interface FileSelectionBarProps {
 
 /**
  * Floating selection bar for the file browser. Wraps the design-system
- * SelectionBar with file-specific actions. Auto-hides
- * when nothing is selected.
+ * SelectionBar with file-specific actions. Auto-hides when nothing is selected.
  */
 export function FileSelectionBar({ count, onClear, onCreateSubset }: FileSelectionBarProps) {
   if (count <= 0) return null;
