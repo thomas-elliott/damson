@@ -12,7 +12,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
-// TestPostImport_GeneratesRasterThumbnail asserts the M6 thumbnail pipeline
+// TestPostImport_GeneratesRasterThumbnail asserts the thumbnail pipeline
 // runs synchronously inside the import handler when the upload is a raster
 // image and the per-library toggle is on (the default).
 func TestPostImport_GeneratesRasterThumbnail(t *testing.T) {
