@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ChevronLeft, Plus, Trash2 } from "lucide-react";
 
+import { isNotFound } from "@/api";
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import {
@@ -17,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ErrorState,
   FieldRow,
   LicenceBar,
   LicencePill,
@@ -41,7 +43,7 @@ import {
 export function ProjectDetailPage() {
   const { id } = useParams();
   const projectId = id ? Number(id) : null;
-  const { data: project, loading } = useProject(projectId);
+  const { data: project, loading, error, failed, reload } = useProject(projectId);
   const navigate = useNavigate();
   const del = useDeleteProject();
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -103,6 +105,8 @@ export function ProjectDetailPage() {
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading project…
             </div>
+          ) : failed && !isNotFound(error) ? (
+            <ErrorState title="Couldn't load this project" onRetry={reload} />
           ) : !project ? (
             <EmptyState title="Project not found" description="It may have been deleted." />
           ) : (

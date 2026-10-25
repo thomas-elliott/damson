@@ -4,6 +4,7 @@ export * from "./ConfirmDialog";
 export * from "./DetailPanel";
 export * from "./DropOverlay";
 export * from "./EmptyState";
+export * from "./ErrorState";
 export * from "./FilterSidebar";
 export * from "./FullPageView";
 export * from "./NavRail";

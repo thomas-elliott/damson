@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ErrorState,
   FieldRow,
   Input,
   LicenceBar,
@@ -33,7 +34,7 @@ import { useProjects } from "@/hooks/useDataQueries";
 import { useCreateProject } from "@/hooks/useMutations";
 
 export function ProjectsPage() {
-  const { data: projects, loading } = useProjects();
+  const { data: projects, loading, failed, reload } = useProjects();
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -59,6 +60,8 @@ export function ProjectsPage() {
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading projects…
             </div>
+          ) : failed ? (
+            <ErrorState title="Couldn't load projects" onRetry={reload} />
           ) : projects.length === 0 ? (
             <EmptyState
               icon={<Plus size={28} />}
