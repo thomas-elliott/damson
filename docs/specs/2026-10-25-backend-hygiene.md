@@ -108,3 +108,7 @@ Mode: committing — feature branch `dam-59-backend-hygiene`, one commit per sta
 - `cmd/server/main.go`: background goroutines run on a plain `errgroup.Group`, not
   `WithContext`, so one failing does not cancel the others; the wait is bounded by the 10s
   shutdown timeout.
+- `internal/db/db.go`: GORM's own `logger.NewSlogLogger` with `ParameterizedQueries`, plus
+  `logger.RecorderParamsFilter` overridden, because `Scan` logs through GORM's trace recorder and
+  bypasses the setting. Slow is 200ms (GORM's default). A record-not-found is no longer logged.
+  Pool: 20 open, 10 idle, 30m lifetime, 5m idle time.
