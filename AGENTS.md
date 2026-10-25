@@ -47,7 +47,7 @@ just test frontend src/path/to/file.test.tsx
 
 ## Running the app
 
-`just dev` needs no `.env`. It starts the compose Postgres, seeds a throwaway local admin — `dev@example.com` / `password1` — and serves the API on `127.0.0.1:8080` and the SPA on <http://localhost:5173>, which proxies `/api` to it. While it is up, `just seed` loads three sample packs into the admin's library. Anything set in `.env` or the environment wins over these defaults. `just db reset` empties both databases.
+`just dev` needs no `.env`. It starts the compose Postgres, seeds a throwaway local admin — `dev@example.com` / `password1` — and serves the API on `127.0.0.1:8080` and the SPA on <http://localhost:5173>, which proxies `/api` to it. While it is up, `just seed` loads three sample packs into the admin's library, then writes about 300 generated reference assets (paths, store links or both, with made-up store ids) straight into the dev Postgres; a second run adds nothing. Anything set in `.env` or the environment wins over these defaults. `just db reset` empties both databases.
 
 Driving it as an agent:
 
