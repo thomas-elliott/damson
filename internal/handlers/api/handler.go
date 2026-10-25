@@ -289,8 +289,6 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/collections/:id/assets", h.postCollectionAsset)
 	scoped.DELETE("/collections/:id/assets/:assetId", h.deleteCollectionAsset)
 
-	// Search — convenience alias over /assets that always expects `q`.
-
 	// Library settings (M5)
 	scoped.GET("/settings", h.getLibrarySettings)
 	scoped.PATCH("/settings", h.patchLibrarySettings)

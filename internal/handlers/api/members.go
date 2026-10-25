@@ -334,8 +334,6 @@ func (h *Handler) deleteLibraryMember(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// userCanAdminLibrary returns true when the authenticated user is either
-// a sysadmin or a library admin of libID.
 // lockMembership loads a membership and counts the library's admins, holding
 // a lock on the admin rows until tx ends. Two admins demoting each other at
 // once then see each other's change, so one of them hits the last-admin check.
@@ -351,6 +349,8 @@ func lockMembership(tx *gorm.DB, libID, userID uint) (models.LibraryMembership, 
 	return mem, len(admins), err
 }
 
+// userCanAdminLibrary returns true when the authenticated user is either
+// a sysadmin or a library admin of libID.
 func (h *Handler) userCanAdminLibrary(c *gin.Context, libID uint) bool {
 	u := auth.GetUser(c)
 	if u == nil {

@@ -392,7 +392,10 @@ func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := &importWorker{deps: imports.Deps{DB: gdb, Storage: store}}
+	events := imports.NewBroadcaster()
+	ch, unsub := events.Subscribe(libID)
+	defer unsub()
+	w := &importWorker{deps: imports.Deps{DB: gdb, Storage: store, Broadcaster: events}}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
@@ -411,5 +414,14 @@ func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
 	}
 	if imp.Stage != imports.StageFailed {
 		t.Fatalf("stage = %q, want %q", imp.Stage, imports.StageFailed)
+	}
+	// An open page learns the import stopped only from the stream.
+	select {
+	case ev := <-ch:
+		if ev.Stage != imports.StageFailed {
+			t.Errorf("event stage = %q, want %q", ev.Stage, imports.StageFailed)
+		}
+	default:
+		t.Error("no failed event published")
 	}
 }

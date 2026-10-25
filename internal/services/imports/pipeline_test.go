@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"gorm.io/gorm"
@@ -68,18 +69,23 @@ func TestRun_OlderVersionImportDoesNotRollBackCurrentVersion(t *testing.T) {
 	}
 }
 
-// flakyStore fails reads of originals or writes of blobs, as an object store
-// does when it is briefly unreachable.
+// flakyStore fails opening or reading originals, or writing blobs, as an
+// object store does when it is briefly unreachable.
 type flakyStore struct {
 	storage.Service
-	failGetOriginal, failPutBlob bool
+	failGetOriginal, failReadOriginal, failPutBlob bool
 }
 
 func (s flakyStore) GetOriginal(ctx context.Context, key string) (io.ReadCloser, error) {
 	if s.failGetOriginal {
 		return nil, errors.New("connection reset")
 	}
-	return s.Service.GetOriginal(ctx, key)
+	rc, err := s.Service.GetOriginal(ctx, key)
+	if err != nil || !s.failReadOriginal {
+		return rc, err
+	}
+	rc.Close()
+	return io.NopCloser(iotest.ErrReader(errors.New("connection reset"))), nil
 }
 
 func (s flakyStore) PutBlob(ctx context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
@@ -135,7 +141,8 @@ func oneFileZip(t *testing.T) []byte {
 // be marked failed, which makes the queue cancel it.
 func TestRun_StorageErrorLeavesImportRetryable(t *testing.T) {
 	cases := map[string]flakyStore{
-		"reading the original": {failGetOriginal: true},
+		"opening the original": {failGetOriginal: true},
+		"reading the original": {failReadOriginal: true},
 		"writing a blob":       {failPutBlob: true},
 	}
 	for name, flaky := range cases {
@@ -151,6 +158,25 @@ func TestRun_StorageErrorLeavesImportRetryable(t *testing.T) {
 				t.Error("import marked failed, so the queue would cancel instead of retrying")
 			}
 		})
+	}
+}
+
+// A missing original never comes back, so retrying it only delays the failure.
+func TestRun_MissingOriginalFailsTheImport(t *testing.T) {
+	db, store, imp := seedZipImport(t, oneFileZip(t))
+	var v models.AssetVersion
+	if err := db.First(&v, *imp.AssetVersionID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DeleteOriginal(context.Background(), v.OriginalPackageObjectKey); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Run(context.Background(), Deps{DB: db, Storage: store}, Job{ImportID: imp.ID}); err == nil {
+		t.Fatal("run: want an error")
+	}
+	if !IsFailed(context.Background(), db, imp.ID) {
+		t.Error("import not marked failed")
 	}
 }
 

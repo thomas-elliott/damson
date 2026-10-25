@@ -72,9 +72,9 @@ const (
 	maxPreviewBuffer = 64 << 20 // 64 MiB
 )
 
-// ErrStorage marks an extraction that failed writing to the object store
-// rather than on the archive itself, so the caller can retry it.
-var ErrStorage = errors.New("storage write failed")
+// ErrStorage marks an extraction that failed reading from or writing to the
+// object store rather than on the archive itself, so the caller can retry it.
+var ErrStorage = errors.New("storage error")
 
 var guidPrefix = regexp.MustCompile(`^([0-9a-f]{32})(?:/|$)`)
 
