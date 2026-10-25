@@ -20,6 +20,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/tags"
@@ -331,7 +332,7 @@ func (h *Handler) getMetadataSearch(c *gin.Context) {
 	}
 	cands, failed := h.metadata.SearchStores(c.Request.Context(), q)
 	if lib := getLibrary(c); lib != nil {
-		if s, serr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID); serr == nil {
+		if s, serr := library.Settings(h.db.WithContext(c.Request.Context()), lib.ID); serr == nil {
 			metadata.SortByPreferredStore(cands, s.PreferredStore)
 		}
 	}

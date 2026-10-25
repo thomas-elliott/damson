@@ -10,7 +10,7 @@ import (
 
 // Pool runs preview processing inline on the calling goroutine, so status
 // transitions are deterministic without a running River client. It satisfies
-// the api PreviewEnqueuer seam and the import pipeline's PreviewEnqueuer.
+// preview.Enqueuer.
 type Pool struct {
 	deps preview.Deps
 }
@@ -26,9 +26,4 @@ func (p *Pool) Enqueue(job preview.Job) {
 	if err := preview.ProcessVersion(context.Background(), p.deps, job.LibraryID, job.VersionID, job.FileID); err != nil {
 		slog.Warn("sync preview pipeline failed", "version_id", job.VersionID, "err", err)
 	}
-}
-
-// EnqueueVersion enqueues every queued file in a version.
-func (p *Pool) EnqueueVersion(libraryID, versionID uint) {
-	p.Enqueue(preview.Job{LibraryID: libraryID, VersionID: versionID})
 }

@@ -229,14 +229,14 @@ func TestWorkerTimeouts(t *testing.T) {
 }
 
 // TestQueue_PreviewJobRunsToDone proves the full preview path: rivermigrate
-// creates the schema, the client starts, EnqueueVersion inserts a river_job,
+// creates the schema, the client starts, Enqueue inserts a river_job,
 // and the preview worker drives the file to done. A broken enqueue or worker
 // wiring leaves the file queued and the wait times out.
 func TestQueue_PreviewJobRunsToDone(t *testing.T) {
 	q, gdb, store, _ := newQueueEnv(t)
 	libID, versionID, fileID := seedQueuedFile(t, gdb, store, renderableBMP(t), "tex.bmp")
 
-	q.Previews().EnqueueVersion(libID, versionID)
+	q.Previews().Enqueue(preview.Job{LibraryID: libID, VersionID: versionID})
 
 	waitForStatus(t, gdb, fileID, preview.StatusDone)
 }

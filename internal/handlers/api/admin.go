@@ -244,8 +244,7 @@ func (h *Handler) patchServerSettings(c *gin.Context) {
 }
 
 // loadOrCreateServerSettings returns the singleton server-settings row,
-// creating it with defaults if missing. Same loadOrCreate pattern as the
-// per-library variant in settings.go.
+// creating it with defaults if missing.
 func loadOrCreateServerSettings(tx *gorm.DB) (*models.ServerSettings, error) {
 	var s models.ServerSettings
 	err := tx.First(&s).Error
