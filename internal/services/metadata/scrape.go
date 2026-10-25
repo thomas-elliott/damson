@@ -13,13 +13,13 @@ import (
 	"golang.org/x/net/html"
 )
 
-// GenericFetcher scrapes Open Graph tags + JSON-LD Product data from any
+// genericFetcher scrapes Open Graph tags + JSON-LD Product data from any
 // listing page. It is the base fetcher and the fallback every store adapter
 // degrades to.
-type GenericFetcher struct{}
+type genericFetcher struct{}
 
 // Fetch retrieves rawURL and parses generic listing metadata from the HTML.
-func (GenericFetcher) Fetch(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
+func (genericFetcher) Fetch(ctx context.Context, client *httpClient, rawURL string) (*Metadata, error) {
 	resp, err := client.Get(ctx, rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (GenericFetcher) Fetch(ctx context.Context, client *Client, rawURL string) 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("metadata: fetch %s: status %d", rawURL, resp.StatusCode)
 	}
-	meta := ParseHTML(resp.Body, resp.FinalURL)
+	meta := parseHTML(resp.Body, resp.FinalURL)
 	if meta.ListingURL == "" {
 		meta.ListingURL = resp.FinalURL
 	}
@@ -37,10 +37,10 @@ func (GenericFetcher) Fetch(ctx context.Context, client *Client, rawURL string) 
 	return meta, nil
 }
 
-// ParseHTML extracts a Metadata from a listing page's HTML. pageURL is used to
+// parseHTML extracts a Metadata from a listing page's HTML. pageURL is used to
 // resolve relative image URLs. It never returns nil — an unparseable page
 // yields a zero-ish Metadata the caller can treat as "nothing found".
-func ParseHTML(data []byte, pageURL string) *Metadata {
+func parseHTML(data []byte, pageURL string) *Metadata {
 	m := &Metadata{}
 	doc, err := html.Parse(bytes.NewReader(data))
 	if err != nil {

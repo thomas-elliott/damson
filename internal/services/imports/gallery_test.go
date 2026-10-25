@@ -35,7 +35,7 @@ func (f *pngFetcher) FetchImage(_ context.Context, url string) ([]byte, string, 
 func TestRepairGallery_RefetchesImagesWhoseObjectIsGone(t *testing.T) {
 	db := enrichTestDB(t)
 	ctx := context.Background()
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestRepairGallery_RefetchesImagesWhoseObjectIsGone(t *testing.T) {
 func TestRepairGallery_LeavesRowsAloneWhenStorageIsNotTheDatabases(t *testing.T) {
 	db := enrichTestDB(t)
 	ctx := context.Background()
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestRepairGallery_LeavesRowsAloneWhenStorageIsNotTheDatabases(t *testing.T)
 func TestStoreGalleryImages_CapCountsImagesAlreadyStored(t *testing.T) {
 	db := enrichTestDB(t)
 	ctx := context.Background()
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}

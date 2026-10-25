@@ -112,3 +112,8 @@ Mode: committing — feature branch `dam-59-backend-hygiene`, one commit per sta
   `logger.RecorderParamsFilter` overridden, because `Scan` logs through GORM's trace recorder and
   bypasses the setting. Slow is 200ms (GORM's default). A record-not-found is no longer logged.
   Pool: 20 open, 10 idle, 30m lifetime, 5m idle time.
+- `internal/services/storage/localfs.go`: `NewLocalFS` loses its `baseURL` parameter, which only
+  `PresignGet` read.
+- `internal/services/metadata`: the unexported client type is `httpClient`, not `client`, so it
+  does not shadow the many `client` parameters; the unused `Registry.Client()` accessor is
+  deleted with it.

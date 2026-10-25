@@ -17,15 +17,15 @@ const defaultStoreLookupInterval = 2 * time.Second
 // lookup before giving up.
 const maxPauseWaits = 3
 
-// Fetcher retrieves and normalises metadata for a single listing URL.
-type Fetcher interface {
-	Fetch(ctx context.Context, client *Client, rawURL string) (*Metadata, error)
+// fetcher retrieves and normalises metadata for a single listing URL.
+type fetcher interface {
+	Fetch(ctx context.Context, client *httpClient, rawURL string) (*Metadata, error)
 }
 
-// Searcher finds candidate listings by name. Adapters that can't search (or
+// searcher finds candidate listings by name. Adapters that can't search (or
 // the generic scraper) simply don't implement it.
-type Searcher interface {
-	Search(ctx context.Context, client *Client, query string) ([]Candidate, error)
+type searcher interface {
+	Search(ctx context.Context, client *httpClient, query string) ([]Candidate, error)
 	Store() string
 }
 
@@ -33,25 +33,25 @@ type Searcher interface {
 // scraper for unknown hosts. Adapters register a host suffix (e.g.
 // "assetstore.unity.com"); matching is exact or dot-suffixed.
 type Registry struct {
-	client    *Client
-	generic   Fetcher
-	byHost    map[string]Fetcher
-	searchers []Searcher
+	client    *httpClient
+	generic   fetcher
+	byHost    map[string]fetcher
+	searchers []searcher
 	// lookups spaces whole lookups to one store, keyed by storeKey.
 	lookups *hostLimiter
 }
 
-// NewRegistry builds a registry backed by the given client, with lookups to
+// newRegistry builds a registry backed by the given client, with lookups to
 // one store at least lookupInterval apart (the default when non-positive).
 // With no adapters registered it resolves every URL to the generic scraper.
-func NewRegistry(client *Client, lookupInterval time.Duration) *Registry {
+func newRegistry(client *httpClient, lookupInterval time.Duration) *Registry {
 	if lookupInterval <= 0 {
 		lookupInterval = defaultStoreLookupInterval
 	}
 	return &Registry{
 		client:  client,
-		generic: GenericFetcher{},
-		byHost:  map[string]Fetcher{},
+		generic: genericFetcher{},
+		byHost:  map[string]fetcher{},
 		lookups: newHostLimiter(lookupInterval),
 	}
 }
@@ -59,34 +59,31 @@ func NewRegistry(client *Client, lookupInterval time.Duration) *Registry {
 // Default builds a registry with the built-in store adapters registered by
 // host. Callers pass zero options for defaults.
 func Default(opts ClientOptions) *Registry {
-	r := NewRegistry(NewClient(opts), opts.StoreLookupInterval)
-	r.RegisterHost(unityHost, UnityAdapter{})
-	r.RegisterHost("sketchfab.com", SketchfabAdapter{})
-	r.RegisterHost("itch.io", ItchAdapter{})
-	r.RegisterSearcher(UnityAdapter{})
-	r.RegisterSearcher(SketchfabAdapter{})
-	r.RegisterSearcher(ItchAdapter{})
+	r := newRegistry(newHTTPClient(opts), opts.StoreLookupInterval)
+	r.RegisterHost(unityHost, unityAdapter{})
+	r.RegisterHost("sketchfab.com", sketchfabAdapter{})
+	r.RegisterHost("itch.io", itchAdapter{})
+	r.RegisterSearcher(unityAdapter{})
+	r.RegisterSearcher(sketchfabAdapter{})
+	r.RegisterSearcher(itchAdapter{})
 	return r
 }
 
-// Client returns the shared SSRF-guarded client.
-func (r *Registry) Client() *Client { return r.client }
-
 // RegisterHost associates a host suffix with a fetcher adapter.
-func (r *Registry) RegisterHost(hostSuffix string, f Fetcher) {
+func (r *Registry) RegisterHost(hostSuffix string, f fetcher) {
 	r.byHost[strings.ToLower(strings.TrimPrefix(hostSuffix, "."))] = f
 }
 
 // RegisterSearcher adds a searcher to the name-search fan-out.
-func (r *Registry) RegisterSearcher(s Searcher) {
+func (r *Registry) RegisterSearcher(s searcher) {
 	r.searchers = append(r.searchers, s)
 }
 
 // Searchers returns the registered searchers for the fan-out endpoint.
-func (r *Registry) Searchers() []Searcher { return r.searchers }
+func (r *Registry) Searchers() []searcher { return r.searchers }
 
 // FetcherFor resolves the adapter for a URL's host, or the generic scraper.
-func (r *Registry) FetcherFor(rawURL string) Fetcher {
+func (r *Registry) FetcherFor(rawURL string) fetcher {
 	f, _ := r.resolve(rawURL)
 	return f
 }
@@ -94,7 +91,7 @@ func (r *Registry) FetcherFor(rawURL string) Fetcher {
 // resolve returns the URL's fetcher and the key its lookups are spaced by: the
 // adapter's registered host, so every itch.io subdomain is one store, or the
 // URL's own host for the generic scraper.
-func (r *Registry) resolve(rawURL string) (Fetcher, string) {
+func (r *Registry) resolve(rawURL string) (fetcher, string) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return r.generic, ""
@@ -126,7 +123,7 @@ func (r *Registry) Fetch(ctx context.Context, rawURL string) (*Metadata, error) 
 		return m, nil
 	}
 	var limited *RateLimitedError
-	if _, isGeneric := f.(GenericFetcher); isGeneric || errors.As(err, &limited) {
+	if _, isGeneric := f.(genericFetcher); isGeneric || errors.As(err, &limited) {
 		return nil, err
 	}
 	slog.Warn("metadata: adapter failed, falling back to generic scraper", "url", rawURL, "err", err)

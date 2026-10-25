@@ -272,7 +272,7 @@ func TestCoveoCandidate(t *testing.T) {
 
 func TestItchLicenceAndParse(t *testing.T) {
 	body := readFixture(t, "itch_listing.html")
-	meta := ParseHTML(body, "https://pixelsmith.itch.io/pixel-dungeon-tileset")
+	meta := parseHTML(body, "https://pixelsmith.itch.io/pixel-dungeon-tileset")
 	// itch omits og:title — title must fall back to twitter:title.
 	if meta.Title != "Pixel Dungeon Tileset" {
 		t.Errorf("title fallback: got %q", meta.Title)
@@ -300,7 +300,7 @@ func TestParseHTMLKeywords(t *testing.T) {
 		<meta name="keywords" content="platformer, 2d, meta-only">
 		<script type="application/ld+json">{"@type":"Product","name":"X","keywords":["Platformer","Pixel Art","platformer"]}</script>
 		</head><body></body></html>`)
-	m := ParseHTML(page, "https://example.com/x")
+	m := parseHTML(page, "https://example.com/x")
 	// JSON-LD keywords first (deduped), then any new meta keyword.
 	got := strings.Join(m.Tags, ",")
 	if got != "Platformer,Pixel Art,2d,meta-only" {

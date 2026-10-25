@@ -31,17 +31,6 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, rawToken string) (*models.User, error)
 }
 
-// Mode is the set of supported auth modes. It is persisted nowhere — it's a
-// startup-time choice — but is exposed to the SPA via GET /api/auth/mode so
-// the frontend knows whether to render a login form or trigger an OIDC
-// redirect.
-type Mode string
-
-const (
-	ModeOIDC  Mode = "oidc"
-	ModeLocal Mode = "local"
-)
-
 const (
 	userContextKey      = "damson.user"
 	principalContextKey = "damson.principal"

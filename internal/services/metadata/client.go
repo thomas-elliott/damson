@@ -27,12 +27,12 @@ const (
 	maxHostPause     = 10 * time.Minute
 )
 
-// ErrBlockedAddress is returned when a request resolves to an IP the SSRF
+// errBlockedAddress is returned when a request resolves to an IP the SSRF
 // guard refuses to dial (loopback, private, link-local, etc.).
-var ErrBlockedAddress = errors.New("metadata: destination address blocked")
+var errBlockedAddress = errors.New("metadata: destination address blocked")
 
-// ErrBodyTooLarge is returned when a response body exceeds the size cap.
-var ErrBodyTooLarge = errors.New("metadata: response body too large")
+// errBodyTooLarge is returned when a response body exceeds the size cap.
+var errBodyTooLarge = errors.New("metadata: response body too large")
 
 // RateLimitedError is returned when a host has asked for requests to stop, with
 // a 429 or 503, until Until. Every request to that host fails this way, without
@@ -46,11 +46,11 @@ func (e *RateLimitedError) Error() string {
 	return fmt.Sprintf("metadata: %s asked for a pause until %s", e.Host, e.Until.UTC().Format(time.RFC3339))
 }
 
-// Client is the shared outbound HTTP client for all fetchers. It screens
+// httpClient is the shared outbound HTTP httpClient for all fetchers. It screens
 // destination IPs before dialling (SSRF), caps body size, redirects, and
 // time, and rate-limits per host. Construct with NewClient; the zero value
 // is not usable.
-type Client struct {
+type httpClient struct {
 	http      *http.Client
 	limiter   *hostLimiter
 	maxBody   int64
@@ -69,10 +69,10 @@ type ClientOptions struct {
 	StoreLookupInterval time.Duration
 }
 
-// NewClient builds an SSRF-guarded HTTP client. The custom dialer resolves
+// newHTTPClient builds an SSRF-guarded HTTP client. The custom dialer resolves
 // each destination host and refuses non-public IPs, so redirects to internal
 // addresses are blocked at connection time, not just on the first hop.
-func NewClient(opts ClientOptions) *Client {
+func newHTTPClient(opts ClientOptions) *httpClient {
 	timeout := opts.Timeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
@@ -116,7 +116,7 @@ func NewClient(opts ClientOptions) *Client {
 			return nil
 		},
 	}
-	return &Client{
+	return &httpClient{
 		http:      hc,
 		limiter:   newHostLimiter(gap),
 		maxBody:   maxBody,
@@ -124,9 +124,9 @@ func NewClient(opts ClientOptions) *Client {
 	}
 }
 
-// Response is a fetched HTTP response with its body already read (up to the
+// response is a fetched HTTP response with its body already read (up to the
 // size cap) and the connection closed.
-type Response struct {
+type response struct {
 	StatusCode  int
 	ContentType string
 	FinalURL    string
@@ -136,13 +136,13 @@ type Response struct {
 // Get performs a rate-limited, SSRF-guarded GET. headers is optional. The
 // body is read up to the client's size cap; exceeding it returns
 // ErrBodyTooLarge.
-func (c *Client) Get(ctx context.Context, rawURL string, headers map[string]string) (*Response, error) {
+func (c *httpClient) Get(ctx context.Context, rawURL string, headers map[string]string) (*response, error) {
 	return c.Do(ctx, http.MethodGet, rawURL, nil, headers)
 }
 
 // Do performs a rate-limited, SSRF-guarded request with an arbitrary method
 // and body. Used by adapters that POST (e.g. Unity's Coveo search).
-func (c *Client) Do(ctx context.Context, method, rawURL string, body io.Reader, headers map[string]string) (*Response, error) {
+func (c *httpClient) Do(ctx context.Context, method, rawURL string, body io.Reader, headers map[string]string) (*response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, rawURL, body)
 	if err != nil {
 		return nil, err
@@ -185,9 +185,9 @@ func (c *Client) Do(ctx context.Context, method, rawURL string, body io.Reader, 
 		return nil, err
 	}
 	if int64(len(data)) > c.maxBody {
-		return nil, ErrBodyTooLarge
+		return nil, errBodyTooLarge
 	}
-	return &Response{
+	return &response{
 		StatusCode:  resp.StatusCode,
 		ContentType: resp.Header.Get("Content-Type"),
 		FinalURL:    resp.Request.URL.String(),
@@ -219,11 +219,11 @@ func guardedDialContext(dialer *net.Dialer) func(context.Context, string, string
 		}
 		for _, ip := range ips {
 			if !ipAllowed(ip.IP) {
-				return nil, fmt.Errorf("%w: %s", ErrBlockedAddress, ip.IP)
+				return nil, fmt.Errorf("%w: %s", errBlockedAddress, ip.IP)
 			}
 		}
 		if len(ips) == 0 {
-			return nil, fmt.Errorf("%w: no addresses for %s", ErrBlockedAddress, host)
+			return nil, fmt.Errorf("%w: no addresses for %s", errBlockedAddress, host)
 		}
 		return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
 	}

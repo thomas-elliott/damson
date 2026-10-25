@@ -17,7 +17,7 @@ var (
 func New(ctx context.Context, cfg config.Config) (Service, error) {
 	switch cfg.StorageMode {
 	case config.StorageModeLocal:
-		return NewLocalFS(cfg.StorageLocalPath, cfg.BaseURL)
+		return NewLocalFS(cfg.StorageLocalPath)
 	case config.StorageModeS3:
 		return NewS3(ctx, S3Config{
 			Endpoint:       cfg.S3Endpoint,

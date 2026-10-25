@@ -63,8 +63,7 @@ type Config struct {
 	// Local storage mode
 	StorageLocalPath string
 
-	LogLevel string
-	GinMode  string
+	GinMode string
 
 	// ImportQueueWorkers / PreviewQueueWorkers cap the number of concurrent
 	// River workers on each queue. Unset means runtime.GOMAXPROCS(0).
@@ -132,7 +131,6 @@ func Load() (Config, error) {
 		PostgresDSN:           l.mustGetSecret("DAMSON_POSTGRES_DSN"),
 		AuthMode:              authMode,
 		StorageMode:           storageMode,
-		LogLevel:              getenv("DAMSON_LOG_LEVEL", "info"),
 		GinMode:               os.Getenv("GIN_MODE"),
 		ImportQueueWorkers:    l.positiveInt("DAMSON_IMPORT_QUEUE_WORKERS", runtime.GOMAXPROCS(0)),
 		PreviewQueueWorkers:   l.positiveInt("DAMSON_PREVIEW_QUEUE_WORKERS", runtime.GOMAXPROCS(0)),
