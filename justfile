@@ -68,11 +68,16 @@ backend:
     command -v air >/dev/null || go install github.com/air-verse/air@{{ AIR_VERSION }}
     exec air
 
-# Load sample packs into the dev library; run while `just dev` is up
+# Load sample packs and ~300 reference assets into the dev library; run while `just dev` is up
 seed:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "${DAMSON_POSTGRES_DSN:-}${DAMSON_POSTGRES_DSN_FILE:-}" ]; then
+      export DAMSON_POSTGRES_DSN="{{ DEV_PG_DSN }}"
+    fi
     DAMSON_LOCAL_ADMIN_EMAIL="${DAMSON_LOCAL_ADMIN_EMAIL:-{{ DEV_ADMIN_EMAIL }}}" \
     DAMSON_LOCAL_ADMIN_PASSWORD="${DAMSON_LOCAL_ADMIN_PASSWORD:-{{ DEV_ADMIN_PASSWORD }}}" \
-    go run ./tools/devseed
+      go run ./tools/devseed
 
 # Vite dev server for the SPA
 [working-directory('web')]
