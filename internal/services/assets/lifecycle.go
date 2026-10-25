@@ -85,7 +85,7 @@ func DeleteVersion(tx *gorm.DB, libID, userID, assetID, versionID uint) error {
 	if err := tx.Delete(&models.AssetVersion{}, version.ID).Error; err != nil {
 		return err
 	}
-	if _, err := imports.ChooseCurrent(tx, asset.ID, 0); err != nil {
+	if _, err := imports.ChooseCurrent(tx, asset.ID); err != nil {
 		return err
 	}
 	return audit.Write(tx, audit.Entry{
@@ -149,7 +149,7 @@ func Merge(tx *gorm.DB, libID, userID, targetID, sourceID uint) (Merged, error) 
 	// move (the partial unique index forbids it); it stays on the source to
 	// cascade-delete, and its pins are remapped to the target's equivalent.
 	dropRemap := map[uint]uint{}
-	moved := 0
+	var moved []uint
 	for _, v := range sourceVersions {
 		if tid, dup := targetByStore[v.StoreVersion]; dup {
 			dropRemap[v.ID] = tid
@@ -159,7 +159,15 @@ func Merge(tx *gorm.DB, libID, userID, targetID, sourceID uint) (Merged, error) 
 			Update("asset_id", target.ID).Error; err != nil {
 			return Merged{}, err
 		}
-		moved++
+		moved = append(moved, v.ID)
+	}
+	// A moved version's imports go with it, so deleting source does not
+	// cascade them away while one is still running.
+	if len(moved) > 0 {
+		if err := tx.Model(&models.AssetImport{}).Where("asset_version_id IN ?", moved).
+			Update("asset_id", target.ID).Error; err != nil {
+			return Merged{}, err
+		}
 	}
 	if err := moveLinks(tx, &models.AssetTag{}, "tag_id", source.ID, target.ID); err != nil {
 		return Merged{}, err
@@ -173,10 +181,10 @@ func Merge(tx *gorm.DB, libID, userID, targetID, sourceID uint) (Merged, error) 
 	if err := tx.Delete(&models.Asset{}, source.ID).Error; err != nil {
 		return Merged{}, err
 	}
-	if _, err := imports.ChooseCurrent(tx, target.ID, 0); err != nil {
+	if _, err := imports.ChooseCurrent(tx, target.ID); err != nil {
 		return Merged{}, err
 	}
-	return Merged{Versions: moved, Source: source}, audit.Write(tx, audit.Entry{
+	return Merged{Versions: len(moved), Source: source}, audit.Write(tx, audit.Entry{
 		LibraryID:  &libID,
 		UserID:     &userID,
 		ActionType: "asset.merge",
@@ -184,7 +192,7 @@ func Merge(tx *gorm.DB, libID, userID, targetID, sourceID uint) (Merged, error) 
 		TargetID:   &target.ID,
 		Diff: audit.Created(map[string]any{
 			"source_asset_id": source.ID,
-			"merged_versions": moved,
+			"merged_versions": len(moved),
 		}),
 	})
 }
@@ -298,7 +306,7 @@ func Subset(tx *gorm.DB, previews preview.Enqueuer, libID, userID, assetID, vers
 	if err := tx.Create(&rows).Error; err != nil {
 		return models.AssetVersion{}, err
 	}
-	if _, err := imports.ChooseCurrent(tx, asset.ID, 0); err != nil {
+	if _, err := imports.ChooseCurrent(tx, asset.ID); err != nil {
 		return models.AssetVersion{}, err
 	}
 	if queuePreviews && previews != nil {

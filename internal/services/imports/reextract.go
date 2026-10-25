@@ -63,7 +63,7 @@ func Reextract(ctx context.Context, deps Deps, asset models.Asset, version model
 		if out.FileCount, out.SizeBytes, err = WriteAssetFiles(tx, version.ID, "", 0, "", "", result); err != nil {
 			return err
 		}
-		if err := chooseCurrentAndCover(tx, asset.ID, version.ID, 0, result.ThumbObjectKey, result.ThumbContentType); err != nil {
+		if err := commitFiles(tx, asset.ID, version.ID, result.ThumbObjectKey, result.ThumbContentType); err != nil {
 			return err
 		}
 		if err := audit.Write(tx, audit.Entry{

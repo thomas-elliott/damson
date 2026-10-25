@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 
 	"gorm.io/gorm"
 
@@ -129,9 +130,7 @@ func Prepare(ctx context.Context, deps Deps, asset *models.Asset, meta *metadata
 	}
 	fieldBefore, fieldUpdates, fieldConflicts := fieldUpdates(asset, apply, p.confirm)
 	p.conflicts = append(p.conflicts, fieldConflicts...)
-	for k, v := range fieldBefore {
-		p.before[k] = v
-	}
+	maps.Copy(p.before, fieldBefore)
 	for k, v := range fieldUpdates {
 		p.updates[k] = v
 		p.applied = append(p.applied, k)
@@ -169,12 +168,8 @@ func (p *Plan) Write(tx *gorm.DB) (Result, error) {
 		if err := tx.Model(&models.Asset{}).Where("id = ?", asset.ID).Updates(p.updates).Error; err != nil {
 			return Result{}, err
 		}
-		for k, v := range p.before {
-			auditBefore[k] = v
-		}
-		for k, v := range p.updates {
-			auditAfter[k] = v
-		}
+		maps.Copy(auditBefore, p.before)
+		maps.Copy(auditAfter, p.updates)
 	}
 
 	if p.licence != nil {

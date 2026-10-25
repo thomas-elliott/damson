@@ -99,24 +99,19 @@ func TestChooseCurrent(t *testing.T) {
 	type version struct {
 		store   string
 		age     time.Duration
-		imports []string // stages, oldest first
+		pending bool
 	}
 	cases := []struct {
-		name      string
-		versions  []version
-		finishing int // index into versions, or -1
-		want      int // index into versions, or -1 for none
+		name     string
+		versions []version
+		want     int // index into versions, or -1 for none
 	}{
-		{"store version beats a newer import", []version{{"2.0", 2 * time.Hour, nil}, {"1.0", time.Hour, nil}}, -1, 0},
-		{"a store version tie goes to the newer import", []version{{"1.0", 2 * time.Hour, nil}, {"1", time.Hour, nil}}, -1, 1},
-		{"a parseable store version beats none", []version{{"", time.Hour, nil}, {"1.0", 2 * time.Hour, nil}}, -1, 1},
-		{"without store versions the newer import wins", []version{{"", 2 * time.Hour, nil}, {"", time.Hour, nil}}, -1, 1},
-		{"a version still importing is passed over", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageExtracting}}}, -1, 0},
-		{"a version whose import failed is passed over", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageFailed}}}, -1, 0},
-		{"a retried import that finished counts", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageFailed, StageDone}}}, -1, 1},
-		{"an import that is enriching counts", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageEnriching}}}, -1, 1},
-		{"the finishing import counts", []version{{"1.0", 2 * time.Hour, nil}, {"2.0", time.Hour, []string{StageThumbnailing}}}, 1, 1},
-		{"nothing finished leaves no current version", []version{{"1.0", time.Hour, []string{StageFailed}}}, -1, -1},
+		{"store version beats a newer import", []version{{"2.0", 2 * time.Hour, false}, {"1.0", time.Hour, false}}, 0},
+		{"a store version tie goes to the newer import", []version{{"1.0", 2 * time.Hour, false}, {"1", time.Hour, false}}, 1},
+		{"a parseable store version beats none", []version{{"", time.Hour, false}, {"1.0", 2 * time.Hour, false}}, 1},
+		{"without store versions the newer import wins", []version{{"", 2 * time.Hour, false}, {"", time.Hour, false}}, 1},
+		{"a version with pending files is passed over", []version{{"1.0", 2 * time.Hour, false}, {"2.0", time.Hour, true}}, 0},
+		{"no version with files leaves no current version", []version{{"1.0", time.Hour, true}}, -1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -126,23 +121,14 @@ func TestChooseCurrent(t *testing.T) {
 			}
 			ids := make([]uint, len(tc.versions))
 			for i, v := range tc.versions {
-				row := models.AssetVersion{AssetID: asset.ID, StoreVersion: v.store, ImportDate: now.Add(-v.age)}
+				row := models.AssetVersion{AssetID: asset.ID, StoreVersion: v.store, ImportDate: now.Add(-v.age), FilesPending: v.pending}
 				if err := db.Create(&row).Error; err != nil {
 					t.Fatal(err)
 				}
 				ids[i] = row.ID
-				for _, stage := range v.imports {
-					if err := db.Create(&models.AssetImport{AssetID: asset.ID, AssetVersionID: &row.ID, Stage: stage}).Error; err != nil {
-						t.Fatal(err)
-					}
-				}
-			}
-			var finishing uint
-			if tc.finishing >= 0 {
-				finishing = ids[tc.finishing]
 			}
 
-			if _, err := ChooseCurrent(db, asset.ID, finishing); err != nil {
+			if _, err := ChooseCurrent(db, asset.ID); err != nil {
 				t.Fatal(err)
 			}
 

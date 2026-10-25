@@ -171,6 +171,7 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 			ImportDate:      time.Now().UTC(),
 			CreatedByUserID: &s.userID,
 			PackageKind:     s.packageKind,
+			FilesPending:    true,
 		}
 		if s.sourceRelativePath != "" {
 			kind := s.sourceKind

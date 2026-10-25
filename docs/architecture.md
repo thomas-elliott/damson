@@ -215,6 +215,9 @@ Extraction (`internal/services/extract`) handles `.unitypackage`, a tar of GUID 
 `.zip`. Both enforce size and entry-count caps and skip unsafe paths. Zip needs random access, so
 the archive is copied to a local temp file first. Thumbnailing and enrichment are best-effort and
 never fail an import. Once the files are committed, the version is handed to the preview queue.
+An import creates its version with `files_pending` set. The transaction that writes the files
+clears it, and `imports.ChooseCurrent` passes over a pending version, so an import that fails
+after that point keeps a version that can still be current.
 
 In the SPA, the upload queue is in the notification centre (`components/notifications/`). It is
 mounted above `<Routes>` so that uploads survive navigation.

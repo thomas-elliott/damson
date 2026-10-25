@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/thomas-elliott/damson/internal/models"
 )
@@ -88,18 +89,16 @@ func StoreUpdateAvailable(latestStoreVersion string, heldVersions []string) (ava
 // ChooseCurrent points the asset at the version that should be current: the
 // highest parseable store version, then the newest import date, then the
 // newest row. Every version without a parseable store version ties below the
-// parseable ones. A version whose latest import failed or has not committed
-// its files is passed over, except finishing: the version whose import is
-// committing them in tx (0 for none). An import past that point is still
-// enriching. It returns the version chosen, or nil when there is none.
-func ChooseCurrent(tx *gorm.DB, assetID, finishing uint) (*uint, error) {
+// parseable ones. A version whose files are pending is passed over. It locks
+// the asset row first, so two choices on one asset run one after the other.
+// It returns the version chosen, or nil when there is none.
+func ChooseCurrent(tx *gorm.DB, assetID uint) (*uint, error) {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
+		First(&models.Asset{}, assetID).Error; err != nil {
+		return nil, err
+	}
 	var versions []models.AssetVersion
-	unfinished := tx.Table("asset_imports AS i").Select("1").
-		Where("i.asset_version_id = asset_versions.id AND i.stage NOT IN ?", []string{StageEnriching, StageDone}).
-		Where("NOT EXISTS (SELECT 1 FROM asset_imports j WHERE j.asset_version_id = i.asset_version_id AND j.id > i.id)")
-	if err := tx.Where("asset_id = ?", assetID).
-		Where("id = ? OR NOT EXISTS (?)", finishing, unfinished).
-		Find(&versions).Error; err != nil {
+	if err := tx.Where("asset_id = ? AND NOT files_pending", assetID).Find(&versions).Error; err != nil {
 		return nil, err
 	}
 	var current *uint
@@ -117,11 +116,16 @@ func ChooseCurrent(tx *gorm.DB, assetID, finishing uint) (*uint, error) {
 	return current, err
 }
 
-// chooseCurrentAndCover runs ChooseCurrent, then gives the asset version's
-// harvested cover when version is the one chosen. A storefront cover outlives
-// later extractions.
-func chooseCurrentAndCover(tx *gorm.DB, assetID, version, finishing uint, thumbKey, thumbType string) error {
-	current, err := ChooseCurrent(tx, assetID, finishing)
+// commitFiles clears version's pending files, runs ChooseCurrent, then gives
+// the asset version's harvested cover when version is the one chosen. A
+// storefront cover outlives later extractions. Call it in the transaction
+// that writes version's files.
+func commitFiles(tx *gorm.DB, assetID, version uint, thumbKey, thumbType string) error {
+	if err := tx.Model(&models.AssetVersion{}).Where("id = ?", version).
+		Update("files_pending", false).Error; err != nil {
+		return err
+	}
+	current, err := ChooseCurrent(tx, assetID)
 	if err != nil || current == nil || *current != version || thumbKey == "" {
 		return err
 	}
