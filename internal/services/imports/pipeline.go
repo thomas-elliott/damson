@@ -19,7 +19,7 @@ import (
 )
 
 func OpenOriginal(ctx context.Context, s storage.Service, v models.AssetVersion) (io.ReadCloser, error) {
-	if isArchiveKind(v.PackageKind) {
+	if models.IsArchiveKind(v.PackageKind) {
 		return s.GetOriginal(ctx, v.OriginalPackageObjectKey)
 	}
 	return s.GetBlob(ctx, v.OriginalPackageObjectKey)
@@ -35,10 +35,6 @@ func (s storageReader) Read(p []byte) (int, error) {
 		err = fmt.Errorf("%w: %w", extract.ErrStorage, err)
 	}
 	return n, err
-}
-
-func isArchiveKind(kind string) bool {
-	return kind == "unitypackage" || kind == "zip"
 }
 
 // jobContext holds everything the pipeline needs about a job, hydrated from
@@ -128,7 +124,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 			xerr error
 		)
 		switch jc.version.PackageKind {
-		case "zip":
+		case models.PackageKindZip:
 			ex := &extract.ZipExtractor{
 				Storage: deps.Storage,
 				EntryMeta: storage.ObjectMeta{
@@ -279,8 +275,8 @@ func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 
 	var liveReferrers int64
 	if err := deps.DB.WithContext(ctx).Model(&models.AssetVersion{}).
-		Where("original_package_object_key = ? AND id <> ? AND original_package_purged = ?",
-			jc.version.OriginalPackageObjectKey, jc.version.ID, false).
+		Where("original_package_object_key = ? AND id <> ?", jc.version.OriginalPackageObjectKey, jc.version.ID).
+		Where(models.DownloadableOriginalSQL("asset_versions")).
 		Count(&liveReferrers).Error; err != nil {
 		slog.Warn("imports: count original referrers", "err", err, "version_id", jc.version.ID)
 		return
@@ -333,8 +329,8 @@ func loadJobContext(db *gorm.DB, importID uint) (jobContext, error) {
 		asset:     asset,
 		version:   version,
 		libraryID: asset.LibraryID,
-		isUnity:   version.PackageKind == "unitypackage",
-		isArchive: isArchiveKind(version.PackageKind),
+		isUnity:   version.PackageKind == models.PackageKindUnityPackage,
+		isArchive: models.IsArchiveKind(version.PackageKind),
 	}, nil
 }
 

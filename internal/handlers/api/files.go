@@ -78,7 +78,8 @@ func (h *Handler) getFile(c *gin.Context) {
 			Table("assets AS a").
 			Select("a.name, v.package_kind").
 			Joins("JOIN asset_versions v ON v.asset_id = a.id").
-			Where("a.library_id = ? AND v.original_package_object_key = ? AND v.package_kind IN ? AND v.original_package_purged = false", lib.ID, key, []string{"unitypackage", "zip"}).
+			Where("a.library_id = ? AND v.original_package_object_key = ?", lib.ID, key).
+			Where(models.DownloadableOriginalSQL("v")).
 			Limit(1).
 			Scan(&original).Error
 		if err != nil {

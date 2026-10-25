@@ -84,7 +84,8 @@ change goes in both a new migration and the struct (see `CONVENTIONS.md`, Databa
 - `asset_versions.original_package_object_key` holds an `originals/` key when `package_kind` is
   `unitypackage` or `zip`. For a loose upload it holds the `blobs/` key of the single file.
   `original_package_purged` means the archive's bytes were reclaimed, while the key stays on the
-  row.
+  row. `AssetVersion.HasDownloadableOriginal`, and `models.DownloadableOriginalSQL` in a query, say
+  whether the archive can still be read.
 - Tags are materialised paths per library (`environment/trees/deciduous`). `internal/tagpath`
   holds the one normalisation rule.
 - The licence `attributes_json` booleans are tri-state, and `null` means unknown.
@@ -103,9 +104,6 @@ change goes in both a new migration and the struct (see `CONVENTIONS.md`, Databa
 - Look up a user by email only when the email is non-blank, and compare `lower()`. A blank email
   matches every `needs_profile` user.
 - Match an IdP identity on `(issuer, subject)`, never on `subject` alone.
-- A version has a downloadable original only when the key is set, `original_package_purged` is
-  false and `package_kind` is an archive. Checking the key alone offers a download that does not
-  exist.
 - Normalise a tag path with `tagpath.Normalise` before comparing it.
 - Writing `false` to a default-true column needs an explicit `Update`. GORM omits zero values on
   Create when the field has a `default:` tag.
@@ -122,12 +120,12 @@ them with a plain copy. Keys are `<prefix>/<hh>/<sha256>`:
 
 Nothing on the write path deletes an object. Reclaiming space is a two-step sysadmin action in
 `storage/cleanup`: a scan finds objects that nothing references and that are older than
-`DAMSON_ORPHAN_MIN_AGE`, and a delete re-checks those keys and audits each deletion.
+`DAMSON_ORPHAN_MIN_AGE`, and a delete re-checks those keys and audits each deletion. What counts as
+a reference is a live row in a column of `models.ObjectKeyColumns`, and a test fails on any
+`*_object_key` column missing from that list.
 
 ### Traps
 
-- Add any new column that holds an object key to `knownKeys` in `cleanup.go`. Otherwise the sweep
-  deletes its objects.
 - The age floor does not protect a reused object. Dedup reuses a key without touching its
   modification time.
 - Keep LocalFS's hex-only check in `pathFor`. It stops an HTTP bug from becoming a path traversal.
