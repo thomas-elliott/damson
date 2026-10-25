@@ -11,6 +11,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/licence"
 )
 
 type projectView struct {
@@ -27,7 +28,7 @@ type projectView struct {
 	UpdatedAt          time.Time     `json:"updated_at"`
 }
 
-// licenceCounts tallies a project's pins by licence status (licenceStatusSQL).
+// licenceCounts tallies a project's pins by licence status (licence.StatusSQL).
 type licenceCounts struct {
 	OK   int `json:"ok"`
 	Warn int `json:"warn"`
@@ -69,7 +70,7 @@ func (h *Handler) getProjects(c *gin.Context) {
 		LicenceErr         int
 		LicenceUnk         int
 	}
-	status := licenceStatusSQL("l")
+	status := licence.StatusSQL("l")
 	var rows []row
 	err := h.db.WithContext(c.Request.Context()).
 		Table("projects AS p").
@@ -80,7 +81,7 @@ func (h *Handler) getProjects(c *gin.Context) {
 			COUNT(pin.id) FILTER (WHERE `+status+` = 'warn') AS licence_warn,
 			COUNT(pin.id) FILTER (WHERE `+status+` = 'err') AS licence_err,
 			COUNT(pin.id) FILTER (WHERE `+status+` = 'unk') AS licence_unk`,
-			permissiveLicences, permissiveLicences, permissiveLicences, permissiveLicences).
+			licence.PermissiveTypes, licence.PermissiveTypes, licence.PermissiveTypes, licence.PermissiveTypes).
 		Joins("LEFT JOIN project_asset_pins pin ON pin.project_id = p.id").
 		Joins("LEFT JOIN assets a ON a.id = pin.asset_id").
 		Joins("LEFT JOIN licences l ON l.id = a.licence_id").
@@ -254,9 +255,9 @@ func (h *Handler) getProject(c *gin.Context) {
 			a.current_version_id AS current_version,
 			cv.version_label AS current_label,
 			l.detected_type AS licence_type,
-			`+licenceStatusSQL("l")+` AS licence_status,
+			`+licence.StatusSQL("l")+` AS licence_status,
 			COALESCE((SELECT SUM(f.size_bytes) FROM asset_files f WHERE f.asset_version_id = pin.pinned_version_id), 0) AS size_bytes,
-			pin.pinned_at`, permissiveLicences).
+			pin.pinned_at`, licence.PermissiveTypes).
 		Joins("JOIN assets a ON a.id = pin.asset_id").
 		Joins("LEFT JOIN asset_versions v ON v.id = pin.pinned_version_id").
 		Joins("LEFT JOIN asset_versions cv ON cv.id = a.current_version_id").

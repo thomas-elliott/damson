@@ -239,7 +239,7 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 	}
 
 	prev := sourceRecordOf(&asset)
-	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, meta, nil, setSourceURL, target, u.ID)
+	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, meta, nil, setSourceURL, target, u.ID, licence.ByPerson)
 	// The record keeps the conflicts' fetched values, which the person can
 	// still choose to apply.
 	h.saveLookupRecord(c.Request.Context(), &asset, prev, meta, target, applied, nil)
@@ -398,7 +398,7 @@ func (h *Handler) postAssetMetadataApply(c *gin.Context) {
 	for _, f := range req.Fields {
 		confirm[f] = true
 	}
-	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, rec.Metadata, confirm, false, "", u.ID)
+	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, rec.Metadata, confirm, false, "", u.ID, licence.ByPerson)
 
 	c.JSON(http.StatusOK, metadataFetchResponse{
 		Store:      rec.Store,
@@ -412,8 +412,10 @@ func (h *Handler) postAssetMetadataApply(c *gin.Context) {
 // applyMetadata applies fetched metadata to an asset. With confirm==nil it
 // fills blank fields only and reports the rest as conflicts; with confirm set
 // it overwrites exactly the confirmed fields. setSourceURL/target set the
-// source URL when the fetch was triggered by a body URL.
-func (h *Handler) applyMetadata(ctx context.Context, libID uint, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool, setSourceURL bool, target string, userID uint) ([]string, []metadataConflict) {
+// source URL when the fetch was triggered by a body URL. by says whether a
+// person or a background lookup is writing, which decides whether a reviewed
+// licence may be replaced.
+func (h *Handler) applyMetadata(ctx context.Context, libID uint, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool, setSourceURL bool, target string, userID uint, by licence.Writer) ([]string, []metadataConflict) {
 	applied := []string{}
 	conflicts := []metadataConflict{}
 	updates := map[string]any{}
@@ -477,7 +479,7 @@ func (h *Handler) applyMetadata(ctx context.Context, libID uint, asset *models.A
 		}
 	}
 
-	if applied2, prevType, newType, conflict := h.applyLicenceFromMeta(ctx, asset, meta, confirm); conflict != nil {
+	if applied2, prevType, newType, conflict := h.applyLicenceFromMeta(ctx, asset, meta, confirm, by); conflict != nil {
 		conflicts = append(conflicts, *conflict)
 	} else if applied2 {
 		applied = append(applied, "licence")
@@ -509,9 +511,10 @@ func (h *Handler) applyMetadata(ctx context.Context, libID uint, asset *models.A
 
 // applyLicenceFromMeta creates a licence from the fetched hint/text when the
 // asset has none, or reports a conflict when one exists and differs (unless
-// confirmed). A reviewed licence is only ever replaced on explicit confirm.
-// On apply it returns the previous and new detected types for the audit diff.
-func (h *Handler) applyLicenceFromMeta(ctx context.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, string, string, *metadataConflict) {
+// confirmed). licence.Replace keeps a reviewed licence from an automatic
+// write, which is reported as a conflict too. On apply it returns the previous
+// and new detected types for the audit diff.
+func (h *Handler) applyLicenceFromMeta(ctx context.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool, by licence.Writer) (bool, string, string, *metadataConflict) {
 	lic := buildLicenceFromMeta(meta)
 	if lic == nil {
 		return false, "", "", nil
@@ -529,10 +532,23 @@ func (h *Handler) applyLicenceFromMeta(ctx context.Context, asset *models.Asset,
 			}
 		}
 	}
-	if err := h.persistLicence(ctx, asset, lic); err != nil {
+	var (
+		prev    *models.Licence
+		written bool
+	)
+	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		prev, written, err = licence.Replace(tx, asset.ID, lic, by)
+		return err
+	})
+	if err != nil {
 		slog.Warn("metadata: persist licence", "err", err, "asset_id", asset.ID)
 		return false, "", "", nil
 	}
+	if !written {
+		return false, "", "", &metadataConflict{Field: "licence", Current: prev.DetectedType, Proposed: lic.DetectedType}
+	}
+	asset.LicenceID = &lic.ID
 	return true, prevType, lic.DetectedType, nil
 }
 
@@ -612,24 +628,6 @@ func storeLabel(store string) string {
 		return "source"
 	}
 	return store
-}
-
-// persistLicence replaces the asset's licence row with lic in one transaction,
-// mirroring rescanLicence's create-then-point pattern.
-func (h *Handler) persistLicence(ctx context.Context, asset *models.Asset, lic *models.Licence) error {
-	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if asset.LicenceID != nil {
-			if err := tx.Where("id = ?", *asset.LicenceID).Delete(&models.Licence{}).Error; err != nil {
-				return err
-			}
-		}
-		lic.AssetID = asset.ID
-		if err := tx.Create(lic).Error; err != nil {
-			return err
-		}
-		asset.LicenceID = &lic.ID
-		return tx.Model(asset).Where("id = ?", asset.ID).Update("licence_id", lic.ID).Error
-	})
 }
 
 // persistSourceRecord writes the enrichment envelope to source_metadata.

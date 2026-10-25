@@ -174,12 +174,8 @@ func buildEnrichLicence(meta *metadata.Metadata) *models.Licence {
 
 func enrichPersistLicence(ctx context.Context, deps Deps, asset *models.Asset, lic *models.Licence) {
 	err := deps.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		lic.AssetID = asset.ID
-		if err := tx.Create(lic).Error; err != nil {
-			return err
-		}
-		asset.LicenceID = &lic.ID
-		return tx.Model(asset).Where("id = ?", asset.ID).Update("licence_id", lic.ID).Error
+		_, _, err := licence.Replace(tx, asset.ID, lic, licence.Automatic)
+		return err
 	})
 	if err != nil {
 		slog.Warn("enrich: persist licence", "err", err, "asset_id", asset.ID)
