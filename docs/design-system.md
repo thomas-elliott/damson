@@ -23,6 +23,8 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
 - **`Button`'s `destructive` is a soft red tint, not a fill**, because a filled red reads fine in a
   confirm dialog and shouts in a toolbar.
 - **`EmptyState` sets `role="status"`** and its title is optional.
+- **`ErrorState` is `EmptyState` with a Retry.** The caller gives fixed wording; the server's
+  error message is never shown. Retry stays disabled until the retry it started settles.
 - **`Input` is a wrapping `<div>`** that carries the border and background, with icon and
   keyboard-hint slots; it takes the `--text-field` token and the 16px floor from the contract.
 

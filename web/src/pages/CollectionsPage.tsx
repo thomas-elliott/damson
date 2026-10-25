@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ErrorState,
   FieldRow,
   Input,
   Textarea,
@@ -25,7 +26,7 @@ import { useCollections } from "@/hooks/useDataQueries";
 import { useCreateCollection } from "@/hooks/useMutations";
 
 export function CollectionsPage() {
-  const { data: collections, loading } = useCollections();
+  const { data: collections, loading, failed, reload } = useCollections();
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -51,6 +52,8 @@ export function CollectionsPage() {
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading collections…
             </div>
+          ) : failed ? (
+            <ErrorState title="Couldn't load collections" onRetry={reload} />
           ) : collections.length === 0 ? (
             <EmptyState
               icon={<Plus size={28} />}

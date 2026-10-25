@@ -11,6 +11,7 @@ const assets = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Asset $
 // The library's total is set per test; the loaded page is always `assets`.
 const library = vi.hoisted(() => ({
   total: 12,
+  failed: false,
   pages: [] as ({ limit: number; offset: number } | undefined)[],
 }));
 
@@ -19,6 +20,10 @@ vi.mock("@/hooks/useDataQueries", () => ({
   useLibrarySettings: () => ({ data: null }),
   useAssets: (_filters: unknown, _enabled: boolean, page?: { limit: number; offset: number }) => {
     library.pages.push(page);
+    if (library.failed) {
+      const error = new Error("network");
+      return { data: [], total: 0, loading: false, placeholder: false, error, failed: true };
+    }
     return { data: assets, total: library.total, loading: false, placeholder: false };
   },
 }));
@@ -58,6 +63,7 @@ function Location() {
 
 beforeEach(() => {
   library.total = 12;
+  library.failed = false;
   library.pages = [];
 });
 
@@ -158,5 +164,16 @@ describe("LibraryPage paging", () => {
     library.total = 0;
     mount("/library");
     expect(screen.queryByRole("navigation", { name: "Library pages" })).toBeNull();
+  });
+});
+
+describe("LibraryPage load failure", () => {
+  it("shows the error with a Retry and keeps the requested page", () => {
+    library.failed = true;
+    mount("/library?page=3");
+    expect(screen.getByText("Couldn't load assets")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByText("grid")).toBeNull();
+    expect(query()).toBe("?page=3");
   });
 });
