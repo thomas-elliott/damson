@@ -13,10 +13,11 @@ import (
 	"time"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
-// fakeMetadata is an injectable metadataService so endpoint tests don't do
+// fakeMetadata is an injectable metadataService and enrich.LookupFetcher so tests don't do
 // real outbound HTTP (which the SSRF guard blocks in any case).
 type fakeMetadata struct {
 	meta       *metadata.Metadata
@@ -496,7 +497,7 @@ func TestMetadataFetch_FillsAndConflictsOnStorefrontFields(t *testing.T) {
 	resp := jsonResponse[metadataFetchResponse](t, w)
 
 	assertContains(t, resp.Applied, "store", "store_product_id", "engine", "released_at", "rating", "rating_count", "tags")
-	var publisherConflict *metadataConflict
+	var publisherConflict *enrich.Conflict
 	for i := range resp.Conflicts {
 		if resp.Conflicts[i].Field == "publisher" {
 			publisherConflict = &resp.Conflicts[i]
@@ -663,10 +664,12 @@ func TestMetadataFetch_GenericFallbackKeepsTheStoreRecord(t *testing.T) {
 	u := seedUser(t, db, "t@example.com")
 	lib := seedLibraryForUser(t, db, u, "Personal")
 	asset := seedAsset(t, db, lib.ID, "pack")
-	h.persistSourceRecord(context.Background(), asset, metadata.SourceRecord{
+	if err := enrich.SaveSourceRecord(db, asset, metadata.SourceRecord{
 		Store: metadata.StoreUnity, Matched: true,
 		Metadata: &metadata.Metadata{Store: metadata.StoreUnity, Title: "pack"},
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	r := setupRouter(h, u)
 
 	w := performRequest(r, http.MethodPost, fmt.Sprintf("/api/assets/%d/metadata/fetch", asset.ID),
@@ -676,7 +679,7 @@ func TestMetadataFetch_GenericFallbackKeepsTheStoreRecord(t *testing.T) {
 	if err := db.First(&stored, asset.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	rec := sourceRecordOf(&stored)
+	rec := enrich.SourceRecordOf(&stored)
 	if rec == nil || rec.Store != metadata.StoreUnity || rec.Metadata.Title != "pack" {
 		t.Fatalf("record = %+v, want the Unity record kept", rec)
 	}

@@ -4,17 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 )
 
 // errStoreLookupsUnavailable is the 503 for a server with no background queue.
@@ -36,12 +34,12 @@ type storeLookupsRequest struct {
 // only the generic scraper answered, or, in a refresh, it kept a field a
 // person had changed.
 type storeLookupProblem struct {
-	AssetID   uint               `json:"asset_id"`
-	Name      string             `json:"name"`
-	Status    string             `json:"status"`
-	Result    string             `json:"result,omitempty"`
-	Error     string             `json:"error,omitempty"`
-	Conflicts []metadataConflict `json:"conflicts,omitempty"`
+	AssetID   uint              `json:"asset_id"`
+	Name      string            `json:"name"`
+	Status    string            `json:"status"`
+	Result    string            `json:"result,omitempty"`
+	Error     string            `json:"error,omitempty"`
+	Conflicts []enrich.Conflict `json:"conflicts,omitempty"`
 }
 
 type storeLookupBatchResponse struct {
@@ -136,7 +134,6 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 
 	var (
 		batch   models.StoreLookupBatch
-		queued  []uint
 		skipped int
 	)
 	err := db.Transaction(func(tx *gorm.DB) error {
@@ -149,20 +146,15 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 				skipped++
 				continue
 			}
-			id, err := createStoreLookupTx(tx, batch, a.ID)
-			if err != nil {
+			if err := h.queueStoreLookupTx(tx, batch, a.ID); err != nil {
 				return err
 			}
-			queued = append(queued, id)
 		}
 		return nil
 	})
 	if err != nil {
 		respondGORM(c, err, "batch not found")
 		return
-	}
-	for _, id := range queued {
-		h.storeLookups.EnqueueStoreLookup(id)
 	}
 
 	resp, err := h.storeLookupBatchStatus(c.Request.Context(), batch)
@@ -198,14 +190,14 @@ func lookupKind(refresh bool) string {
 	return "fill-blanks"
 }
 
-// createStoreLookupTx adds one queued lookup to the batch. The caller enqueues
-// its job after the transaction commits, so the job never runs ahead of it.
-func createStoreLookupTx(tx *gorm.DB, batch models.StoreLookupBatch, assetID uint) (uint, error) {
+// queueStoreLookupTx adds one queued lookup to the batch and enqueues its
+// job in the same transaction, so neither outlives the other.
+func (h *Handler) queueStoreLookupTx(tx *gorm.DB, batch models.StoreLookupBatch, assetID uint) error {
 	lk := models.StoreLookup{BatchID: batch.ID, LibraryID: batch.LibraryID, AssetID: assetID, Status: models.StoreLookupQueued}
 	if err := tx.Create(&lk).Error; err != nil {
-		return 0, err
+		return err
 	}
-	return lk.ID, nil
+	return h.storeLookups.EnqueueStoreLookup(tx, lk.ID)
 }
 
 func uniqueIDs(ids []uint) map[uint]bool {
@@ -261,7 +253,7 @@ func (h *Handler) storeLookupBatchStatus(ctx context.Context, batch models.Store
 	}
 	resp := storeLookupBatchResponse{BatchID: batch.ID, Refresh: batch.Refresh, Total: len(rows), Problems: []storeLookupProblem{}}
 	for _, r := range rows {
-		var conflicts []metadataConflict
+		var conflicts []enrich.Conflict
 		_ = json.Unmarshal(r.Conflicts, &conflicts)
 		switch r.Status {
 		case models.StoreLookupQueued:
@@ -294,166 +286,4 @@ func (h *Handler) storeLookupBatchStatus(ctx context.Context, batch models.Store
 		}
 	}
 	return resp, nil
-}
-
-// RunStoreLookup runs one queued lookup: it looks the asset's store link up,
-// waiting out any pause the store asks for, applies what it found, saves the
-// source record and records the outcome on the row. A refresh may replace
-// fields a person hasn't changed, and marks the asset Needs review when it
-// changes one; any other lookup fills blanks only. An error is returned only
-// for what a retry could fix; a lookup the store can't answer is recorded as
-// failed and not retried.
-func (h *Handler) RunStoreLookup(ctx context.Context, lookupID uint) error {
-	db := h.db.WithContext(ctx)
-	var lk models.StoreLookup
-	if err := db.First(&lk, lookupID).Error; err != nil {
-		if isNotFound(err) {
-			return nil // the asset or batch was deleted since
-		}
-		return err
-	}
-	if lk.Status != models.StoreLookupQueued {
-		return nil
-	}
-	var batch models.StoreLookupBatch
-	if err := db.First(&batch, lk.BatchID).Error; err != nil {
-		return err
-	}
-	var asset models.Asset
-	if err := db.Where("id = ? AND library_id = ?", lk.AssetID, lk.LibraryID).First(&asset).Error; err != nil {
-		return err
-	}
-	if asset.SourceURL == "" {
-		return h.finishStoreLookup(ctx, &lk, models.StoreLookupFailed, "", nil, nil, "the asset has no store link")
-	}
-	if h.metadata == nil {
-		return fmt.Errorf("store lookup %d: no metadata service", lk.ID)
-	}
-
-	meta, err := h.metadata.FetchWaiting(ctx, asset.SourceURL)
-	if err != nil {
-		if ctx.Err() != nil {
-			return err // shut down or timed out: River tries again
-		}
-		slog.Warn("store lookup failed", "lookup_id", lk.ID, "asset_id", asset.ID, "url", asset.SourceURL, "err", err)
-		return h.finishStoreLookup(ctx, &lk, models.StoreLookupFailed, "", nil, nil, err.Error())
-	}
-
-	var userID uint
-	if batch.CreatedByUserID != nil {
-		userID = *batch.CreatedByUserID
-	}
-	// A generic-scraper answer is not the store's details, so even a refresh
-	// only fills blanks with it, and it never replaces a record a store lookup
-	// left: the next refresh would read the store's values as a person's.
-	refresh := batch.Refresh && !meta.StoreLookupFailed
-	prev := sourceRecordOf(&asset)
-
-	// Judge what a person changed before this lookup's record replaces the
-	// last one.
-	var confirm map[string]bool
-	apply := meta
-	if refresh {
-		if confirm, err = h.refreshConfirm(ctx, &asset); err != nil {
-			return err
-		}
-		apply = withoutUnchangedCover(&asset, meta)
-	}
-	applied, conflicts := h.applyMetadata(ctx, lk.LibraryID, &asset, apply, confirm, false, "", userID)
-	if refresh && len(applied) > 0 && !asset.NeedsReview {
-		if err := db.Model(&asset).Update("needs_review", true).Error; err != nil {
-			return err
-		}
-	}
-	h.saveLookupRecord(ctx, &asset, prev, meta, asset.SourceURL, applied, conflictedFields(conflicts))
-
-	result := models.StoreLookupUnchanged
-	switch {
-	case meta.StoreLookupFailed:
-		result = models.StoreLookupNoStoreData
-	case len(applied) > 0:
-		result = models.StoreLookupChanged
-	}
-	return h.finishStoreLookup(ctx, &lk, models.StoreLookupDone, result, applied, conflicts, "")
-}
-
-// saveLookupRecord stores the source record for a lookup whose answer was
-// just applied. The record must say what lookups put on the asset. A generic
-// answer only adds the blanks it filled to the record a store lookup left, and
-// each kept field goes on holding the last record's value.
-func (h *Handler) saveLookupRecord(ctx context.Context, asset *models.Asset, prev *metadata.SourceRecord, meta *metadata.Metadata, link string, applied, kept []string) {
-	if meta.StoreLookupFailed && prev != nil {
-		copyRecordFields(prev.Metadata, meta, applied)
-		h.persistSourceRecord(ctx, asset, *prev)
-		return
-	}
-	saved := *meta
-	if prev != nil {
-		copyRecordFields(&saved, prev.Metadata, kept)
-	}
-	h.persistSourceRecord(ctx, asset, metadata.SourceRecord{
-		Store:      meta.Store,
-		ListingURL: firstNonEmptyStr(meta.ListingURL, link),
-		FetchedAt:  time.Now().UTC(),
-		Matched:    true,
-		Metadata:   &saved,
-	})
-}
-
-func (h *Handler) finishStoreLookup(ctx context.Context, lk *models.StoreLookup, status, result string, applied []string, conflicts []metadataConflict, errMsg string) error {
-	if applied == nil {
-		applied = []string{}
-	}
-	if conflicts == nil {
-		conflicts = []metadataConflict{}
-	}
-	appliedJSON, err := json.Marshal(applied)
-	if err != nil {
-		return err
-	}
-	conflictsJSON, err := json.Marshal(conflicts)
-	if err != nil {
-		return err
-	}
-	return h.db.WithContext(ctx).Model(lk).Updates(map[string]any{
-		"status":    status,
-		"result":    result,
-		"applied":   json.RawMessage(appliedJSON),
-		"conflicts": json.RawMessage(conflictsJSON),
-		"error":     errMsg,
-	}).Error
-}
-
-// FailStoreLookup records a still-queued lookup failed, for a job River has
-// given up retrying.
-func (h *Handler) FailStoreLookup(ctx context.Context, lookupID uint, reason string) error {
-	return h.db.WithContext(ctx).Model(&models.StoreLookup{}).
-		Where("id = ? AND status = ?", lookupID, models.StoreLookupQueued).
-		Updates(map[string]any{"status": models.StoreLookupFailed, "error": reason}).Error
-}
-
-// ResumeStoreLookups re-enqueues every lookup still queued, for one whose
-// enqueue failed or whose job was lost. River dedupes by args, so this is safe
-// on every boot.
-func (h *Handler) ResumeStoreLookups(ctx context.Context) (int, error) {
-	if h.storeLookups == nil {
-		return 0, nil
-	}
-	var ids []uint
-	if err := h.db.WithContext(ctx).Model(&models.StoreLookup{}).
-		Where("status = ?", models.StoreLookupQueued).Order("id").Pluck("id", &ids).Error; err != nil {
-		return 0, err
-	}
-	for _, id := range ids {
-		h.storeLookups.EnqueueStoreLookup(id)
-	}
-	return len(ids), nil
-}
-
-func conflictedFields(conflicts []metadataConflict) []string {
-	fields := make([]string, len(conflicts))
-	for i, c := range conflicts {
-		fields[i] = c.Field
-	}
-	return fields
 }

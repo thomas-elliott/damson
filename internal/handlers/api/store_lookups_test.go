@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
@@ -18,14 +19,18 @@ import (
 // a request did before the server looks anything up.
 type heldLookups struct{ ids []uint }
 
-func (q *heldLookups) EnqueueStoreLookup(id uint) { q.ids = append(q.ids, id) }
+func (q *heldLookups) EnqueueStoreLookup(_ *gorm.DB, id uint) error {
+	q.ids = append(q.ids, id)
+	return nil
+}
 
 // runAll runs every held lookup as the queue's worker would.
 func (q *heldLookups) runAll(t *testing.T, h *Handler) {
 	t.Helper()
+	lookups := &enrich.Lookups{DB: h.db, Storage: h.storage, Metadata: h.metadata.(enrich.LookupFetcher)}
 	for _, id := range q.ids {
-		if err := h.RunStoreLookup(context.Background(), id); err != nil {
-			t.Fatalf("RunStoreLookup(%d): %v", id, err)
+		if err := lookups.Run(context.Background(), id); err != nil {
+			t.Fatalf("Run(%d): %v", id, err)
 		}
 	}
 	q.ids = nil
@@ -492,4 +497,30 @@ func TestStoreRefresh_ReplacesWhatAnEarlierLookupKept(t *testing.T) {
 	if derefString(got.Publisher) != "New Listing's Publisher" {
 		t.Fatalf("publisher %q (batch %+v), want the earlier lookup's value replaced", derefString(got.Publisher), batch)
 	}
+}
+
+// A refresh never replaces a reviewed licence, even when nothing else says a
+// person touched it: here the reviewer's account and the review's audit row
+// are gone, and there is no source record.
+func TestStoreRefresh_KeepsAReviewedLicence(t *testing.T) {
+	h, db := newTestHandler(t)
+	q := &heldLookups{}
+	h.metadata, h.storeLookups = &fakeMetadata{meta: &metadata.Metadata{Store: metadata.StoreUnity, LicenceHint: "MIT"}}, q
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	a := seedLinkedAsset(t, db, lib.ID, "Pack", "https://assetstore.unity.com/packages/slug/5", nil)
+	reviewed := time.Now().UTC()
+	l := models.Licence{AssetID: a.ID, DetectedType: "custom", OriginalText: "All rights reserved.", AttributesJSON: []byte("{}"), ReviewedAt: &reviewed}
+	if err := db.Create(&l).Error; err != nil {
+		t.Fatal(err)
+	}
+	db.Model(a).Update("licence_id", l.ID)
+
+	batch := lookUp(t, h, setupRouter(h, u), q, a.ID, true)
+	var got models.Asset
+	db.First(&got, a.ID)
+	if got.LicenceID == nil || *got.LicenceID != l.ID {
+		t.Fatalf("licence_id %v, want the reviewed licence %d kept", got.LicenceID, l.ID)
+	}
+	assertContains(t, conflictFields(batch), "licence")
 }

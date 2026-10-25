@@ -58,7 +58,10 @@ type AssetVersion struct {
 	OriginalPackageObjectKey string
 	OriginalPackagePurged    bool   `gorm:"not null;default:false"`
 	PackageKind              string // 'unitypackage' | 'zip' | 'loose' | ''
-	CreatedByUserID          *uint
+	// FilesPending is set while the version's import has not committed its
+	// files; ChooseCurrent passes over such a version.
+	FilesPending    bool `gorm:"not null;default:false"`
+	CreatedByUserID *uint
 	// Provenance for versions ingested from a known external layout, e.g. the
 	// local Unity Asset Store cache. Nil on a hand-dragged upload.
 	SourceKind         *string

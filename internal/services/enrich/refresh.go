@@ -1,12 +1,14 @@
-package api
+package enrich
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
+	"gorm.io/gorm"
+
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
@@ -24,8 +26,8 @@ var refreshFields = []string{
 // refreshConfirm is the confirm set an explicit refresh applies with: every
 // field a person hasn't changed. Blank fields are filled whatever it says, and
 // a field left out of it is kept and reported as a conflict.
-func (h *Handler) refreshConfirm(ctx context.Context, asset *models.Asset) (map[string]bool, error) {
-	changed, err := h.changedByPerson(ctx, asset)
+func refreshConfirm(ctx context.Context, db *gorm.DB, asset *models.Asset) (map[string]bool, error) {
+	changed, err := changedByPerson(ctx, db, asset)
 	if err != nil {
 		return nil, err
 	}
@@ -43,16 +45,16 @@ func (h *Handler) refreshConfirm(ctx context.Context, asset *models.Asset) (map[
 // it; with none, any field the audit log shows a person editing. A thumbnail
 // is a person's unless a lookup set it, whatever the record says, because the
 // record keeps only the cover's URL.
-func (h *Handler) changedByPerson(ctx context.Context, asset *models.Asset) (map[string]bool, error) {
+func changedByPerson(ctx context.Context, db *gorm.DB, asset *models.Asset) (map[string]bool, error) {
 	var (
 		changed map[string]bool
 		err     error
 	)
-	if rec := sourceRecordOf(asset); rec != nil {
-		changed = imports.ChangedSince(asset, rec.Metadata)
-		changed["licence"], err = h.licenceChangedSince(ctx, asset, rec.Metadata)
+	if rec := SourceRecordOf(asset); rec != nil {
+		changed = changedSince(asset, rec.Metadata)
+		changed["licence"], err = licenceChangedSince(ctx, db, asset, rec.Metadata)
 	} else {
-		changed, err = h.editedInAudit(ctx, asset.ID)
+		changed, err = editedInAudit(ctx, db, asset.ID)
 	}
 	if err != nil {
 		return nil, err
@@ -63,33 +65,33 @@ func (h *Handler) changedByPerson(ctx context.Context, asset *models.Asset) (map
 
 // licenceChangedSince reports whether the asset's licence is not the one the
 // last lookup would have given it, or a person has reviewed it.
-func (h *Handler) licenceChangedSince(ctx context.Context, asset *models.Asset, last *metadata.Metadata) (bool, error) {
+func licenceChangedSince(ctx context.Context, db *gorm.DB, asset *models.Asset, last *metadata.Metadata) (bool, error) {
 	if asset.LicenceID == nil {
 		return false, nil
 	}
 	var lic models.Licence
-	if err := h.db.WithContext(ctx).First(&lic, *asset.LicenceID).Error; err != nil {
-		if isNotFound(err) {
+	if err := db.WithContext(ctx).First(&lic, *asset.LicenceID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
 		}
 		return false, err
 	}
-	if lic.ReviewedByUserID != nil {
+	if lic.ReviewedAt != nil {
 		return true, nil
 	}
-	want := buildLicenceFromMeta(last)
+	want := listingLicence(last)
 	return want == nil || want.DetectedType != lic.DetectedType, nil
 }
 
 // editedInAudit reports the fields the audit log shows a person editing on
 // the asset: the columns of each edit, and the licence when it was set,
 // changed or reviewed. A lookup's own writes are not a person's edits.
-func (h *Handler) editedInAudit(ctx context.Context, assetID uint) (map[string]bool, error) {
+func editedInAudit(ctx context.Context, db *gorm.DB, assetID uint) (map[string]bool, error) {
 	var rows []struct {
 		ActionType string
 		DiffJSON   json.RawMessage
 	}
-	err := h.db.WithContext(ctx).Model(&models.AuditLog{}).Select("action_type, diff_json").
+	err := db.WithContext(ctx).Model(&models.AuditLog{}).Select("action_type, diff_json").
 		Where("target_type = 'asset' AND target_id = ? AND user_id IS NOT NULL", assetID).
 		Where("action_type = 'asset.update' OR action_type LIKE 'asset.licence.%'").
 		Scan(&rows).Error
@@ -123,22 +125,12 @@ func withoutUnchangedCover(asset *models.Asset, meta *metadata.Metadata) *metada
 	if asset.ThumbnailObjectKey == "" || meta.CoverURL == "" {
 		return meta
 	}
-	if rec := sourceRecordOf(asset); rec == nil || rec.Metadata.CoverURL != meta.CoverURL {
+	if rec := SourceRecordOf(asset); rec == nil || rec.Metadata.CoverURL != meta.CoverURL {
 		return meta
 	}
 	m := *meta
 	m.CoverURL = ""
 	return &m
-}
-
-// sourceRecordOf is the asset's stored source record, or nil when it has none
-// or it holds no lookup's details.
-func sourceRecordOf(asset *models.Asset) *metadata.SourceRecord {
-	var rec metadata.SourceRecord
-	if len(asset.SourceMetadataJSON) == 0 || json.Unmarshal(asset.SourceMetadataJSON, &rec) != nil || rec.Metadata == nil {
-		return nil
-	}
-	return &rec
 }
 
 // copyRecordFields copies the named fields' values from src into dst. The

@@ -9,6 +9,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
@@ -60,7 +61,7 @@ func settingsViewFrom(s *models.LibrarySettings) librarySettingsView {
 // but callers get a sensible response either way).
 func (h *Handler) getLibrarySettings(c *gin.Context) {
 	lib := getLibrary(c)
-	s, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID)
+	s, err := library.Settings(h.db.WithContext(c.Request.Context()), lib.ID)
 	if err != nil {
 		respond500(c, err)
 		return
@@ -117,7 +118,7 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 	}
 	var out models.LibrarySettings
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		s, err := loadOrCreateLibrarySettings(tx, lib.ID)
+		s, err := library.Settings(tx, lib.ID)
 		if err != nil {
 			return err
 		}
@@ -177,33 +178,4 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, view)
-}
-
-func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettings, error) {
-	var s models.LibrarySettings
-	err := tx.Where("library_id = ?", libID).First(&s).Error
-	if err == nil {
-		return &s, nil
-	}
-	if !isNotFound(err) {
-		return nil, err
-	}
-	// Create with defaults.
-	s = models.LibrarySettings{
-		LibraryID:               libID,
-		GridDensityDefault:      "medium",
-		RetainOriginalPackages:  true,
-		DedupeEnabled:           true,
-		ThumbnailsRasterEnabled: true,
-		ThumbnailsAudioEnabled:  true,
-		ThumbnailsFontEnabled:   true,
-		ThumbnailsUnityPreview:  true,
-		PreviewsEnabled:         true,
-		AutoEnrichEnabled:       true,
-		PreferredStore:          metadata.StoreUnity,
-	}
-	if err := tx.Create(&s).Error; err != nil {
-		return nil, err
-	}
-	return &s, nil
 }

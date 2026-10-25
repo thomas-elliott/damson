@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -248,5 +249,40 @@ func TestTitlesMatch(t *testing.T) {
 	}
 	if titlesMatch("", "") {
 		t.Error("empty titles must not match")
+	}
+}
+
+// Import enrichment writes the listing's licence only over an unreviewed one.
+func TestEnrichAsset_KeepsAReviewedLicence(t *testing.T) {
+	db := enrichTestDB(t)
+	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)
+	reviewed := time.Now().UTC()
+	l := models.Licence{AssetID: asset.ID, DetectedType: "custom", OriginalText: "All rights reserved.", AttributesJSON: []byte("{}"), ReviewedAt: &reviewed}
+	if err := db.Create(&l).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(asset).Update("licence_id", l.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeEnricher{
+		cands: []metadata.Candidate{{Title: "Fantasy Pack", ListingURL: "https://x/1", Store: "unity"}},
+		meta:  &metadata.Metadata{Store: "unity", Description: "A fetched description.", LicenceHint: "CC-BY-4.0", ListingURL: "https://x/1"},
+	}
+
+	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jobContext{asset: *asset, libraryID: 1})
+
+	var got models.Asset
+	if err := db.First(&got, asset.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Description != "A fetched description." {
+		t.Fatalf("description %q: the listing was not applied, so the licence was never at risk", got.Description)
+	}
+	var kept models.Licence
+	if err := db.First(&kept, l.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.LicenceID == nil || *got.LicenceID != l.ID || kept.DetectedType != "custom" || kept.ReviewedAt == nil {
+		t.Errorf("licence_id %v, licence %+v; want the reviewed licence %d kept", got.LicenceID, kept, l.ID)
 	}
 }

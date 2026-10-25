@@ -319,21 +319,22 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 			return err
 		}
 		newImportID = nextImp.ID
-		return audit.Write(tx, audit.Entry{
+		if err := audit.Write(tx, audit.Entry{
 			LibraryID:  &lib.ID,
 			UserID:     &u.ID,
 			ActionType: "asset.import.retry",
 			TargetType: "asset",
 			TargetID:   &asset.ID,
 			Diff:       audit.Created(map[string]any{"import_id": nextImp.ID, "retried_import_id": imp.ID}),
-		})
+		}); err != nil {
+			return err
+		}
+		return h.importPool.Enqueue(tx, imports.Job{ImportID: newImportID, LibraryID: lib.ID})
 	})
 	if err != nil {
 		respond500(c, err)
 		return
 	}
-
-	h.importPool.Enqueue(imports.Job{ImportID: newImportID, LibraryID: lib.ID})
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"asset_id":  asset.ID,

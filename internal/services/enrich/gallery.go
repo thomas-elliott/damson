@@ -1,15 +1,13 @@
-package imports
+package enrich
 
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"log/slog"
 
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
@@ -17,37 +15,28 @@ import (
 // maxGalleryImages caps how many gallery images one asset holds.
 const maxGalleryImages = 8
 
-// imageFetcher is the download surface gallery storage needs — the minimal
-// slice of the metadata service both callers already provide.
-type imageFetcher interface {
-	FetchImage(ctx context.Context, rawURL string) ([]byte, string, error)
-}
-
-// StoreGalleryImages downloads listing gallery images, stores each as a raster
-// thumbnail blob, and writes asset_images rows — skipping any source URL
-// already stored for the asset. It is best-effort: an individual download or
-// render failure is logged and skipped, never returned.
-func StoreGalleryImages(ctx context.Context, db *gorm.DB, store storage.Service, fetch imageFetcher, assetID uint, urls []string) {
-	if db == nil || store == nil || fetch == nil || len(urls) == 0 {
-		return
+// fetchGallery downloads the listing's gallery images the asset doesn't hold
+// yet, up to maxGalleryImages in all, and stores each as a raster thumbnail.
+// It returns the asset_images rows to write. A download or render that fails
+// is logged and skipped.
+func fetchGallery(ctx context.Context, deps Deps, assetID uint, urls []string) ([]models.AssetImage, error) {
+	if deps.Storage == nil || deps.Images == nil || len(urls) == 0 {
+		return nil, nil
 	}
-
 	var existing []string
-	if err := db.WithContext(ctx).Model(&models.AssetImage{}).
+	if err := deps.DB.WithContext(ctx).Model(&models.AssetImage{}).
 		Where("asset_id = ?", assetID).Pluck("source_url", &existing).Error; err != nil {
-		slog.Warn("gallery: load existing", "err", err, "asset_id", assetID)
-		return
+		return nil, err
 	}
 	seen := make(map[string]bool, len(existing))
 	for _, u := range existing {
 		seen[u] = true
 	}
-	order := len(existing)
 
-	gen := &thumbnail.Generator{Storage: store}
-	stored := len(existing)
+	gen := &thumbnail.Generator{Storage: deps.Storage}
+	var rows []models.AssetImage
 	for _, u := range urls {
-		if stored >= maxGalleryImages {
+		if len(existing)+len(rows) >= maxGalleryImages {
 			break
 		}
 		if u == "" || seen[u] {
@@ -55,7 +44,7 @@ func StoreGalleryImages(ctx context.Context, db *gorm.DB, store storage.Service,
 		}
 		seen[u] = true
 
-		imgBytes, contentType, err := fetch.FetchImage(ctx, u)
+		imgBytes, contentType, err := deps.Images.FetchImage(ctx, u)
 		if err != nil {
 			slog.Warn("gallery: fetch image", "err", err, "url", u)
 			continue
@@ -71,20 +60,15 @@ func StoreGalleryImages(ctx context.Context, db *gorm.DB, store storage.Service,
 			}
 			continue
 		}
-		row := models.AssetImage{
+		rows = append(rows, models.AssetImage{
 			AssetID:     assetID,
 			SourceURL:   u,
 			ObjectKey:   res.ObjectKey,
 			ContentType: res.ContentType,
-			SortOrder:   order,
-		}
-		if err := db.WithContext(ctx).Create(&row).Error; err != nil {
-			slog.Warn("gallery: persist image", "err", err, "url", u)
-			continue
-		}
-		order++
-		stored++
+			SortOrder:   len(existing) + len(rows),
+		})
 	}
+	return rows, nil
 }
 
 // RepairGallery drops gallery rows whose object is missing from storage and
@@ -92,7 +76,7 @@ func StoreGalleryImages(ctx context.Context, db *gorm.DB, store storage.Service,
 // sweep once deleted gallery images (it did not count asset_images as a
 // reference), leaving rows that serve nothing. Safe to run on every boot:
 // with nothing missing it is one listing of thumbs/ and no fetches.
-func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetch imageFetcher) error {
+func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetch ImageFetcher) error {
 	// Rows first, then the listing: an image stored after the rows were read
 	// is in the listing, so a row written in between is never counted missing.
 	var rows []models.AssetImage
@@ -149,12 +133,18 @@ func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetc
 			slog.Warn("gallery repair: load asset", "err", err, "asset_id", assetID)
 			continue
 		}
-		var rec metadata.SourceRecord
-		if err := json.Unmarshal(asset.SourceMetadataJSON, &rec); err != nil || rec.Metadata == nil {
+		rec := SourceRecordOf(&asset)
+		if rec == nil {
 			slog.Warn("gallery repair: no readable listing to refetch from", "asset_id", assetID)
 			continue
 		}
-		StoreGalleryImages(ctx, db, store, fetch, assetID, rec.Metadata.ImageURLs)
+		rows, err := fetchGallery(ctx, Deps{DB: db, Storage: store, Images: fetch}, assetID, rec.Metadata.ImageURLs)
+		if err == nil && len(rows) > 0 {
+			err = db.WithContext(ctx).Create(&rows).Error
+		}
+		if err != nil {
+			slog.Warn("gallery repair: store images", "err", err, "asset_id", assetID)
+		}
 	}
 	return nil
 }

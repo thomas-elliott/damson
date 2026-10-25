@@ -98,6 +98,7 @@ func main() {
 
 	jobQueue, err := queue.New(context.Background(), queue.Config{
 		DSN:         os.Getenv(PostgresDSNEnv),
+		DB:          gormDB,
 		ImportDeps:  imports.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster},
 		PreviewDeps: preview.Deps{DB: gormDB, Storage: store, Broadcaster: previewBroadcaster},
 	})

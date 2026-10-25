@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -28,11 +29,10 @@ type Job struct {
 	LibraryID uint
 }
 
-// PreviewEnqueuer hands a committed version off to the preview processing
-// queue. Defined here (not as a concrete *preview.Pool) so the import package
-// depends only on the enqueue behaviour, keeping the two pipelines decoupled.
-type PreviewEnqueuer interface {
-	EnqueueVersion(libraryID, versionID uint)
+// Enqueuer puts an import job on the background queue in tx, so the job
+// commits or rolls back with the rows it is for.
+type Enqueuer interface {
+	Enqueue(tx *gorm.DB, job Job) error
 }
 
 // Deps are the long-lived collaborators every pipeline run needs. They live
@@ -44,7 +44,7 @@ type Deps struct {
 	// Previews receives each version after its asset_files are committed, so
 	// preview generation runs on its own queue instead of blocking the import.
 	// Optional — a nil enqueuer simply skips the handoff.
-	Previews PreviewEnqueuer
+	Previews preview.Enqueuer
 	// Metadata drives the auto-enrichment stage. Optional — nil skips it.
 	Metadata MetadataEnricher
 }

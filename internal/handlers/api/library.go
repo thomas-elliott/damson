@@ -211,10 +211,9 @@ func (h *Handler) patchLibrary(c *gin.Context) {
 // deleteLibrary tears down a library and every row scoped to it. Library
 // admins (or sysadmins) may call this — same gate as patchLibrary.
 //
-// FK cascades reach assets/projects/collections/tags/settings/memberships
-// from the libraries row directly, plus their child rows. The child tables
-// are also walked explicitly inside the same transaction, which the cascades
-// make redundant.
+// Deleting the libraries row removes the rest: every library-scoped table
+// references it ON DELETE CASCADE, and each asset's children cascade from
+// the asset. users.current_library_id is ON DELETE SET NULL.
 //
 // The deletion event is recorded with library_id=NULL so the row survives
 // `audit_log.library_id ON DELETE CASCADE`. The diff carries the library
@@ -234,122 +233,35 @@ func (h *Handler) deleteLibrary(c *gin.Context) {
 	}
 	actor := auth.GetUser(c)
 
-	var deletedName string
-	var memberCount int
 	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var lib models.Library
 		if err := tx.First(&lib, libID).Error; err != nil {
 			return err
 		}
-		deletedName = lib.Name
-
-		// Capture every member so we can bump their token watermark and
-		// clear current_library_id pointing at this library.
 		var memberIDs []uint
 		if err := tx.Model(&models.LibraryMembership{}).
 			Where("library_id = ?", libID).
 			Pluck("user_id", &memberIDs).Error; err != nil {
 			return err
 		}
-		memberCount = len(memberIDs)
-
-		// Walk the children the cascades would remove anyway.
-		// Order matters: leaf rows first, then the rows they reference.
-		var assetIDs []uint
-		if err := tx.Model(&models.Asset{}).
-			Where("library_id = ?", libID).
-			Pluck("id", &assetIDs).Error; err != nil {
+		var assetCount int64
+		if err := tx.Model(&models.Asset{}).Where("library_id = ?", libID).Count(&assetCount).Error; err != nil {
 			return err
-		}
-		if len(assetIDs) > 0 {
-			var versionIDs []uint
-			if err := tx.Model(&models.AssetVersion{}).
-				Where("asset_id IN ?", assetIDs).
-				Pluck("id", &versionIDs).Error; err != nil {
-				return err
-			}
-			if len(versionIDs) > 0 {
-				if err := tx.Where("asset_version_id IN ?", versionIDs).
-					Delete(&models.AssetFile{}).Error; err != nil {
-					return err
-				}
-			}
-			if err := tx.Where("asset_id IN ?", assetIDs).
-				Delete(&models.AssetVersion{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("asset_id IN ?", assetIDs).Delete(&models.AssetTag{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("asset_id IN ?", assetIDs).Delete(&models.CollectionAsset{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("asset_id IN ?", assetIDs).Delete(&models.ProjectAssetPin{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("asset_id IN ?", assetIDs).Delete(&models.Licence{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("asset_id IN ?", assetIDs).Delete(&models.AssetImport{}).Error; err != nil {
-				return err
-			}
-			// Break asset.current_version_id / asset.licence_id self-refs
-			// before the asset rows go.
-			if err := tx.Model(&models.Asset{}).
-				Where("library_id = ?", libID).
-				Updates(map[string]any{"current_version_id": nil, "licence_id": nil}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("library_id = ?", libID).Delete(&models.Asset{}).Error; err != nil {
-				return err
-			}
-		}
-		if err := tx.Where("library_id = ?", libID).Delete(&models.Project{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("library_id = ?", libID).Delete(&models.Collection{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("library_id = ?", libID).Delete(&models.Tag{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("library_id = ?", libID).Delete(&models.LibrarySettings{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("library_id = ?", libID).Delete(&models.LibraryMembership{}).Error; err != nil {
-			return err
-		}
-		// Audit_log.library_id ON DELETE CASCADE means in-library audit rows
-		// disappear with the library; this delete is redundant.
-		if err := tx.Where("library_id = ?", libID).Delete(&models.AuditLog{}).Error; err != nil {
-			return err
-		}
-		// Force every former member off the library: clear current_library_id
-		// pointing here and bump tokens_valid_after so any open tab fails
-		// 401 on its next API call instead of holding stale state.
-		if len(memberIDs) > 0 {
-			if err := tx.Model(&models.User{}).
-				Where("id IN ? AND current_library_id = ?", memberIDs, libID).
-				Update("current_library_id", nil).Error; err != nil {
-				return err
-			}
-			now := time.Now().UTC()
-			if err := tx.Model(&models.User{}).
-				Where("id IN ?", memberIDs).
-				Update("tokens_valid_after", &now).Error; err != nil {
-				return err
-			}
 		}
 		if err := tx.Delete(&lib).Error; err != nil {
 			return err
+		}
+		if len(memberIDs) > 0 {
+			if err := tx.Model(&models.User{}).
+				Where("id IN ?", memberIDs).
+				Update("tokens_valid_after", time.Now().UTC()).Error; err != nil {
+				return err
+			}
 		}
 		var actorID *uint
 		if actor != nil {
 			actorID = &actor.ID
 		}
-		// LibraryID is intentionally nil — the library row is gone, so the
-		// audit row would cascade-delete with it. Recording at server scope
-		// preserves the deletion event in /api/admin/audit.
 		return audit.Write(tx, audit.Entry{
 			LibraryID:  nil,
 			UserID:     actorID,
@@ -358,9 +270,9 @@ func (h *Handler) deleteLibrary(c *gin.Context) {
 			TargetID:   &libID,
 			Diff: audit.Deleted(map[string]any{
 				"library_id":          libID,
-				"name":                deletedName,
-				"memberships_removed": memberCount,
-				"asset_count":         len(assetIDs),
+				"name":                lib.Name,
+				"memberships_removed": len(memberIDs),
+				"asset_count":         assetCount,
 			}),
 		})
 	})

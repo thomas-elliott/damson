@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -10,6 +9,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/assets"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/tags"
@@ -73,17 +73,12 @@ func (h *Handler) postBulkAssets(c *gin.Context) {
 		return
 	}
 
-	detectedType := req.DetectedType
-	attrs := req.Attributes
-	canonicalDiff := ""
-	var confidence float32
-	if req.Action == "set_licence" && (req.UseDetected || detectedType == "") {
-		r := licence.Detect(req.OriginalText)
-		detectedType = r.DetectedType
-		canonicalDiff = r.CanonicalDiff
-		confidence = r.DetectionConfidence
-		if req.UseDetected {
-			attrs = r.Attributes
+	var lic models.Licence
+	if req.Action == "set_licence" {
+		var err error
+		if lic, err = requestedLicence(req.OriginalText, req.DetectedType, req.Attributes, req.UseDetected); err != nil {
+			respond500(c, err)
+			return
 		}
 	}
 
@@ -125,7 +120,7 @@ func (h *Handler) postBulkAssets(c *gin.Context) {
 			)
 			switch req.Action {
 			case "delete":
-				err = deleteAssetTx(tx, lib.ID, u.ID, id)
+				err = assets.Delete(tx, lib.ID, u.ID, id)
 				changed = err == nil
 			case "review":
 				changed, err = bulkSetReview(tx, lib.ID, u.ID, id, false)
@@ -138,8 +133,9 @@ func (h *Handler) postBulkAssets(c *gin.Context) {
 			case "add_to_collection":
 				changed, err = bulkAddToCollection(tx, lib.ID, u.ID, coll.ID, id)
 			case "set_licence":
-				changed, err = bulkSetLicence(tx, lib.ID, u.ID, id, req.OriginalText,
-					detectedType, canonicalDiff, confidence, attrs)
+				l := lic
+				err = setLicenceTx(tx, lib.ID, u.ID, id, &l)
+				changed = err == nil
 			}
 			if err != nil {
 				return err
@@ -232,56 +228,5 @@ func bulkAddToCollection(tx *gorm.DB, libID, userID, collID, assetID uint) (bool
 		TargetType: "collection",
 		TargetID:   &collID,
 		Diff:       audit.Created(map[string]any{"asset_id": assetID}),
-	})
-}
-
-func bulkSetLicence(tx *gorm.DB, libID, userID, assetID uint, originalText, detectedType, canonicalDiff string, confidence float32, attrs licence.Attributes) (bool, error) {
-	var asset models.Asset
-	if err := tx.Where("id = ? AND library_id = ?", assetID, libID).First(&asset).Error; err != nil {
-		return false, err
-	}
-	var before *licenceView
-	if asset.LicenceID != nil {
-		var existing models.Licence
-		if err := tx.First(&existing, *asset.LicenceID).Error; err == nil {
-			v := licenceViewFrom(&existing)
-			before = &v
-			if err := tx.Delete(&existing).Error; err != nil {
-				return false, err
-			}
-		}
-	}
-	attrsJSON, err := json.Marshal(attrs)
-	if err != nil {
-		return false, err
-	}
-	l := models.Licence{
-		AssetID:             asset.ID,
-		DetectedType:        detectedType,
-		DetectionConfidence: confidence,
-		CanonicalDiff:       canonicalDiff,
-		OriginalText:        originalText,
-		AttributesJSON:      attrsJSON,
-	}
-	if err := tx.Create(&l).Error; err != nil {
-		return false, err
-	}
-	asset.LicenceID = &l.ID
-	if err := tx.Save(&asset).Error; err != nil {
-		return false, err
-	}
-	action := "asset.licence.set"
-	var diff any = audit.Created(licenceViewFrom(&l))
-	if before != nil {
-		action = "asset.licence.update"
-		diff = audit.Updated(before, licenceViewFrom(&l))
-	}
-	return true, audit.Write(tx, audit.Entry{
-		LibraryID:  &libID,
-		UserID:     &userID,
-		ActionType: action,
-		TargetType: "asset",
-		TargetID:   &asset.ID,
-		Diff:       diff,
 	})
 }

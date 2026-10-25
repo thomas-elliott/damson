@@ -2,6 +2,7 @@ package imports
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"testing"
 	"time"
 
@@ -10,7 +11,10 @@ import (
 
 type recordingEnqueuer struct{ jobs []Job }
 
-func (r *recordingEnqueuer) Enqueue(j Job) { r.jobs = append(r.jobs, j) }
+func (r *recordingEnqueuer) Enqueue(_ *gorm.DB, j Job) error {
+	r.jobs = append(r.jobs, j)
+	return nil
+}
 
 // An import resumes against its own version. A second, keyless version of
 // the same asset (a subset) must neither enqueue it twice nor mark it failed.
