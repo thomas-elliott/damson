@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download, FolderPlus, RefreshCw, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, X } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
 import { formatBytes } from "@/design-system/utils/format";
@@ -26,7 +26,6 @@ export interface FileDetailPanelProps {
   onNext?: () => void;
   onClose?: () => void;
   onDownload?: () => void;
-  onAddToSubset?: () => void;
   /** Current backend preview status, shown as a detail row when present. */
   previewStatus?: string;
   /** When provided, renders a "Regenerate preview" action for this file. */
@@ -59,7 +58,6 @@ export function FileDetailPanel({
   onNext,
   onClose,
   onDownload,
-  onAddToSubset,
   previewStatus,
   onRequeuePreview,
   requeuePending,
@@ -113,11 +111,6 @@ export function FileDetailPanel({
           <Button variant="secondary" size="sm" onClick={onDownload}>
             <Download size={12} /> Download
           </Button>
-          {onAddToSubset && (
-            <Button variant="secondary" size="sm" onClick={onAddToSubset}>
-              <FolderPlus size={12} /> Add to subset
-            </Button>
-          )}
           {onRequeuePreview && (
             <Button
               variant="secondary"

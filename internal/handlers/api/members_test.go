@@ -1,8 +1,16 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
 )
@@ -125,5 +133,78 @@ func TestDeleteLibraryMember_RemovesMember(t *testing.T) {
 	}
 	if refreshed.CurrentLibraryID != nil {
 		t.Fatalf("expected current_library_id cleared, got %+v", refreshed.CurrentLibraryID)
+	}
+}
+
+// holdAdminCounts makes each caller wait, after counting a library's admins,
+// until both have counted or a moment has passed. It lines two requests up on
+// the window between the last-admin check and the write.
+func holdAdminCounts(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	var calls atomic.Int32
+	var arrived sync.WaitGroup
+	arrived.Add(2)
+	err := db.Callback().Query().After("gorm:query").Register("test:hold_admin_counts", func(d *gorm.DB) {
+		sql := d.Statement.SQL.String()
+		if d.Statement.Table != "library_memberships" || !strings.Contains(sql, "role =") || strings.Contains(sql, "user_id") {
+			return
+		}
+		if calls.Add(1) > 2 {
+			return
+		}
+		arrived.Done()
+		both := make(chan struct{})
+		go func() { arrived.Wait(); close(both) }()
+		select {
+		case <-both:
+		case <-time.After(500 * time.Millisecond):
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Two admins demoting or removing each other at once must leave one admin.
+func TestLibraryMember_ConcurrentChangesKeepAnAdmin(t *testing.T) {
+	cases := map[string]struct {
+		method string
+		body   any
+	}{
+		"demote": {http.MethodPatch, patchMemberRequest{Role: "member"}},
+		"remove": {http.MethodDelete, nil},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			h, db := newTestHandler(t)
+			a := seedUser(t, db, "a@example.com")
+			lib := seedLibraryAndSwitch(t, h, a)
+			b := seedUser(t, db, "b@example.com")
+			seedMembership(t, db, lib.ID, b.ID, "admin")
+			holdAdminCounts(t, db)
+
+			codes := make([]int, 2)
+			var done sync.WaitGroup
+			for i, pair := range [][2]*models.User{{a, b}, {b, a}} {
+				done.Add(1)
+				go func() {
+					defer done.Done()
+					path := fmt.Sprintf("/api/libraries/%d/members/%d", lib.ID, pair[1].ID)
+					codes[i] = performRequest(setupRouter(h, pair[0]), tc.method, path, tc.body).Code
+				}()
+			}
+			done.Wait()
+
+			var admins int64
+			if err := db.Model(&models.LibraryMembership{}).Where("library_id = ? AND role = ?", lib.ID, "admin").Count(&admins).Error; err != nil {
+				t.Fatal(err)
+			}
+			if admins != 1 {
+				t.Fatalf("%d admins left (statuses %v), want 1", admins, codes)
+			}
+			if !slices.Contains(codes, http.StatusConflict) {
+				t.Errorf("statuses %v, want one 409", codes)
+			}
+		})
 	}
 }

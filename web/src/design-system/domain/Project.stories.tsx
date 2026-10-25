@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { LicenceBar } from "./LicenceBar";
 import { ProjectCard, ProjectCardNew } from "./ProjectCard";
 import { ProjectGlyph } from "./ProjectGlyph";
-import { ProjectListRow } from "./ProjectListRow";
 import { PROJECT_FIXTURES } from "./_fixtures";
 
 const meta: Meta = {
@@ -43,32 +42,6 @@ export const Cards: Story = {
         </ProjectCard>
       ))}
       <ProjectCardNew />
-    </div>
-  ),
-};
-
-export const List: Story = {
-  parameters: { layout: "padded" },
-  render: () => (
-    <div className="overflow-hidden rounded-md border border-border bg-background">
-      {PROJECT_FIXTURES.map((p) => (
-        <ProjectListRow
-          key={p.id}
-          name={p.name}
-          glyph={p.glyph}
-          color={p.color}
-          style={{
-            gridTemplateColumns: "2fr 1fr 1.5fr 1fr",
-          }}
-          cells={[
-            <span className="text-mono text-subtle-foreground">{p.engine}</span>,
-            <span className="truncate text-mono text-subtle-foreground">{p.path}</span>,
-            <span className="text-mono text-subtle-foreground">
-              {p.assets} assets · {p.updated}
-            </span>,
-          ]}
-        />
-      ))}
     </div>
   ),
 };

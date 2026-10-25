@@ -48,10 +48,10 @@ func TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			w := performGET(r, fmt.Sprintf("/api/assets/%d/licence", asset.ID))
+			w := performGET(r, fmt.Sprintf("/api/assets/%d", asset.ID))
 			requireStatus(t, w, http.StatusOK)
-			if got := jsonResponse[licenceView](t, w).Status; got != tc.want {
-				t.Fatalf("detail status %q, want %q", got, tc.want)
+			if lic := jsonResponse[assetDetailView](t, w).Licence; lic == nil || lic.Status != tc.want {
+				t.Fatalf("detail licence %+v, want status %q", lic, tc.want)
 			}
 
 			w = performGET(r, "/api/assets")

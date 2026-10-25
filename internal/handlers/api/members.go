@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
@@ -231,36 +232,16 @@ func (h *Handler) patchLibraryMember(c *gin.Context) {
 		return
 	}
 
-	var mem models.LibraryMembership
-	err := h.db.WithContext(c.Request.Context()).
-		Where("library_id = ? AND user_id = ?", libID, userID).
-		First(&mem).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		respond404(c, "membership not found")
-		return
-	}
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-	if mem.Role == "admin" && role != "admin" {
-		var adminCount int64
-		if err := h.db.WithContext(c.Request.Context()).
-			Model(&models.LibraryMembership{}).
-			Where("library_id = ? AND role = ?", libID, "admin").
-			Count(&adminCount).Error; err != nil {
-			respond500(c, err)
-			return
-		}
-		if adminCount <= 1 {
-			respond409(c, "cannot demote the last admin")
-			return
-		}
-	}
-
 	actor := auth.GetUser(c)
-	beforeRole := mem.Role
-	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		mem, admins, err := lockMembership(tx, libID, userID)
+		if err != nil {
+			return err
+		}
+		if mem.Role == "admin" && role != "admin" && admins <= 1 {
+			return errConflictf("cannot demote the last admin")
+		}
+		beforeRole := mem.Role
 		mem.Role = role
 		if err := tx.Save(&mem).Error; err != nil {
 			return err
@@ -279,7 +260,7 @@ func (h *Handler) patchLibraryMember(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c, err)
+		respondGORM(c, err, "membership not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"user_id": userID, "role": role})
@@ -302,35 +283,15 @@ func (h *Handler) deleteLibraryMember(c *gin.Context) {
 		return
 	}
 
-	var mem models.LibraryMembership
-	err := h.db.WithContext(c.Request.Context()).
-		Where("library_id = ? AND user_id = ?", libID, userID).
-		First(&mem).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		respond404(c, "membership not found")
-		return
-	}
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-	if mem.Role == "admin" {
-		var adminCount int64
-		if err := h.db.WithContext(c.Request.Context()).
-			Model(&models.LibraryMembership{}).
-			Where("library_id = ? AND role = ?", libID, "admin").
-			Count(&adminCount).Error; err != nil {
-			respond500(c, err)
-			return
-		}
-		if adminCount <= 1 {
-			respond409(c, "cannot remove the last admin")
-			return
-		}
-	}
-
 	actor := auth.GetUser(c)
-	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		mem, admins, err := lockMembership(tx, libID, userID)
+		if err != nil {
+			return err
+		}
+		if mem.Role == "admin" && admins <= 1 {
+			return errConflictf("cannot remove the last admin")
+		}
 		if err := tx.Delete(&mem).Error; err != nil {
 			return err
 		}
@@ -367,10 +328,25 @@ func (h *Handler) deleteLibraryMember(c *gin.Context) {
 		})
 	})
 	if err != nil {
-		respond500(c, err)
+		respondGORM(c, err, "membership not found")
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// lockMembership loads a membership and counts the library's admins, holding
+// a lock on the admin rows until tx ends. Two admins demoting each other at
+// once then see each other's change, so one of them hits the last-admin check.
+func lockMembership(tx *gorm.DB, libID, userID uint) (models.LibraryMembership, int, error) {
+	var admins []models.LibraryMembership
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("library_id = ? AND role = ?", libID, "admin").
+		Find(&admins).Error; err != nil {
+		return models.LibraryMembership{}, 0, err
+	}
+	var mem models.LibraryMembership
+	err := tx.Where("library_id = ? AND user_id = ?", libID, userID).First(&mem).Error
+	return mem, len(admins), err
 }
 
 // userCanAdminLibrary returns true when the authenticated user is either

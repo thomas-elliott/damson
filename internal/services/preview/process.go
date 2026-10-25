@@ -13,8 +13,8 @@ import (
 )
 
 // Publisher receives a per-version rollup whenever a file's preview status
-// changes. The Broadcaster (pool.go) implements it; a nil Publisher disables
-// live updates without affecting persistence.
+// changes. Broadcaster implements it; a nil Publisher disables live updates
+// without affecting persistence.
 type Publisher interface {
 	Publish(libraryID uint, ev Event)
 }

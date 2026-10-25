@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -299,60 +298,6 @@ func TestMetadataFetch_StoresGalleryImages(t *testing.T) {
 	}
 	tw := performGET(r, "/api/thumbs/"+detail.Images[0].ObjectKey)
 	requireStatus(t, tw, http.StatusOK)
-}
-
-func TestMetadataGalleryBackfill(t *testing.T) {
-	h, db := newTestHandler(t)
-	h.metadata = &fakeMetadata{img: tinyPNG(t), imgCT: "image/png"}
-	u := seedUser(t, db, "t@example.com")
-	lib := seedLibraryForUser(t, db, u, "Personal")
-	asset := seedAsset(t, db, lib.ID, "asset")
-	rec := metadata.SourceRecord{
-		Store:    metadata.StoreUnity,
-		Metadata: &metadata.Metadata{ImageURLs: []string{"https://cdn.example.com/1.jpg", "https://cdn.example.com/2.jpg"}},
-	}
-	blob, err := json.Marshal(rec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	asset.SourceMetadataJSON = blob
-	if err := db.Save(asset).Error; err != nil {
-		t.Fatal(err)
-	}
-
-	r := setupRouter(h, u)
-	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/gallery/backfill", nil)
-	requireStatus(t, w, http.StatusOK)
-	resp := jsonResponse[galleryBackfillResponse](t, w)
-	if resp.Stored != 2 || resp.Total != 2 {
-		t.Fatalf("backfill result: %+v", resp)
-	}
-	var count int64
-	db.Model(&models.AssetImage{}).Where("asset_id = ?", asset.ID).Count(&count)
-	if count != 2 {
-		t.Fatalf("expected 2 gallery images, got %d", count)
-	}
-
-	// Idempotent: a second backfill stores nothing new.
-	w2 := performRequest(r, http.MethodPost, "/api/assets/1/metadata/gallery/backfill", nil)
-	requireStatus(t, w2, http.StatusOK)
-	resp2 := jsonResponse[galleryBackfillResponse](t, w2)
-	if resp2.Stored != 0 || resp2.Total != 2 {
-		t.Fatalf("second backfill should be a no-op: %+v", resp2)
-	}
-}
-
-func TestMetadataGalleryBackfill_NoMetadata(t *testing.T) {
-	h, db := newTestHandler(t)
-	h.metadata = &fakeMetadata{}
-	u := seedUser(t, db, "t@example.com")
-	lib := seedLibraryForUser(t, db, u, "Personal")
-	seedAsset(t, db, lib.ID, "asset")
-
-	r := setupRouter(h, u)
-	w := performRequest(r, http.MethodPost, "/api/assets/1/metadata/gallery/backfill", nil)
-	// No stored source metadata → 409, nothing to backfill from.
-	requireStatus(t, w, http.StatusConflict)
 }
 
 func TestMetadataFetch_AttachesTags(t *testing.T) {
