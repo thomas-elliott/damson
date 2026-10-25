@@ -33,7 +33,7 @@ Playwright browsers come from `just install`; there is no separate recipe for th
 
 ### Formatting & linting
 - Always run `just format` (or `just format backend`) before committing. No hand-formatting.
-- `just lint` must pass — `go vet` on the Go side. No additional Go linter is configured.
+- `just lint` must pass — on the Go side, `go vet` and golangci-lint with `errorlint`, `contextcheck` and `unused` (`.golangci.yml`). golangci-lint is pinned as a Go tool in `go.mod`, so `just lint backend` needs no separate install.
 - `just check fast` is the read-only gate: lint + format check + `go mod tidy` drift. CI fails on `go.mod` / `go.sum` drift, so run it before pushing.
 - Standard gofmt import grouping: stdlib, third-party, local.
 - Package names: lowercase, short, descriptive. File names snake_case when needed.
