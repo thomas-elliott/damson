@@ -101,3 +101,10 @@ Mode: committing — feature branch `dam-59-backend-hygiene`, one commit per sta
   (`errors.Join`), rather than stopping at the first.
 - `cmd/server/main.go`: `DAMSON_LOG_LEVEL` and `DAMSON_LOG_FORMAT` are rejected when unknown, the
   same as values `config.Load` reads.
+- `internal/handlers/api/imports.go`: the server's `BaseContext` carries the stopping signal as a
+  value (`api.WithServerStopping`) rather than being cancelled, so shutdown ends the SSE streams
+  and lets uploads and other in-flight requests finish; `Broadcaster.Close`, which did this job
+  before, is deleted.
+- `cmd/server/main.go`: background goroutines run on a plain `errgroup.Group`, not
+  `WithContext`, so one failing does not cancel the others; the wait is bounded by the 10s
+  shutdown timeout.
