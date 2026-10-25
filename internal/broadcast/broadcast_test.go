@@ -1,4 +1,4 @@
-package imports
+package broadcast
 
 import (
 	"sync"
@@ -7,19 +7,19 @@ import (
 )
 
 func TestBroadcaster_FansOutToSubscribers(t *testing.T) {
-	b := NewBroadcaster()
+	b := New("test", func(int) []any { return nil })
 
 	chA, unA := b.Subscribe(1)
 	defer unA()
 	chB, unB := b.Subscribe(1)
 	defer unB()
 
-	b.Publish(1, Event{ID: 7, Stage: StageExtracting})
+	b.Publish(1, 7)
 
-	for i, ch := range []<-chan Event{chA, chB} {
+	for i, ch := range []<-chan int{chA, chB} {
 		select {
 		case ev := <-ch:
-			if ev.ID != 7 || ev.Stage != StageExtracting {
+			if ev != 7 {
 				t.Fatalf("subscriber %d: %+v", i, ev)
 			}
 		case <-time.After(time.Second):
@@ -29,11 +29,11 @@ func TestBroadcaster_FansOutToSubscribers(t *testing.T) {
 }
 
 func TestBroadcaster_IgnoresOtherLibraries(t *testing.T) {
-	b := NewBroadcaster()
+	b := New("test", func(int) []any { return nil })
 	ch, unsub := b.Subscribe(1)
 	defer unsub()
 
-	b.Publish(2, Event{ID: 9})
+	b.Publish(2, 9)
 
 	select {
 	case ev := <-ch:
@@ -43,7 +43,7 @@ func TestBroadcaster_IgnoresOtherLibraries(t *testing.T) {
 }
 
 func TestBroadcaster_UnsubscribeStopsDelivery(t *testing.T) {
-	b := NewBroadcaster()
+	b := New("test", func(int) []any { return nil })
 	ch, unsub := b.Subscribe(1)
 
 	unsub()
@@ -59,11 +59,11 @@ func TestBroadcaster_UnsubscribeStopsDelivery(t *testing.T) {
 
 	// Publishing after unsubscribe is a no-op (must not panic on closed
 	// channel, must not block).
-	b.Publish(1, Event{ID: 1})
+	b.Publish(1, 1)
 }
 
 func TestBroadcaster_DropsOnFullBuffer(t *testing.T) {
-	b := NewBroadcaster()
+	b := New("test", func(int) []any { return nil })
 	ch, unsub := b.Subscribe(1)
 	defer unsub()
 
@@ -74,7 +74,7 @@ func TestBroadcaster_DropsOnFullBuffer(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < overflow; i++ {
-			b.Publish(1, Event{ID: uint(i)})
+			b.Publish(1, i)
 		}
 	}()
 	wg.Wait()
@@ -93,5 +93,53 @@ loop:
 	}
 	if count == 0 {
 		t.Fatalf("expected at least one delivered event, got 0")
+	}
+}
+
+// An SSE client disconnecting unsubscribes while a job publishes. The
+// send must never reach a channel the unsubscribe has closed.
+func TestBroadcaster_UnsubscribeDuringPublishDoesNotPanic(t *testing.T) {
+	b := New("test", func(int) []any { return nil })
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for p := 0; p < 4; p++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					b.Publish(1, 1)
+				}
+			}
+		}()
+	}
+	for i := 0; i < 20000; i++ {
+		_, unsub := b.Subscribe(1)
+		unsub()
+	}
+	close(stop)
+	wg.Wait()
+}
+
+// Close ends open streams so the server can shut down, and a stream opened
+// after it ends at once.
+func TestBroadcaster_CloseEndsSubscriptions(t *testing.T) {
+	b := New("test", func(int) []any { return nil })
+	open, unsub := b.Subscribe(1)
+
+	b.Close()
+	if _, ok := <-open; ok {
+		t.Fatal("subscription still open after Close")
+	}
+	unsub() // must not close the channel a second time
+	b.Publish(1, 1)
+
+	late, unsubLate := b.Subscribe(1)
+	defer unsubLate()
+	if _, ok := <-late; ok {
+		t.Fatal("subscription opened after Close is not closed")
 	}
 }

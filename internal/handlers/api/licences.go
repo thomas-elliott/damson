@@ -89,40 +89,6 @@ func licenceStatusSQL(alias string) string {
 		ELSE 'warn' END`
 }
 
-// getLicence returns the current licence row for an asset, or 404.
-func (h *Handler) getLicence(c *gin.Context) {
-	lib := getLibrary(c)
-	id, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-	var asset models.Asset
-	if err := h.db.WithContext(c.Request.Context()).
-		Where("id = ? AND library_id = ?", id, lib.ID).
-		First(&asset).Error; err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset not found")
-			return
-		}
-		respond500(c, err)
-		return
-	}
-	if asset.LicenceID == nil {
-		respond404(c, "no licence")
-		return
-	}
-	var l models.Licence
-	if err := h.db.WithContext(c.Request.Context()).First(&l, *asset.LicenceID).Error; err != nil {
-		if isNotFound(err) {
-			respond404(c, "no licence")
-			return
-		}
-		respond500(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, licenceViewFrom(&l))
-}
-
 type putLicenceRequest struct {
 	OriginalText string             `json:"original_text" binding:"required"`
 	DetectedType string             `json:"detected_type,omitempty"` // override; if blank, runs Detect()
@@ -289,74 +255,6 @@ func (h *Handler) postDetectLicence(c *gin.Context) {
 	}
 	r := licence.Detect(req.Text)
 	c.JSON(http.StatusOK, gin.H{
-		"detected_type":        r.DetectedType,
-		"detection_confidence": r.DetectionConfidence,
-		"canonical_diff":       r.CanonicalDiff,
-		"attributes":           r.Attributes,
-		"status":               LicenceStatusFor(r.DetectedType, r.Attributes),
-	})
-}
-
-// detectLicenceFromFiles scans an asset's current-version file manifest for
-// candidate LICENSE-like filenames, reads the first match from storage, and
-// runs detection. Returns {} when no candidate is found.
-func (h *Handler) getDetectLicenceFromFiles(c *gin.Context) {
-	lib := getLibrary(c)
-	id, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-	if h.storage == nil {
-		respond500(c, errStorageNotConfigured)
-		return
-	}
-	var asset models.Asset
-	if err := h.db.WithContext(c.Request.Context()).
-		Where("id = ? AND library_id = ?", id, lib.ID).
-		First(&asset).Error; err != nil {
-		if isNotFound(err) {
-			respond404(c, "asset not found")
-			return
-		}
-		respond500(c, err)
-		return
-	}
-	if asset.CurrentVersionID == nil {
-		c.JSON(http.StatusOK, gin.H{})
-		return
-	}
-	var files []models.AssetFile
-	if err := h.db.WithContext(c.Request.Context()).
-		Where("asset_version_id = ?", *asset.CurrentVersionID).
-		Find(&files).Error; err != nil {
-		respond500(c, err)
-		return
-	}
-	candidate := pickLicenceCandidate(files)
-	if candidate == nil {
-		c.JSON(http.StatusOK, gin.H{})
-		return
-	}
-	blob, err := h.storage.GetBlob(c.Request.Context(), candidate.ObjectKey)
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-	defer blob.Close()
-	buf := make([]byte, 128*1024)
-	n := 0
-	for n < len(buf) {
-		m, rerr := blob.Read(buf[n:])
-		n += m
-		if rerr != nil {
-			break
-		}
-	}
-	text := string(buf[:n])
-	r := licence.Detect(text)
-	c.JSON(http.StatusOK, gin.H{
-		"candidate_path":       candidate.RelativePath,
-		"original_text":        text,
 		"detected_type":        r.DetectedType,
 		"detection_confidence": r.DetectionConfidence,
 		"canonical_diff":       r.CanonicalDiff,

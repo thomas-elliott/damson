@@ -25,6 +25,18 @@ func OpenOriginal(ctx context.Context, s storage.Service, v models.AssetVersion)
 	return s.GetBlob(ctx, v.OriginalPackageObjectKey)
 }
 
+// storageReader tags a failed read of an original as a storage error, so a
+// connection lost mid-extract is retried like one lost while opening it.
+type storageReader struct{ r io.Reader }
+
+func (s storageReader) Read(p []byte) (int, error) {
+	n, err := s.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		err = fmt.Errorf("%w: %w", extract.ErrStorage, err)
+	}
+	return n, err
+}
+
 func isArchiveKind(kind string) bool {
 	return kind == "unitypackage" || kind == "zip"
 }
@@ -57,43 +69,33 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return fmt.Errorf("load job: %w", err)
 	}
 
-	publish := func(stage, errMsg string) {
-		if deps.Broadcaster == nil {
-			return
-		}
-		deps.Broadcaster.Publish(jc.libraryID, Event{
-			ID:          jc.importID,
-			AssetID:     jc.asset.ID,
-			AssetName:   jc.asset.Name,
-			Stage:       stage,
-			Error:       errMsg,
-			UpdatedAt:   time.Now().UTC(),
-			CreatedAt:   jc.asset.CreatedAt,
-			NeedsReview: jc.asset.NeedsReview,
-		})
-	}
-
 	transition := func(stage string) error {
 		if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, stage, ""); err != nil {
 			return fmt.Errorf("transition %s: %w", stage, err)
 		}
-		publish(stage, "")
+		publishStage(deps, jc, stage, "")
 		return nil
 	}
 
 	fail := func(reason string) error {
-		slog.Error("imports: pipeline failed",
+		if err := failJob(ctx, deps, jc, reason); err != nil {
+			slog.Warn("imports: persist failure", "import_id", jc.importID, "err", err)
+		}
+		return errors.New(reason)
+	}
+
+	// retry leaves the row in flight and returns the error, so the queue
+	// retries a transient failure and marks the row failed only once the
+	// attempts run out.
+	retry := func(op string, err error) error {
+		slog.Warn("imports: pipeline will retry",
 			"import_id", jc.importID,
 			"asset_id", jc.asset.ID,
 			"library_id", jc.libraryID,
-			"package_kind", jc.version.PackageKind,
 			"object_key", jc.version.OriginalPackageObjectKey,
-			"reason", reason)
-		if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageFailed, reason); err != nil {
-			slog.Warn("imports: persist failure", "import_id", jc.importID, "err", err)
-		}
-		publish(StageFailed, reason)
-		return errors.New(reason)
+			"op", op,
+			"err", err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	// A library mismatch is a terminal input error: mark failed so the queue
@@ -114,7 +116,12 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	if jc.isArchive {
 		blob, gerr := OpenOriginal(ctx, deps.Storage, jc.version)
 		if gerr != nil {
-			return fail("fetch blob: " + gerr.Error())
+			// A missing original never comes back, so only a store that
+			// could not answer is worth retrying.
+			if _, ok, herr := deps.Storage.HeadOriginal(ctx, jc.version.OriginalPackageObjectKey); herr == nil && !ok {
+				return fail("source blob missing from storage")
+			}
+			return retry("fetch blob", gerr)
 		}
 		var (
 			res  *extract.UnityResult
@@ -131,7 +138,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 					Kind:      "zip-asset",
 				},
 			}
-			res, xerr = ex.Extract(ctx, blob)
+			res, xerr = ex.Extract(ctx, storageReader{blob})
 		default:
 			ex := &extract.UnityExtractor{
 				Storage: deps.Storage,
@@ -142,9 +149,12 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 					Kind:      "unitypackage-asset",
 				},
 			}
-			res, xerr = ex.Extract(ctx, blob)
+			res, xerr = ex.Extract(ctx, storageReader{blob})
 		}
 		blob.Close()
+		if errors.Is(xerr, extract.ErrStorage) {
+			return retry("extract", xerr)
+		}
 		if xerr != nil {
 			return fail("extract: " + xerr.Error())
 		}
@@ -270,7 +280,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageDone, ""); err != nil {
 		return fail("finalize done: " + err.Error())
 	}
-	publish(StageDone, "")
+	publishStage(deps, jc, StageDone, "")
 
 	// Purge only after the import is marked done: a crash before Done would let
 	// ResumeInFlight re-run extraction against an archive we already deleted.
@@ -380,6 +390,48 @@ func looseSourceMetadata(db *gorm.DB, versionID uint, fallbackName string) (stri
 		return f.RelativePath, f.DetectedType
 	}
 	return fallbackName, ""
+}
+
+func publishStage(deps Deps, jc jobContext, stage, errMsg string) {
+	if deps.Broadcaster == nil {
+		return
+	}
+	deps.Broadcaster.Publish(jc.libraryID, Event{
+		ID:          jc.importID,
+		AssetID:     jc.asset.ID,
+		AssetName:   jc.asset.Name,
+		Stage:       stage,
+		Error:       errMsg,
+		UpdatedAt:   time.Now().UTC(),
+		CreatedAt:   jc.asset.CreatedAt,
+		NeedsReview: jc.asset.NeedsReview,
+	})
+}
+
+// failJob logs the failure, marks the row failed and publishes it.
+func failJob(ctx context.Context, deps Deps, jc jobContext, reason string) error {
+	slog.Error("imports: pipeline failed",
+		"import_id", jc.importID,
+		"asset_id", jc.asset.ID,
+		"library_id", jc.libraryID,
+		"package_kind", jc.version.PackageKind,
+		"object_key", jc.version.OriginalPackageObjectKey,
+		"reason", reason)
+	if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageFailed, reason); err != nil {
+		return err
+	}
+	publishStage(deps, jc, StageFailed, reason)
+	return nil
+}
+
+// FailImport marks an import failed once the queue has given up retrying it.
+// It logs and streams the failure the same way the pipeline does.
+func FailImport(ctx context.Context, deps Deps, importID uint, reason string) error {
+	jc, err := loadJobContext(deps.DB.WithContext(ctx), importID)
+	if err != nil {
+		return MarkImportFailed(deps.DB.WithContext(ctx), importID, reason)
+	}
+	return failJob(ctx, deps, jc, reason)
 }
 
 // updateImportStage writes a stage transition on the asset_imports row.
