@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,6 +24,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
+	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
@@ -70,6 +73,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("db open: %w", err)
 	}
+	// Deferred first, so it runs last: after the queue and the background
+	// goroutines that use the pool have stopped.
+	defer closeDB(gormDB)
 
 	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelStartup()
@@ -167,26 +173,34 @@ func run() error {
 		slog.Info("import reconcile", "enqueued", resumed)
 	}
 
-	purgeCtx, cancelPurge := context.WithCancel(context.Background())
-	defer cancelPurge()
+	// Each background goroutine logs its own failure and returns nil: a plain
+	// Group, not WithContext, so one failing does not stop the others.
+	bgCtx, cancelBackground := context.WithCancel(context.Background())
+	var background errgroup.Group
+	defer func() {
+		cancelBackground()
+		waitBackground(&background, shutdownTimeout)
+	}()
 	// Off the startup path: each refetch waits on the storefront's rate limit.
-	go func() {
-		if err := imports.RepairGallery(purgeCtx, gormDB, store, metaRegistry); err != nil {
+	background.Go(func() error {
+		if err := imports.RepairGallery(bgCtx, gormDB, store, metaRegistry); err != nil {
 			slog.Warn("gallery repair failed", "err", err)
 		}
-	}()
+		return nil
+	})
 	// Off the startup path: it reads blobs.
-	go func() {
-		if covered, err := imports.BackfillCovers(purgeCtx, gormDB, store); err != nil {
+	background.Go(func() error {
+		if covered, err := imports.BackfillCovers(bgCtx, gormDB, store); err != nil {
 			slog.Warn("cover backfill failed", "err", err)
 		} else if covered > 0 {
 			slog.Info("cover backfill", "covered", covered)
 		}
-	}()
+		return nil
+	})
 	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}
-	go purger.Run(purgeCtx)
+	background.Go(func() error { purger.Run(bgCtx); return nil })
 	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}
-	go janitor.Run(purgeCtx)
+	background.Go(func() error { janitor.Run(bgCtx); return nil })
 
 	r, err := newRouter(oidcCSPOrigin(cfg), cfg.TrustedProxies)
 	if err != nil {
@@ -230,21 +244,7 @@ func run() error {
 		return fmt.Errorf("mount spa: %w", err)
 	}
 
-	// Timeouts:
-	//   ReadHeaderTimeout — defends against slow-loris on the request line.
-	//   ReadTimeout       — covers the body too; uploads can be large so this
-	//                       is generous. Per-handler control happens via
-	//                       request context cancellation.
-	//   WriteTimeout      — bounds long-running responses (file streams).
-	//   IdleTimeout       — keeps keep-alive connections from accruing.
-	srv := &http.Server{
-		Addr:              cfg.ListenAddr,
-		Handler:           r,
-		ReadHeaderTimeout: 30 * time.Second,
-		ReadTimeout:       30 * time.Minute,
-		WriteTimeout:      30 * time.Minute,
-		IdleTimeout:       2 * time.Minute,
-	}
+	srv, stopStreams := newHTTPServer(cfg.ListenAddr, r)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -264,20 +264,72 @@ func run() error {
 		}
 	}
 
-	cancelPurge()
-	shutdown(srv, jobQueue, 10*time.Second, broadcaster.Close, previewBroadcaster.Close)
+	cancelBackground()
+	shutdown(srv, jobQueue, shutdownTimeout, stopStreams)
 	return nil
 }
 
-// shutdown stops HTTP first, ending the SSE streams so they don't hold it to
-// the timeout, and lets in-flight requests finish enqueueing their jobs. Then
+// shutdownTimeout bounds each step of shutdown.
+const shutdownTimeout = 10 * time.Second
+
+// newHTTPServer returns the server and the func that ends its SSE streams.
+// Every request context carries the streams' stopping signal (see
+// api.WithServerStopping) without being cancelled by it, so a stream ends
+// at shutdown while other in-flight requests finish.
+func newHTTPServer(addr string, h http.Handler) (*http.Server, context.CancelFunc) {
+	stopping, stopStreams := context.WithCancel(context.Background())
+	base := api.WithServerStopping(context.Background(), stopping)
+	// Timeouts:
+	//   ReadHeaderTimeout — defends against slow-loris on the request line.
+	//   ReadTimeout       — covers the body too; uploads can be large so this
+	//                       is generous. Per-handler control happens via
+	//                       request context cancellation.
+	//   WriteTimeout      — bounds long-running responses (file streams).
+	//   IdleTimeout       — keeps keep-alive connections from accruing.
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		BaseContext:       func(net.Listener) context.Context { return base },
+		ReadHeaderTimeout: 30 * time.Second,
+		ReadTimeout:       30 * time.Minute,
+		WriteTimeout:      30 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+	}, stopStreams
+}
+
+// waitBackground waits for the background goroutines, giving up after
+// timeout so a goroutine that ignores its context cannot hold the process.
+func waitBackground(g *errgroup.Group, timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		_ = g.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		slog.Warn("background goroutines still running at shutdown", "timeout", timeout)
+	}
+}
+
+func closeDB(gormDB *gorm.DB) {
+	sqlDB, err := gormDB.DB()
+	if err == nil {
+		err = sqlDB.Close()
+	}
+	if err != nil {
+		slog.Warn("db close", "err", err)
+	}
+}
+
+// shutdown stops HTTP first, ending the SSE streams through stopStreams so
+// they don't hold it to the timeout, and lets in-flight requests finish
+// enqueueing their jobs. Then
 // it drains the queue. Each step gets its own timeout; work still running
 // when one expires is abandoned, and the next boot's reconcile picks up
 // whatever remained non-terminal.
-func shutdown(srv *http.Server, jobs interface{ Stop(context.Context) error }, timeout time.Duration, closeStreams ...func()) {
-	for _, closeStream := range closeStreams {
-		srv.RegisterOnShutdown(closeStream)
-	}
+func shutdown(srv *http.Server, jobs interface{ Stop(context.Context) error }, timeout time.Duration, stopStreams func()) {
+	srv.RegisterOnShutdown(stopStreams)
 	httpCtx, cancelHTTP := context.WithTimeout(context.Background(), timeout)
 	defer cancelHTTP()
 	if err := srv.Shutdown(httpCtx); err != nil {
