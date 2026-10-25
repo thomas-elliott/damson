@@ -203,8 +203,7 @@ func (l *loader) mustGetEnv(key string) string {
 // getSecret returns the value of the named env var, or if `<key>_FILE` is set,
 // the trimmed contents of that file. Supports the Docker Secrets pattern where
 // secrets are mounted at /run/secrets/<name> and surfaced via a *_FILE env.
-// Setting both the direct var and the _FILE variant is an error — ambiguous
-// configuration is a deployment error.
+// Setting both the direct var and the _FILE variant is an error.
 func (l *loader) getSecret(key string) string {
 	direct := os.Getenv(key)
 	filePath := os.Getenv(key + "_FILE")

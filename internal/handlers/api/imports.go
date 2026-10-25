@@ -414,10 +414,7 @@ func streamImportEvents(c *gin.Context, h *Handler, libraryID uint) {
 			return
 		case <-stopping:
 			return
-		case ev, ok := <-ch:
-			if !ok {
-				return
-			}
+		case ev := <-ch:
 			if !writeSSEEvent(c.Writer, ev) {
 				return
 			}

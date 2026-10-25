@@ -53,9 +53,9 @@ func (s stubSearcher) Search(_ context.Context, _ *httpClient, _ string) ([]Cand
 
 func TestRegistrySearch_MergesAndTolerates(t *testing.T) {
 	r := newRegistry(nil, 0)
-	r.RegisterSearcher(stubSearcher{store: "a", cands: []Candidate{{Title: "A1", ListingURL: "u1", Store: "a"}}})
-	r.RegisterSearcher(stubSearcher{store: "b", err: errors.New("boom")}) // failing store must not sink the search
-	r.RegisterSearcher(stubSearcher{store: "c", cands: []Candidate{{Title: "C1", ListingURL: "u2", Store: "c"}}})
+	r.registerSearcher(stubSearcher{store: "a", cands: []Candidate{{Title: "A1", ListingURL: "u1", Store: "a"}}})
+	r.registerSearcher(stubSearcher{store: "b", err: errors.New("boom")}) // failing store must not sink the search
+	r.registerSearcher(stubSearcher{store: "c", cands: []Candidate{{Title: "C1", ListingURL: "u2", Store: "c"}}})
 
 	got, err := r.Search(context.Background(), "query")
 	if err != nil {
@@ -69,9 +69,9 @@ func TestRegistrySearch_MergesAndTolerates(t *testing.T) {
 
 func TestRegistrySearchStores_NamesTheStoresThatFailed(t *testing.T) {
 	r := newRegistry(nil, 0)
-	r.RegisterSearcher(stubSearcher{store: "unity", err: errors.New("429 too many requests")})
-	r.RegisterSearcher(stubSearcher{store: "itch", cands: []Candidate{{Title: "I1", ListingURL: "u1", Store: "itch"}}})
-	r.RegisterSearcher(stubSearcher{store: "sketchfab"})
+	r.registerSearcher(stubSearcher{store: "unity", err: errors.New("429 too many requests")})
+	r.registerSearcher(stubSearcher{store: "itch", cands: []Candidate{{Title: "I1", ListingURL: "u1", Store: "itch"}}})
+	r.registerSearcher(stubSearcher{store: "sketchfab"})
 
 	got, failed := r.SearchStores(context.Background(), "query")
 	if len(got) != 1 || len(failed) != 1 || failed[0] != "unity" {
@@ -81,7 +81,7 @@ func TestRegistrySearchStores_NamesTheStoresThatFailed(t *testing.T) {
 
 func TestRegistrySearch_EmptyQuery(t *testing.T) {
 	r := newRegistry(nil, 0)
-	r.RegisterSearcher(stubSearcher{store: "a", cands: []Candidate{{Title: "x"}}})
+	r.registerSearcher(stubSearcher{store: "a", cands: []Candidate{{Title: "x"}}})
 	got, _ := r.Search(context.Background(), "   ")
 	if len(got) != 0 {
 		t.Errorf("empty query must short-circuit, got %d", len(got))

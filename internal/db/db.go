@@ -3,9 +3,11 @@ package db
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -30,12 +32,12 @@ func Open(dsn string) (*gorm.DB, error) {
 	// and filters through this package-level hook instead.
 	logger.RecorderParamsFilter = dropParams
 	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.NewSlogLogger(slog.Default(), logger.Config{
+		Logger: quietLogger{logger.NewSlogLogger(slog.Default(), logger.Config{
 			LogLevel:                  logger.Warn,
 			SlowThreshold:             slowQuery,
 			ParameterizedQueries:      true,
 			IgnoreRecordNotFoundError: true,
-		}),
+		})},
 	})
 	if err != nil {
 		return nil, err
@@ -53,4 +55,31 @@ func Open(dsn string) (*gorm.DB, error) {
 
 func dropParams(_ context.Context, sql string, _ ...any) (string, []any) {
 	return sql, nil
+}
+
+// quietLogger drops the failures callers expect and handle: a unique
+// violation, which handlers answer with 409, and a query cut short because
+// its request went away. A slow one still logs at warn.
+type quietLogger struct{ logger.Interface }
+
+func (l quietLogger) LogMode(level logger.LogLevel) logger.Interface {
+	return quietLogger{l.Interface.LogMode(level)}
+}
+
+func (l quietLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	if expectedErr(err) {
+		err = nil
+	}
+	l.Interface.Trace(ctx, begin, fc, err)
+}
+
+// ParamsFilter keeps parameter values out of the line; without it the
+// wrapper would hide the slog logger's own filter from GORM.
+func (quietLogger) ParamsFilter(ctx context.Context, sql string, params ...any) (string, []any) {
+	return dropParams(ctx, sql, params...)
+}
+
+func expectedErr(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.Is(err, context.Canceled) || (errors.As(err, &pgErr) && pgErr.Code == "23505")
 }

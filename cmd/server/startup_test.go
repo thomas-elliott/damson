@@ -19,22 +19,20 @@ func TestMain_ConfigErrorExitsWithAnSlogLine(t *testing.T) {
 		main()
 		return
 	}
-	cases := map[string][]string{
-		"invalid": {"DAMSON_POSTGRES_DSN=postgres://unused", "DAMSON_IMPORT_QUEUE_WORKERS=abc"},
-		"missing": {"DAMSON_POSTGRES_DSN="},
-		"logging": {"DAMSON_POSTGRES_DSN=postgres://unused", "DAMSON_LOG_LEVEL=loud"},
+	cases := map[string]struct {
+		env      []string
+		variable string
+	}{
+		"invalid": {[]string{"DAMSON_POSTGRES_DSN=postgres://unused", "DAMSON_IMPORT_QUEUE_WORKERS=abc"}, "DAMSON_IMPORT_QUEUE_WORKERS"},
+		"missing": {[]string{"DAMSON_POSTGRES_DSN="}, "DAMSON_POSTGRES_DSN"},
+		"logging": {[]string{"DAMSON_POSTGRES_DSN=postgres://unused", "DAMSON_LOG_LEVEL=loud"}, "DAMSON_LOG_LEVEL"},
 	}
-	names := map[string]string{
-		"invalid": "DAMSON_IMPORT_QUEUE_WORKERS",
-		"missing": "DAMSON_POSTGRES_DSN",
-		"logging": "DAMSON_LOG_LEVEL",
-	}
-	for name, env := range cases {
+	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			cmd := exec.Command(os.Args[0], "-test.run=^TestMain_ConfigErrorExitsWithAnSlogLine$")
 			cmd.Dir = t.TempDir() // no .env to load
 			cmd.Env = append(os.Environ(), runMainEnv+"=1", "DAMSON_LOG_FORMAT=json", "DAMSON_POSTGRES_DSN_FILE=")
-			cmd.Env = append(cmd.Env, env...)
+			cmd.Env = append(cmd.Env, tc.env...)
 			var stderr strings.Builder
 			cmd.Stderr = &stderr
 			out, err := cmd.Output()
@@ -50,8 +48,8 @@ func TestMain_ConfigErrorExitsWithAnSlogLine(t *testing.T) {
 			if err := json.Unmarshal([]byte(strings.TrimSpace(string(out))), &rec); err != nil {
 				t.Fatalf("stdout is not one JSON line: %v (%q)", err, out)
 			}
-			if rec["level"] != "ERROR" || !strings.Contains(rec["err"].(string), names[name]) {
-				t.Fatalf("log line %v does not name %s at ERROR", rec, names[name])
+			if rec["level"] != "ERROR" || !strings.Contains(rec["err"].(string), tc.variable) {
+				t.Fatalf("log line %v does not name %s at ERROR", rec, tc.variable)
 			}
 		})
 	}
