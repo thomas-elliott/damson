@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/tags"
@@ -27,7 +28,7 @@ func enrichAsset(ctx context.Context, deps Deps, jc jobContext) {
 	if deps.Metadata == nil {
 		return
 	}
-	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	settings, err := library.Settings(deps.DB.WithContext(ctx), jc.libraryID)
 	if err != nil {
 		slog.Warn("enrich: load settings", "err", err, "library_id", jc.libraryID)
 		return

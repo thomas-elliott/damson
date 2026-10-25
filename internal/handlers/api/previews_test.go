@@ -15,17 +15,13 @@ import (
 // handler routes through the ImportEnqueuer/PreviewEnqueuer seam rather than a
 // concrete pool type.
 type spyPreviewEnqueuer struct {
-	versionCalls [][2]uint
-	jobCalls     []preview.Job
+	jobCalls []preview.Job
 }
 
 func (s *spyPreviewEnqueuer) Enqueue(j preview.Job) { s.jobCalls = append(s.jobCalls, j) }
-func (s *spyPreviewEnqueuer) EnqueueVersion(libraryID, versionID uint) {
-	s.versionCalls = append(s.versionCalls, [2]uint{libraryID, versionID})
-}
 
 // TestPreviewRequeue_RoutesThroughEnqueuerSeam injects a non-pool enqueuer and
-// asserts the requeue handler calls EnqueueVersion through the interface.
+// asserts the requeue handler enqueues the version through the interface.
 func TestPreviewRequeue_RoutesThroughEnqueuerSeam(t *testing.T) {
 	db := newTestDB(t)
 	store := newTestStorage(t)
@@ -56,11 +52,11 @@ func TestPreviewRequeue_RoutesThroughEnqueuerSeam(t *testing.T) {
 	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(asset.ID)+"/previews/requeue", nil)
 	requireStatus(t, w, http.StatusAccepted)
 
-	if len(spy.versionCalls) != 1 {
-		t.Fatalf("expected exactly one EnqueueVersion call through the seam, got %d", len(spy.versionCalls))
+	if len(spy.jobCalls) != 1 {
+		t.Fatalf("expected exactly one Enqueue call through the seam, got %d", len(spy.jobCalls))
 	}
-	if spy.versionCalls[0] != [2]uint{lib.ID, v.ID} {
-		t.Fatalf("EnqueueVersion args: got %v, want [%d %d]", spy.versionCalls[0], lib.ID, v.ID)
+	if want := (preview.Job{LibraryID: lib.ID, VersionID: v.ID}); spy.jobCalls[0] != want {
+		t.Fatalf("Enqueue args: got %+v, want %+v", spy.jobCalls[0], want)
 	}
 }
 

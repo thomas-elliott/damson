@@ -50,9 +50,8 @@ func (e ImportEnqueuer) Enqueue(job imports.Job) {
 	}
 }
 
-// PreviewEnqueuer inserts preview jobs into River. Satisfies both the API
-// handlers' enqueuer interface and the import pipeline's PreviewEnqueuer (the
-// import→preview handoff).
+// PreviewEnqueuer inserts preview jobs into River. It satisfies
+// preview.Enqueuer.
 type PreviewEnqueuer struct{ q *Queue }
 
 // Enqueue inserts a preview job for a specific file (or the whole version when
@@ -69,11 +68,6 @@ func (e PreviewEnqueuer) Enqueue(job preview.Job) {
 	if err != nil {
 		slog.Error("queue: enqueue preview", "version_id", job.VersionID, "file_id", job.FileID, "err", err)
 	}
-}
-
-// EnqueueVersion inserts a preview job covering every queued file in a version.
-func (e PreviewEnqueuer) EnqueueVersion(libraryID, versionID uint) {
-	e.Enqueue(preview.Job{LibraryID: libraryID, VersionID: versionID})
 }
 
 // StoreLookupEnqueuer inserts store lookup jobs into River. It satisfies the

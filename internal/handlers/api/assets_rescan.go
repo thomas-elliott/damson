@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imaging"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
@@ -172,7 +174,7 @@ func (h *Handler) rescanThumbnail(c *gin.Context, libraryID uint, asset *models.
 	if asset.ThumbnailFromStore {
 		return false
 	}
-	settings, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), libraryID)
+	settings, err := library.Settings(h.db.WithContext(c.Request.Context()), libraryID)
 	if err != nil {
 		slog.Warn("rescan: load settings", "err", err, "library_id", libraryID)
 		return false
@@ -228,25 +230,13 @@ func (h *Handler) setThumbnail(ctx context.Context, asset *models.Asset, key, co
 	return true
 }
 
-// rescanPreviews requeues backend previews for the current version, gated on
-// the library's previews_enabled toggle (skipped quietly when off, rather than
-// erroring the whole rescan). Returns how many files were queued.
+// rescanPreviews requeues backend previews for the current version, skipped
+// quietly when the library has previews off. Returns how many files were
+// queued.
 func (h *Handler) rescanPreviews(c *gin.Context, libraryID, versionID uint) int {
-	settings, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), libraryID)
-	if err != nil {
-		slog.Warn("rescan: load settings for previews", "err", err, "library_id", libraryID)
-		return 0
-	}
-	if !settings.PreviewsEnabled {
-		return 0
-	}
-	queued, err := preview.MarkVersionQueued(c.Request.Context(), h.db, versionID, 0)
-	if err != nil {
-		slog.Warn("rescan: mark previews queued", "err", err, "version_id", versionID)
-		return 0
-	}
-	if h.previewPool != nil && queued > 0 {
-		h.previewPool.EnqueueVersion(libraryID, versionID)
+	queued, err := preview.Queue(c.Request.Context(), h.db, h.previewPool, preview.Job{LibraryID: libraryID, VersionID: versionID})
+	if err != nil && !errors.Is(err, preview.ErrDisabled) {
+		slog.Warn("rescan: queue previews", "err", err, "version_id", versionID)
 	}
 	return queued
 }

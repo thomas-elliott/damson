@@ -159,7 +159,7 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 		return
 	}
 	if queuePreviews && h.previewPool != nil {
-		h.previewPool.EnqueueVersion(lib.ID, newVersion.ID)
+		h.previewPool.Enqueue(preview.Job{LibraryID: lib.ID, VersionID: newVersion.ID})
 	}
 
 	c.JSON(http.StatusCreated, gin.H{

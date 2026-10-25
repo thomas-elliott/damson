@@ -23,13 +23,6 @@ type ImportEnqueuer interface {
 	Enqueue(imports.Job)
 }
 
-// PreviewEnqueuer submits preview jobs to the background queue — either a whole
-// version or a single file. Same decoupling as ImportEnqueuer.
-type PreviewEnqueuer interface {
-	Enqueue(preview.Job)
-	EnqueueVersion(libraryID, versionID uint)
-}
-
 // StoreLookupEnqueuer queues one background store lookup by its
 // store_lookups row. Production injects River's; tests run the lookup inline.
 type StoreLookupEnqueuer interface {
@@ -47,7 +40,7 @@ type Handler struct {
 	loginRate          *auth.LoginThrottle
 	importPool         ImportEnqueuer
 	broadcaster        *imports.Broadcaster
-	previewPool        PreviewEnqueuer
+	previewPool        preview.Enqueuer
 	previewBroadcaster *preview.Broadcaster
 	metadata           metadataService // nil in tests that don't exercise enrichment
 	storeLookups       StoreLookupEnqueuer
@@ -80,7 +73,7 @@ type Deps struct {
 	// PreviewPool drains preview jobs (requeue + post-import handoff).
 	// PreviewBroadcaster fans preview rollup events to SSE subscribers. Tests
 	// that don't exercise previews can leave both nil.
-	PreviewPool        PreviewEnqueuer
+	PreviewPool        preview.Enqueuer
 	PreviewBroadcaster *preview.Broadcaster
 	// Metadata fetches + searches storefront listing metadata. Optional — a
 	// nil service disables the enrichment endpoints (they return 503).
