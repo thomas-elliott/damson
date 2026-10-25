@@ -3,12 +3,14 @@ package preview
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -26,13 +28,43 @@ type Deps struct {
 	Broadcaster Publisher
 }
 
-// MarkVersionQueued classifies a version's files and writes their starting
-// preview status: supported files become 'queued', everything else
-// 'unsupported'. With fileID != 0 only that file is (re)classified. Returns the
-// number of files left queued so callers can skip enqueuing a no-op job. Used
-// by both the import handoff and the requeue endpoints, so the supported-set
-// rule lives in exactly one place.
-func MarkVersionQueued(ctx context.Context, db *gorm.DB, versionID, fileID uint) (int, error) {
+// Enqueuer puts a preview job on the background queue.
+type Enqueuer interface {
+	Enqueue(Job)
+}
+
+// ErrDisabled is Queue's answer for a library with previews turned off.
+var ErrDisabled = errors.New("previews are disabled for this library")
+
+// Queue hands a version to the preview queue once its files are written: it
+// marks the supported files queued and the rest unsupported, then enqueues
+// the job. With job.FileID set, only that file. It returns how many files it
+// queued, or ErrDisabled, touching nothing, when the library has previews
+// off. A nil enq marks the files without enqueuing; the boot-time
+// ResumeInFlight picks them up.
+func Queue(ctx context.Context, db *gorm.DB, enq Enqueuer, job Job) (int, error) {
+	settings, err := library.Settings(db.WithContext(ctx), job.LibraryID)
+	if err != nil {
+		return 0, err
+	}
+	if !settings.PreviewsEnabled {
+		return 0, ErrDisabled
+	}
+	queued, err := markQueued(ctx, db, job.VersionID, job.FileID)
+	if err != nil {
+		return queued, err
+	}
+	if enq != nil {
+		enq.Enqueue(job)
+	}
+	return queued, nil
+}
+
+// markQueued classifies a version's files and writes their starting preview
+// status: supported files become 'queued', everything else 'unsupported'.
+// With fileID != 0 only that file is (re)classified. Returns the number of
+// files left queued.
+func markQueued(ctx context.Context, db *gorm.DB, versionID, fileID uint) (int, error) {
 	q := db.WithContext(ctx).Where("asset_version_id = ?", versionID)
 	if fileID != 0 {
 		q = q.Where("id = ?", fileID)

@@ -276,8 +276,8 @@ automatic writer (import enrichment, rescan, store lookups).
 
 ### Traps
 
-- After writing a version's `asset_files`, call `preview.MarkVersionQueued` and enqueue the
-  version. New rows default to `unsupported`, and nothing else will queue them.
+- After writing a version's `asset_files`, hand the version to `preview.Queue`. New rows default
+  to `unsupported`, and nothing else will queue them.
 
 ## Background jobs
 
