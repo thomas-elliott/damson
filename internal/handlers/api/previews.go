@@ -214,14 +214,14 @@ func (h *Handler) getPreviewEvents(c *gin.Context) {
 	ticker := time.NewTicker(sseHeartbeat)
 	defer ticker.Stop()
 	ctx := c.Request.Context()
+	stopping := serverStopping(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case ev, ok := <-ch:
-			if !ok {
-				return
-			}
+		case <-stopping:
+			return
+		case ev := <-ch:
 			if !writePreviewSSE(c.Writer, ev) {
 				return
 			}

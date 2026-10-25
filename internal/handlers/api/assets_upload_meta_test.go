@@ -10,7 +10,9 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/imports/importstest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/services/preview/previewtest"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
@@ -33,15 +35,15 @@ func (m *metaRecordingStorage) PutBlob(ctx context.Context, r io.Reader, meta st
 func newRecordingHandler(t *testing.T) (*Handler, *metaRecordingStorage, *gorm.DB) {
 	t.Helper()
 	db := newTestDB(t)
-	lfs, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
+	lfs, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("new local storage: %v", err)
 	}
 	store := &metaRecordingStorage{LocalFS: lfs}
 	bc := imports.NewBroadcaster()
 	pbc := preview.NewBroadcaster()
-	previewPool := preview.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
-	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
+	previewPool := previewtest.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
+	pool := importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	h := New(Deps{
 		DB:                 db,
 		AuthMode:           config.AuthModeOIDC,

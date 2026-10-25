@@ -400,9 +400,7 @@ func (h *Handler) deleteProject(c *gin.Context) {
 		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&p).Error; err != nil {
 			return err
 		}
-		// Explicit pin cleanup — SQLite test path doesn't honour the FK
-		// cascade that Postgres enforces, so belt-and-braces delete pins
-		// first. Idempotent in both engines.
+		// The FK cascade also removes the pins; this delete is redundant.
 		if err := tx.Where("project_id = ?", p.ID).Delete(&models.ProjectAssetPin{}).Error; err != nil {
 			return err
 		}

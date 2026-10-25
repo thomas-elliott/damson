@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -363,6 +364,25 @@ func (h *Handler) getImportEvents(c *gin.Context) {
 // neither stage transitions nor heartbeats are time-sensitive.
 const sseHeartbeat = 25 * time.Second
 
+type serverStoppingKey struct{}
+
+// WithServerStopping returns ctx carrying stopping, whose Done the SSE streams
+// watch so they end when the server shuts down. Pass the result as the
+// http.Server's BaseContext. It is a value, not a parent: cancelling stopping
+// ends the streams and leaves every other request to finish.
+func WithServerStopping(ctx, stopping context.Context) context.Context {
+	return context.WithValue(ctx, serverStoppingKey{}, stopping)
+}
+
+// serverStopping is closed once the server begins to shut down, and nil (never
+// ready) when the server set no stopping context, as in tests.
+func serverStopping(ctx context.Context) <-chan struct{} {
+	if stopping, ok := ctx.Value(serverStoppingKey{}).(context.Context); ok {
+		return stopping.Done()
+	}
+	return nil
+}
+
 func streamImportEvents(c *gin.Context, h *Handler, libraryID uint) {
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
@@ -387,14 +407,14 @@ func streamImportEvents(c *gin.Context, h *Handler, libraryID uint) {
 	ticker := time.NewTicker(sseHeartbeat)
 	defer ticker.Stop()
 	ctx := c.Request.Context()
+	stopping := serverStopping(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case ev, ok := <-ch:
-			if !ok {
-				return
-			}
+		case <-stopping:
+			return
+		case ev := <-ch:
 			if !writeSSEEvent(c.Writer, ev) {
 				return
 			}

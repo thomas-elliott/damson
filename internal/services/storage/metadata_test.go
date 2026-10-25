@@ -45,7 +45,7 @@ func TestMetaToS3(t *testing.T) {
 
 func TestLocalFS_Original_RoundTripSidecarDelete(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewLocalFS(dir, "http://localhost:8080")
+	s, err := NewLocalFS(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestMetaFromS3RoundTrip(t *testing.T) {
 
 func TestLocalFS_ListStatDelete(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewLocalFS(dir, "http://localhost:8080")
+	s, err := NewLocalFS(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestLocalFS_ListStatDelete(t *testing.T) {
 
 func TestLocalFS_PutBlob_EmptyMetaWritesNoSidecar(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewLocalFS(dir, "http://localhost:8080")
+	s, err := NewLocalFS(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

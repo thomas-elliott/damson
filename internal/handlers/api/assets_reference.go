@@ -10,7 +10,6 @@ import (
 	"unicode"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
@@ -450,10 +449,4 @@ func referenceResponseFrom(outcome string, a *models.Asset) referenceRecordRespo
 		LocationPath: derefString(a.LocationPath),
 		SourceURL:    a.SourceURL,
 	}
-}
-
-// isUniqueViolation reports whether err is Postgres's unique_violation.
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

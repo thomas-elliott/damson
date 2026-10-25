@@ -8,6 +8,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/imaging/imagingtest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/services/preview/previewtest"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
@@ -19,7 +20,7 @@ func TestBackfill_Tier2FilesImportedEarlierGainACoverAndAPreview(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			db := enrichTestDB(t)
 			ctx := context.Background()
-			store, err := storage.NewLocalFS(t.TempDir(), "")
+			store, err := storage.NewLocalFS(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -44,7 +45,7 @@ func TestBackfill_Tier2FilesImportedEarlierGainACoverAndAPreview(t *testing.T) {
 			if _, err := preview.QueueNewlySupported(ctx, db); err != nil {
 				t.Fatalf("queue previews: %v", err)
 			}
-			pool := preview.NewSync(preview.Deps{DB: db, Storage: store})
+			pool := previewtest.NewSync(preview.Deps{DB: db, Storage: store})
 			if _, err := preview.ResumeInFlight(ctx, db, pool); err != nil {
 				t.Fatalf("resume previews: %v", err)
 			}
@@ -81,7 +82,7 @@ func TestBackfillCovers_RespectsArchiveCoverRules(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			db := enrichTestDB(t)
 			ctx := context.Background()
-			store, err := storage.NewLocalFS(t.TempDir(), "")
+			store, err := storage.NewLocalFS(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,7 +119,7 @@ func TestBackfillCovers_RespectsArchiveCoverRules(t *testing.T) {
 func TestBackfillCovers_PrefersACoverLikeNameAsAZipImportDoes(t *testing.T) {
 	db := enrichTestDB(t)
 	ctx := context.Background()
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

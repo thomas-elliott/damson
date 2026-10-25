@@ -12,7 +12,7 @@ import (
 
 func TestLocalFS_PutBlob_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewLocalFS(dir, "http://localhost:8080")
+	s, err := NewLocalFS(dir)
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestLocalFS_PutBlob_RoundTrip(t *testing.T) {
 
 func TestLocalFS_PutBlob_Dedupes(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewLocalFS(dir, "http://localhost:8080")
+	s, err := NewLocalFS(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestLocalFS_PutBlob_Dedupes(t *testing.T) {
 
 func TestLocalFS_HeadBlob_Missing(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewLocalFS(dir, "http://localhost:8080")
+	s, err := NewLocalFS(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

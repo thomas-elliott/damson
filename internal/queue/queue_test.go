@@ -31,7 +31,7 @@ func newQueueEnv(t *testing.T) (*Queue, *gorm.DB, storage.Service, string) {
 	schema := testdb.NewSchemaName(t)
 	gdb := testdb.OpenSchema(t, dsn, schema, true)
 
-	store, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestWorkerTimeouts(t *testing.T) {
 	}
 }
 
-// TestQueue_PreviewJobRunsToDone proves the full Stage 2 path: rivermigrate
+// TestQueue_PreviewJobRunsToDone proves the full preview path: rivermigrate
 // creates the schema, the client starts, EnqueueVersion inserts a river_job,
 // and the preview worker drives the file to done. A broken enqueue or worker
 // wiring leaves the file queued and the wait times out.
@@ -388,7 +388,7 @@ func TestStoreLookups_RunOneAtATime(t *testing.T) {
 func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
 	gdb := testdb.NewPostgres(t)
 	importID, libID := seedImportRow(t, gdb, true)
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

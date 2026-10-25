@@ -4,9 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+
+	"github.com/thomas-elliott/damson/internal/auth"
 )
 
 // Sentinels for the "should never happen" context/config guards so a swept
@@ -120,4 +124,71 @@ func requireAdmin(c *gin.Context) bool {
 		return false
 	}
 	return true
+}
+
+func parseIDParam(c *gin.Context, key string) (uint, bool) {
+	s := c.Param(key)
+	n, err := parsePositiveID(s)
+	if err != nil {
+		respond400Msg(c, fmt.Errorf("invalid %s %q: %w", key, s, err), "invalid "+key)
+		return 0, false
+	}
+	return n, true
+}
+
+func parsePositiveID(s string) (uint, error) {
+	n, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, errors.New("must be a positive integer")
+	}
+	return uint(n), nil
+}
+
+// Page sizes for parsePagination.
+const (
+	defaultLimit = 50
+	maxLimit     = 200
+)
+
+func parsePagination(c *gin.Context) (limit, offset int) {
+	limit = defaultLimit
+	if s := c.Query("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= maxLimit {
+			limit = n
+		}
+	}
+	if s := c.Query("offset"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	return
+}
+
+// requireSysadmin gates handlers that operate on server-wide state. The
+// matching membership-level helper is requireAdmin, above.
+func requireSysadmin(c *gin.Context) bool {
+	u := auth.GetUser(c)
+	if u == nil || u.Role != "sysadmin" {
+		respondForbidden(c, "sysadmin required")
+		return false
+	}
+	return true
+}
+
+// isUniqueViolation reports whether err is Postgres's unique_violation.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func respond502(c *gin.Context, msg string) {
+	c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"error": msg})
+}
+
+func respond503(c *gin.Context, msg string) {
+	c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": msg})
 }

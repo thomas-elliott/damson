@@ -77,7 +77,7 @@ func (g *Generator) renderFont(ctx context.Context, in Input) (Result, error) {
 }
 
 // loadFontFace parses the supplied bytes as TTF/OTF and returns a face at
-// the requested point size. TTC (collections) aren't supported in v1.
+// the requested point size. TTC (collections) aren't supported.
 func loadFontFace(data []byte, size float64) (font.Face, error) {
 	parsed, err := opentype.Parse(data)
 	if err != nil {

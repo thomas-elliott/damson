@@ -1,0 +1,14 @@
+# golangci-lint, run by `just lint backend` beside go vet.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - contextcheck
+    - errorlint
+    - unused
+
+issues:
+  # Report every finding, not the first few of each kind.
+  max-issues-per-linter: 0
+  max-same-issues: 0

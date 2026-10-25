@@ -27,7 +27,7 @@ func age(t *testing.T, root, prefix, key string) {
 func newAgedEnv(t *testing.T) (string, *storage.LocalFS) {
 	t.Helper()
 	root := t.TempDir()
-	store, err := storage.NewLocalFS(root, "")
+	store, err := storage.NewLocalFS(root)
 	if err != nil {
 		t.Fatalf("local storage: %v", err)
 	}

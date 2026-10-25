@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// SketchfabAdapter fetches model metadata from Sketchfab's official,
+// sketchfabAdapter fetches model metadata from Sketchfab's official,
 // unauthenticated Data API v3.
-type SketchfabAdapter struct{}
+type sketchfabAdapter struct{}
 
 const sketchfabAPIBase = "https://api.sketchfab.com/v3/models/"
 
@@ -19,10 +19,10 @@ const sketchfabAPIBase = "https://api.sketchfab.com/v3/models/"
 // uses as the bare /models/<uid> form.
 var sketchfabUIDRE = regexp.MustCompile(`[0-9a-fA-F]{32}`)
 
-func (SketchfabAdapter) Store() string { return StoreSketchfab }
+func (sketchfabAdapter) Store() string { return StoreSketchfab }
 
 // Fetch resolves the model uid from the listing URL and reads the Data API.
-func (SketchfabAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
+func (sketchfabAdapter) Fetch(ctx context.Context, client *httpClient, rawURL string) (*Metadata, error) {
 	uid := sketchfabUID(rawURL)
 	if uid == "" {
 		return nil, fmt.Errorf("sketchfab: no model uid in %q", rawURL)

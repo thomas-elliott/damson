@@ -18,7 +18,7 @@ var hexKey = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 func newTestStorage(t *testing.T) storage.Service {
 	t.Helper()
-	s, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
+	s, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}

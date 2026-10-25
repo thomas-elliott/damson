@@ -46,18 +46,18 @@ func TestClientGet_BlocksLoopback(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(ClientOptions{})
+	c := newHTTPClient(ClientOptions{})
 	_, err := c.Get(context.Background(), srv.URL, nil)
 	if err == nil {
 		t.Fatal("expected loopback fetch to be blocked")
 	}
-	if !errors.Is(err, ErrBlockedAddress) && !strings.Contains(err.Error(), "blocked") {
+	if !errors.Is(err, errBlockedAddress) && !strings.Contains(err.Error(), "blocked") {
 		t.Errorf("expected blocked-address error, got %v", err)
 	}
 }
 
 func TestClientDo_RejectsNonHTTPScheme(t *testing.T) {
-	c := NewClient(ClientOptions{})
+	c := newHTTPClient(ClientOptions{})
 	_, err := c.Do(context.Background(), http.MethodGet, "ftp://example.com/x", nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "unsupported scheme") {
 		t.Errorf("expected unsupported-scheme error, got %v", err)

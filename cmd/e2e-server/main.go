@@ -87,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := storage.NewLocalFS(storeRoot, baseURL)
+	store, err := storage.NewLocalFS(storeRoot)
 	if err != nil {
 		slog.Error("storage", "err", err)
 		os.Exit(1)

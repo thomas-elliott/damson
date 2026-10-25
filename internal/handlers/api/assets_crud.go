@@ -726,9 +726,7 @@ func deleteAssetTx(tx *gorm.DB, libID, userID, assetID uint) error {
 		return err
 	}
 	before := map[string]any{"id": asset.ID, "name": asset.Name}
-	// Explicit child cleanup — SQLite test path doesn't honour FK
-	// cascades that Postgres enforces. No-op when Postgres has
-	// already cascaded.
+	// Explicit child cleanup, which the FK cascades make redundant.
 	var versionIDs []uint
 	if err := tx.Model(&models.AssetVersion{}).
 		Where("asset_id = ?", asset.ID).

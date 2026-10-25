@@ -15,9 +15,9 @@ func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { r
 
 // fakeStoreClient builds a Client whose every request, whatever its host, is
 // served by store. Pacing options pass through, so the limiter is the real one.
-func fakeStoreClient(t *testing.T, opts ClientOptions, store http.HandlerFunc) *Client {
+func fakeStoreClient(t *testing.T, opts ClientOptions, store http.HandlerFunc) *httpClient {
 	t.Helper()
-	c := NewClient(opts)
+	c := newHTTPClient(opts)
 	c.http.Transport = roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		rec := httptest.NewRecorder()
 		store(rec, r)

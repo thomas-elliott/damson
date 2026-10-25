@@ -10,16 +10,16 @@ import (
 	"golang.org/x/net/html"
 )
 
-// ItchAdapter fetches metadata from itch.io listing pages: JSON-LD Product +
+// itchAdapter fetches metadata from itch.io listing pages: JSON-LD Product +
 // og/twitter meta (itch omits og:title) plus the "More information" table's
 // "Asset license" row when the seller set one.
-type ItchAdapter struct{}
+type itchAdapter struct{}
 
-func (ItchAdapter) Store() string { return StoreItch }
+func (itchAdapter) Store() string { return StoreItch }
 
 // Fetch retrieves the listing HTML, runs the generic scraper, then enriches
 // with the itch-specific licence row.
-func (ItchAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
+func (itchAdapter) Fetch(ctx context.Context, client *httpClient, rawURL string) (*Metadata, error) {
 	resp, err := client.Get(ctx, rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (ItchAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*M
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("itch: fetch %s: status %d", rawURL, resp.StatusCode)
 	}
-	m := ParseHTML(resp.Body, resp.FinalURL)
+	m := parseHTML(resp.Body, resp.FinalURL)
 	m.Store = StoreItch
 	if m.ListingURL == "" {
 		m.ListingURL = resp.FinalURL

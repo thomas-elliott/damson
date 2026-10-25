@@ -7,9 +7,8 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
-// TestSearch_TsvectorMatchesNameAndDescription exercises the Postgres branch
-// of applyAssetFilters where `a.search_vector @@ to_tsquery('simple', ...)`
-// replaces the SQLite LIKE fallback. SQLite tests can't cover this — the
+// TestSearch_TsvectorMatchesNameAndDescription exercises the search branch
+// of applyAssetFilters, `a.search_vector @@ to_tsquery('simple', ...)`. The
 // search_vector column and its triggers only exist after the SQL migrations
 // run.
 func TestSearch_TsvectorMatchesNameAndDescription(t *testing.T) {
