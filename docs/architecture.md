@@ -38,7 +38,7 @@ filesystem.
 | `internal/handlers/api` | Every HTTP handler, as methods on one `*Handler` |
 | `internal/auth` | Authenticators (local, OIDC, personal access tokens), middleware and bootstrap |
 | `internal/models` | GORM structs |
-| `internal/services/*` | Domain logic: `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `licence`, `storage`, `uploads`, `audit`, `tags` |
+| `internal/services/*` | Domain logic: `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
 | `internal/queue` | River setup and job kinds |
 | `internal/config` | Every environment variable and its default |
 | `internal/{toon,axi,tagpath,importstage,importsource,unitycache,buildinfo}` | Leaf packages that the CLI shares with the server |
@@ -239,6 +239,11 @@ mounted above `<Routes>` so that uploads survive navigation.
 and tags. A `Registry` maps a URL host to a store adapter and falls back to a generic scraper.
 Auto-enrichment is the import's `enriching` stage. It fills blank fields only, apart from the name.
 Store covers and gallery images are fetched server-side and stored under `thumbs/`.
+
+`internal/services/enrich` applies a listing to an asset for every caller: import enrichment, a
+person's fetch and apply, recording a reference, and background store lookups (`enrich.Lookups`,
+which the queue runs). `Prepare` does the reads and downloads; `Plan.Write` does every write in the
+caller's transaction, so an apply that fails writes nothing.
 
 ### Traps
 

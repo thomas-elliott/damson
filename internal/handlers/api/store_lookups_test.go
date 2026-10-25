@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
@@ -23,9 +24,10 @@ func (q *heldLookups) EnqueueStoreLookup(id uint) { q.ids = append(q.ids, id) }
 // runAll runs every held lookup as the queue's worker would.
 func (q *heldLookups) runAll(t *testing.T, h *Handler) {
 	t.Helper()
+	lookups := &enrich.Lookups{DB: h.db, Storage: h.storage, Metadata: h.metadata.(enrich.LookupFetcher)}
 	for _, id := range q.ids {
-		if err := h.RunStoreLookup(context.Background(), id); err != nil {
-			t.Fatalf("RunStoreLookup(%d): %v", id, err)
+		if err := lookups.Run(context.Background(), id); err != nil {
+			t.Fatalf("Run(%d): %v", id, err)
 		}
 	}
 	q.ids = nil

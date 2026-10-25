@@ -49,3 +49,34 @@ func CompareStoreVersions(a, b []int) int {
 	}
 	return 0
 }
+
+// StoreUpdateAvailable reports whether latestStoreVersion is newer than every
+// store version the asset already holds, and returns the highest version held.
+//
+// Comparison is semantic, not textual: "1.10" is newer than "1.9". A version
+// either side that isn't dotted-numeric can't be ordered, so it is ignored
+// rather than guessed at — an unorderable latest version means "no update
+// known", never a false positive.
+func StoreUpdateAvailable(latestStoreVersion string, heldVersions []string) (available bool, highestHeld string) {
+	latest, ok := ParseStoreVersion(latestStoreVersion)
+	if !ok {
+		return false, ""
+	}
+	var best []int
+	for _, held := range heldVersions {
+		parts, ok := ParseStoreVersion(held)
+		if !ok {
+			continue
+		}
+		if best == nil || CompareStoreVersions(parts, best) > 0 {
+			best = parts
+			highestHeld = strings.TrimSpace(strings.TrimLeft(held, "vV"))
+		}
+	}
+	// An asset with no orderable version at all has nothing to compare, so it
+	// isn't reported as out of date; the user hasn't told us what they have.
+	if best == nil {
+		return false, ""
+	}
+	return CompareStoreVersions(latest, best) > 0, highestHeld
+}

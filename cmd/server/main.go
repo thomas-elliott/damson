@@ -34,6 +34,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/queue"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/preview"
@@ -132,6 +133,7 @@ func run() error {
 	previewBroadcaster := preview.NewBroadcaster()
 	broadcaster := imports.NewBroadcaster()
 	metaRegistry := metadata.Default(metadata.ClientOptions{StoreLookupInterval: cfg.StoreLookupInterval})
+	storeLookups := &enrich.Lookups{DB: gormDB, Storage: store, Metadata: metaRegistry}
 
 	// River-backed job queue. queue.New wires the import→preview handoff through
 	// River internally, so imports enqueue preview work on the preview queue.
@@ -143,6 +145,7 @@ func run() error {
 		PreviewJobTimeout: cfg.PreviewJobTimeout,
 		ImportDeps:        imports.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster, Metadata: metaRegistry},
 		PreviewDeps:       preview.Deps{DB: gormDB, Storage: store, Broadcaster: previewBroadcaster},
+		StoreLookups:      storeLookups,
 		Logger:            slog.Default(),
 	})
 	if err != nil {
@@ -183,7 +186,7 @@ func run() error {
 	}()
 	// Off the startup path: each refetch waits on the storefront's rate limit.
 	background.Go(func() error {
-		if err := imports.RepairGallery(bgCtx, gormDB, store, metaRegistry); err != nil {
+		if err := enrich.RepairGallery(bgCtx, gormDB, store, metaRegistry); err != nil {
 			slog.Warn("gallery repair failed", "err", err)
 		}
 		return nil
@@ -229,16 +232,14 @@ func run() error {
 		return fmt.Errorf("mount spa: %w", err)
 	}
 
-	// The queue starts only now: store lookup jobs run through the handler,
-	// which is built after the queue it enqueues on. Start with a long-lived
-	// context: cancelling Start's context soft-stops the client, so shutdown is
-	// driven by Stop below, not by startupCtx expiring.
-	jobQueue.SetStoreLookupRunner(h)
+	// Start with a long-lived context: cancelling Start's context soft-stops
+	// the client, so shutdown is driven by Stop below, not by startupCtx
+	// expiring.
 	if err := jobQueue.Start(context.Background()); err != nil {
 		return fmt.Errorf("queue start: %w", err)
 	}
 	slog.Info("job queue started", "import_workers", cfg.ImportQueueWorkers, "preview_workers", cfg.PreviewQueueWorkers)
-	if resumed, err := h.ResumeStoreLookups(startupCtx); err != nil {
+	if resumed, err := storeLookups.Resume(startupCtx, jobQueue.StoreLookups()); err != nil {
 		slog.Warn("store lookup reconcile failed", "err", err)
 	} else if resumed > 0 {
 		slog.Info("store lookup reconcile", "enqueued", resumed)
