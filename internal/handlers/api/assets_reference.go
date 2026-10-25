@@ -226,10 +226,9 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	}
 
 	var (
-		asset    models.Asset
-		outcome  string
-		lookupID uint
-		batch    models.StoreLookupBatch
+		asset   models.Asset
+		outcome string
+		batch   models.StoreLookupBatch
 	)
 	// recordTx records or updates the asset. It and the queued lookup commit
 	// together, so a recorded asset is never left without the lookup a rerun
@@ -323,8 +322,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
 			return err
 		}
-		lookupID, err = createStoreLookupTx(tx, batch, asset.ID)
-		return err
+		return h.queueStoreLookupTx(tx, batch, asset.ID)
 	})
 	switch {
 	case errors.Is(err, errReferenceNameRequired):
@@ -339,10 +337,6 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respondGORM(c, err, "asset or lookup batch not found")
 		return
 	}
-	if lookupID != 0 {
-		h.storeLookups.EnqueueStoreLookup(lookupID)
-	}
-
 	if meta != nil && outcome != referenceExists {
 		if err := h.applyReferenceListing(ctx, &asset, meta, link, u.ID); err != nil {
 			slog.Warn("reference: apply listing", "asset_id", asset.ID, "err", err)

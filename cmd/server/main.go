@@ -139,6 +139,7 @@ func run() error {
 	// River internally, so imports enqueue preview work on the preview queue.
 	jobQueue, err := queue.New(startupCtx, queue.Config{
 		DSN:               cfg.PostgresDSN,
+		DB:                gormDB,
 		ImportWorkers:     cfg.ImportQueueWorkers,
 		PreviewWorkers:    cfg.PreviewQueueWorkers,
 		ImportJobTimeout:  cfg.ImportJobTimeout,
@@ -151,30 +152,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("queue init: %w", err)
 	}
-	importEnqueuer := jobQueue.Imports()
-	previewEnqueuer := jobQueue.Previews()
-
 	// Reconcile: re-enqueue any non-terminal domain row without a live job.
-	// Idempotent (River dedupes by args), so it's safe every boot and covers the
-	// one-time cutover of rows that were in flight before River existed. Previews
-	// first — ResumeInFlight resets processing→queued for files a worker died on.
-	// Files an earlier build could not render (the tier-2 image formats) are
-	// queued first, so the reconcile below enqueues them with the rest.
-	if queued, err := preview.QueueNewlySupported(startupCtx, gormDB); err != nil {
-		slog.Warn("preview backfill failed", "err", err)
-	} else if queued > 0 {
-		slog.Info("preview backfill", "queued", queued)
-	}
-	if resumed, err := preview.ResumeInFlight(startupCtx, gormDB, previewEnqueuer); err != nil {
-		slog.Warn("preview reconcile failed", "err", err)
-	} else if resumed > 0 {
-		slog.Info("preview reconcile", "enqueued", resumed)
-	}
-	if resumed, err := imports.ResumeInFlight(startupCtx, gormDB, importEnqueuer); err != nil {
-		slog.Warn("import reconcile failed", "err", err)
-	} else if resumed > 0 {
-		slog.Info("import reconcile", "enqueued", resumed)
-	}
+	// Idempotent (River dedupes by args), so it's safe every boot.
+	jobQueue.Resume(startupCtx)
 
 	// Each background goroutine logs its own failure and returns nil: a plain
 	// Group, not WithContext, so one failing does not stop the others.
@@ -215,9 +195,9 @@ func run() error {
 		AuthMode:           cfg.AuthMode,
 		Local:              localAuth,
 		Storage:            store,
-		ImportPool:         importEnqueuer,
+		ImportPool:         jobQueue.Imports(),
 		Broadcaster:        broadcaster,
-		PreviewPool:        previewEnqueuer,
+		PreviewPool:        jobQueue.Previews(),
 		PreviewBroadcaster: previewBroadcaster,
 		Metadata:           metaRegistry,
 		StoreLookups:       jobQueue.StoreLookups(),
@@ -239,11 +219,6 @@ func run() error {
 		return fmt.Errorf("queue start: %w", err)
 	}
 	slog.Info("job queue started", "import_workers", cfg.ImportQueueWorkers, "preview_workers", cfg.PreviewQueueWorkers)
-	if resumed, err := storeLookups.Resume(startupCtx, jobQueue.StoreLookups()); err != nil {
-		slog.Warn("store lookup reconcile failed", "err", err)
-	} else if resumed > 0 {
-		slog.Info("store lookup reconcile", "enqueued", resumed)
-	}
 
 	srv, stopStreams := newHTTPServer(cfg.ListenAddr, r)
 

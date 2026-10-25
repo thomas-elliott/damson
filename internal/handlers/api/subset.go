@@ -139,6 +139,11 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 		if err := tx.Save(&asset).Error; err != nil {
 			return err
 		}
+		if queuePreviews && h.previewPool != nil {
+			if err := h.previewPool.Enqueue(tx, preview.Job{LibraryID: lib.ID, VersionID: newVersion.ID}); err != nil {
+				return err
+			}
+		}
 		return audit.Write(tx, audit.Entry{
 			LibraryID:  &lib.ID,
 			UserID:     &u.ID,
@@ -157,9 +162,6 @@ func (h *Handler) postAssetVersionSubset(c *gin.Context) {
 	if err != nil {
 		respond500(c, err)
 		return
-	}
-	if queuePreviews && h.previewPool != nil {
-		h.previewPool.Enqueue(preview.Job{LibraryID: lib.ID, VersionID: newVersion.ID})
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
