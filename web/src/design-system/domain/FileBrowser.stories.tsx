@@ -247,7 +247,6 @@ export const DetailPanel: Story = {
           onPrev={() => setIndex((i) => Math.max(0, i - 1))}
           onNext={() => setIndex((i) => Math.min(files.length - 1, i + 1))}
           onDownload={() => {}}
-          onAddToSubset={() => {}}
         />
       </div>
     );
@@ -260,13 +259,7 @@ export const SelectionBar: Story = {
     const [count, setCount] = useState(3);
     return (
       <div className="relative h-[200px] bg-background">
-        <FileSelectionBar
-          count={count}
-          onClear={() => setCount(0)}
-          onCreateSubset={() => {}}
-          onNewSubset={() => {}}
-          dragHint="or drag onto a subset"
-        />
+        <FileSelectionBar count={count} onClear={() => setCount(0)} onCreateSubset={() => {}} />
       </div>
     );
   },
@@ -371,8 +364,6 @@ export const FullLayout: Story = {
             count={selected.size}
             onClear={() => setSelected(new Set())}
             onCreateSubset={() => {}}
-            onNewSubset={() => {}}
-            dragHint="or drag onto a subset"
           />
         </div>
         {openNode && (
@@ -385,7 +376,6 @@ export const FullLayout: Story = {
               total={ALL_FILES.length}
               onClose={() => setOpenKey(undefined)}
               onDownload={() => {}}
-              onAddToSubset={() => {}}
             />
           </div>
         )}

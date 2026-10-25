@@ -15,6 +15,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
@@ -132,7 +133,7 @@ func (h *Handler) getImports(c *gin.Context) {
 	var rows []importScanRow
 	err := q.Session(&gorm.Session{}).
 		Select(importRowSelect).
-		Order("i.updated_at DESC").
+		Order("i.updated_at DESC, i.id DESC").
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows).Error
@@ -317,7 +318,14 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 			return err
 		}
 		newImportID = nextImp.ID
-		return nil
+		return audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "asset.import.retry",
+			TargetType: "asset",
+			TargetID:   &asset.ID,
+			Diff:       audit.Created(map[string]any{"import_id": nextImp.ID, "retried_import_id": imp.ID}),
+		})
 	})
 	if err != nil {
 		respond500(c, err)
@@ -347,38 +355,7 @@ func (h *Handler) getImportEvents(c *gin.Context) {
 		respond500(c, errRequestContextIncomplete)
 		return
 	}
-	streamImportEvents(c, h, lib.ID, 0)
-}
-
-// getImportEventsByID is the single-import variant of getImportEvents.
-// Useful for the asset detail panel to follow one upload from queued to
-// done without subscribing to the entire library feed.
-func (h *Handler) getImportEventsByID(c *gin.Context) {
-	if h.broadcaster == nil {
-		respond500(c, errBroadcasterNotConfigured)
-		return
-	}
-	lib := getLibrary(c)
-	if lib == nil {
-		respond500(c, errRequestContextIncomplete)
-		return
-	}
-	id, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-	// Library-gate the import id up front so we don't open a stream that
-	// will only ever receive other libraries' events.
-	_, found, err := imports.LoadEvent(c.Request.Context(), h.db, lib.ID, id)
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-	if !found {
-		respond404(c, "import not found")
-		return
-	}
-	streamImportEvents(c, h, lib.ID, id)
+	streamImportEvents(c, h, lib.ID)
 }
 
 // sseHeartbeat is the interval between SSE comment frames. Keeps proxies
@@ -386,7 +363,7 @@ func (h *Handler) getImportEventsByID(c *gin.Context) {
 // neither stage transitions nor heartbeats are time-sensitive.
 const sseHeartbeat = 25 * time.Second
 
-func streamImportEvents(c *gin.Context, h *Handler, libraryID, filterImportID uint) {
+func streamImportEvents(c *gin.Context, h *Handler, libraryID uint) {
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
@@ -401,9 +378,6 @@ func streamImportEvents(c *gin.Context, h *Handler, libraryID, filterImportID ui
 		slog.Warn("import events: replay snapshot", "err", err, "library_id", libraryID)
 	}
 	for _, ev := range snapshot {
-		if filterImportID != 0 && ev.ID != filterImportID {
-			continue
-		}
 		if !writeSSEEvent(c.Writer, ev) {
 			return
 		}
@@ -420,9 +394,6 @@ func streamImportEvents(c *gin.Context, h *Handler, libraryID, filterImportID ui
 		case ev, ok := <-ch:
 			if !ok {
 				return
-			}
-			if filterImportID != 0 && ev.ID != filterImportID {
-				continue
 			}
 			if !writeSSEEvent(c.Writer, ev) {
 				return

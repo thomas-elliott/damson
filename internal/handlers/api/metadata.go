@@ -255,63 +255,6 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 	})
 }
 
-type galleryBackfillResponse struct {
-	Stored int `json:"stored"`
-	Total  int `json:"total"`
-}
-
-// postAssetGalleryBackfill re-runs gallery image storage for an asset from its
-// already-persisted source metadata, so assets enriched before the gallery
-// existed get their images without a fresh storefront lookup. Idempotent:
-// StoreGalleryImages skips source URLs already stored.
-func (h *Handler) postAssetGalleryBackfill(c *gin.Context) {
-	if h.metadata == nil {
-		respond503(c, "metadata service not configured")
-		return
-	}
-	if h.storage == nil {
-		respond500(c, errStorageNotConfigured)
-		return
-	}
-	lib := getLibrary(c)
-	if lib == nil {
-		respond500(c, errRequestContextIncomplete)
-		return
-	}
-	id, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-	var asset models.Asset
-	if err := h.db.WithContext(c.Request.Context()).
-		Where("id = ? AND library_id = ?", id, lib.ID).First(&asset).Error; err != nil {
-		respondGORM(c, err, "asset not found")
-		return
-	}
-	if len(asset.SourceMetadataJSON) == 0 {
-		respond409(c, "no fetched metadata to backfill from; fetch first")
-		return
-	}
-	var rec metadata.SourceRecord
-	if err := json.Unmarshal(asset.SourceMetadataJSON, &rec); err != nil || rec.Metadata == nil {
-		respond409(c, "stored metadata is unreadable; fetch again")
-		return
-	}
-
-	ctx := c.Request.Context()
-	before := h.countAssetImages(ctx, asset.ID)
-	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, rec.Metadata.ImageURLs)
-	after := h.countAssetImages(ctx, asset.ID)
-
-	c.JSON(http.StatusOK, galleryBackfillResponse{Stored: after - before, Total: after})
-}
-
-func (h *Handler) countAssetImages(ctx context.Context, assetID uint) int {
-	var n int64
-	h.db.WithContext(ctx).Model(&models.AssetImage{}).Where("asset_id = ?", assetID).Count(&n)
-	return int(n)
-}
-
 type metadataSearchResponse struct {
 	Query      string          `json:"query"`
 	Candidates []candidateView `json:"candidates"`

@@ -381,3 +381,47 @@ func TestStoreLookups_RunOneAtATime(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+// A job that times out on its last attempt arrives with an expired context.
+// The row must still be marked failed, or it stays in flight until the next
+// start.
+func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
+	gdb := testdb.NewPostgres(t)
+	importID, libID := seedImportRow(t, gdb, true)
+	store, err := storage.NewLocalFS(t.TempDir(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := imports.NewBroadcaster()
+	ch, unsub := events.Subscribe(libID)
+	defer unsub()
+	w := &importWorker{deps: imports.Deps{DB: gdb, Storage: store, Broadcaster: events}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	<-ctx.Done()
+	job := &river.Job[ImportArgs]{
+		JobRow: &rivertype.JobRow{Attempt: 5, MaxAttempts: 5},
+		Args:   ImportArgs{ImportID: importID, LibraryID: libID},
+	}
+	if err := w.Work(ctx, job); err == nil {
+		t.Fatal("work: want the timeout returned")
+	}
+
+	var imp models.AssetImport
+	if err := gdb.First(&imp, importID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if imp.Stage != imports.StageFailed {
+		t.Fatalf("stage = %q, want %q", imp.Stage, imports.StageFailed)
+	}
+	// An open page learns the import stopped only from the stream.
+	select {
+	case ev := <-ch:
+		if ev.Stage != imports.StageFailed {
+			t.Errorf("event stage = %q, want %q", ev.Stage, imports.StageFailed)
+		}
+	default:
+		t.Error("no failed event published")
+	}
+}

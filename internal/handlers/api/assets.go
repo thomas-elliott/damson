@@ -15,6 +15,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/storage"
@@ -645,6 +646,16 @@ func (h *Handler) postReExtract(c *gin.Context) {
 			asset.ThumbnailContentType = result.ThumbContentType
 		}
 		if err := tx.Save(&asset).Error; err != nil {
+			return err
+		}
+		if err := audit.Write(tx, audit.Entry{
+			LibraryID:  &lib.ID,
+			UserID:     &u.ID,
+			ActionType: "asset.version.reextract",
+			TargetType: "asset",
+			TargetID:   &asset.ID,
+			Diff:       audit.Created(map[string]any{"version_id": source.ID, "file_count": fileCount}),
+		}); err != nil {
 			return err
 		}
 
