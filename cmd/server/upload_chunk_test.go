@@ -25,7 +25,7 @@ import (
 // token), so each is driven with its own bearer.
 func TestUploadChunk_FullSizeChunkPassesTheServerStack(t *testing.T) {
 	db := testdb.NewPostgres(t)
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("storage: %v", err)
 	}

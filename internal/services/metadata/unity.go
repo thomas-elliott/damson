@@ -16,14 +16,14 @@ import (
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 )
 
-// UnityAdapter fetches Unity Asset Store metadata via the anonymous Coveo
+// unityAdapter fetches Unity Asset Store metadata via the anonymous Coveo
 // search API — the same source that powers the store's own search. It is used
 // for both name search and fetch-by-URL (looking a product up by its id).
 //
 // The store's package pages are client-rendered (no server-side OG/JSON-LD to
 // scrape) and the GraphQL endpoint requires a CSRF handshake the public site
 // doesn't expose, so Coveo is the one reliable unauthenticated source.
-type UnityAdapter struct{}
+type unityAdapter struct{}
 
 const (
 	unityHost           = "assetstore.unity.com"
@@ -45,11 +45,11 @@ var coveoFields = []string{
 // /packages/package/<id> and /packages/<cat>/slug-<id> URL forms.
 var unityProductIDRE = regexp.MustCompile(`(\d+)/?$`)
 
-func (UnityAdapter) Store() string { return StoreUnity }
+func (unityAdapter) Store() string { return StoreUnity }
 
 // Fetch resolves the product id from the listing URL and looks it up in Coveo,
 // then reads the listing page for the screenshot gallery Coveo omits.
-func (UnityAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*Metadata, error) {
+func (unityAdapter) Fetch(ctx context.Context, client *httpClient, rawURL string) (*Metadata, error) {
 	id := unityProductID(rawURL)
 	if id == "" {
 		return nil, fmt.Errorf("unity: no product id in %q", rawURL)
@@ -78,7 +78,7 @@ func (UnityAdapter) Fetch(ctx context.Context, client *Client, rawURL string) (*
 // unityFetchListingOnly builds the metadata from the listing page alone, for a
 // listing the search index doesn't hold. The page of a deprecated listing still
 // carries a price the store no longer sells it at, so price stays blank.
-func unityFetchListingOnly(ctx context.Context, client *Client, rawURL, id string) (*Metadata, error) {
+func unityFetchListingOnly(ctx context.Context, client *httpClient, rawURL, id string) (*Metadata, error) {
 	listing, pageURL, err := unityFetchListing(ctx, client, rawURL, id)
 	if err != nil {
 		return nil, err
@@ -129,7 +129,7 @@ func unityGalleryURLs(imgs []unityProductImage, pageURL string) []string {
 }
 
 // Search queries the Unity Asset Store via Coveo.
-func (UnityAdapter) Search(ctx context.Context, client *Client, query string) ([]Candidate, error) {
+func (unityAdapter) Search(ctx context.Context, client *httpClient, query string) ([]Candidate, error) {
 	resp, err := unityCoveo(ctx, client, map[string]any{
 		"q":                 query,
 		"enableQuerySyntax": false,
@@ -162,7 +162,7 @@ type coveoResponse struct {
 // base body carries the context + field set the store's pipeline requires (a
 // query without the assetstore context is filtered to zero results); callers
 // supply q or aq plus paging via extra.
-func unityCoveo(ctx context.Context, client *Client, extra map[string]any) (*coveoResponse, error) {
+func unityCoveo(ctx context.Context, client *httpClient, extra map[string]any) (*coveoResponse, error) {
 	tokResp, err := client.Get(ctx, unityCoveoTokenURL, nil)
 	if err != nil {
 		return nil, err

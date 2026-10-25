@@ -20,7 +20,7 @@ func TestBackfill_Tier2FilesImportedEarlierGainACoverAndAPreview(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			db := enrichTestDB(t)
 			ctx := context.Background()
-			store, err := storage.NewLocalFS(t.TempDir(), "")
+			store, err := storage.NewLocalFS(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -82,7 +82,7 @@ func TestBackfillCovers_RespectsArchiveCoverRules(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			db := enrichTestDB(t)
 			ctx := context.Background()
-			store, err := storage.NewLocalFS(t.TempDir(), "")
+			store, err := storage.NewLocalFS(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,7 +119,7 @@ func TestBackfillCovers_RespectsArchiveCoverRules(t *testing.T) {
 func TestBackfillCovers_PrefersACoverLikeNameAsAZipImportDoes(t *testing.T) {
 	db := enrichTestDB(t)
 	ctx := context.Background()
-	store, err := storage.NewLocalFS(t.TempDir(), "")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
