@@ -72,17 +72,15 @@ type StoreLookupArgs struct {
 // Kind identifies the job type in the river_job table.
 func (StoreLookupArgs) Kind() string { return "store_lookup" }
 
-// StoreLookupRunner runs one queued store lookup. The API handler implements
-// it, since applying a lookup to an asset is the same work Fetch metadata does.
+// StoreLookupRunner runs one queued store lookup. *enrich.Lookups is the
+// production one.
 type StoreLookupRunner interface {
-	RunStoreLookup(ctx context.Context, lookupID uint) error
-	// FailStoreLookup records a lookup failed once River has given up on it.
-	FailStoreLookup(ctx context.Context, lookupID uint, reason string) error
+	Run(ctx context.Context, lookupID uint) error
+	// Fail records a lookup failed once River has given up on it.
+	Fail(ctx context.Context, lookupID uint, reason string) error
 }
 
-// storeLookupWorker runs store lookups. run is set by SetStoreLookupRunner
-// before the queue starts, because the handler that implements it is built
-// after the queue it enqueues on.
+// storeLookupWorker runs store lookups.
 type storeLookupWorker struct {
 	river.WorkerDefaults[StoreLookupArgs]
 	run StoreLookupRunner
@@ -90,14 +88,14 @@ type storeLookupWorker struct {
 
 func (w *storeLookupWorker) Work(ctx context.Context, job *river.Job[StoreLookupArgs]) error {
 	if w.run == nil {
-		return fmt.Errorf("queue: no store lookup runner set")
+		return fmt.Errorf("queue: no store lookup runner configured")
 	}
-	err := w.run.RunStoreLookup(ctx, job.Args.LookupID)
+	err := w.run.Run(ctx, job.Args.LookupID)
 	// On the last attempt, mark the row failed so it doesn't stay queued, and
 	// dmsn doesn't wait on it, until the next start. The job's own context may
 	// have timed out, so the mark runs without it.
 	if err != nil && job.Attempt >= job.MaxAttempts {
-		if merr := w.run.FailStoreLookup(context.WithoutCancel(ctx), job.Args.LookupID, err.Error()); merr != nil {
+		if merr := w.run.Fail(context.WithoutCancel(ctx), job.Args.LookupID, err.Error()); merr != nil {
 			slog.Warn("queue: mark store lookup failed on last attempt", "lookup_id", job.Args.LookupID, "err", merr)
 		}
 	}
@@ -167,8 +165,9 @@ type Config struct {
 	ImportJobTimeout  time.Duration
 	PreviewJobTimeout time.Duration
 
-	ImportDeps  imports.Deps
-	PreviewDeps preview.Deps
+	ImportDeps   imports.Deps
+	PreviewDeps  preview.Deps
+	StoreLookups StoreLookupRunner
 
 	Logger *slog.Logger
 
@@ -180,9 +179,8 @@ type Config struct {
 
 // Queue owns the River client and its dedicated connection pool.
 type Queue struct {
-	pool         *pgxpool.Pool
-	client       *river.Client[pgx.Tx]
-	storeLookups *storeLookupWorker
+	pool   *pgxpool.Pool
+	client *river.Client[pgx.Tx]
 }
 
 // New builds the dedicated pgxpool, applies River's schema migrations, and
@@ -206,7 +204,7 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 		return nil, fmt.Errorf("queue: migrate: %w", err)
 	}
 
-	q := &Queue{pool: pool, storeLookups: &storeLookupWorker{}}
+	q := &Queue{pool: pool}
 
 	importTimeout := cfg.ImportJobTimeout
 	if importTimeout <= 0 {
@@ -232,7 +230,7 @@ func New(ctx context.Context, cfg Config) (*Queue, error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &importWorker{deps: importDeps, timeout: importTimeout})
 	river.AddWorker(workers, &previewWorker{deps: cfg.PreviewDeps, timeout: previewTimeout})
-	river.AddWorker(workers, q.storeLookups)
+	river.AddWorker(workers, &storeLookupWorker{run: cfg.StoreLookups})
 
 	client, err := river.NewClient(driver, &river.Config{
 		Logger:     cfg.Logger,
@@ -273,9 +271,6 @@ func migrateLocked(ctx context.Context, pool *pgxpool.Pool, migrator *rivermigra
 	_, err = migrator.Migrate(ctx, rivermigrate.DirectionUp, nil)
 	return err
 }
-
-// SetStoreLookupRunner sets what runs store lookup jobs. Call it before Start.
-func (q *Queue) SetStoreLookupRunner(r StoreLookupRunner) { q.storeLookups.run = r }
 
 // Start begins fetching and working jobs.
 func (q *Queue) Start(ctx context.Context) error { return q.client.Start(ctx) }
