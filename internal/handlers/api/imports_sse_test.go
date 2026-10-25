@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thomas-elliott/damson/internal/services/ingest"
+	"github.com/thomas-elliott/damson/internal/ingest"
 )
 
 // TestGetImportEvents_StreamsBroadcasterEvents verifies that the SSE

@@ -61,7 +61,7 @@ What covers it instead:
   no retry on a rejected chunk, abort.
 - `internal/handlers/api/uploads_test.go` — the server half against real Postgres and storage, with
   the chunk size injected small so a few bytes exercise the multi-chunk path.
-- `internal/services/storage/multipart_test.go` — one contract run against both storage backends.
+- `internal/storage/multipart_test.go` — one contract run against both storage backends.
 - `cmd/dmsn/chunked_test.go` — the CLI half against a fake session server.
 
 Still unproven in a browser: the Web Worker hashing path (the unit test stubs the worker), and

@@ -14,10 +14,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/ingest"
+	"github.com/thomas-elliott/damson/internal/licence"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/ingest"
-	"github.com/thomas-elliott/damson/internal/services/licence"
-	"github.com/thomas-elliott/damson/internal/services/tags"
+	"github.com/thomas-elliott/damson/internal/tags"
 )
 
 type assetGridRow struct {

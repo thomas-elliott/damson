@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/thomas-elliott/damson/internal/enrich"
+	"github.com/thomas-elliott/damson/internal/metadata"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
 // fakeMetadata is an injectable metadataService and enrich.LookupFetcher so tests don't do

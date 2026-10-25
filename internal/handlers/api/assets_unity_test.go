@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // buildUnityPackage assembles a minimal .unitypackage-shaped tar.gz from the

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 func buildZipArchive(t *testing.T, entries map[string][]byte) []byte {

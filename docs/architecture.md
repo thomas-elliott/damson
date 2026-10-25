@@ -37,10 +37,11 @@ filesystem.
 | `database/migrations` | SQL migrations, the authoritative schema |
 | `internal/handlers/api` | Every HTTP handler, as methods on one `*Handler` |
 | `internal/auth` | Authenticators (local, OIDC, personal access tokens), middleware and bootstrap |
-| `internal/models` | GORM structs |
-| `internal/services/*` | Domain logic: `assets`, `ingest`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
+| `internal/models` | GORM structs, package kinds, `HasDownloadableOriginal` and `ObjectKeyColumns` |
+| `internal/{assets,ingest,extract,thumbnail,preview,imaging,metadata,enrich,licence,library,storage,uploads,audit,tags}` | Domain logic, one package per area |
 | `internal/queue` | River setup and job kinds |
 | `internal/config` | Every environment variable and its default |
+| `internal/{db,testdb,broadcast,web}` | The GORM connection and migration runner, the per-test Postgres schema, in-process SSE fan-out, and the embedded SPA's routes |
 | `internal/{toon,axi,tagpath,importstage,importsource,unitycache,buildinfo}` | Leaf packages that the CLI shares with the server |
 | `web/src` | The SPA: `pages/`, `components/`, `hooks/`, `lib/`, `design-system/` |
 | `tools/*.just` | The `just` modules behind every workflow |
@@ -110,7 +111,7 @@ change goes in both a new migration and the struct (see `CONVENTIONS.md`, Databa
 
 ## Object storage
 
-`internal/services/storage` provides a `local` backend (the default) and an `s3` backend
+`internal/storage` provides a `local` backend (the default) and an `s3` backend
 (path-style, for MinIO or Garage). Both use the same key layout, so a deployment can move between
 them with a plain copy. `cmd/server` picks the backend from config. `storage.Service` addresses
 every object by a `storage.Prefix` and the SHA-256 of its bytes, stored as `<prefix>/<hh>/<sha256>`:
@@ -205,14 +206,14 @@ Bytes arrive by one of two transports, which share `import_create.go`:
 
 Clients pick the transport by size. The handler creates the asset, version and import rows, stores
 the bytes, then enqueues an `import` job in the transaction that records them.
-`internal/services/ingest.Run` moves the import through the stages (`internal/importstage`):
+`internal/ingest.Run` moves the import through the stages (`internal/importstage`):
 `uploaded` → `extracting` → `detecting` → `thumbnailing` → `enriching` → `done` | `failed`.
 `asset_imports.stage` is the record. SSE on
 `/api/imports/events` only announces transitions. The steps are the `stages` list in
 `pipeline.go`, and `ingest.Reextract` runs its extract, cover and write steps on a retained Unity
 package.
 
-Extraction (`internal/services/extract`) handles `.unitypackage`, a tar of GUID bundles, and
+Extraction (`internal/extract`) handles `.unitypackage`, a tar of GUID bundles, and
 `.zip`. Both enforce size and entry-count caps and skip unsafe paths. Zip needs random access, so
 the archive is copied to a local temp file first. Thumbnailing and enrichment are best-effort and
 never fail an import. Once the files are committed, the version is handed to the preview queue.
@@ -240,12 +241,12 @@ mounted above `<Routes>` so that uploads survive navigation.
 
 ## Storefront metadata
 
-`internal/services/metadata` fetches a listing's description, publisher, licence, cover, gallery
+`internal/metadata` fetches a listing's description, publisher, licence, cover, gallery
 and tags. A `Registry` maps a URL host to a store adapter and falls back to a generic scraper.
 Auto-enrichment is the import's `enriching` stage. It fills blank fields only, apart from the name.
 Store covers and gallery images are fetched server-side and stored under `thumbs/`.
 
-`internal/services/enrich` applies a listing to an asset for every caller: import enrichment, a
+`internal/enrich` applies a listing to an asset for every caller: import enrichment, a
 person's fetch and apply, recording a reference, and background store lookups (`enrich.Lookups`,
 which the queue runs). `Prepare` does the reads and downloads; `Plan.Write` does every write in the
 caller's transaction, so an apply that fails writes nothing.
@@ -260,7 +261,7 @@ caller's transaction, so an apply that fails writes nothing.
 
 ## Licence detection
 
-`internal/services/licence` first checks a Unity Asset Store EULA fingerprint, then runs
+`internal/licence` first checks a Unity Asset Store EULA fingerprint, then runs
 `google/licensecheck`. Detection runs on demand (rescan, the licence endpoints, storefront text),
 never during import. Every licence write goes through `licence.Replace`, which keeps a reviewed licence from an
 automatic writer (import enrichment, rescan, store lookups).
@@ -275,14 +276,14 @@ automatic writer (import enrichment, rescan, store lookups).
 
 ## Thumbnails and previews
 
-- Thumbnails (`internal/services/thumbnail`) are one small image per asset, made inside the import
+- Thumbnails (`internal/thumbnail`) are one small image per asset, made inside the import
   job. Raster images are resampled, audio becomes a waveform and fonts become a sample. Each kind
   has its own library setting.
-- Previews (`internal/services/preview`) are one larger, browser-safe image per file, made on the
+- Previews (`internal/preview`) are one larger, browser-safe image per file, made on the
   `preview` queue. `asset_files.preview_status` moves through `unsupported` | `queued` |
   `processing` | `done` | `failed`. A re-render keeps the old derivative until the new one is done.
 
-`internal/services/imaging` is the shared decoder. It rejects any image above its pixel ceiling.
+`internal/imaging` is the shared decoder. It rejects any image above its pixel ceiling.
 
 ### Traps
 
@@ -324,7 +325,7 @@ publisher, tag paths and `location_path`. A second trigger on `asset_tags` re-fi
 
 ## Audit
 
-`internal/services/audit` writes `audit_log` rows for user-driven changes. A library-scoped event
+`internal/audit` writes `audit_log` rows for user-driven changes. A library-scoped event
 carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.Created`,
 `audit.Updated` and `audit.Deleted`. Retention is a per-library setting, swept by `audit.Purger`.
 
@@ -384,8 +385,8 @@ supports TOON or JSON, `--fields`, truncation and an error envelope.
 
 ### Traps
 
-- Never import `internal/services/...` from `cmd/dmsn`. It pulls GORM and the S3 SDK into the
-  client. Move the shared rule into a leaf package.
+- From `cmd/dmsn`, import only the leaf packages in the repository map. Any other `internal/`
+  package pulls GORM and the S3 SDK into the client. Move the shared rule into a leaf package.
 - Render a multi-part result in one call (`axi.RenderComposite`). Two calls emit two JSON
   documents, which do not parse as one.
 - Derive publisher and category on the server, from the raw path, so that a fix reaches every

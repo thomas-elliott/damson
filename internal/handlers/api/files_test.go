@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // An original downloads under the extension of the archive it is.

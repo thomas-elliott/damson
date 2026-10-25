@@ -15,11 +15,11 @@ import (
 	"golang.org/x/image/bmp"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/enrich"
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/ingest"
-	"github.com/thomas-elliott/damson/internal/services/preview"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/preview"
+	"github.com/thomas-elliott/damson/internal/storage"
 	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
