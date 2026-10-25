@@ -62,7 +62,8 @@ func TestPostAssetVersionSubset_CreatesNewVersionWithSubset(t *testing.T) {
 	if len(newFiles) != 2 {
 		t.Fatalf("expected 2 files in subset version, got %d", len(newFiles))
 	}
-	// asset.current_version_id flipped to the new version.
+	// Neither version has a store version, so the subset, imported last,
+	// becomes current.
 	var refreshed models.Asset
 	if err := db.First(&refreshed, asset.ID).Error; err != nil {
 		t.Fatal(err)
@@ -145,4 +146,31 @@ func TestPostAssetVersionSubset_KeepsTheSourcePreviews(t *testing.T) {
 	if copied.PreviewStatus != "done" || copied.PreviewObjectKey != "pp" || copied.PreviewContentType != "image/png" {
 		t.Fatalf("subset file preview = %q %q %q, want the source's", copied.PreviewStatus, copied.PreviewObjectKey, copied.PreviewContentType)
 	}
+}
+
+// A subset carries no store version, so it does not displace a source that
+// has one.
+func TestPostAssetVersionSubset_LeavesAStoreVersionCurrent(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "x")
+	v := models.AssetVersion{AssetID: asset.ID, StoreVersion: "1.0", PackageKind: "loose"}
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	f := models.AssetFile{AssetVersionID: v.ID, RelativePath: "a.png", SizeBytes: 1, ContentHash: "aa", ObjectKey: "aa"}
+	if err := db.Create(&f).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(asset).Update("current_version_id", v.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(asset.ID)+"/versions/"+uintStr(v.ID)+"/subset",
+		subsetRequest{FileIDs: []uint{f.ID}})
+	requireStatus(t, w, http.StatusCreated)
+
+	requireCurrentVersion(t, db, asset.ID, v.ID)
 }
