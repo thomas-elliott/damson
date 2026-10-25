@@ -5,7 +5,7 @@ import "time"
 // Event is the wire shape for the preview processing queue — a per-version
 // rollup of its files' preview statuses. Kept identical between the snapshot
 // fetch (GET /api/previews) and the live SSE stream so the frontend uses one
-// type for both, mirroring imports.Event.
+// type for both, mirroring ingest.Event.
 type Event struct {
 	VersionID   uint      `json:"version_id"`
 	AssetID     uint      `json:"asset_id"`

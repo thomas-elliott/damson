@@ -12,7 +12,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
@@ -26,8 +26,8 @@ type Handler struct {
 	local              *auth.LocalAuthenticator // non-nil only in local mode
 	storage            storage.Service          // nil in tests that don't exercise uploads
 	loginRate          *auth.LoginThrottle
-	importPool         imports.Enqueuer
-	broadcaster        *imports.Broadcaster
+	importPool         ingest.Enqueuer
+	broadcaster        *ingest.Broadcaster
 	previewPool        preview.Enqueuer
 	previewBroadcaster *preview.Broadcaster
 	metadata           metadataService // nil in tests that don't exercise enrichment
@@ -53,11 +53,11 @@ type Deps struct {
 	LoginThrottle *auth.LoginThrottle
 	// ImportPool drains async import jobs. Tests that don't exercise the
 	// import flow can leave it nil; tests that do should pass a synchronous
-	// pool (importstest.NewSync) so stage transitions stay deterministic.
-	ImportPool imports.Enqueuer
+	// pool (ingesttest.NewSync) so stage transitions stay deterministic.
+	ImportPool ingest.Enqueuer
 	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
 	// the pipeline tolerates a missing broadcaster.
-	Broadcaster *imports.Broadcaster
+	Broadcaster *ingest.Broadcaster
 	// PreviewPool drains preview jobs (requeue + post-import handoff).
 	// PreviewBroadcaster fans preview rollup events to SSE subscribers. Tests
 	// that don't exercise previews can leave both nil.

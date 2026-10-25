@@ -35,7 +35,7 @@ import (
 	"github.com/thomas-elliott/damson/internal/handlers/api"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/queue"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 )
@@ -94,12 +94,12 @@ func main() {
 	}
 
 	previewBroadcaster := preview.NewBroadcaster()
-	broadcaster := imports.NewBroadcaster()
+	broadcaster := ingest.NewBroadcaster()
 
 	jobQueue, err := queue.New(context.Background(), queue.Config{
 		DSN:         os.Getenv(PostgresDSNEnv),
 		DB:          gormDB,
-		ImportDeps:  imports.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster},
+		ImportDeps:  ingest.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster},
 		PreviewDeps: preview.Deps{DB: gormDB, Storage: store, Broadcaster: previewBroadcaster},
 	})
 	if err != nil {

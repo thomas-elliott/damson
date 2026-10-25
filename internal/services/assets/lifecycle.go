@@ -1,7 +1,7 @@
 // Package assets holds the rules for an asset's life: deleting it or one of
 // its versions, merging one asset into another, and cutting a subset version.
 // Each runs inside the caller's transaction and leaves the asset's current
-// version as imports.ChooseCurrent picks it.
+// version as ingest.ChooseCurrent picks it.
 package assets
 
 import (
@@ -13,7 +13,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 )
 
@@ -85,7 +85,7 @@ func DeleteVersion(tx *gorm.DB, libID, userID, assetID, versionID uint) error {
 	if err := tx.Delete(&models.AssetVersion{}, version.ID).Error; err != nil {
 		return err
 	}
-	if _, err := imports.ChooseCurrent(tx, asset.ID); err != nil {
+	if _, err := ingest.ChooseCurrent(tx, asset.ID); err != nil {
 		return err
 	}
 	return audit.Write(tx, audit.Entry{
@@ -181,7 +181,7 @@ func Merge(tx *gorm.DB, libID, userID, targetID, sourceID uint) (Merged, error) 
 	if err := tx.Delete(&models.Asset{}, source.ID).Error; err != nil {
 		return Merged{}, err
 	}
-	if _, err := imports.ChooseCurrent(tx, target.ID); err != nil {
+	if _, err := ingest.ChooseCurrent(tx, target.ID); err != nil {
 		return Merged{}, err
 	}
 	return Merged{Versions: len(moved), Source: source}, audit.Write(tx, audit.Entry{
@@ -306,7 +306,7 @@ func Subset(tx *gorm.DB, previews preview.Enqueuer, libID, userID, assetID, vers
 	if err := tx.Create(&rows).Error; err != nil {
 		return models.AssetVersion{}, err
 	}
-	if _, err := imports.ChooseCurrent(tx, asset.ID); err != nil {
+	if _, err := ingest.ChooseCurrent(tx, asset.ID); err != nil {
 		return models.AssetVersion{}, err
 	}
 	if queuePreviews && previews != nil {

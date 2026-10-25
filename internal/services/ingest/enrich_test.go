@@ -1,4 +1,4 @@
-package imports
+package ingest
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/testdb"
 )
@@ -62,6 +63,17 @@ func seedEnrichAsset(t *testing.T, db *gorm.DB, name string, enrich bool) *model
 	return &a
 }
 
+// enrichJob is the job context Run hands enrichAsset, with the library's
+// settings loaded.
+func enrichJob(t *testing.T, db *gorm.DB, asset *models.Asset) jobContext {
+	t.Helper()
+	settings, err := library.Settings(db, asset.LibraryID)
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+	return jobContext{asset: *asset, libraryID: asset.LibraryID, settings: settings}
+}
+
 func TestEnrichAsset_HighConfidenceFillsBlanks(t *testing.T) {
 	db := enrichTestDB(t)
 	asset := seedEnrichAsset(t, db, "Fantasy Pack", true)
@@ -74,7 +86,7 @@ func TestEnrichAsset_HighConfidenceFillsBlanks(t *testing.T) {
 			ListingURL:  "https://x/1",
 		},
 	}
-	jc := jobContext{asset: *asset, libraryID: 1}
+	jc := enrichJob(t, db, asset)
 
 	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
 
@@ -116,7 +128,7 @@ func TestEnrichAsset_AttachesTags(t *testing.T) {
 			Tags:       []string{"Fantasy", "RPG"},
 		},
 	}
-	jc := jobContext{asset: *asset, libraryID: 1}
+	jc := enrichJob(t, db, asset)
 
 	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
 
@@ -153,7 +165,7 @@ func TestEnrichAsset_ExactMatchNotFirstCandidate(t *testing.T) {
 			ListingURL:  "https://x/match",
 		},
 	}
-	jc := jobContext{asset: *asset, libraryID: 1}
+	jc := enrichJob(t, db, asset)
 
 	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
 
@@ -186,7 +198,7 @@ func TestEnrichAsset_RenamesFromStoreTitle(t *testing.T) {
 			ListingURL: "https://x/1",
 		},
 	}
-	jc := jobContext{asset: *asset, libraryID: 1}
+	jc := enrichJob(t, db, asset)
 
 	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
 
@@ -205,7 +217,7 @@ func TestEnrichAsset_LowConfidenceAbstains(t *testing.T) {
 		cands: []metadata.Candidate{{Title: "Completely Different Thing", ListingURL: "https://x/2", Store: "unity"}},
 		meta:  &metadata.Metadata{Description: "should not be applied"},
 	}
-	jc := jobContext{asset: *asset, libraryID: 1}
+	jc := enrichJob(t, db, asset)
 
 	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
 
@@ -231,7 +243,7 @@ func TestEnrichAsset_ToggleOffSkips(t *testing.T) {
 	db := enrichTestDB(t)
 	asset := seedEnrichAsset(t, db, "Fantasy Pack", false)
 	fake := &fakeEnricher{cands: []metadata.Candidate{{Title: "Fantasy Pack", ListingURL: "u"}}}
-	jc := jobContext{asset: *asset, libraryID: 1}
+	jc := enrichJob(t, db, asset)
 
 	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jc)
 
@@ -269,7 +281,7 @@ func TestEnrichAsset_KeepsAReviewedLicence(t *testing.T) {
 		meta:  &metadata.Metadata{Store: "unity", Description: "A fetched description.", LicenceHint: "CC-BY-4.0", ListingURL: "https://x/1"},
 	}
 
-	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jobContext{asset: *asset, libraryID: 1})
+	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, enrichJob(t, db, asset))
 
 	var got models.Asset
 	if err := db.First(&got, asset.ID).Error; err != nil {

@@ -1,4 +1,4 @@
-package imports
+package ingest
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func TestEnrichAsset_AuditsItsChangesAsSystem(t *testing.T) {
 		meta:  &metadata.Metadata{Store: "unity", Title: "Fantasy Pack", Description: "From the store.", ListingURL: "https://x/1"},
 	}
 
-	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, jobContext{asset: *asset, libraryID: 1})
+	enrichAsset(context.Background(), Deps{DB: db, Metadata: fake}, enrichJob(t, db, asset))
 
 	rows := systemUpdates(t, db, asset.ID)
 	if len(rows) != 1 {

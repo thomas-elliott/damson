@@ -15,8 +15,8 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/imports/importstest"
+	"github.com/thomas-elliott/damson/internal/services/ingest"
+	"github.com/thomas-elliott/damson/internal/services/ingest/ingesttest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/preview/previewtest"
 	"github.com/thomas-elliott/damson/internal/services/storage"
@@ -30,10 +30,10 @@ func newChunkedHandler(t *testing.T) (*Handler, *gorm.DB, storage.Service) {
 	t.Helper()
 	db := newTestDB(t)
 	store := newTestStorage(t)
-	bc := imports.NewBroadcaster()
+	bc := ingest.NewBroadcaster()
 	pbc := preview.NewBroadcaster()
 	previewPool := previewtest.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
-	pool := importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
+	pool := ingesttest.NewSync(ingest.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	h := New(Deps{
 		DB:                 db,
 		AuthMode:           config.AuthModeOIDC,

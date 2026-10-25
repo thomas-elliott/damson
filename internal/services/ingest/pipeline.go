@@ -1,4 +1,4 @@
-package imports
+package ingest
 
 import (
 	"context"
@@ -37,10 +37,8 @@ func (s storageReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// jobContext holds everything the pipeline needs about a job, hydrated from
-// the database at the start of Run. Centralizing the load makes Run a
-// straightforward state machine and lets resume-on-startup feed in just
-// the import id with the pipeline figuring out what's left to do.
+// jobContext is one import as it moves through the stages: the rows Run
+// loaded, the library's settings, and what each stage leaves for the next.
 type jobContext struct {
 	importID  uint
 	asset     models.Asset
@@ -48,13 +46,56 @@ type jobContext struct {
 	libraryID uint
 	isUnity   bool
 	isArchive bool
+	// settings is nil when the library's settings failed to load. Each stage
+	// then keeps its default.
+	settings *models.LibrarySettings
+
+	extracted *extract.UnityResult
+	thumbKey  string
+	thumbType string
+	fileCount int
+	sizeBytes int64
+	// inCommit runs inside the transaction that writes the files.
+	inCommit func(tx *gorm.DB) error
 }
 
+// stage is one step of the pipeline. Run records and announces announce, when
+// set, before the step runs. A step's error fails the import, unless it is a
+// retryError, which leaves the import in flight for the queue to retry.
+type stage struct {
+	announce  string
+	run       func(context.Context, Deps, *jobContext) error
+	reextract bool
+}
+
+// stages is the import pipeline in order. Reextract runs the steps marked
+// reextract, so a re-extract writes files the way an import does.
+var stages = []stage{
+	{announce: StageExtracting, run: extractFiles, reextract: true},
+	{announce: StageDetecting},
+	{announce: StageThumbnailing, run: chooseCover, reextract: true},
+	{run: writeFiles, reextract: true},
+	{announce: StageEnriching, run: enrichVersion},
+}
+
+// retryError is a stage failure that a later attempt may not hit, such as a
+// store that could not answer.
+type retryError struct {
+	op  string
+	err error
+}
+
+func (e *retryError) Error() string { return e.op + ": " + e.err.Error() }
+func (e *retryError) Unwrap() error { return e.err }
+
+// errOriginalMissing fails an import whose original is gone from storage.
+var errOriginalMissing = errors.New("source blob missing from storage")
+
 // Run executes the import pipeline for one job. The asset, version, and
-// import rows already exist (created by the upload handler); this function
-// fills in asset_files, the thumbnail, and the asset's current_version_id
-// pointer, transitioning asset_imports.stage as it goes. Each transition is
-// broadcast on the events channel keyed by library id.
+// import rows already exist (created by the upload handler); the stages fill
+// in asset_files, the thumbnail, and the asset's current_version_id pointer,
+// transitioning asset_imports.stage as they go. Each transition is broadcast
+// on the events channel keyed by library id.
 func Run(ctx context.Context, deps Deps, job Job) error {
 	if deps.DB == nil || deps.Storage == nil {
 		return errors.New("imports: pipeline missing db or storage")
@@ -65,33 +106,11 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return fmt.Errorf("load job: %w", err)
 	}
 
-	transition := func(stage string) error {
-		if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, stage, ""); err != nil {
-			return fmt.Errorf("transition %s: %w", stage, err)
-		}
-		publishStage(deps, jc, stage, "")
-		return nil
-	}
-
 	fail := func(reason string) error {
 		if err := failJob(ctx, deps, jc, reason); err != nil {
 			slog.Warn("imports: persist failure", "import_id", jc.importID, "err", err)
 		}
 		return errors.New(reason)
-	}
-
-	// retry leaves the row in flight and returns the error, so the queue
-	// retries a transient failure and marks the row failed only once the
-	// attempts run out.
-	retry := func(op string, err error) error {
-		slog.Warn("imports: pipeline will retry",
-			"import_id", jc.importID,
-			"asset_id", jc.asset.ID,
-			"library_id", jc.libraryID,
-			"object_key", jc.version.OriginalPackageObjectKey,
-			"op", op,
-			"err", err)
-		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	// A library mismatch is a terminal input error: mark failed so the queue
@@ -104,148 +123,33 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return fail("source blob missing — original_package_object_key not set on version")
 	}
 
-	if err := transition(StageExtracting); err != nil {
-		return err
-	}
+	jc.settings = loadSettings(ctx, deps, jc.libraryID)
 
-	var extracted *extract.UnityResult
-	if jc.isArchive {
-		blob, gerr := OpenOriginal(ctx, deps.Storage, jc.version)
-		if gerr != nil {
-			// A missing original never comes back, so only a store that
-			// could not answer is worth retrying.
-			if _, ok, herr := deps.Storage.HeadOriginal(ctx, jc.version.OriginalPackageObjectKey); herr == nil && !ok {
-				return fail("source blob missing from storage")
-			}
-			return retry("fetch blob", gerr)
-		}
-		var (
-			res  *extract.UnityResult
-			xerr error
-		)
-		switch jc.version.PackageKind {
-		case models.PackageKindZip:
-			ex := &extract.ZipExtractor{
-				Storage: deps.Storage,
-				EntryMeta: storage.ObjectMeta{
-					LibraryID: jc.libraryID,
-					AssetID:   jc.asset.ID,
-					VersionID: jc.version.ID,
-					Kind:      "zip-asset",
-				},
-			}
-			res, xerr = ex.Extract(ctx, storageReader{blob})
-		default:
-			ex := &extract.UnityExtractor{
-				Storage: deps.Storage,
-				EntryMeta: storage.ObjectMeta{
-					LibraryID: jc.libraryID,
-					AssetID:   jc.asset.ID,
-					VersionID: jc.version.ID,
-					Kind:      "unitypackage-asset",
-				},
-			}
-			res, xerr = ex.Extract(ctx, storageReader{blob})
-		}
-		blob.Close()
-		if errors.Is(xerr, extract.ErrStorage) {
-			return retry("extract", xerr)
-		}
-		if xerr != nil {
-			return fail("extract: " + xerr.Error())
-		}
-		extracted = res
-	}
-
-	if err := transition(StageDetecting); err != nil {
-		return err
-	}
-
-	if err := transition(StageThumbnailing); err != nil {
-		return err
-	}
-
-	settings, sErr := library.Settings(deps.DB.WithContext(ctx), jc.libraryID)
-	if sErr != nil {
-		slog.Warn("imports: load settings", "err", sErr, "library_id", jc.libraryID)
-	}
-
-	// An archive's cover is the one its extractor harvested. For a Unity
-	// package that is a preview.png, which the library can switch off; the
-	// store cover or the placeholder then applies. Settings that fail to load
-	// keep the default, on.
-	thumbKey, thumbType := "", ""
-	if extracted != nil && (!jc.isUnity || sErr != nil || settings.ThumbnailsUnityPreview) {
-		thumbKey = extracted.ThumbObjectKey
-		thumbType = extracted.ThumbContentType
-	}
-	// A loose file thumbnails from its own bytes. An archive's raw bytes are
-	// not a thumbnailable image, so it relies on its extractor's cover alone.
-	if thumbKey == "" && sErr == nil && !jc.isArchive {
-		toggles := thumbnail.Toggles{
-			Raster: settings.ThumbnailsRasterEnabled,
-			Audio:  settings.ThumbnailsAudioEnabled,
-			Font:   settings.ThumbnailsFontEnabled,
-		}
-		filename, contentType := looseSourceMetadata(deps.DB.WithContext(ctx), jc.version.ID, jc.asset.Name)
-		blob, bErr := OpenOriginal(ctx, deps.Storage, jc.version)
-		if bErr != nil {
-			slog.Warn("imports: fetch blob for thumbnail", "err", bErr, "object_key", jc.version.OriginalPackageObjectKey)
-		} else {
-			gen := &thumbnail.Generator{Storage: deps.Storage}
-			tres, tErr := gen.Generate(ctx, thumbnail.Input{
-				Reader:      blob,
-				Filename:    filename,
-				ContentType: contentType,
-			}, toggles)
-			blob.Close()
-			if tErr != nil {
-				slog.Warn("imports: generate thumbnail", "err", tErr, "filename", filename)
-			} else if tres.ObjectKey != "" {
-				thumbKey = tres.ObjectKey
-				thumbType = tres.ContentType
-			}
-		}
-	}
-
-	err = deps.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if extracted != nil {
-			// Idempotency: clear any existing files (e.g. a resumed run)
-			// before re-writing so the (asset_version_id, relative_path)
-			// unique index doesn't trip.
-			if err := tx.Where("asset_version_id = ?", jc.version.ID).Delete(&models.AssetFile{}).Error; err != nil {
-				return err
-			}
-			if _, _, err := WriteAssetFiles(tx, jc.version.ID, "", 0, "", "", extracted); err != nil {
+	for _, s := range stages {
+		if s.announce != "" {
+			if err := transition(ctx, deps, jc, s.announce); err != nil {
 				return err
 			}
 		}
-		// Loose case: the upload handler already wrote the single
-		// asset_files row (so the pipeline could read filename/content
-		// type for thumbnail detection); nothing to do here.
-
-		// An import of an older version finishes without taking the asset
-		// back to it, or its cover.
-		return commitFiles(tx, jc.asset.ID, jc.version.ID, thumbKey, thumbType)
-	})
-	if err != nil {
-		return fail("finalize: " + err.Error())
+		if s.run == nil {
+			continue
+		}
+		err := s.run(ctx, deps, &jc)
+		var re *retryError
+		if errors.As(err, &re) {
+			slog.Warn("imports: pipeline will retry",
+				"import_id", jc.importID,
+				"asset_id", jc.asset.ID,
+				"library_id", jc.libraryID,
+				"object_key", jc.version.OriginalPackageObjectKey,
+				"op", re.op,
+				"err", re.err)
+			return re
+		}
+		if err != nil {
+			return fail(err.Error())
+		}
 	}
-
-	// Auto-enrichment: best-effort storefront metadata fill. Gated on the
-	// per-library toggle and a conservative title match; never fails the import.
-	// The stage transition fires even when enrichment is disabled so the SSE
-	// stage sequence stays stable; enrichAsset itself is the gated no-op.
-	if err := transition(StageEnriching); err != nil {
-		return err
-	}
-	ApplySourceHints(ctx, deps, jc)
-	enrichAsset(ctx, deps, jc)
-
-	// Previewing is decoupled: once asset_files are committed, hand the version
-	// off to the preview processing queue. The import finishes immediately and
-	// previews fill in afterward, tracked on their own queue.
-	enqueuePreviews(ctx, deps, jc)
 
 	if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, StageDone, ""); err != nil {
 		return fail("finalize done: " + err.Error())
@@ -260,16 +164,154 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 	return nil
 }
 
+func transition(ctx context.Context, deps Deps, jc jobContext, stage string) error {
+	if err := updateImportStage(deps.DB.WithContext(ctx), jc.importID, stage, ""); err != nil {
+		return fmt.Errorf("transition %s: %w", stage, err)
+	}
+	publishStage(deps, jc, stage, "")
+	return nil
+}
+
+func loadSettings(ctx context.Context, deps Deps, libraryID uint) *models.LibrarySettings {
+	settings, err := library.Settings(deps.DB.WithContext(ctx), libraryID)
+	if err != nil {
+		slog.Warn("imports: load settings", "err", err, "library_id", libraryID)
+		return nil
+	}
+	return settings
+}
+
+// extractFiles unpacks an archive's original into blobs. A loose upload has
+// nothing to unpack.
+func extractFiles(ctx context.Context, deps Deps, jc *jobContext) error {
+	if !jc.isArchive {
+		return nil
+	}
+	blob, err := OpenOriginal(ctx, deps.Storage, jc.version)
+	if err != nil {
+		// A missing original never comes back, so only a store that could
+		// not answer is worth retrying.
+		if _, ok, herr := deps.Storage.HeadOriginal(ctx, jc.version.OriginalPackageObjectKey); herr == nil && !ok {
+			return errOriginalMissing
+		}
+		return &retryError{op: "fetch blob", err: err}
+	}
+	defer blob.Close()
+	meta := storage.ObjectMeta{
+		LibraryID: jc.libraryID,
+		AssetID:   jc.asset.ID,
+		VersionID: jc.version.ID,
+	}
+	var res *extract.UnityResult
+	switch jc.version.PackageKind {
+	case models.PackageKindZip:
+		meta.Kind = "zip-asset"
+		res, err = (&extract.ZipExtractor{Storage: deps.Storage, EntryMeta: meta}).Extract(ctx, storageReader{blob})
+	default:
+		meta.Kind = "unitypackage-asset"
+		res, err = (&extract.UnityExtractor{Storage: deps.Storage, EntryMeta: meta}).Extract(ctx, storageReader{blob})
+	}
+	if errors.Is(err, extract.ErrStorage) {
+		return &retryError{op: "extract", err: err}
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrBadPackage, err)
+	}
+	jc.extracted = res
+	return nil
+}
+
+// chooseCover picks the version's cover. An archive's cover is the one its
+// extractor harvested. For a Unity package that is a preview.png, which the
+// library can switch off; the store cover or the placeholder then applies.
+// Settings that fail to load keep the default, on. A loose file thumbnails
+// from its own bytes; an archive's raw bytes are not a thumbnailable image.
+func chooseCover(ctx context.Context, deps Deps, jc *jobContext) error {
+	if jc.extracted != nil && (!jc.isUnity || jc.settings == nil || jc.settings.ThumbnailsUnityPreview) {
+		jc.thumbKey = jc.extracted.ThumbObjectKey
+		jc.thumbType = jc.extracted.ThumbContentType
+	}
+	if jc.thumbKey != "" || jc.settings == nil || jc.isArchive {
+		return nil
+	}
+	toggles := thumbnail.Toggles{
+		Raster: jc.settings.ThumbnailsRasterEnabled,
+		Audio:  jc.settings.ThumbnailsAudioEnabled,
+		Font:   jc.settings.ThumbnailsFontEnabled,
+	}
+	filename, contentType := looseSourceMetadata(deps.DB.WithContext(ctx), jc.version.ID, jc.asset.Name)
+	blob, err := OpenOriginal(ctx, deps.Storage, jc.version)
+	if err != nil {
+		slog.Warn("imports: fetch blob for thumbnail", "err", err, "object_key", jc.version.OriginalPackageObjectKey)
+		return nil
+	}
+	defer blob.Close()
+	gen := &thumbnail.Generator{Storage: deps.Storage}
+	res, err := gen.Generate(ctx, thumbnail.Input{
+		Reader:      blob,
+		Filename:    filename,
+		ContentType: contentType,
+	}, toggles)
+	if err != nil {
+		slog.Warn("imports: generate thumbnail", "err", err, "filename", filename)
+		return nil
+	}
+	if res.ObjectKey != "" {
+		jc.thumbKey = res.ObjectKey
+		jc.thumbType = res.ContentType
+	}
+	return nil
+}
+
+// writeFiles writes the extracted files and commits them in one transaction.
+// A loose upload's single asset_files row was written by the upload handler,
+// so the pipeline could read its filename and content type.
+func writeFiles(ctx context.Context, deps Deps, jc *jobContext) error {
+	err := deps.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if jc.extracted != nil {
+			// Clear any files from an earlier run first, so the
+			// (asset_version_id, relative_path) unique index does not trip.
+			if err := tx.Where("asset_version_id = ?", jc.version.ID).Delete(&models.AssetFile{}).Error; err != nil {
+				return err
+			}
+			var err error
+			if jc.fileCount, jc.sizeBytes, err = WriteAssetFiles(tx, jc.version.ID, "", 0, "", "", jc.extracted); err != nil {
+				return err
+			}
+		}
+		// An import of an older version finishes without taking the asset
+		// back to it, or its cover.
+		if err := commitFiles(tx, jc.asset.ID, jc.version.ID, jc.thumbKey, jc.thumbType); err != nil {
+			return err
+		}
+		if jc.inCommit != nil {
+			return jc.inCommit(tx)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("finalize: %w", err)
+	}
+	return nil
+}
+
+// enrichVersion fills what the version's source path and storefront listing
+// say, then hands the files to the preview queue. Both are best-effort and
+// never fail the import. The enriching stage is announced even when
+// enrichment is off, so the SSE stage sequence stays stable.
+func enrichVersion(ctx context.Context, deps Deps, jc *jobContext) error {
+	ApplySourceHints(ctx, deps, *jc)
+	enrichAsset(ctx, deps, *jc)
+	enqueuePreviews(ctx, deps, *jc)
+	return nil
+}
+
 func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 	if jc.version.OriginalPackageObjectKey == "" {
 		return
 	}
-	settings, err := library.Settings(deps.DB.WithContext(ctx), jc.libraryID)
-	if err != nil {
-		slog.Warn("imports: load settings for purge", "err", err, "library_id", jc.libraryID)
-		return
-	}
-	if settings.RetainOriginalPackages {
+	// Settings that fail to load keep the original.
+	if jc.settings == nil || jc.settings.RetainOriginalPackages {
 		return
 	}
 
@@ -298,7 +340,8 @@ func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 }
 
 // enqueuePreviews hands a committed version to the preview queue. A library
-// with previews off skips it.
+// with previews off skips it. preview.Queue reads the previews setting itself,
+// as it does for every caller.
 func enqueuePreviews(ctx context.Context, deps Deps, jc jobContext) {
 	_, err := preview.Queue(ctx, deps.DB, deps.Previews, preview.Job{LibraryID: jc.libraryID, VersionID: jc.version.ID})
 	if err != nil && !errors.Is(err, preview.ErrDisabled) {
@@ -324,14 +367,19 @@ func loadJobContext(db *gorm.DB, importID uint) (jobContext, error) {
 	if err := db.Where("id = ? AND asset_id = ?", *imp.AssetVersionID, asset.ID).First(&version).Error; err != nil {
 		return jobContext{}, fmt.Errorf("load version: %w", err)
 	}
+	jc := newJobContext(asset, version)
+	jc.importID = imp.ID
+	return jc, nil
+}
+
+func newJobContext(asset models.Asset, version models.AssetVersion) jobContext {
 	return jobContext{
-		importID:  imp.ID,
 		asset:     asset,
 		version:   version,
 		libraryID: asset.LibraryID,
 		isUnity:   version.PackageKind == models.PackageKindUnityPackage,
 		isArchive: models.IsArchiveKind(version.PackageKind),
-	}, nil
+	}
 }
 
 // looseSourceMetadata best-effort recovers a filename + content type for
