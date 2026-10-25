@@ -13,13 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/audit"
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/enrich"
+	"github.com/thomas-elliott/damson/internal/licence"
+	"github.com/thomas-elliott/damson/internal/metadata"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/licence"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
-	"github.com/thomas-elliott/damson/internal/services/tags"
+	"github.com/thomas-elliott/damson/internal/tags"
 )
 
 // Outcomes of recording an asset by its location.
