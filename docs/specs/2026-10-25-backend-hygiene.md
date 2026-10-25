@@ -129,3 +129,24 @@ Mode: committing — feature branch `dam-59-backend-hygiene`, one commit per sta
   0.57→0.59 and `golang.org/x/text` 0.40→0.42 for the server too.
 - `.golangci.yml`: only the three named linters (`default: none`), with the per-linter and
   same-issue caps off so the gate shows every finding.
+
+### Results
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| `just check` passes with golangci-lint (errorlint, contextcheck, unused) in it | passed | `sg docker -c "just check"`, exit 0: `0 issues.` from golangci-lint, every Go package ok, Vitest 339/339, stories 94/94, e2e 20 passed. A throwaway file with a `context.Background()` call and an unused func got one contextcheck and one unused finding, so both linters are running. |
+| A startup config error, missing or invalid, exits non-zero with an slog line and no panic | passed | `TestMain_ConfigErrorExitsWithAnSlogLine` re-runs the test binary through the real `main` (invalid `DAMSON_IMPORT_QUEUE_WORKERS`, missing DSN, bad `DAMSON_LOG_LEVEL`). It fails if `config.Load` goes back to `log.Panicf` (exit 2 and a stack) or if `main` stops logging the error. `TestLoad_RejectsInvalidValues` fails if a parser falls back to its default again. |
+| GORM output reaches the log as JSON lines, and a slow-query line carries no parameter values | passed | `TestOpen_LogsSQLAsJSONWithoutParameterValues` runs against real Postgres: a 250ms `Scan` and a failing `Exec`, each with a bound secret. It failed on its first run, because `Scan` bypasses `ParameterizedQueries`, and passes with `RecorderParamsFilter` overridden. It fails if either override is removed. |
+| Stopping the server with an SSE stream open finishes without waiting out the shutdown timeout | passed | `TestShutdown_EndsSSEStreamsThenStopsTheQueue` uses the real import and preview SSE handlers on real Postgres with `newHTTPServer`. When `stopStreams` was replaced with a no-op it failed (`shutdown took 2.000829135s`). Real binary: SIGTERM with `/api/imports/events` open exited 0 in 0.0086s; the background workers logged stopping and there were no warn or error lines. The throwaway database `damson_proof` was dropped afterwards. |
+| `docs/CONVENTIONS.md` names the linter | passed | Formatting & linting names golangci-lint, its three linters, `.golangci.yml`, and the Go-tool pin. |
+| stage 3 pool limits | passed | No test: the limits are constants passed to `database/sql`, and a test would only repeat them. Exercised by every Postgres-backed test through `db.Open`. |
+| stages 4–6 (test hooks, dead code, helpers) | passed | No new tests: these are moves and deletions. The full Go suite under `just check` exercises the moved pools and the `setupRouter` change, which goes through `auth.Middleware` for 247 call sites. |
+| review: stages 1…7 | passed | `### Review — stages 1…7`, no blockers, no findings to fix. |
+
+### Review — stages 1…7
+
+#### Verdict
+No blockers
+
+#### Checked
+repo rules (AGENTS.md, docs/CONVENTIONS.md, docs/architecture.md), documented hazards (500 generic message, no tokens or raw values in logs, library_id scoping, `go mod tidy` drift, doc kept true with the change), mechanical: shape conformance, completeness honesty, coverage, cross-boundary contract, logic, error handling, silent failure, input validation, idempotency & resilience, credentials & secrets, security, concurrency, resource management, logging & observability, smell baseline · issues in: none · n/a: shared-library precedence (no UI added), external contracts (no new calls), performance (no hot path touched) · validation: in-context, 0 candidates, 0 confirmed, 0 refuted · ran: `go test ./cmd/server ./internal/config ./internal/db ./internal/broadcast` pass, `go tool golangci-lint run ./...` 0 issues · read from code: `run()` defer order closes the pool after the queue stop and the bounded background wait; the `BaseContext` stopping value ends both SSE handlers (imports, previews) without cancelling other requests, and a stream opened after shutdown starts sees an already-closed channel; GORM v1.31.2 `traceRecorder.ParamsFilter` reads `logger.RecorderParamsFilter` and is only used for the log line, so dropping params does not change query results; `pgconn.PgError.Error()` carries no DETAIL, so SQL error lines name no key values · `Broadcaster.Close` removal has no remaining callers · README and CONVENTIONS updated for the panic→error and helper moves · needs a human approver: new tool dependency (golangci-lint v2.14.0) and the `golang.org/x/{crypto,net,text}` bumps it pulls into the server's module graph (recorded in Choices made) · not examined (budget): full `just check`, the stage 5–6 metadata renames beyond compile and lint
