@@ -37,10 +37,11 @@ filesystem.
 | `database/migrations` | SQL migrations, the authoritative schema |
 | `internal/handlers/api` | Every HTTP handler, as methods on one `*Handler` |
 | `internal/auth` | Authenticators (local, OIDC, personal access tokens), middleware and bootstrap |
-| `internal/models` | GORM structs |
-| `internal/services/*` | Domain logic: `assets`, `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
+| `internal/models` | GORM structs, package kinds, `HasDownloadableOriginal` and `ObjectKeyColumns` |
+| `internal/{assets,ingest,extract,thumbnail,preview,imaging,metadata,enrich,licence,library,storage,uploads,audit,tags}` | Domain logic, one package per area |
 | `internal/queue` | River setup and job kinds |
 | `internal/config` | Every environment variable and its default |
+| `internal/{db,testdb,broadcast,web}` | The GORM connection and migration runner, the per-test Postgres schema, in-process SSE fan-out, and the embedded SPA's routes |
 | `internal/{toon,axi,tagpath,importstage,importsource,unitycache,buildinfo}` | Leaf packages that the CLI shares with the server |
 | `web/src` | The SPA: `pages/`, `components/`, `hooks/`, `lib/`, `design-system/` |
 | `tools/*.just` | The `just` modules behind every workflow |
@@ -84,7 +85,8 @@ change goes in both a new migration and the struct (see `CONVENTIONS.md`, Databa
 - `asset_versions.original_package_object_key` holds an `originals/` key when `package_kind` is
   `unitypackage` or `zip`. For a loose upload it holds the `blobs/` key of the single file.
   `original_package_purged` means the archive's bytes were reclaimed, while the key stays on the
-  row.
+  row. `AssetVersion.HasDownloadableOriginal`, and `models.DownloadableOriginalSQL` in a query, say
+  whether the archive can still be read.
 - Tags are materialised paths per library (`environment/trees/deciduous`). `internal/tagpath`
   holds the one normalisation rule.
 - The licence `attributes_json` booleans are tri-state, and `null` means unknown.
@@ -103,18 +105,16 @@ change goes in both a new migration and the struct (see `CONVENTIONS.md`, Databa
 - Look up a user by email only when the email is non-blank, and compare `lower()`. A blank email
   matches every `needs_profile` user.
 - Match an IdP identity on `(issuer, subject)`, never on `subject` alone.
-- A version has a downloadable original only when the key is set, `original_package_purged` is
-  false and `package_kind` is an archive. Checking the key alone offers a download that does not
-  exist.
 - Normalise a tag path with `tagpath.Normalise` before comparing it.
 - Writing `false` to a default-true column needs an explicit `Update`. GORM omits zero values on
   Create when the field has a `default:` tag.
 
 ## Object storage
 
-`internal/services/storage` provides a `local` backend (the default) and an `s3` backend
+`internal/storage` provides a `local` backend (the default) and an `s3` backend
 (path-style, for MinIO or Garage). Both use the same key layout, so a deployment can move between
-them with a plain copy. Keys are `<prefix>/<hh>/<sha256>`:
+them with a plain copy. `cmd/server` picks the backend from config. `storage.Service` addresses
+every object by a `storage.Prefix` and the SHA-256 of its bytes, stored as `<prefix>/<hh>/<sha256>`:
 
 - `blobs/` holds extracted content.
 - `originals/` holds uploaded archives, kept apart so that retention can purge them.
@@ -122,12 +122,12 @@ them with a plain copy. Keys are `<prefix>/<hh>/<sha256>`:
 
 Nothing on the write path deletes an object. Reclaiming space is a two-step sysadmin action in
 `storage/cleanup`: a scan finds objects that nothing references and that are older than
-`DAMSON_ORPHAN_MIN_AGE`, and a delete re-checks those keys and audits each deletion.
+`DAMSON_ORPHAN_MIN_AGE`, and a delete re-checks those keys and audits each deletion. What counts as
+a reference is a live row in a column of `models.ObjectKeyColumns`, and a test fails on any
+`*_object_key` column missing from that list.
 
 ### Traps
 
-- Add any new column that holds an object key to `knownKeys` in `cleanup.go`. Otherwise the sweep
-  deletes its objects.
 - The age floor does not protect a reused object. Dedup reuses a key without touching its
   modification time.
 - Keep LocalFS's hex-only check in `pathFor`. It stops an HTTP bug from becoming a path traversal.
@@ -206,17 +206,19 @@ Bytes arrive by one of two transports, which share `import_create.go`:
 
 Clients pick the transport by size. The handler creates the asset, version and import rows, stores
 the bytes, then enqueues an `import` job in the transaction that records them.
-`internal/services/imports.Run` moves the import through the stages (`internal/importstage`):
+`internal/ingest.Run` moves the import through the stages (`internal/importstage`):
 `uploaded` → `extracting` → `detecting` → `thumbnailing` → `enriching` → `done` | `failed`.
 `asset_imports.stage` is the record. SSE on
-`/api/imports/events` only announces transitions.
+`/api/imports/events` only announces transitions. The steps are the `stages` list in
+`pipeline.go`, and `ingest.Reextract` runs its extract, cover and write steps on a retained Unity
+package.
 
-Extraction (`internal/services/extract`) handles `.unitypackage`, a tar of GUID bundles, and
+Extraction (`internal/extract`) handles `.unitypackage`, a tar of GUID bundles, and
 `.zip`. Both enforce size and entry-count caps and skip unsafe paths. Zip needs random access, so
 the archive is copied to a local temp file first. Thumbnailing and enrichment are best-effort and
 never fail an import. Once the files are committed, the version is handed to the preview queue.
 An import creates its version with `files_pending` set. The transaction that writes the files
-clears it, and `imports.ChooseCurrent` passes over a pending version, so an import that fails
+clears it, and `ingest.ChooseCurrent` passes over a pending version, so an import that fails
 after that point keeps a version that can still be current.
 
 In the SPA, the upload queue is in the notification centre (`components/notifications/`). It is
@@ -239,12 +241,12 @@ mounted above `<Routes>` so that uploads survive navigation.
 
 ## Storefront metadata
 
-`internal/services/metadata` fetches a listing's description, publisher, licence, cover, gallery
+`internal/metadata` fetches a listing's description, publisher, licence, cover, gallery
 and tags. A `Registry` maps a URL host to a store adapter and falls back to a generic scraper.
 Auto-enrichment is the import's `enriching` stage. It fills blank fields only, apart from the name.
 Store covers and gallery images are fetched server-side and stored under `thumbs/`.
 
-`internal/services/enrich` applies a listing to an asset for every caller: import enrichment, a
+`internal/enrich` applies a listing to an asset for every caller: import enrichment, a
 person's fetch and apply, recording a reference, and background store lookups (`enrich.Lookups`,
 which the queue runs). `Prepare` does the reads and downloads; `Plan.Write` does every write in the
 caller's transaction, so an apply that fails writes nothing.
@@ -259,7 +261,7 @@ caller's transaction, so an apply that fails writes nothing.
 
 ## Licence detection
 
-`internal/services/licence` first checks a Unity Asset Store EULA fingerprint, then runs
+`internal/licence` first checks a Unity Asset Store EULA fingerprint, then runs
 `google/licensecheck`. Detection runs on demand (rescan, the licence endpoints, storefront text),
 never during import. Every licence write goes through `licence.Replace`, which keeps a reviewed licence from an
 automatic writer (import enrichment, rescan, store lookups).
@@ -274,14 +276,14 @@ automatic writer (import enrichment, rescan, store lookups).
 
 ## Thumbnails and previews
 
-- Thumbnails (`internal/services/thumbnail`) are one small image per asset, made inside the import
+- Thumbnails (`internal/thumbnail`) are one small image per asset, made inside the import
   job. Raster images are resampled, audio becomes a waveform and fonts become a sample. Each kind
   has its own library setting.
-- Previews (`internal/services/preview`) are one larger, browser-safe image per file, made on the
+- Previews (`internal/preview`) are one larger, browser-safe image per file, made on the
   `preview` queue. `asset_files.preview_status` moves through `unsupported` | `queued` |
   `processing` | `done` | `failed`. A re-render keeps the old derivative until the new one is done.
 
-`internal/services/imaging` is the shared decoder. It rejects any image above its pixel ceiling.
+`internal/imaging` is the shared decoder. It rejects any image above its pixel ceiling.
 
 ### Traps
 
@@ -323,7 +325,7 @@ publisher, tag paths and `location_path`. A second trigger on `asset_tags` re-fi
 
 ## Audit
 
-`internal/services/audit` writes `audit_log` rows for user-driven changes. A library-scoped event
+`internal/audit` writes `audit_log` rows for user-driven changes. A library-scoped event
 carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.Created`,
 `audit.Updated` and `audit.Deleted`. Retention is a per-library setting, swept by `audit.Purger`.
 
@@ -383,8 +385,8 @@ supports TOON or JSON, `--fields`, truncation and an error envelope.
 
 ### Traps
 
-- Never import `internal/services/...` from `cmd/dmsn`. It pulls GORM and the S3 SDK into the
-  client. Move the shared rule into a leaf package.
+- From `cmd/dmsn`, import only the leaf packages in the repository map. Any other `internal/`
+  package pulls GORM and the S3 SDK into the client. Move the shared rule into a leaf package.
 - Render a multi-part result in one call (`axi.RenderComposite`). Two calls emit two JSON
   documents, which do not parse as one.
 - Derive publisher and category on the server, from the raw path, so that a fix reaches every

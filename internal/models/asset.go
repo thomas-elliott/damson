@@ -87,7 +87,7 @@ type AssetFile struct {
 	PreviewContentType string
 	// PreviewStatus is the first-class state of this file's backend preview:
 	// unsupported | queued | processing | done | failed. Drives the preview
-	// processing queue and requeue; see services/preview for the constants.
+	// processing queue and requeue; see internal/preview for the constants.
 	PreviewStatus string `gorm:"not null;default:unsupported"`
 	// PreviewUpdatedAt records when PreviewStatus last changed. The processing
 	// queue rolls this up (MAX per version) for a real finish time, so completed

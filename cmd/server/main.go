@@ -27,19 +27,18 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/audit"
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/db"
+	"github.com/thomas-elliott/damson/internal/enrich"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
+	"github.com/thomas-elliott/damson/internal/ingest"
+	"github.com/thomas-elliott/damson/internal/metadata"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/preview"
 	"github.com/thomas-elliott/damson/internal/queue"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
-	"github.com/thomas-elliott/damson/internal/services/preview"
-	"github.com/thomas-elliott/damson/internal/services/storage"
-	"github.com/thomas-elliott/damson/internal/services/uploads"
+	"github.com/thomas-elliott/damson/internal/uploads"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
 )
 
@@ -124,14 +123,14 @@ func run() error {
 		slog.Info("auth mode", "mode", "local")
 	}
 
-	store, err := storage.New(startupCtx, cfg)
+	store, err := newStorage(startupCtx, cfg)
 	if err != nil {
 		return fmt.Errorf("storage init: %w", err)
 	}
 	slog.Info("storage mode", "mode", cfg.StorageMode)
 
 	previewBroadcaster := preview.NewBroadcaster()
-	broadcaster := imports.NewBroadcaster()
+	broadcaster := ingest.NewBroadcaster()
 	metaRegistry := metadata.Default(metadata.ClientOptions{StoreLookupInterval: cfg.StoreLookupInterval})
 	storeLookups := &enrich.Lookups{DB: gormDB, Storage: store, Metadata: metaRegistry}
 
@@ -144,7 +143,7 @@ func run() error {
 		PreviewWorkers:    cfg.PreviewQueueWorkers,
 		ImportJobTimeout:  cfg.ImportJobTimeout,
 		PreviewJobTimeout: cfg.PreviewJobTimeout,
-		ImportDeps:        imports.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster, Metadata: metaRegistry},
+		ImportDeps:        ingest.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster, Metadata: metaRegistry},
 		PreviewDeps:       preview.Deps{DB: gormDB, Storage: store, Broadcaster: previewBroadcaster},
 		StoreLookups:      storeLookups,
 		Logger:            slog.Default(),
@@ -173,7 +172,7 @@ func run() error {
 	})
 	// Off the startup path: it reads blobs.
 	background.Go(func() error {
-		if covered, err := imports.BackfillCovers(bgCtx, gormDB, store); err != nil {
+		if covered, err := ingest.BackfillCovers(bgCtx, gormDB, store); err != nil {
 			slog.Warn("cover backfill failed", "err", err)
 		} else if covered > 0 {
 			slog.Info("cover backfill", "covered", covered)

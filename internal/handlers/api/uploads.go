@@ -20,9 +20,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 const (
@@ -120,7 +120,7 @@ func (h *Handler) postUploadSession(c *gin.Context) {
 	spec.targetAssetID = req.AssetID
 	spec.reqStoreVersion = strings.TrimLeft(strings.TrimSpace(req.StoreVersion), "vV")
 	spec.sourceKind = strings.TrimSpace(req.SourceKind)
-	spec.sourceRelativePath, err = imports.ValidateSource(spec.sourceKind, req.SourceRelativePath)
+	spec.sourceRelativePath, err = ingest.ValidateSource(spec.sourceKind, req.SourceRelativePath)
 	if err != nil {
 		slog.Warn("upload session: invalid source hint",
 			"err", err, "library_id", lib.ID, "source_kind", spec.sourceKind)
@@ -161,7 +161,7 @@ func (h *Handler) postUploadSession(c *gin.Context) {
 		SizeBytes:          req.SizeBytes,
 		Sha256:             digest,
 		ChunkSize:          h.chunkSize,
-		ObjectPrefix:       spec.storagePrefix(),
+		ObjectPrefix:       string(spec.storagePrefix()),
 		BackendUploadID:    up.ID(),
 		PartsJSON:          json.RawMessage("[]"),
 		StoreVersion:       spec.reqStoreVersion,
@@ -272,7 +272,7 @@ func (h *Handler) putUploadChunk(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	up, err := h.storage.ResumeMultipart(ctx, session.ObjectPrefix, session.Sha256, session.BackendUploadID)
+	up, err := h.storage.ResumeMultipart(ctx, storage.Prefix(session.ObjectPrefix), session.Sha256, session.BackendUploadID)
 	if err != nil {
 		respond500(c, fmt.Errorf("resume multipart (session %d): %w", session.ID, err))
 		return
@@ -352,7 +352,7 @@ func (h *Handler) postUploadComplete(c *gin.Context) {
 		return
 	}
 	got := hex.EncodeToString(running.Sum(nil))
-	up, err := h.storage.ResumeMultipart(ctx, session.ObjectPrefix, session.Sha256, session.BackendUploadID)
+	up, err := h.storage.ResumeMultipart(ctx, storage.Prefix(session.ObjectPrefix), session.Sha256, session.BackendUploadID)
 	if err != nil {
 		respond500(c, fmt.Errorf("resume multipart (session %d): %w", session.ID, err))
 		return
@@ -421,7 +421,7 @@ func (h *Handler) deleteUploadSession(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	up, err := h.storage.ResumeMultipart(ctx, session.ObjectPrefix, session.Sha256, session.BackendUploadID)
+	up, err := h.storage.ResumeMultipart(ctx, storage.Prefix(session.ObjectPrefix), session.Sha256, session.BackendUploadID)
 	if err != nil {
 		slog.Warn("upload session: could not reattach to abort",
 			"err", err, "upload_id", session.ID)

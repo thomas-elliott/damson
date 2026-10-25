@@ -9,11 +9,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/config"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/imports/importstest"
-	"github.com/thomas-elliott/damson/internal/services/preview"
-	"github.com/thomas-elliott/damson/internal/services/preview/previewtest"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/ingest"
+	"github.com/thomas-elliott/damson/internal/ingest/ingesttest"
+	"github.com/thomas-elliott/damson/internal/preview"
+	"github.com/thomas-elliott/damson/internal/preview/previewtest"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 type metaRecordingStorage struct {
@@ -22,14 +22,14 @@ type metaRecordingStorage struct {
 	lastBlobMeta     storage.ObjectMeta
 }
 
-func (m *metaRecordingStorage) PutOriginal(ctx context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
-	m.lastOriginalMeta = meta
-	return m.LocalFS.PutOriginal(ctx, r, meta)
-}
-
-func (m *metaRecordingStorage) PutBlob(ctx context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
-	m.lastBlobMeta = meta
-	return m.LocalFS.PutBlob(ctx, r, meta)
+func (m *metaRecordingStorage) Put(ctx context.Context, prefix storage.Prefix, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
+	switch prefix {
+	case storage.Originals:
+		m.lastOriginalMeta = meta
+	case storage.Blobs:
+		m.lastBlobMeta = meta
+	}
+	return m.LocalFS.Put(ctx, prefix, r, meta)
 }
 
 func newRecordingHandler(t *testing.T) (*Handler, *metaRecordingStorage, *gorm.DB) {
@@ -40,10 +40,10 @@ func newRecordingHandler(t *testing.T) (*Handler, *metaRecordingStorage, *gorm.D
 		t.Fatalf("new local storage: %v", err)
 	}
 	store := &metaRecordingStorage{LocalFS: lfs}
-	bc := imports.NewBroadcaster()
+	bc := ingest.NewBroadcaster()
 	pbc := preview.NewBroadcaster()
 	previewPool := previewtest.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
-	pool := importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
+	pool := ingesttest.NewSync(ingest.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	h := New(Deps{
 		DB:                 db,
 		AuthMode:           config.AuthModeOIDC,
@@ -64,7 +64,7 @@ func TestPostImport_StampsMetadata(t *testing.T) {
 	_ = seedLibraryAndSwitch(t, h, u)
 	r := setupRouter(h, u)
 
-	// Unity → PutOriginal carries filename + all owning IDs + kind.
+	// Unity → Put under Originals carries filename + all owning IDs + kind.
 	pkg := buildUnityPackage(t, []unityPkgEntry{
 		{guid: testGUID(0x06), pathname: "Assets/x.bin", content: []byte("x")},
 	})
@@ -87,7 +87,7 @@ func TestPostImport_StampsMetadata(t *testing.T) {
 		t.Fatalf("original meta kind: got %q", got.Kind)
 	}
 
-	// Loose → PutBlob carries filename + owning IDs + loose kind.
+	// Loose → Put under Blobs carries filename + owning IDs + loose kind.
 	lb, lc := buildMultipart(t, "file", "logo.png", []byte("png"))
 	lw := postMultipart(r, "/api/imports", lb, lc)
 	requireStatus(t, lw, http.StatusAccepted)

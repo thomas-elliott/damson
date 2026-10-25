@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/thomas-elliott/damson/internal/importsource"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/ingest"
 )
 
 // maxPreflightEntries bounds one preflight request. A cache sync sends its
@@ -89,7 +89,7 @@ func (h *Handler) postImportPreflight(c *gin.Context) {
 
 	// One read of the library for the whole batch. MatchAssetByName reads
 	// every asset per call, which is quadratic across a manifest.
-	matcher, err := imports.NewNameMatcher(db, lib.ID)
+	matcher, err := ingest.NewNameMatcher(db, lib.ID)
 	if err != nil {
 		respond500(c, err)
 		return
@@ -101,7 +101,7 @@ func (h *Handler) postImportPreflight(c *gin.Context) {
 		respond400(c, err)
 		return
 	}
-	sourceMatches, err := imports.SourceMatches(db, lib.ID, imports.SourceKindUnityCache, distinctPaths(paths))
+	sourceMatches, err := ingest.SourceMatches(db, lib.ID, ingest.SourceKindUnityCache, distinctPaths(paths))
 	if err != nil {
 		respond500(c, err)
 		return
@@ -130,7 +130,7 @@ func (h *Handler) postImportPreflight(c *gin.Context) {
 		if filename == "" {
 			continue
 		}
-		name, _ := imports.ParseImportFilename(filepath.Base(filename))
+		name, _ := ingest.ParseImportFilename(filepath.Base(filename))
 		if a := matcher.Match(name); a != nil {
 			results[i].Status = preflightNameMatch
 			results[i].AssetID = a.ID
@@ -186,7 +186,7 @@ func (h *Handler) versionCounts(c *gin.Context, assetIDs []uint) (map[uint]int, 
 func preflightPaths(entries []preflightEntry) ([]string, error) {
 	paths := make([]string, len(entries))
 	for i, e := range entries {
-		clean, err := imports.ValidateSource(e.SourceKind, e.RelativePath)
+		clean, err := ingest.ValidateSource(e.SourceKind, e.RelativePath)
 		if err != nil {
 			return nil, fmt.Errorf("entry %d: %w", i, err)
 		}
