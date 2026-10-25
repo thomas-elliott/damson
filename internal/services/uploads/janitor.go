@@ -69,7 +69,7 @@ func SweepOnce(ctx context.Context, db *gorm.DB, store storage.Service, now time
 		if err := ctx.Err(); err != nil {
 			return swept, err
 		}
-		up, err := store.ResumeMultipart(ctx, s.ObjectPrefix, s.Sha256, s.BackendUploadID)
+		up, err := store.ResumeMultipart(ctx, storage.Prefix(s.ObjectPrefix), s.Sha256, s.BackendUploadID)
 		if err != nil {
 			slog.Warn("upload janitor: could not reattach to abort",
 				"err", err, "upload_id", s.ID, "backend_upload_id", s.BackendUploadID)

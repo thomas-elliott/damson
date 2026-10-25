@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
 func buildZipArchive(t *testing.T, entries map[string][]byte) []byte {
@@ -98,10 +99,10 @@ func TestPostImport_Zip_ExtractsFilesAsOneAsset(t *testing.T) {
 		t.Fatalf("version not flagged as zip: %+v", version)
 	}
 	ctx := context.Background()
-	if _, ok, _ := h.storage.HeadOriginal(ctx, version.OriginalPackageObjectKey); !ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Originals, version.OriginalPackageObjectKey); !ok {
 		t.Fatalf("zip archive not stored under originals/")
 	}
-	if _, ok, _ := h.storage.HeadBlob(ctx, version.OriginalPackageObjectKey); ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Blobs, version.OriginalPackageObjectKey); ok {
 		t.Fatalf("zip archive leaked into blobs/ — routing regressed to PutBlob")
 	}
 

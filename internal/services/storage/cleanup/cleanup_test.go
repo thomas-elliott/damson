@@ -48,9 +48,8 @@ func seedParents(t *testing.T, db *gorm.DB) (libID, assetID, versionID uint) {
 
 func putThumb(t *testing.T, store *storage.LocalFS, ctx context.Context, payload string) string {
 	t.Helper()
-	sum := sha256.Sum256([]byte(payload))
-	key := hex.EncodeToString(sum[:])
-	if err := store.PutThumb(ctx, key, bytes.NewReader([]byte(payload))); err != nil {
+	key, _, err := store.Put(ctx, storage.Thumbs, bytes.NewReader([]byte(payload)), storage.ObjectMeta{})
+	if err != nil {
 		t.Fatalf("put thumb: %v", err)
 	}
 	return key
@@ -59,7 +58,7 @@ func putThumb(t *testing.T, store *storage.LocalFS, ctx context.Context, payload
 func candidateSet(cands []Candidate) map[string]bool {
 	set := map[string]bool{}
 	for _, c := range cands {
-		set[c.Prefix+"|"+c.Key] = true
+		set[string(c.Prefix)+"|"+c.Key] = true
 	}
 	return set
 }
@@ -69,12 +68,12 @@ func TestFindOrphans(t *testing.T) {
 	libID, assetID, versionID := seedParents(t, db)
 
 	// Referenced blob (has an asset_files row) — must be spared.
-	refBlob, _, _ := store.PutBlob(ctx, bytes.NewReader([]byte("referenced")), storage.ObjectMeta{})
+	refBlob, _, _ := store.Put(ctx, storage.Blobs, bytes.NewReader([]byte("referenced")), storage.ObjectMeta{})
 	db.Create(&models.AssetFile{AssetVersionID: versionID, RelativePath: "a", SizeBytes: 1, ContentHash: refBlob, ObjectKey: refBlob})
 
 	// Orphan blob (no row) with metadata — must be found, meta surfaced.
 	orphanMeta := storage.ObjectMeta{Filename: "lost.psd", LibraryID: 9, Kind: "loose"}
-	orphanBlob, _, _ := store.PutBlob(ctx, bytes.NewReader([]byte("orphan-blob")), orphanMeta)
+	orphanBlob, _, _ := store.Put(ctx, storage.Blobs, bytes.NewReader([]byte("orphan-blob")), orphanMeta)
 
 	// Referenced thumb (asset thumbnail) vs orphan thumb.
 	refThumb := putThumb(t, store, ctx, "ref-thumb")
@@ -82,11 +81,11 @@ func TestFindOrphans(t *testing.T) {
 	orphanThumb := putThumb(t, store, ctx, "orphan-thumb")
 
 	// Live archive original (purged=false) spared; purged original found; loose original found.
-	liveOrig, _, _ := store.PutOriginal(ctx, bytes.NewReader([]byte("live-archive")), storage.ObjectMeta{})
+	liveOrig, _, _ := store.Put(ctx, storage.Originals, bytes.NewReader([]byte("live-archive")), storage.ObjectMeta{})
 	db.Create(&models.AssetVersion{AssetID: assetID, VersionLabel: "1", OriginalPackageObjectKey: liveOrig, PackageKind: "unitypackage", OriginalPackagePurged: false})
-	purgedOrig, _, _ := store.PutOriginal(ctx, bytes.NewReader([]byte("purged-archive")), storage.ObjectMeta{})
+	purgedOrig, _, _ := store.Put(ctx, storage.Originals, bytes.NewReader([]byte("purged-archive")), storage.ObjectMeta{})
 	db.Create(&models.AssetVersion{AssetID: assetID, VersionLabel: "2", OriginalPackageObjectKey: purgedOrig, PackageKind: "unitypackage", OriginalPackagePurged: true})
-	orphanOrig, _, _ := store.PutOriginal(ctx, bytes.NewReader([]byte("orphan-archive")), storage.ObjectMeta{})
+	orphanOrig, _, _ := store.Put(ctx, storage.Originals, bytes.NewReader([]byte("orphan-archive")), storage.ObjectMeta{})
 
 	// minAge 0, now in the future → every object clears the age gate.
 	future := time.Now().Add(time.Hour)
@@ -132,8 +131,8 @@ func TestDeleteOrphans(t *testing.T) {
 	_, _, versionID := seedParents(t, db)
 	future := time.Now().Add(time.Hour)
 
-	deletable, _, _ := store.PutBlob(ctx, bytes.NewReader([]byte("delete-me")), storage.ObjectMeta{})
-	raced, _, _ := store.PutBlob(ctx, bytes.NewReader([]byte("raced")), storage.ObjectMeta{})
+	deletable, _, _ := store.Put(ctx, storage.Blobs, bytes.NewReader([]byte("delete-me")), storage.ObjectMeta{})
+	raced, _, _ := store.Put(ctx, storage.Blobs, bytes.NewReader([]byte("raced")), storage.ObjectMeta{})
 	// Simulate a dedup re-use committed between scan and delete.
 	db.Create(&models.AssetFile{AssetVersionID: versionID, RelativePath: "b", SizeBytes: 1, ContentHash: raced, ObjectKey: raced})
 	missing := hex.EncodeToString(sha256.New().Sum([]byte("never-stored"))[:32])
@@ -162,7 +161,7 @@ func TestDeleteOrphans(t *testing.T) {
 	}
 	reasons := map[string]string{}
 	for _, s := range res.Skipped {
-		reasons[s.Key+"|"+s.Prefix] = s.Reason
+		reasons[s.Key+"|"+string(s.Prefix)] = s.Reason
 	}
 	if reasons[raced+"|blobs"] != "now referenced" {
 		t.Fatalf("raced key: got reason %q", reasons[raced+"|blobs"])
@@ -175,10 +174,10 @@ func TestDeleteOrphans(t *testing.T) {
 	}
 
 	// The deletable object is gone; the raced one survives.
-	if _, exists, _ := store.HeadBlob(ctx, deletable); exists {
+	if _, exists, _ := store.Stat(ctx, storage.Blobs, deletable); exists {
 		t.Fatalf("deletable object still present")
 	}
-	if _, exists, _ := store.HeadBlob(ctx, raced); !exists {
+	if _, exists, _ := store.Stat(ctx, storage.Blobs, raced); !exists {
 		t.Fatalf("raced object was wrongly deleted")
 	}
 
@@ -203,7 +202,7 @@ func TestObjectKeyColumns_ListsEveryKeyColumn(t *testing.T) {
 	listed := map[string]bool{}
 	for _, col := range models.ObjectKeyColumns {
 		listed[col.Table+"."+col.Column] = true
-		if !isSweptPrefix(col.Prefix) {
+		if !isSweptPrefix(storage.Prefix(col.Prefix)) {
 			t.Errorf("%s.%s maps to %q, which the sweep does not list", col.Table, col.Column, col.Prefix)
 		}
 	}

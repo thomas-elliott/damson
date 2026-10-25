@@ -38,7 +38,6 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/ingest"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/preview"
-	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/uploads"
 	damsonweb "github.com/thomas-elliott/damson/internal/web"
 )
@@ -124,7 +123,7 @@ func run() error {
 		slog.Info("auth mode", "mode", "local")
 	}
 
-	store, err := storage.New(startupCtx, cfg)
+	store, err := newStorage(startupCtx, cfg)
 	if err != nil {
 		return fmt.Errorf("storage init: %w", err)
 	}

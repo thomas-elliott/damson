@@ -19,7 +19,7 @@ func TestGetFile_OriginalKeepsItsArchiveExtension(t *testing.T) {
 			h, db := newTestHandler(t)
 			u := seedUser(t, db, "t@example.com")
 			lib := seedLibraryForUser(t, db, u, "Personal")
-			key, _, err := h.storage.PutOriginal(context.Background(), bytes.NewReader([]byte(kind)), storage.ObjectMeta{})
+			key, _, err := h.storage.Put(context.Background(), storage.Originals, bytes.NewReader([]byte(kind)), storage.ObjectMeta{})
 			if err != nil {
 				t.Fatal(err)
 			}

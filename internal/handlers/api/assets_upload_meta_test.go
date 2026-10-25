@@ -22,14 +22,14 @@ type metaRecordingStorage struct {
 	lastBlobMeta     storage.ObjectMeta
 }
 
-func (m *metaRecordingStorage) PutOriginal(ctx context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
-	m.lastOriginalMeta = meta
-	return m.LocalFS.PutOriginal(ctx, r, meta)
-}
-
-func (m *metaRecordingStorage) PutBlob(ctx context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
-	m.lastBlobMeta = meta
-	return m.LocalFS.PutBlob(ctx, r, meta)
+func (m *metaRecordingStorage) Put(ctx context.Context, prefix storage.Prefix, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
+	switch prefix {
+	case storage.Originals:
+		m.lastOriginalMeta = meta
+	case storage.Blobs:
+		m.lastBlobMeta = meta
+	}
+	return m.LocalFS.Put(ctx, prefix, r, meta)
 }
 
 func newRecordingHandler(t *testing.T) (*Handler, *metaRecordingStorage, *gorm.DB) {
