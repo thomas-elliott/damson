@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 func TestStorageCleanup_RequiresSysadmin(t *testing.T) {

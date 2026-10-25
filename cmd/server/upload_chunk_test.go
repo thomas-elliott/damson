@@ -12,10 +12,10 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/handlers/api"
+	"github.com/thomas-elliott/damson/internal/ingest"
+	"github.com/thomas-elliott/damson/internal/ingest/ingesttest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/ingest"
-	"github.com/thomas-elliott/damson/internal/services/ingest/ingesttest"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 	"github.com/thomas-elliott/damson/internal/testdb"
 )
 

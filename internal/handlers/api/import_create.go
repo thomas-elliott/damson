@@ -8,10 +8,10 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/audit"
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/ingest"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // importSpec is everything the import transaction needs that does not depend

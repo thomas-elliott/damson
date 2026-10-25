@@ -10,7 +10,7 @@ import (
 	"golang.org/x/image/bmp"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/preview"
 )
 
 // realBMP returns the bytes of a small opaque BMP — a file type the backend

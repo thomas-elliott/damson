@@ -1,6 +1,6 @@
 // Package tagpath holds the tag-path normalisation rule. It is a leaf package
 // with no dependencies so the dmsn CLI can apply the same rule the server does
-// without importing internal/services/tags, which pulls in GORM.
+// without importing internal/tags, which pulls in GORM.
 //
 // Both sides must agree: the CLI compares a user-typed path against the paths
 // an asset already carries, and the server stores the normalised form.

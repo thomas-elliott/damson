@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/thomas-elliott/damson/internal/importsource"
-	"github.com/thomas-elliott/damson/internal/services/ingest"
+	"github.com/thomas-elliott/damson/internal/ingest"
 )
 
 // maxPreflightEntries bounds one preflight request. A cache sync sends its

@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/thomas-elliott/damson/internal/auth"
-	"github.com/thomas-elliott/damson/internal/services/storage"
-	"github.com/thomas-elliott/damson/internal/services/storage/cleanup"
+	"github.com/thomas-elliott/damson/internal/storage"
+	"github.com/thomas-elliott/damson/internal/storage/cleanup"
 )
 
 type storageCleanupCandidateView struct {

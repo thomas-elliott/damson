@@ -12,8 +12,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/metadata"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
 // TestReferenceAsset_SchemaInvariants proves the database itself refuses the

@@ -25,9 +25,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/db"
-	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/ingest"
-	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/enrich"
+	"github.com/thomas-elliott/damson/internal/ingest"
+	"github.com/thomas-elliott/damson/internal/preview"
 )
 
 // Queue names. Imports and previews run on separate queues so each can be sized

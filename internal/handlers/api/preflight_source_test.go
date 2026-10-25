@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/ingest"
 )
 
 func preflightEntries(t *testing.T, h *Handler, u *models.User, entries []map[string]any) preflightPayload {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/thomas-elliott/damson/internal/config"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // newStorage builds the object store that cfg.StorageMode names.

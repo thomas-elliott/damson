@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 func TestImport_PurgesOriginalWhenRetentionOff(t *testing.T) {
