@@ -15,11 +15,11 @@ import (
 	"golang.org/x/image/bmp"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/enrich"
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/preview"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/preview"
+	"github.com/thomas-elliott/damson/internal/storage"
 	"github.com/thomas-elliott/damson/internal/testdb"
 )
 
@@ -43,7 +43,7 @@ func newQueueEnv(t *testing.T) (*Queue, *gorm.DB, storage.Service, string) {
 		Schema:         schema,
 		ImportWorkers:  1,
 		PreviewWorkers: 1,
-		ImportDeps:     imports.Deps{DB: gdb, Storage: store},
+		ImportDeps:     ingest.Deps{DB: gdb, Storage: store},
 		PreviewDeps:    preview.Deps{DB: gdb, Storage: store},
 	})
 	if err != nil {
@@ -85,7 +85,7 @@ func renderableBMP(t *testing.T) []byte {
 
 func seedQueuedFile(t *testing.T, gdb *gorm.DB, store storage.Service, payload []byte, path string) (libID, versionID, fileID uint) {
 	t.Helper()
-	key, _, err := store.PutBlob(context.Background(), bytes.NewReader(payload), storage.ObjectMeta{})
+	key, _, err := store.Put(context.Background(), storage.Blobs, bytes.NewReader(payload), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put blob: %v", err)
 	}
@@ -149,7 +149,7 @@ func seedImportRow(t *testing.T, gdb *gorm.DB, withOriginal bool) (importID, lib
 	if err := gdb.Create(&v).Error; err != nil {
 		t.Fatalf("seed version: %v", err)
 	}
-	imp := models.AssetImport{AssetID: asset.ID, AssetVersionID: &v.ID, Stage: imports.StageUploaded}
+	imp := models.AssetImport{AssetID: asset.ID, AssetVersionID: &v.ID, Stage: ingest.StageUploaded}
 	if err := gdb.Create(&imp).Error; err != nil {
 		t.Fatalf("seed import: %v", err)
 	}
@@ -204,9 +204,9 @@ func TestQueue_ImportTerminalErrorCancels(t *testing.T) {
 	q, gdb, _, _ := newQueueEnv(t)
 	importID, libID := seedImportRow(t, gdb, false)
 
-	enqueue(t, q.Imports().Enqueue(gdb, imports.Job{ImportID: importID, LibraryID: libID}))
+	enqueue(t, q.Imports().Enqueue(gdb, ingest.Job{ImportID: importID, LibraryID: libID}))
 
-	waitForImportStage(t, gdb, importID, imports.StageFailed)
+	waitForImportStage(t, gdb, importID, ingest.StageFailed)
 	waitForRiverState(t, gdb, "import", "cancelled")
 }
 
@@ -217,7 +217,7 @@ func TestQueue_ImportTerminalErrorCancels(t *testing.T) {
 func TestQueue_ImportTransientErrorRetries(t *testing.T) {
 	q, gdb, _, _ := newQueueEnv(t)
 
-	enqueue(t, q.Imports().Enqueue(gdb, imports.Job{ImportID: 999999, LibraryID: 0}))
+	enqueue(t, q.Imports().Enqueue(gdb, ingest.Job{ImportID: 999999, LibraryID: 0}))
 
 	waitForRiverState(t, gdb, "import", "retryable")
 	if got := riverJobState(t, gdb, "import"); got == "cancelled" || got == "discarded" {
@@ -228,7 +228,7 @@ func TestQueue_ImportTransientErrorRetries(t *testing.T) {
 // TestWorkerTimeouts proves the per-queue job timeout is wired from config onto
 // the workers.
 func TestWorkerTimeouts(t *testing.T) {
-	iw := &worker[ImportArgs]{kind: importKind(nil, imports.Deps{}, 1, 7*time.Minute)}
+	iw := &worker[ImportArgs]{kind: importKind(nil, ingest.Deps{}, 1, 7*time.Minute)}
 	if got := iw.Timeout(nil); got != 7*time.Minute {
 		t.Fatalf("import worker timeout: got %v, want 7m", got)
 	}
@@ -366,7 +366,7 @@ func TestStoreLookups_RunOneAtATime(t *testing.T) {
 	runner := &concurrencyRunner{}
 	q, err := New(context.Background(), Config{
 		DSN: dsn, DB: gdb, Schema: schema, ImportWorkers: 4, PreviewWorkers: 4,
-		ImportDeps: imports.Deps{DB: gdb}, PreviewDeps: preview.Deps{DB: gdb}, StoreLookups: runner,
+		ImportDeps: ingest.Deps{DB: gdb}, PreviewDeps: preview.Deps{DB: gdb}, StoreLookups: runner,
 	})
 	if err != nil {
 		t.Fatalf("new queue: %v", err)
@@ -409,10 +409,10 @@ func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	events := imports.NewBroadcaster()
+	events := ingest.NewBroadcaster()
 	ch, unsub := events.Subscribe(libID)
 	defer unsub()
-	w := &worker[ImportArgs]{kind: importKind(nil, imports.Deps{DB: gdb, Storage: store, Broadcaster: events}, 1, 0)}
+	w := &worker[ImportArgs]{kind: importKind(nil, ingest.Deps{DB: gdb, Storage: store, Broadcaster: events}, 1, 0)}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
@@ -429,14 +429,14 @@ func TestImportWorker_TimeoutOnLastAttemptMarksTheImportFailed(t *testing.T) {
 	if err := gdb.First(&imp, importID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if imp.Stage != imports.StageFailed {
-		t.Fatalf("stage = %q, want %q", imp.Stage, imports.StageFailed)
+	if imp.Stage != ingest.StageFailed {
+		t.Fatalf("stage = %q, want %q", imp.Stage, ingest.StageFailed)
 	}
 	// An open page learns the import stopped only from the stream.
 	select {
 	case ev := <-ch:
-		if ev.Stage != imports.StageFailed {
-			t.Errorf("event stage = %q, want %q", ev.Stage, imports.StageFailed)
+		if ev.Stage != ingest.StageFailed {
+			t.Errorf("event stage = %q, want %q", ev.Stage, ingest.StageFailed)
 		}
 	default:
 		t.Error("no failed event published")
@@ -458,7 +458,7 @@ func TestEnqueue_JoinsTheCreatingTransaction(t *testing.T) {
 
 	failed := errors.New("the request failed after enqueuing")
 	err := gdb.Transaction(func(tx *gorm.DB) error {
-		enqueue(t, q.Imports().Enqueue(tx, imports.Job{ImportID: 999999, LibraryID: 1}))
+		enqueue(t, q.Imports().Enqueue(tx, ingest.Job{ImportID: 999999, LibraryID: 1}))
 		return failed
 	})
 	if !errors.Is(err, failed) {
@@ -469,7 +469,7 @@ func TestEnqueue_JoinsTheCreatingTransaction(t *testing.T) {
 	}
 
 	if err := gdb.Transaction(func(tx *gorm.DB) error {
-		return q.Imports().Enqueue(tx, imports.Job{ImportID: 999999, LibraryID: 1})
+		return q.Imports().Enqueue(tx, ingest.Job{ImportID: 999999, LibraryID: 1})
 	}); err != nil {
 		t.Fatal(err)
 	}

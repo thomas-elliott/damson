@@ -263,6 +263,47 @@ func TestGetAssetDetail_OrdersVersionsBySemver(t *testing.T) {
 	}
 }
 
+// Only a retained archive is offered as a download. A loose version's key
+// is its one blob, and a purged archive's key outlives its bytes.
+func TestGetAssetDetail_OffersOnlyARetainedArchive(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset")
+	for _, v := range []models.AssetVersion{
+		{AssetID: asset.ID, StoreVersion: "1", PackageKind: models.PackageKindZip, OriginalPackageObjectKey: "aa"},
+		{AssetID: asset.ID, StoreVersion: "2", PackageKind: models.PackageKindUnityPackage, OriginalPackageObjectKey: "bb", OriginalPackagePurged: true},
+		{AssetID: asset.ID, StoreVersion: "3", PackageKind: models.PackageKindLoose, OriginalPackageObjectKey: "cc"},
+	} {
+		if err := db.Create(&v).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/assets/1")
+	requireStatus(t, w, http.StatusOK)
+
+	var resp struct {
+		Versions []struct {
+			StoreVersion string `json:"store_version"`
+			HasOriginal  bool   `json:"has_original"`
+			OriginalKey  string `json:"original_package_object_key"`
+		} `json:"versions"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, v := range resp.Versions {
+		if v.HasOriginal {
+			got[v.StoreVersion] = v.OriginalKey
+		}
+	}
+	if len(got) != 1 || got["1"] != "aa" {
+		t.Fatalf("downloadable originals = %v, want only version 1 (aa)", got)
+	}
+}
+
 func TestPatchAsset_RejectsBlankName(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")

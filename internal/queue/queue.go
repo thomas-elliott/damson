@@ -25,9 +25,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/db"
-	"github.com/thomas-elliott/damson/internal/services/enrich"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/enrich"
+	"github.com/thomas-elliott/damson/internal/ingest"
+	"github.com/thomas-elliott/damson/internal/preview"
 )
 
 // Queue names. Imports and previews run on separate queues so each can be sized
@@ -143,19 +143,19 @@ func register[A river.JobArgs](q *Queue, workers *river.Workers, queues map[stri
 	q.sweeps = append(q.sweeps, sweep{queue: k.queue, resume: k.resume})
 }
 
-func importKind(q *Queue, deps imports.Deps, workers int, timeout time.Duration) kind[ImportArgs] {
+func importKind(q *Queue, deps ingest.Deps, workers int, timeout time.Duration) kind[ImportArgs] {
 	return kind[ImportArgs]{
 		queue: QueueImport, workers: workers, timeout: timeout,
 		run: func(ctx context.Context, a ImportArgs) error {
-			return imports.Run(ctx, deps, imports.Job{ImportID: a.ImportID, LibraryID: a.LibraryID})
+			return ingest.Run(ctx, deps, ingest.Job{ImportID: a.ImportID, LibraryID: a.LibraryID})
 		},
 		// The pipeline marks the row failed for terminal input errors
 		// (missing source blob, library mismatch), which no retry fixes.
-		terminal: func(ctx context.Context, a ImportArgs) bool { return imports.IsFailed(ctx, deps.DB, a.ImportID) },
+		terminal: func(ctx context.Context, a ImportArgs) bool { return ingest.IsFailed(ctx, deps.DB, a.ImportID) },
 		fail: func(ctx context.Context, a ImportArgs, reason string) error {
-			return imports.FailImport(ctx, deps, a.ImportID, reason)
+			return ingest.FailImport(ctx, deps, a.ImportID, reason)
 		},
-		resume: func(ctx context.Context) (int, error) { return imports.ResumeInFlight(ctx, deps.DB, q.Imports()) },
+		resume: func(ctx context.Context) (int, error) { return ingest.ResumeInFlight(ctx, deps.DB, q.Imports()) },
 	}
 }
 
@@ -206,7 +206,7 @@ type Config struct {
 	ImportJobTimeout  time.Duration
 	PreviewJobTimeout time.Duration
 
-	ImportDeps  imports.Deps
+	ImportDeps  ingest.Deps
 	PreviewDeps preview.Deps
 	// StoreLookups runs store lookups. Without it the queue has no
 	// store_lookup kind.

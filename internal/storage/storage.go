@@ -1,0 +1,124 @@
+// Package storage defines the content-addressed blob/thumbnail interface used
+// by the import pipeline and HTTP handlers, with a local-filesystem and an
+// S3-compatible implementation.
+package storage
+
+import (
+	"context"
+	"io"
+	"sort"
+	"time"
+)
+
+// ObjectMeta carries descriptive metadata written alongside an object. It is
+// a self-describing fallback for DB-loss recovery and orphan sweeps; the
+// database remains the source of truth. Fields are best-effort — callers set
+// what they know at write time. Metadata is write-once per content hash.
+type ObjectMeta struct {
+	Filename  string
+	LibraryID uint
+	AssetID   uint
+	VersionID uint
+	Kind      string
+}
+
+// ObjectInfo describes one stored object as returned by List. Key is the bare
+// content-hash key (un-sharded), matching what the database stores.
+type ObjectInfo struct {
+	Key          string
+	Size         int64
+	LastModified time.Time
+}
+
+// Part identifies one uploaded chunk of a multipart write. ETag is whatever
+// the backend reported for that part and is opaque to callers.
+type Part struct {
+	Number int    `json:"number"`
+	ETag   string `json:"etag"`
+}
+
+// MultipartUpload is an in-progress resumable write to one content-addressed
+// key, whose parts may arrive across separate requests and processes. ID is
+// durable — store it and hand it to Service.ResumeMultipart to re-attach.
+type MultipartUpload interface {
+	ID() string
+
+	// UploadPart writes part n (1-based) of exactly size bytes from r.
+	// Re-uploading the same n replaces it.
+	UploadPart(ctx context.Context, n int, size int64, r io.Reader) (etag string, err error)
+
+	// Complete assembles parts into the target key and returns it.
+	Complete(ctx context.Context, parts []Part) (objectKey string, err error)
+
+	// Abort discards the upload and everything written to it.
+	Abort(ctx context.Context) error
+}
+
+// sortedParts copies parts into part-number order. Callers may list them in
+// any order; the object is always the concatenation by number.
+func sortedParts(parts []Part) []Part {
+	ordered := make([]Part, len(parts))
+	copy(ordered, parts)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Number < ordered[j].Number })
+	return ordered
+}
+
+// Prefix is one key namespace in the store. Keys under every prefix are
+// `<prefix>/<hh>/<sha256>`.
+type Prefix string
+
+const (
+	// Blobs holds extracted content and loose uploads.
+	Blobs Prefix = "blobs"
+	// Originals holds uploaded archives, kept apart so retention can purge
+	// them.
+	Originals Prefix = "originals"
+	// Thumbs holds derived images: thumbnails, previews, gallery and store
+	// covers.
+	Thumbs Prefix = "thumbs"
+)
+
+var (
+	_ Service = (*S3)(nil)
+	_ Service = (*LocalFS)(nil)
+)
+
+// Service stores objects content-addressed by SHA-256 under a Prefix.
+type Service interface {
+	// Put streams r under prefix, keyed by the SHA-256 of its bytes. An object
+	// already at that key is kept and touched, not rewritten. meta is attached
+	// to the object on first write.
+	Put(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (objectKey string, size int64, err error)
+
+	Get(ctx context.Context, prefix Prefix, objectKey string) (io.ReadCloser, error)
+
+	// Stat reports an object's size and last-modified time, and whether it
+	// exists. The orphan sweep checks each key's age with it just before
+	// deleting, rather than trusting a listing taken earlier.
+	Stat(ctx context.Context, prefix Prefix, objectKey string) (info ObjectInfo, exists bool, err error)
+
+	// StatMeta returns the ObjectMeta attached to a stored object, or the zero
+	// value when none was written.
+	StatMeta(ctx context.Context, prefix Prefix, objectKey string) (ObjectMeta, error)
+
+	// Touch refreshes an existing object's last-modified time and reports
+	// whether it exists. A write that reuses an existing object must touch it
+	// (Put does so itself): the orphan sweep's age floor is what keeps an
+	// object alive between its reuse and the commit of the row that
+	// references it.
+	Touch(ctx context.Context, prefix Prefix, objectKey string) (exists bool, err error)
+
+	// Delete removes an object. A missing object is not an error.
+	Delete(ctx context.Context, prefix Prefix, objectKey string) error
+
+	// List enumerates every object under prefix, returning bare content-hash
+	// keys with size and last-modified. Used by the orphan sweep.
+	List(ctx context.Context, prefix Prefix) ([]ObjectInfo, error)
+
+	// BeginMultipart opens a resumable write targeting objectKey under prefix.
+	// The caller already knows the content hash, so no staging copy is needed.
+	BeginMultipart(ctx context.Context, prefix Prefix, objectKey string, meta ObjectMeta) (MultipartUpload, error)
+
+	// ResumeMultipart re-attaches to an upload opened by BeginMultipart.
+	ResumeMultipart(ctx context.Context, prefix Prefix, objectKey, uploadID string) (MultipartUpload, error)
+}

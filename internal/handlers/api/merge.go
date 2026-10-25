@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/assets"
 	"github.com/thomas-elliott/damson/internal/auth"
-	"github.com/thomas-elliott/damson/internal/services/assets"
 )
 
 type mergeRequest struct {

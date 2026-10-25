@@ -11,11 +11,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/assets"
+	"github.com/thomas-elliott/damson/internal/audit"
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/assets"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 // assetDetailView is the shape returned by GET /api/assets/:id and is the
@@ -149,7 +149,7 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	err := h.db.WithContext(c.Request.Context()).
 		Table("asset_versions AS v").
 		Select(`v.id, v.version_label, v.store_version, v.notes, v.import_date, v.package_kind,
-			CASE WHEN v.original_package_object_key IS NOT NULL AND v.original_package_object_key <> '' AND v.original_package_purged = false THEN true ELSE false END AS has_original,
+			`+models.DownloadableOriginalSQL("v")+` AS has_original,
 			v.original_package_object_key,
 			COALESCE(COUNT(f.id), 0) AS file_count,
 			COALESCE(SUM(f.size_bytes), 0) AS size_bytes`).
@@ -166,15 +166,15 @@ func (h *Handler) getAssetDetail(c *gin.Context) {
 	// import-date-ordered rows here, versioned rows first (descending) and
 	// unversioned rows kept in import-date order after them.
 	sort.SliceStable(versions, func(i, j int) bool {
-		a, aok := imports.ParseStoreVersion(versions[i].StoreVersion)
-		b, bok := imports.ParseStoreVersion(versions[j].StoreVersion)
+		a, aok := ingest.ParseStoreVersion(versions[i].StoreVersion)
+		b, bok := ingest.ParseStoreVersion(versions[j].StoreVersion)
 		if aok != bok {
 			return aok
 		}
 		if !aok {
 			return false
 		}
-		return imports.CompareStoreVersions(a, b) > 0
+		return ingest.CompareStoreVersions(a, b) > 0
 	})
 	for _, v := range versions {
 		originalKey := ""
@@ -541,7 +541,7 @@ func (h *Handler) patchAssetVersion(c *gin.Context) {
 	if req.StoreVersion != nil {
 		trimmed := strings.TrimSpace(*req.StoreVersion)
 		if trimmed != "" {
-			if _, valid := imports.ParseStoreVersion(trimmed); !valid {
+			if _, valid := ingest.ParseStoreVersion(trimmed); !valid {
 				respond400(c, asError("store_version must be a dotted number like 1.1"))
 				return
 			}

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/thomas-elliott/damson/internal/imaging/imagingtest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imaging/imagingtest"
 )
 
 // Tier-2 formats get both a grid cover and a panel preview, from the same

@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/assets"
 	"github.com/thomas-elliott/damson/internal/auth"
-	"github.com/thomas-elliott/damson/internal/services/assets"
 )
 
 // Sentinels for the "should never happen" context/config guards so a swept
