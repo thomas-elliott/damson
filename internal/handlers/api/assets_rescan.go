@@ -76,7 +76,7 @@ func (h *Handler) postAssetRescan(c *gin.Context) {
 
 	resp := rescanResponse{AssetID: asset.ID, VersionID: versionID}
 
-	licUpdated, detectedType := h.rescanLicence(c, lib.ID, &asset, files, u.ID)
+	licUpdated, detectedType := h.rescanLicence(c, &asset, files)
 	resp.LicenceUpdated = licUpdated
 	resp.DetectedType = detectedType
 
@@ -103,23 +103,13 @@ func (h *Handler) postAssetRescan(c *gin.Context) {
 }
 
 // rescanLicence re-detects the licence from the current version's files and
-// persists it — but only when it wouldn't clobber human intent: a licence that
-// has been reviewed is left untouched. Returns whether it wrote a licence and
-// the type it detected.
-func (h *Handler) rescanLicence(c *gin.Context, libraryID uint, asset *models.Asset, files []models.AssetFile, userID uint) (bool, string) {
+// persists it. As an automatic write it never replaces a reviewed licence.
+// Returns whether it wrote a licence and the asset's licence type.
+func (h *Handler) rescanLicence(c *gin.Context, asset *models.Asset, files []models.AssetFile) (bool, string) {
 	candidate := pickLicenceCandidate(files)
 	if candidate == nil {
 		return false, ""
 	}
-	if asset.LicenceID != nil {
-		var existing models.Licence
-		if err := h.db.WithContext(c.Request.Context()).First(&existing, *asset.LicenceID).Error; err == nil {
-			if existing.ReviewedAt != nil {
-				return false, existing.DetectedType
-			}
-		}
-	}
-
 	blob, err := h.storage.GetBlob(c.Request.Context(), candidate.ObjectKey)
 	if err != nil {
 		slog.Warn("rescan: fetch licence blob", "err", err, "object_key", candidate.ObjectKey)
@@ -141,31 +131,30 @@ func (h *Handler) rescanLicence(c *gin.Context, libraryID uint, asset *models.As
 		slog.Warn("rescan: marshal licence attributes", "err", err, "asset_id", asset.ID)
 		return false, det.DetectedType
 	}
-
+	l := models.Licence{
+		DetectedType:        det.DetectedType,
+		DetectionConfidence: det.DetectionConfidence,
+		CanonicalDiff:       det.CanonicalDiff,
+		OriginalText:        string(buf[:n]),
+		AttributesJSON:      attrsJSON,
+	}
+	var (
+		prev    *models.Licence
+		written bool
+	)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if asset.LicenceID != nil {
-			if err := tx.Where("id = ?", *asset.LicenceID).Delete(&models.Licence{}).Error; err != nil {
-				return err
-			}
-		}
-		l := models.Licence{
-			AssetID:             asset.ID,
-			DetectedType:        det.DetectedType,
-			DetectionConfidence: det.DetectionConfidence,
-			CanonicalDiff:       det.CanonicalDiff,
-			OriginalText:        string(buf[:n]),
-			AttributesJSON:      attrsJSON,
-		}
-		if err := tx.Create(&l).Error; err != nil {
-			return err
-		}
-		asset.LicenceID = &l.ID
-		return tx.Model(asset).Where("id = ?", asset.ID).Update("licence_id", l.ID).Error
+		var err error
+		prev, written, err = licence.Replace(tx, asset.ID, &l, licence.Automatic)
+		return err
 	})
 	if err != nil {
 		slog.Warn("rescan: persist licence", "err", err, "asset_id", asset.ID)
 		return false, det.DetectedType
 	}
+	if !written {
+		return false, prev.DetectedType
+	}
+	asset.LicenceID = &l.ID
 	return true, det.DetectedType
 }
 

@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -46,47 +45,8 @@ func licenceViewFrom(l *models.Licence) licenceView {
 		Attributes:          attrs,
 		ReviewedByUserID:    l.ReviewedByUserID,
 		ReviewedAt:          l.ReviewedAt,
-		Status:              LicenceStatusFor(l.DetectedType, attrs),
+		Status:              licence.StatusFor(l.DetectedType, attrs),
 	}
-}
-
-// LicenceStatusFor maps an SPDX/custom type + attributes to the UI pill's
-// semantic status. Kept in the handler package because it's the one place
-// where business semantics for the badge live; the design-system owns only
-// the visual tone mapping.
-func LicenceStatusFor(detectedType string, attrs licence.Attributes) string {
-	if detectedType == "" || detectedType == "unknown" {
-		return "unk"
-	}
-	// Commercial-use blockers flag as `err`; anything with all affirmative
-	// common-use attributes is `ok`; everything else is `warn`.
-	if attrs.CommercialUse != nil && !*attrs.CommercialUse {
-		return "err"
-	}
-	if slices.Contains(permissiveLicences, detectedType) {
-		return "ok"
-	}
-	return "warn"
-}
-
-// permissiveLicences are the types LicenceStatusFor reports as ok unless
-// their attributes bar commercial use.
-var permissiveLicences = []string{
-	"MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "Zlib", "ISC",
-	"CC-BY-4.0", "CC-BY-3.0", "CC0-1.0", "OFL-1.1", "Unlicense",
-}
-
-// licenceStatusSQL is LicenceStatusFor as SQL over a licences row aliased
-// alias (all NULL when the asset has no licence). Its one placeholder takes
-// permissiveLicences. Keep it in step with
-// LicenceStatusFor; TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail
-// checks the two agree.
-func licenceStatusSQL(alias string) string {
-	return `CASE
-		WHEN COALESCE(` + alias + `.detected_type, '') IN ('', 'unknown') THEN 'unk'
-		WHEN ` + alias + `.attributes_json->>'commercial_use' = 'false' THEN 'err'
-		WHEN ` + alias + `.detected_type IN ? THEN 'ok'
-		ELSE 'warn' END`
 }
 
 type putLicenceRequest struct {
@@ -120,84 +80,65 @@ func (h *Handler) putLicence(c *gin.Context) {
 		return
 	}
 
-	// If the client asked for detection, run it *outside* the transaction —
-	// the detector has no DB dependencies and is deterministic.
-	detectedType := req.DetectedType
-	attrs := req.Attributes
-	canonicalDiff := ""
-	var confidence float32
-	if req.UseDetected || detectedType == "" {
-		r := licence.Detect(req.OriginalText)
-		detectedType = r.DetectedType
-		canonicalDiff = r.CanonicalDiff
-		confidence = r.DetectionConfidence
-		if req.UseDetected {
-			attrs = r.Attributes
-		}
+	out, err := requestedLicence(req.OriginalText, req.DetectedType, req.Attributes, req.UseDetected)
+	if err != nil {
+		respond500(c, err)
+		return
 	}
-
-	var out models.Licence
-	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		var asset models.Asset
-		if err := tx.Where("id = ? AND library_id = ?", id, lib.ID).First(&asset).Error; err != nil {
-			return err
-		}
-		var before *licenceView
-		if asset.LicenceID != nil {
-			var existing models.Licence
-			if err := tx.First(&existing, *asset.LicenceID).Error; err == nil {
-				v := licenceViewFrom(&existing)
-				before = &v
-				if err := tx.Delete(&existing).Error; err != nil {
-					return err
-				}
-			}
-		}
-		attrsJSON, err := json.Marshal(attrs)
-		if err != nil {
-			return err
-		}
-		l := models.Licence{
-			AssetID:             asset.ID,
-			DetectedType:        detectedType,
-			DetectionConfidence: confidence,
-			CanonicalDiff:       canonicalDiff,
-			OriginalText:        req.OriginalText,
-			AttributesJSON:      attrsJSON,
-		}
-		if err := tx.Create(&l).Error; err != nil {
-			return err
-		}
-		asset.LicenceID = &l.ID
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-		out = l
-		after := licenceViewFrom(&l)
-		action := "asset.licence.set"
-		if before != nil {
-			action = "asset.licence.update"
-		}
-		var diff any
-		if before != nil {
-			diff = audit.Updated(before, after)
-		} else {
-			diff = audit.Created(after)
-		}
-		return audit.Write(tx, audit.Entry{
-			LibraryID:  &lib.ID,
-			UserID:     &u.ID,
-			ActionType: action,
-			TargetType: "asset",
-			TargetID:   &asset.ID,
-			Diff:       diff,
-		})
+	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		return setLicenceTx(tx, lib.ID, u.ID, id, &out)
 	})
 	if err != nil {
 		respondGORM(c, err, "asset not found")
 		return
 	}
 	c.JSON(http.StatusOK, licenceViewFrom(&out))
+}
+
+// requestedLicence builds the licence a person asked for. With no detected
+// type, or with useDetected, it runs the detector over the text; useDetected
+// also takes the detector's attributes over the client's.
+func requestedLicence(text, detectedType string, attrs licence.Attributes, useDetected bool) (models.Licence, error) {
+	l := models.Licence{DetectedType: detectedType, OriginalText: text}
+	if useDetected || detectedType == "" {
+		r := licence.Detect(text)
+		l.DetectedType = r.DetectedType
+		l.CanonicalDiff = r.CanonicalDiff
+		l.DetectionConfidence = r.DetectionConfidence
+		if useDetected {
+			attrs = r.Attributes
+		}
+	}
+	var err error
+	l.AttributesJSON, err = json.Marshal(attrs)
+	return l, err
+}
+
+// setLicenceTx is a person's licence write: it replaces the asset's licence
+// with l, clearing any review, and audits the change.
+func setLicenceTx(tx *gorm.DB, libID, userID, assetID uint, l *models.Licence) error {
+	var asset models.Asset
+	if err := tx.Select("id").Where("id = ? AND library_id = ?", assetID, libID).First(&asset).Error; err != nil {
+		return err
+	}
+	prev, _, err := licence.Replace(tx, asset.ID, l, licence.ByPerson)
+	if err != nil {
+		return err
+	}
+	action := "asset.licence.set"
+	var diff any = audit.Created(licenceViewFrom(l))
+	if prev != nil {
+		action = "asset.licence.update"
+		diff = audit.Updated(licenceViewFrom(prev), licenceViewFrom(l))
+	}
+	return audit.Write(tx, audit.Entry{
+		LibraryID:  &libID,
+		UserID:     &userID,
+		ActionType: action,
+		TargetType: "asset",
+		TargetID:   &asset.ID,
+		Diff:       diff,
+	})
 }
 
 // postLicenceReview marks the asset's current licence as reviewed.
@@ -259,7 +200,7 @@ func (h *Handler) postDetectLicence(c *gin.Context) {
 		"detection_confidence": r.DetectionConfidence,
 		"canonical_diff":       r.CanonicalDiff,
 		"attributes":           r.Attributes,
-		"status":               LicenceStatusFor(r.DetectedType, r.Attributes),
+		"status":               licence.StatusFor(r.DetectedType, r.Attributes),
 	})
 }
 

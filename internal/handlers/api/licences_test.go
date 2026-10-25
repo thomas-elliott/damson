@@ -106,3 +106,46 @@ func TestPostLicenceReview_SetsReviewedFields(t *testing.T) {
 		t.Fatalf("reviewed fields not set: %+v", refreshed)
 	}
 }
+
+// A rescan is automatic: it writes the licence it detects, but never over one
+// a person has reviewed. A person's own write still replaces a reviewed
+// licence, and the new one starts unreviewed.
+func TestLicence_RescanKeepsAReviewedLicenceAndAPersonReplacesIt(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	arc := buildZipArchive(t, map[string][]byte{"kit/LICENSE": []byte(mitLicenceText), "kit/readme.txt": []byte("hi")})
+	body, ctype := buildMultipart(t, "file", "Kit.zip", arc)
+	w := postMultipart(r, "/api/imports", body, ctype)
+	requireStatus(t, w, http.StatusAccepted)
+	assetID := jsonResponse[importEnqueueResponse](t, w).AssetID
+	path := "/api/assets/" + uintStr(assetID)
+
+	requireStatus(t, performRequest(r, http.MethodPut, path+"/licence",
+		map[string]any{"original_text": "All rights reserved.", "detected_type": "custom"}), http.StatusOK)
+	requireStatus(t, performRequest(r, http.MethodPost, path+"/licence/review", nil), http.StatusNoContent)
+
+	w = performRequest(r, http.MethodPost, path+"/rescan", nil)
+	requireStatus(t, w, http.StatusOK)
+	if resp := jsonResponse[rescanResponse](t, w); resp.LicenceUpdated || resp.DetectedType != "custom" {
+		t.Fatalf("rescan %+v, want the reviewed custom licence kept", resp)
+	}
+	var lic models.Licence
+	db.Joins("JOIN assets a ON a.licence_id = licences.id").Where("a.id = ?", assetID).First(&lic)
+	if lic.DetectedType != "custom" || lic.ReviewedAt == nil {
+		t.Fatalf("licence %+v, want the reviewed custom licence", lic)
+	}
+
+	w = performRequest(r, http.MethodPut, path+"/licence", map[string]any{"original_text": mitLicenceText, "use_detected": true})
+	requireStatus(t, w, http.StatusOK)
+	if got := jsonResponse[licenceView](t, w); got.DetectedType != "MIT" || got.ReviewedAt != nil {
+		t.Fatalf("licence %+v, want the person's MIT licence, unreviewed", got)
+	}
+	var n int64
+	db.Model(&models.Licence{}).Where("asset_id = ?", assetID).Count(&n)
+	if n != 1 {
+		t.Fatalf("%d licence rows for the asset, want the replaced one deleted", n)
+	}
+}
