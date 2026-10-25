@@ -33,7 +33,7 @@ Playwright browsers come from `just install`; there is no separate recipe for th
 
 ### Formatting & linting
 - Always run `just format` (or `just format backend`) before committing. No hand-formatting.
-- `just lint` must pass — `go vet` on the Go side. No additional Go linter is configured.
+- `just lint` must pass — on the Go side, `go vet` and golangci-lint with `errorlint`, `contextcheck` and `unused` (`.golangci.yml`). golangci-lint is pinned as a Go tool in `go.mod`, so `just lint backend` needs no separate install.
 - `just check fast` is the read-only gate: lint + format check + `go mod tidy` drift. CI fails on `go.mod` / `go.sum` drift, so run it before pushing.
 - Standard gofmt import grouping: stdlib, third-party, local.
 - Package names: lowercase, short, descriptive. File names snake_case when needed.
@@ -44,7 +44,7 @@ API handlers are receiver methods on a shared exported `Handler` struct that car
 Access the current user with `auth.GetUser(c)`.
 
 ### Error responses
-Respond through the helpers in `helpers.go` (`respond400/400Msg/404/409/500`, `respondForbidden`; `respondGORM` for transaction errors). Never call `AbortWithStatusJSON` for a 4xx/5xx with a cause: only `respond400`/`respond500` attach it via `c.Error`, which is what puts `err` on the request log line.
+Respond through the helpers in `helpers.go` (`respond400/400Msg/404/409/500/502/503`, `respondForbidden`; `respondGORM` for transaction errors). The other cross-handler helpers live there too: `parseIDParam`, `parsePagination`, `requireAdmin`, `requireSysadmin`, `isUniqueViolation`. Never call `AbortWithStatusJSON` for a 4xx/5xx with a cause: only `respond400`/`respond500` attach it via `c.Error`, which is what puts `err` on the request log line.
 
 - `400` — bad request (e.g. validation failure) — include `err.Error()`
 - `401` — unauthenticated
@@ -54,10 +54,10 @@ Respond through the helpers in `helpers.go` (`respond400/400Msg/404/409/500`, `r
 - `500` — internal error — use the generic string `"internal error"`, don't leak internals
 
 Rarer statuses have their own homes: upload transport failures (413, 408, 507, …) go through
-`respondUploadFailure` in `upload_errors.go`; store-metadata errors through `respond502`/`respond503`
-in `metadata.go`.
+`respondUploadFailure` in `upload_errors.go`; store-metadata errors through `respondLookupFailed` in
+`metadata.go`.
 
-Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic. Startup failures log with `slog.Error` and `os.Exit(1)`.
+Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic. A startup failure is an error returned from `run()`; `main` logs it with `slog.Error` and exits 1.
 
 ### Database patterns
 - GORM models live in `internal/models/`. Each model implements `TableName() string` so the production table name is explicit and survives a struct rename (e.g. `Asset` → `assets`, `LibraryMembership` → `library_memberships`).
@@ -71,9 +71,9 @@ Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON hand
 Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers live in the package's `*_test.go` files — the core ones in `api_test.go`, seed helpers beside the feature they seed:
 
 - `newTestHandler(t)` — returns `(*Handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires `DAMSON_TEST_POSTGRES_DSN` (see `docs/architecture.md` §4.6)
-- Import and preview pools are synchronous (`NewSync`), so a 202 import is already terminal when the handler returns; River's async behaviour is only exercised by e2e.
+- Import and preview pools are synchronous (`importstest.NewSync`, `previewtest.NewSync`), so a 202 import is already terminal when the handler returns; River's async behaviour is only exercised by e2e.
 - `newTestHandlerLocal(t)` — same but in local-auth mode, with a `*auth.LocalAuthenticator` returned alongside
-- `setupRouter(h, asUser)` — registers routes under `/api`; bypasses real auth by injecting `asUser` via `auth.SetUserForTest`
+- `setupRouter(h, asUser)` — registers routes under `/api` behind the real `auth.Middleware`, with an authenticator that signs every request in as `asUser` (401 when nil)
 - `performGET(r, path)`, `performRequest(r, method, path, body)` — issue requests
 - `requireStatus(t, w, code)`, `jsonResponse[T]` — assertions
 - `seedUser`, `seedLocalUser`, `seedLibrary`, `seedMembership`, `seedLibraryAndSwitch` — seed data

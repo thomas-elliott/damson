@@ -54,21 +54,11 @@ func seedRenderableFile(t *testing.T, db *gorm.DB, store storage.Service, librar
 	return version.ID
 }
 
-func TestSyncPool_ProcessesEnqueuedVersion(t *testing.T) {
-	db := newProcessDB(t)
-	store := newTestStorage(t)
-	versionID := seedRenderableFile(t, db, store, 3, StatusQueued)
+// inlineEnqueuer processes each job on the calling goroutine.
+type inlineEnqueuer struct{ deps Deps }
 
-	pool := NewSync(Deps{DB: db, Storage: store})
-	pool.EnqueueVersion(3, versionID)
-
-	var f models.AssetFile
-	if err := db.Where("asset_version_id = ?", versionID).First(&f).Error; err != nil {
-		t.Fatal(err)
-	}
-	if f.PreviewStatus != StatusDone {
-		t.Fatalf("status after sync enqueue: got %q, want done", f.PreviewStatus)
-	}
+func (e inlineEnqueuer) Enqueue(job Job) {
+	_ = ProcessVersion(context.Background(), e.deps, job.LibraryID, job.VersionID, job.FileID)
 }
 
 func TestResumeInFlight_RecoversCrashedProcessing(t *testing.T) {
@@ -78,8 +68,7 @@ func TestResumeInFlight_RecoversCrashedProcessing(t *testing.T) {
 	// 'queued', so without the reset this would never complete.
 	versionID := seedRenderableFile(t, db, store, 5, StatusProcessing)
 
-	pool := NewSync(Deps{DB: db, Storage: store})
-	n, err := ResumeInFlight(context.Background(), db, pool)
+	n, err := ResumeInFlight(context.Background(), db, inlineEnqueuer{Deps{DB: db, Storage: store}})
 	if err != nil {
 		t.Fatalf("resume: %v", err)
 	}

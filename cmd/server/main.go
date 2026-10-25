@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,6 +24,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
+	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/config"
@@ -40,29 +43,45 @@ import (
 )
 
 func main() {
-	slog.SetDefault(newLogger(os.Stdout))
-	cfg := config.Load()
+	if err := run(); err != nil {
+		slog.Error("startup failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+// run starts the server and blocks until a signal stops it. A startup error
+// is returned for main to log, so deferred cleanup still runs.
+func run() error {
+	logger, err := newLogger(os.Stdout)
+	slog.SetDefault(logger)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
 
 	if cfg.GinMode != "" {
 		gin.SetMode(cfg.GinMode)
 	}
 	if err := checkDataDirs(cfg); err != nil {
-		slog.Error("data directory", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("data directory: %w", err)
 	}
 
 	gormDB, err := db.Open(cfg.PostgresDSN)
 	if err != nil {
-		slog.Error("db open", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("db open: %w", err)
 	}
+	// Deferred first, so it runs last: after the queue and the background
+	// goroutines that use the pool have stopped.
+	defer closeDB(gormDB)
 
 	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelStartup()
 
 	if err := db.Migrate(startupCtx, gormDB); err != nil {
-		slog.Error("migrate", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("migrate: %w", err)
 	}
 
 	var (
@@ -78,8 +97,7 @@ func main() {
 			Audience:  cfg.OIDCAudience,
 		})
 		if err != nil {
-			slog.Error("oidc init", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("oidc init: %w", err)
 		}
 		authenticator = oa
 		slog.Info("auth mode", "mode", "oidc", "issuer", cfg.OIDCIssuerURL)
@@ -89,19 +107,16 @@ func main() {
 		if len(signingKey) == 0 {
 			k, err := auth.LoadOrCreateJWTKey(cfg.JWTKeyFile)
 			if err != nil {
-				slog.Error("jwt key", "err", err)
-				os.Exit(1)
+				return fmt.Errorf("jwt key: %w", err)
 			}
 			signingKey = k
 		}
 		la, err := auth.NewLocalAuthenticatorWithIssuer(gormDB, signingKey, cfg.BaseURL)
 		if err != nil {
-			slog.Error("local auth init", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("local auth init: %w", err)
 		}
 		if err := auth.SeedLocalAdmin(startupCtx, gormDB, cfg.LocalAdminEmail, cfg.LocalAdminPassword); err != nil {
-			slog.Error("seed local admin", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("seed local admin: %w", err)
 		}
 		authenticator = la
 		localAuth = la
@@ -110,8 +125,7 @@ func main() {
 
 	store, err := storage.New(startupCtx, cfg)
 	if err != nil {
-		slog.Error("storage init", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("storage init: %w", err)
 	}
 	slog.Info("storage mode", "mode", cfg.StorageMode)
 
@@ -132,8 +146,7 @@ func main() {
 		Logger:            slog.Default(),
 	})
 	if err != nil {
-		slog.Error("queue init", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("queue init: %w", err)
 	}
 	importEnqueuer := jobQueue.Imports()
 	previewEnqueuer := jobQueue.Previews()
@@ -160,31 +173,38 @@ func main() {
 		slog.Info("import reconcile", "enqueued", resumed)
 	}
 
-	purgeCtx, cancelPurge := context.WithCancel(context.Background())
-	defer cancelPurge()
+	// Each background goroutine logs its own failure and returns nil: a plain
+	// Group, not WithContext, so one failing does not stop the others.
+	bgCtx, cancelBackground := context.WithCancel(context.Background())
+	var background errgroup.Group
+	defer func() {
+		cancelBackground()
+		waitBackground(&background, shutdownTimeout)
+	}()
 	// Off the startup path: each refetch waits on the storefront's rate limit.
-	go func() {
-		if err := imports.RepairGallery(purgeCtx, gormDB, store, metaRegistry); err != nil {
+	background.Go(func() error {
+		if err := imports.RepairGallery(bgCtx, gormDB, store, metaRegistry); err != nil {
 			slog.Warn("gallery repair failed", "err", err)
 		}
-	}()
+		return nil
+	})
 	// Off the startup path: it reads blobs.
-	go func() {
-		if covered, err := imports.BackfillCovers(purgeCtx, gormDB, store); err != nil {
+	background.Go(func() error {
+		if covered, err := imports.BackfillCovers(bgCtx, gormDB, store); err != nil {
 			slog.Warn("cover backfill failed", "err", err)
 		} else if covered > 0 {
 			slog.Info("cover backfill", "covered", covered)
 		}
-	}()
+		return nil
+	})
 	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}
-	go purger.Run(purgeCtx)
+	background.Go(func() error { purger.Run(bgCtx); return nil })
 	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}
-	go janitor.Run(purgeCtx)
+	background.Go(func() error { janitor.Run(bgCtx); return nil })
 
 	r, err := newRouter(oidcCSPOrigin(cfg), cfg.TrustedProxies)
 	if err != nil {
-		slog.Error("DAMSON_TRUSTED_PROXIES", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("DAMSON_TRUSTED_PROXIES: %w", err)
 	}
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
@@ -205,14 +225,17 @@ func main() {
 	})
 	api.AddRoutes(apiGroup, auth.Middleware(authenticator, auth.NewTokenAuthenticator(gormDB)), h)
 
+	if err := damsonweb.Mount(r); err != nil {
+		return fmt.Errorf("mount spa: %w", err)
+	}
+
 	// The queue starts only now: store lookup jobs run through the handler,
 	// which is built after the queue it enqueues on. Start with a long-lived
 	// context: cancelling Start's context soft-stops the client, so shutdown is
 	// driven by Stop below, not by startupCtx expiring.
 	jobQueue.SetStoreLookupRunner(h)
 	if err := jobQueue.Start(context.Background()); err != nil {
-		slog.Error("queue start", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("queue start: %w", err)
 	}
 	slog.Info("job queue started", "import_workers", cfg.ImportQueueWorkers, "preview_workers", cfg.PreviewQueueWorkers)
 	if resumed, err := h.ResumeStoreLookups(startupCtx); err != nil {
@@ -221,26 +244,7 @@ func main() {
 		slog.Info("store lookup reconcile", "enqueued", resumed)
 	}
 
-	if err := damsonweb.Mount(r); err != nil {
-		slog.Error("mount spa", "err", err)
-		os.Exit(1)
-	}
-
-	// Timeouts:
-	//   ReadHeaderTimeout — defends against slow-loris on the request line.
-	//   ReadTimeout       — covers the body too; uploads can be large so this
-	//                       is generous. Per-handler control happens via
-	//                       request context cancellation.
-	//   WriteTimeout      — bounds long-running responses (file streams).
-	//   IdleTimeout       — keeps keep-alive connections from accruing.
-	srv := &http.Server{
-		Addr:              cfg.ListenAddr,
-		Handler:           r,
-		ReadHeaderTimeout: 30 * time.Second,
-		ReadTimeout:       30 * time.Minute,
-		WriteTimeout:      30 * time.Minute,
-		IdleTimeout:       2 * time.Minute,
-	}
+	srv, stopStreams := newHTTPServer(cfg.ListenAddr, r)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -251,29 +255,82 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
+	// A listen failure still stops the queue, so no worker outlives the pool.
+	var listenErr error
 	select {
 	case sig := <-stop:
 		slog.Info("shutting down", "signal", sig.String())
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("listen", "err", err)
-			os.Exit(1)
+			listenErr = fmt.Errorf("listen: %w", err)
 		}
 	}
 
-	cancelPurge()
-	shutdown(srv, jobQueue, 10*time.Second, broadcaster.Close, previewBroadcaster.Close)
+	cancelBackground()
+	shutdown(srv, jobQueue, shutdownTimeout, stopStreams)
+	return listenErr
 }
 
-// shutdown stops HTTP first, ending the SSE streams so they don't hold it to
-// the timeout, and lets in-flight requests finish enqueueing their jobs. Then
-// it drains the queue. Each step gets its own timeout; work still running
+// shutdownTimeout bounds each step of shutdown.
+const shutdownTimeout = 10 * time.Second
+
+// newHTTPServer returns the server and the func that ends its SSE streams.
+// Every request context carries the streams' stopping signal (see
+// api.WithServerStopping) without being cancelled by it, so a stream ends
+// at shutdown while other in-flight requests finish.
+func newHTTPServer(addr string, h http.Handler) (*http.Server, context.CancelFunc) {
+	stopping, stopStreams := context.WithCancel(context.Background())
+	base := api.WithServerStopping(context.Background(), stopping)
+	// Timeouts:
+	//   ReadHeaderTimeout — defends against slow-loris on the request line.
+	//   ReadTimeout       — covers the body too; uploads can be large so this
+	//                       is generous. Per-handler control happens via
+	//                       request context cancellation.
+	//   WriteTimeout      — bounds long-running responses (file streams).
+	//   IdleTimeout       — keeps keep-alive connections from accruing.
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		BaseContext:       func(net.Listener) context.Context { return base },
+		ReadHeaderTimeout: 30 * time.Second,
+		ReadTimeout:       30 * time.Minute,
+		WriteTimeout:      30 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+	}, stopStreams
+}
+
+// waitBackground waits for the background goroutines, giving up after
+// timeout so a goroutine that ignores its context cannot hold the process.
+func waitBackground(g *errgroup.Group, timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		_ = g.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		slog.Warn("background goroutines still running at shutdown", "timeout", timeout)
+	}
+}
+
+func closeDB(gormDB *gorm.DB) {
+	sqlDB, err := gormDB.DB()
+	if err == nil {
+		err = sqlDB.Close()
+	}
+	if err != nil {
+		slog.Warn("db close", "err", err)
+	}
+}
+
+// shutdown stops HTTP first, ending the SSE streams through stopStreams so
+// they don't hold it to the timeout, and lets in-flight requests finish
+// enqueueing their jobs. Then it drains the queue. Each step gets its own timeout; work still running
 // when one expires is abandoned, and the next boot's reconcile picks up
 // whatever remained non-terminal.
-func shutdown(srv *http.Server, jobs interface{ Stop(context.Context) error }, timeout time.Duration, closeStreams ...func()) {
-	for _, closeStream := range closeStreams {
-		srv.RegisterOnShutdown(closeStream)
-	}
+func shutdown(srv *http.Server, jobs interface{ Stop(context.Context) error }, timeout time.Duration, stopStreams func()) {
+	srv.RegisterOnShutdown(stopStreams)
 	httpCtx, cancelHTTP := context.WithTimeout(context.Background(), timeout)
 	defer cancelHTTP()
 	if err := srv.Shutdown(httpCtx); err != nil {
@@ -547,24 +604,33 @@ func requestLogger() gin.HandlerFunc {
 	}
 }
 
-func newLogger(w io.Writer) *slog.Logger {
+// newLogger builds the production logger from DAMSON_LOG_LEVEL and
+// DAMSON_LOG_FORMAT. An unknown value is an error, returned alongside a JSON
+// logger at info so the caller can still log it.
+func newLogger(w io.Writer) (*slog.Logger, error) {
+	var errs []error
 	level := slog.LevelInfo
-	switch os.Getenv("DAMSON_LOG_LEVEL") {
+	switch v := os.Getenv("DAMSON_LOG_LEVEL"); v {
+	case "", "info":
 	case "debug":
 		level = slog.LevelDebug
 	case "warn":
 		level = slog.LevelWarn
 	case "error":
 		level = slog.LevelError
+	default:
+		errs = append(errs, fmt.Errorf("config: DAMSON_LOG_LEVEL must be debug, info, warn or error, got %q", v))
 	}
 	opts := &slog.HandlerOptions{Level: level, AddSource: true}
-	var h slog.Handler
-	if os.Getenv("DAMSON_LOG_FORMAT") == "text" {
+	var h slog.Handler = slog.NewJSONHandler(w, opts)
+	switch v := os.Getenv("DAMSON_LOG_FORMAT"); v {
+	case "", "json":
+	case "text":
 		h = slog.NewTextHandler(w, opts)
-	} else {
-		h = slog.NewJSONHandler(w, opts)
+	default:
+		errs = append(errs, fmt.Errorf("config: DAMSON_LOG_FORMAT must be json or text, got %q", v))
 	}
-	return slog.New(h).With("service", "damson", "version", readVersion())
+	return slog.New(h).With("service", "damson", "version", readVersion()), errors.Join(errs...)
 }
 
 // readVersion returns a best-effort build identifier for the version log

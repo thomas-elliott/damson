@@ -14,7 +14,6 @@ import (
 	"path"
 	"strconv"
 	"sync/atomic"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -193,18 +192,6 @@ func (s *S3) PutThumb(ctx context.Context, key string, r io.Reader) error {
 
 func (s *S3) GetThumb(ctx context.Context, key string) (io.ReadCloser, error) {
 	return s.get(ctx, "thumbs/"+shardedKey(key))
-}
-
-func (s *S3) PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error) {
-	presigner := s3.NewPresignClient(s.client)
-	req, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
-		Bucket: &s.bucket,
-		Key:    aws.String("blobs/" + shardedKey(key)),
-	}, s3.WithPresignExpires(ttl))
-	if err != nil {
-		return "", err
-	}
-	return req.URL, nil
 }
 
 const (

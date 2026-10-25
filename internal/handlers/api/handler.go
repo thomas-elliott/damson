@@ -72,7 +72,7 @@ type Deps struct {
 	LoginThrottle *auth.LoginThrottle
 	// ImportPool drains async import jobs. Tests that don't exercise the
 	// import flow can leave it nil; tests that do should pass a synchronous
-	// pool (imports.NewSync) so stage transitions stay deterministic.
+	// pool (importstest.NewSync) so stage transitions stay deterministic.
 	ImportPool ImportEnqueuer
 	// Broadcaster fans import stage events to SSE subscribers. Nil-safe:
 	// the pipeline tolerates a missing broadcaster.
@@ -259,19 +259,19 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/assets/:id/previews/requeue", h.postAssetPreviewRequeue)
 	scoped.POST("/assets/:id/files/:fileId/previews/requeue", h.postFilePreviewRequeue)
 
-	// Tags (M3)
+	// Tags
 	scoped.GET("/tags", h.getTags)
 	scoped.POST("/tags", h.postTag)
 	scoped.DELETE("/tags/:id", h.deleteTag)
 	scoped.POST("/assets/:id/tags", h.postAssetTag)
 	scoped.DELETE("/assets/:id/tags/:tagId", h.deleteAssetTag)
 
-	// Licences (M3)
+	// Licences
 	scoped.PUT("/assets/:id/licence", h.putLicence)
 	scoped.POST("/assets/:id/licence/review", h.postLicenceReview)
 	scoped.POST("/licences/detect", h.postDetectLicence)
 
-	// Projects (M4)
+	// Projects
 	scoped.GET("/projects", h.getProjects)
 	scoped.POST("/projects", h.postProject)
 	scoped.GET("/projects/:id", h.getProject)
@@ -280,7 +280,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/projects/:id/pins", h.postProjectPin)
 	scoped.DELETE("/projects/:id/pins/:pinId", h.deleteProjectPin)
 
-	// Collections (M5)
+	// Collections
 	scoped.GET("/collections", h.getCollections)
 	scoped.POST("/collections", h.postCollection)
 	scoped.GET("/collections/:id", h.getCollection)
@@ -289,11 +289,11 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	scoped.POST("/collections/:id/assets", h.postCollectionAsset)
 	scoped.DELETE("/collections/:id/assets/:assetId", h.deleteCollectionAsset)
 
-	// Library settings (M5)
+	// Library settings
 	scoped.GET("/settings", h.getLibrarySettings)
 	scoped.PATCH("/settings", h.patchLibrarySettings)
 
-	// Audit (M7)
+	// Audit
 	scoped.GET("/audit", h.getLibraryAudit)
 	scoped.GET("/assets/:id/audit", h.getAssetAudit)
 	scoped.GET("/projects/:id/audit", h.getProjectAudit)

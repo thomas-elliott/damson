@@ -115,7 +115,4 @@ type Service interface {
 
 	// Delete removes an object under prefix. Missing objects are not an error.
 	Delete(ctx context.Context, prefix, objectKey string) error
-
-	// PresignGet returns a time-limited URL for browser-direct download.
-	PresignGet(ctx context.Context, objectKey string, ttl time.Duration) (string, error)
 }

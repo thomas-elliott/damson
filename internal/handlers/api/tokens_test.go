@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -204,7 +205,7 @@ func TestDeleteAPIToken_RevokesAndIsIdempotent(t *testing.T) {
 	}
 
 	// And the secret no longer authenticates.
-	if _, err := auth.NewTokenAuthenticator(db).Authenticate(t.Context(), created.Token); err != auth.ErrUnauthenticated {
+	if _, err := auth.NewTokenAuthenticator(db).Authenticate(t.Context(), created.Token); !errors.Is(err, auth.ErrUnauthenticated) {
 		t.Fatalf("revoked secret still authenticates: %v", err)
 	}
 

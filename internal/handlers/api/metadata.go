@@ -708,11 +708,3 @@ func respondLookupFailed(c *gin.Context, err error, msg string) {
 	}
 	respond502(c, msg)
 }
-
-func respond502(c *gin.Context, msg string) {
-	c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"error": msg})
-}
-
-func respond503(c *gin.Context, msg string) {
-	c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": msg})
-}

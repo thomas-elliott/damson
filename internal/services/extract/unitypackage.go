@@ -248,7 +248,7 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 			previewBytes += int64(len(data))
 
 		default:
-			// `asset.meta` and anything else is ignored for v1.
+			// `asset.meta` and anything else is ignored.
 		}
 	}
 

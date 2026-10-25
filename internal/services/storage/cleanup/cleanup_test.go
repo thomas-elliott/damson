@@ -18,7 +18,7 @@ import (
 func newEnv(t *testing.T) (*storage.LocalFS, *gorm.DB, context.Context) {
 	t.Helper()
 	db := testdb.NewPostgres(t)
-	store, err := storage.NewLocalFS(t.TempDir(), "http://localhost:8080")
+	store, err := storage.NewLocalFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("new local storage: %v", err)
 	}
