@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -15,7 +16,9 @@ import (
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/imports/importstest"
 	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/services/preview/previewtest"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/testdb"
 )
@@ -38,8 +41,8 @@ func newTestHandler(t *testing.T) (*Handler, *gorm.DB) {
 	store := newTestStorage(t)
 	bc := imports.NewBroadcaster()
 	pbc := preview.NewBroadcaster()
-	previewPool := preview.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
-	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
+	previewPool := previewtest.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
+	pool := importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	return New(Deps{
 		DB:                 db,
 		AuthMode:           config.AuthModeOIDC,
@@ -64,8 +67,8 @@ func newTestHandlerLocal(t *testing.T) (*Handler, *gorm.DB, *auth.LocalAuthentic
 	store := newTestStorage(t)
 	bc := imports.NewBroadcaster()
 	pbc := preview.NewBroadcaster()
-	previewPool := preview.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
-	pool := imports.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
+	previewPool := previewtest.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
+	pool := importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	return New(Deps{
 		DB:                 db,
 		AuthMode:           config.AuthModeLocal,
@@ -92,21 +95,29 @@ func newTestStorage(t *testing.T) storage.Service {
 	return s
 }
 
-// setupRouter mounts /api under a fresh Gin engine, wrapping authed routes
-// with a middleware that attaches asUser (or nil) to the context.
+// setupRouter mounts /api under a fresh Gin engine. Authed routes run the
+// real auth.Middleware, which signs every request in as asUser, or answers 401
+// when asUser is nil.
 func setupRouter(h *Handler, asUser *models.User) *gin.Engine {
 	r := gin.New()
-	apiGroup := r.Group("/api")
-	AddRoutes(apiGroup, func(c *gin.Context) {
-		if asUser != nil {
-			auth.SetUserForTest(c, asUser)
-		} else {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
+	authenticate := auth.Middleware(userAuthenticator{asUser}, nil)
+	AddRoutes(r.Group("/api"), func(c *gin.Context) {
+		if c.GetHeader("Authorization") == "" {
+			c.Request.Header.Set("Authorization", "Bearer test")
 		}
-		c.Next()
+		authenticate(c)
 	}, h)
 	return r
+}
+
+// userAuthenticator signs every bearer in as one user.
+type userAuthenticator struct{ user *models.User }
+
+func (a userAuthenticator) Authenticate(context.Context, string) (*models.User, error) {
+	if a.user == nil {
+		return nil, auth.ErrUnauthenticated
+	}
+	return a.user, nil
 }
 
 func performGET(r http.Handler, path string) *httptest.ResponseRecorder {
