@@ -161,10 +161,10 @@ func Merge(tx *gorm.DB, libID, userID, targetID, sourceID uint) (Merged, error) 
 		}
 		moved++
 	}
-	if err := moveAssetTags(tx, source.ID, target.ID); err != nil {
+	if err := moveLinks(tx, &models.AssetTag{}, "tag_id", source.ID, target.ID); err != nil {
 		return Merged{}, err
 	}
-	if err := moveCollectionRefs(tx, source.ID, target.ID); err != nil {
+	if err := moveLinks(tx, &models.CollectionAsset{}, "collection_id", source.ID, target.ID); err != nil {
 		return Merged{}, err
 	}
 	if err := movePins(tx, source.ID, target.ID, dropRemap); err != nil {
@@ -189,28 +189,16 @@ func Merge(tx *gorm.DB, libID, userID, targetID, sourceID uint) (Merged, error) 
 	})
 }
 
-func moveAssetTags(tx *gorm.DB, sourceID, targetID uint) error {
-	var targetTagIDs []uint
-	if err := tx.Model(&models.AssetTag{}).Where("asset_id = ?", targetID).
-		Pluck("tag_id", &targetTagIDs).Error; err != nil {
+// moveLinks moves source's rows in a join table to target, except those
+// naming something target already has, which cascade away with source.
+func moveLinks(tx *gorm.DB, model any, column string, sourceID, targetID uint) error {
+	var held []uint
+	if err := tx.Model(model).Where("asset_id = ?", targetID).Pluck(column, &held).Error; err != nil {
 		return err
 	}
-	q := tx.Model(&models.AssetTag{}).Where("asset_id = ?", sourceID)
-	if len(targetTagIDs) > 0 {
-		q = q.Where("tag_id NOT IN ?", targetTagIDs)
-	}
-	return q.Update("asset_id", targetID).Error
-}
-
-func moveCollectionRefs(tx *gorm.DB, sourceID, targetID uint) error {
-	var targetCollIDs []uint
-	if err := tx.Model(&models.CollectionAsset{}).Where("asset_id = ?", targetID).
-		Pluck("collection_id", &targetCollIDs).Error; err != nil {
-		return err
-	}
-	q := tx.Model(&models.CollectionAsset{}).Where("asset_id = ?", sourceID)
-	if len(targetCollIDs) > 0 {
-		q = q.Where("collection_id NOT IN ?", targetCollIDs)
+	q := tx.Model(model).Where("asset_id = ?", sourceID)
+	if len(held) > 0 {
+		q = q.Where(column+" NOT IN ?", held)
 	}
 	return q.Update("asset_id", targetID).Error
 }
