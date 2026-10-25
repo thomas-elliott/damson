@@ -57,7 +57,7 @@ Rarer statuses have their own homes: upload transport failures (413, 408, 507, �
 `respondUploadFailure` in `upload_errors.go`; store-metadata errors through `respond502`/`respond503`
 in `metadata.go`.
 
-Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic. Startup failures log with `slog.Error` and `os.Exit(1)`.
+Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic. A startup failure is an error returned from `run()`; `main` logs it with `slog.Error` and exits 1.
 
 ### Database patterns
 - GORM models live in `internal/models/`. Each model implements `TableName() string` so the production table name is explicit and survives a struct rename (e.g. `Asset` → `assets`, `LibraryMembership` → `library_memberships`).

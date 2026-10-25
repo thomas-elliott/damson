@@ -40,29 +40,42 @@ import (
 )
 
 func main() {
-	slog.SetDefault(newLogger(os.Stdout))
-	cfg := config.Load()
+	if err := run(); err != nil {
+		slog.Error("startup failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+// run starts the server and blocks until a signal stops it. A startup error
+// is returned for main to log, so deferred cleanup still runs.
+func run() error {
+	logger, err := newLogger(os.Stdout)
+	slog.SetDefault(logger)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
 
 	if cfg.GinMode != "" {
 		gin.SetMode(cfg.GinMode)
 	}
 	if err := checkDataDirs(cfg); err != nil {
-		slog.Error("data directory", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("data directory: %w", err)
 	}
 
 	gormDB, err := db.Open(cfg.PostgresDSN)
 	if err != nil {
-		slog.Error("db open", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("db open: %w", err)
 	}
 
 	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelStartup()
 
 	if err := db.Migrate(startupCtx, gormDB); err != nil {
-		slog.Error("migrate", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("migrate: %w", err)
 	}
 
 	var (
@@ -78,8 +91,7 @@ func main() {
 			Audience:  cfg.OIDCAudience,
 		})
 		if err != nil {
-			slog.Error("oidc init", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("oidc init: %w", err)
 		}
 		authenticator = oa
 		slog.Info("auth mode", "mode", "oidc", "issuer", cfg.OIDCIssuerURL)
@@ -89,19 +101,16 @@ func main() {
 		if len(signingKey) == 0 {
 			k, err := auth.LoadOrCreateJWTKey(cfg.JWTKeyFile)
 			if err != nil {
-				slog.Error("jwt key", "err", err)
-				os.Exit(1)
+				return fmt.Errorf("jwt key: %w", err)
 			}
 			signingKey = k
 		}
 		la, err := auth.NewLocalAuthenticatorWithIssuer(gormDB, signingKey, cfg.BaseURL)
 		if err != nil {
-			slog.Error("local auth init", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("local auth init: %w", err)
 		}
 		if err := auth.SeedLocalAdmin(startupCtx, gormDB, cfg.LocalAdminEmail, cfg.LocalAdminPassword); err != nil {
-			slog.Error("seed local admin", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("seed local admin: %w", err)
 		}
 		authenticator = la
 		localAuth = la
@@ -110,8 +119,7 @@ func main() {
 
 	store, err := storage.New(startupCtx, cfg)
 	if err != nil {
-		slog.Error("storage init", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("storage init: %w", err)
 	}
 	slog.Info("storage mode", "mode", cfg.StorageMode)
 
@@ -132,8 +140,7 @@ func main() {
 		Logger:            slog.Default(),
 	})
 	if err != nil {
-		slog.Error("queue init", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("queue init: %w", err)
 	}
 	importEnqueuer := jobQueue.Imports()
 	previewEnqueuer := jobQueue.Previews()
@@ -183,8 +190,7 @@ func main() {
 
 	r, err := newRouter(oidcCSPOrigin(cfg), cfg.TrustedProxies)
 	if err != nil {
-		slog.Error("DAMSON_TRUSTED_PROXIES", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("DAMSON_TRUSTED_PROXIES: %w", err)
 	}
 	apiGroup := r.Group("/api")
 	h := api.New(api.Deps{
@@ -211,8 +217,7 @@ func main() {
 	// driven by Stop below, not by startupCtx expiring.
 	jobQueue.SetStoreLookupRunner(h)
 	if err := jobQueue.Start(context.Background()); err != nil {
-		slog.Error("queue start", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("queue start: %w", err)
 	}
 	slog.Info("job queue started", "import_workers", cfg.ImportQueueWorkers, "preview_workers", cfg.PreviewQueueWorkers)
 	if resumed, err := h.ResumeStoreLookups(startupCtx); err != nil {
@@ -222,8 +227,7 @@ func main() {
 	}
 
 	if err := damsonweb.Mount(r); err != nil {
-		slog.Error("mount spa", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("mount spa: %w", err)
 	}
 
 	// Timeouts:
@@ -256,13 +260,13 @@ func main() {
 		slog.Info("shutting down", "signal", sig.String())
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("listen", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("listen: %w", err)
 		}
 	}
 
 	cancelPurge()
 	shutdown(srv, jobQueue, 10*time.Second, broadcaster.Close, previewBroadcaster.Close)
+	return nil
 }
 
 // shutdown stops HTTP first, ending the SSE streams so they don't hold it to
@@ -547,24 +551,35 @@ func requestLogger() gin.HandlerFunc {
 	}
 }
 
-func newLogger(w io.Writer) *slog.Logger {
+// newLogger builds the production logger from DAMSON_LOG_LEVEL and
+// DAMSON_LOG_FORMAT. An unknown value is an error, returned alongside a JSON
+// logger at info so the caller can still log it.
+func newLogger(w io.Writer) (*slog.Logger, error) {
+	var errs []error
 	level := slog.LevelInfo
-	switch os.Getenv("DAMSON_LOG_LEVEL") {
+	switch v := os.Getenv("DAMSON_LOG_LEVEL"); v {
+	case "", "info":
 	case "debug":
 		level = slog.LevelDebug
 	case "warn":
 		level = slog.LevelWarn
 	case "error":
 		level = slog.LevelError
+	default:
+		errs = append(errs, fmt.Errorf("config: DAMSON_LOG_LEVEL must be debug, info, warn or error, got %q", v))
 	}
 	opts := &slog.HandlerOptions{Level: level, AddSource: true}
 	var h slog.Handler
-	if os.Getenv("DAMSON_LOG_FORMAT") == "text" {
-		h = slog.NewTextHandler(w, opts)
-	} else {
+	switch v := os.Getenv("DAMSON_LOG_FORMAT"); v {
+	case "", "json":
 		h = slog.NewJSONHandler(w, opts)
+	case "text":
+		h = slog.NewTextHandler(w, opts)
+	default:
+		h = slog.NewJSONHandler(w, opts)
+		errs = append(errs, fmt.Errorf("config: DAMSON_LOG_FORMAT must be json or text, got %q", v))
 	}
-	return slog.New(h).With("service", "damson", "version", readVersion())
+	return slog.New(h).With("service", "damson", "version", readVersion()), errors.Join(errs...)
 }
 
 // readVersion returns a best-effort build identifier for the version log

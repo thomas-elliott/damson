@@ -22,7 +22,11 @@ func captureJSONLogs(t *testing.T) func() []map[string]any {
 	t.Setenv("DAMSON_LOG_FORMAT", "json")
 	var buf strings.Builder
 	prev := slog.Default()
-	slog.SetDefault(newLogger(&buf))
+	logger, err := newLogger(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slog.SetDefault(logger)
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
 	return func() []map[string]any {
