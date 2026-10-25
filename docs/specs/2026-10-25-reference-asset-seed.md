@@ -55,8 +55,9 @@ By: recommended, operator said "go" (2026-10-25)
 - Running `just seed` a second time adds no assets.
 - Search by name finds seeded assets, including both members of a near-duplicate pair.
 - Each of these filters narrows the seeded set to a non-empty subset smaller than the whole:
-  needs review, publisher, store, licence status, released after, updates available and not
-  downloaded.
+  needs review, publisher, store, licence status, released after and not downloaded.
+  (Amended 2026-10-25: "updates available" struck. A reference asset holds no versions, so that
+  filter can never match one; the operator chose to keep the seed reference-only.)
 - The asset panel for a path-only asset, a link-only asset and a path-plus-link asset shows its
   path, its link, or both, along with its publisher, store, licence and tags.
 - `AGENTS.md`, `README.md` and any other doc that says what `just seed` loads describe the new

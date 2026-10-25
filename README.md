@@ -63,7 +63,7 @@ just install
 # 2. dev loop — Postgres, backend and Vite SPA
 just dev
 
-# 3. in another terminal, optionally load sample packs
+# 3. in another terminal, optionally load sample packs and ~300 reference assets
 just seed
 ```
 
