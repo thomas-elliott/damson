@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/services/assets"
 )
 
 // Sentinels for the "should never happen" context/config guards so a swept
@@ -95,10 +96,10 @@ func respondGORM(c *gin.Context, err error, notFoundMsg string) {
 		return
 	case errors.Is(err, gorm.ErrRecordNotFound), errors.Is(err, errNotFound):
 		respond404(c, notFoundMsg)
-	case errors.Is(err, errBadRequest):
+	case errors.Is(err, errBadRequest), errors.Is(err, assets.ErrBadRequest):
 		// Strip the "bad request: " prefix the wrapping introduced.
 		respond400(c, errors.New(trimSentinelPrefix(err.Error(), "bad request: ")))
-	case errors.Is(err, errConflict):
+	case errors.Is(err, errConflict), errors.Is(err, assets.ErrConflict):
 		respond409(c, trimSentinelPrefix(err.Error(), "conflict: "))
 	default:
 		respond500(c, err)

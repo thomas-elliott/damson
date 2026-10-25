@@ -25,6 +25,10 @@ func TestPostAssetMerge_FoldsSourceIntoTarget(t *testing.T) {
 		}
 	}
 
+	if err := db.Model(target).Update("current_version_id", tv.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+
 	// Source has a distinct tag and a project pin on its duplicate 1.0.
 	tag := models.Tag{LibraryID: lib.ID, Path: "rpg"}
 	if err := db.Create(&tag).Error; err != nil {
@@ -68,6 +72,9 @@ func TestPostAssetMerge_FoldsSourceIntoTarget(t *testing.T) {
 	if len(stores) != 2 || stores[0] != "1.0" || stores[1] != "2.0" {
 		t.Fatalf("target versions: got %v", stores)
 	}
+
+	// The moved 2.0 outranks target's 1.0, so it becomes current.
+	requireCurrentVersion(t, db, target.ID, sv2.ID)
 
 	// Source's tag moved to target.
 	var tagLinks int64

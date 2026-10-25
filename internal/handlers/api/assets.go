@@ -15,11 +15,8 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/extract"
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/licence"
-	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/tags"
 )
 
@@ -554,7 +551,7 @@ func (h *Handler) cleanupFailedVersionUpload(ctx context.Context, versionID, imp
 
 // postReExtract re-reads the .unitypackage archive retained when the version
 // was imported and rewrites that version's files in place; it creates no new
-// version. The asset's current_version_id points at the re-extracted version.
+// version. See imports.Reextract.
 func (h *Handler) postReExtract(c *gin.Context) {
 	if h.storage == nil {
 		respond500(c, errStorageNotConfigured)
@@ -601,78 +598,26 @@ func (h *Handler) postReExtract(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
-	if source.OriginalPackageObjectKey == "" || source.PackageKind != packageKindUnityPackage || source.OriginalPackagePurged {
-		respond409(c, "source version has no retained package")
+	out, err := imports.Reextract(c.Request.Context(), imports.Deps{DB: h.db, Storage: h.storage, Previews: h.previewPool}, asset, source, u.ID)
+	switch {
+	case errors.Is(err, imports.ErrNoRetainedPackage):
+		respond409(c, err.Error())
 		return
-	}
-
-	blob, err := imports.OpenOriginal(c.Request.Context(), h.storage, source)
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-	defer blob.Close()
-	ex := &extract.UnityExtractor{
-		Storage: h.storage,
-		EntryMeta: storage.ObjectMeta{
-			LibraryID: lib.ID,
-			AssetID:   asset.ID,
-			Kind:      "unitypackage-asset",
-		},
-	}
-	result, err := ex.Extract(c.Request.Context(), blob)
-	if err != nil {
+	case errors.Is(err, imports.ErrBadPackage):
 		slog.Warn("unity re-extract failed", "err", err, "asset_id", asset.ID, "version_id", source.ID)
-		respond400Msg(c, err, "extract: "+err.Error())
+		respond400Msg(c, err, err.Error())
 		return
-	}
-
-	var resp importResponse
-	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("asset_version_id = ?", source.ID).Delete(&models.AssetFile{}).Error; err != nil {
-			return err
-		}
-
-		fileCount, totalBytes, err := imports.WriteAssetFiles(tx, source.ID, "", 0, "", "", result)
-		if err != nil {
-			return err
-		}
-
-		asset.CurrentVersionID = &source.ID
-		if !asset.ThumbnailFromStore && result.ThumbObjectKey != "" {
-			asset.ThumbnailObjectKey = result.ThumbObjectKey
-			asset.ThumbnailContentType = result.ThumbContentType
-		}
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-		if err := audit.Write(tx, audit.Entry{
-			LibraryID:  &lib.ID,
-			UserID:     &u.ID,
-			ActionType: "asset.version.reextract",
-			TargetType: "asset",
-			TargetID:   &asset.ID,
-			Diff:       audit.Created(map[string]any{"version_id": source.ID, "file_count": fileCount}),
-		}); err != nil {
-			return err
-		}
-
-		resp = importResponse{
-			AssetID:        asset.ID,
-			AssetVersionID: source.ID,
-			FileCount:      fileCount,
-			SizeBytes:      totalBytes,
-			PackageKind:    source.PackageKind,
-		}
-		return nil
-	})
-	if err != nil {
+	case err != nil:
 		respond500(c, err)
 		return
 	}
-	// Rewritten files start with no preview, so queue them as an import does.
-	h.rescanPreviews(c, lib.ID, source.ID)
-
+	resp := importResponse{
+		AssetID:        asset.ID,
+		AssetVersionID: source.ID,
+		FileCount:      out.FileCount,
+		SizeBytes:      out.SizeBytes,
+		PackageKind:    source.PackageKind,
+	}
 	c.JSON(http.StatusCreated, resp)
 }
 

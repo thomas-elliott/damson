@@ -9,6 +9,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/assets"
 	"github.com/thomas-elliott/damson/internal/services/audit"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/tags"
@@ -119,7 +120,7 @@ func (h *Handler) postBulkAssets(c *gin.Context) {
 			)
 			switch req.Action {
 			case "delete":
-				err = deleteAssetTx(tx, lib.ID, u.ID, id)
+				err = assets.Delete(tx, lib.ID, u.ID, id)
 				changed = err == nil
 			case "review":
 				changed, err = bulkSetReview(tx, lib.ID, u.ID, id, false)
