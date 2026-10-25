@@ -97,6 +97,43 @@ func TestPostAssetMerge_FoldsSourceIntoTarget(t *testing.T) {
 	}
 }
 
+func TestPostAssetMerge_MovesARunningImportWithItsVersion(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	target := seedAsset(t, db, lib.ID, "Fantasy Pack")
+	source := seedAsset(t, db, lib.ID, "Fantasy Pack (dup)")
+	tv := models.AssetVersion{AssetID: target.ID, StoreVersion: "1.0"}
+	sv := models.AssetVersion{AssetID: source.ID, StoreVersion: "2.0", FilesPending: true}
+	for _, v := range []*models.AssetVersion{&tv, &sv} {
+		if err := db.Create(v).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Model(target).Update("current_version_id", tv.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.AssetImport{AssetID: source.ID, AssetVersionID: &sv.ID, Stage: "extracting"}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(target.ID)+"/merge",
+		map[string]any{"source_asset_id": source.ID})
+	requireStatus(t, w, http.StatusOK)
+
+	// 2.0 has no files yet, so 1.0 stays current, and its import still runs.
+	requireCurrentVersion(t, db, target.ID, tv.ID)
+	var imp models.AssetImport
+	if err := db.Where("asset_version_id = ?", sv.ID).First(&imp).Error; err != nil {
+		t.Fatalf("import of the moved version: %v", err)
+	}
+	if imp.AssetID != target.ID {
+		t.Fatalf("import should move to target, asset_id=%d", imp.AssetID)
+	}
+}
+
 func TestPostAssetMerge_RejectsSelfMerge(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")

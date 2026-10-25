@@ -485,6 +485,51 @@ func TestPostReExtract_OlderVersionDoesNotBecomeCurrent(t *testing.T) {
 	requireCurrentVersion(t, db, assetID, v2)
 }
 
+// A version whose import failed after committing its files keeps them, so it
+// stays current when another version changes.
+func TestPostReExtract_VersionFailedAfterFinalizeStaysCurrent(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+	assetID, v2, v1 := importTwoVersions(t, r, db)
+	if err := db.Model(&models.AssetImport{}).Where("asset_version_id = ?", v2).Update("stage", "failed").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(assetID)+"/versions/"+uintStr(v1)+"/reextract", nil)
+	requireStatus(t, w, http.StatusCreated)
+
+	requireCurrentVersion(t, db, assetID, v2)
+}
+
+// A version whose import failed before committing its files never becomes
+// current, even when it has the highest store version.
+func TestPostReExtract_VersionFailedBeforeFinalizeIsPassedOver(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	pkg := buildUnityPackage(t, []unityPkgEntry{{guid: testGUID(0x43), pathname: "Assets/c.bin", content: []byte("c")}})
+	b1, ct1 := buildMultipart(t, "file", "Pack 1.0.unitypackage", pkg)
+	w := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w, http.StatusAccepted)
+	assetID := jsonResponse[importEnqueueResponse](t, w).AssetID
+	var v1 models.AssetVersion
+	if err := db.Where("asset_id = ?", assetID).First(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	b2, ct2 := buildMultipartWithFields(t, "file", "Pack 2.0.unitypackage", []byte("not a package"),
+		map[string]string{"asset_id": uintStr(assetID)})
+	requireStatus(t, postMultipart(r, "/api/imports", b2, ct2), http.StatusAccepted)
+
+	w = performRequest(r, http.MethodPost, "/api/assets/"+uintStr(assetID)+"/versions/"+uintStr(v1.ID)+"/reextract", nil)
+	requireStatus(t, w, http.StatusCreated)
+
+	requireCurrentVersion(t, db, assetID, v1.ID)
+}
+
 func TestPostReExtract_RejectsNonUnityVersion(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "librarian@example.com")
