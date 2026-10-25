@@ -41,7 +41,7 @@ func TestPostImport_GeneratesRasterThumbnail(t *testing.T) {
 
 // TestPostImport_RasterToggleOff asserts disabling the raster toggle on the
 // library settings prevents thumbnail generation. We pre-create the row so
-// loadOrCreateLibrarySettings finds it and respects the false toggle.
+// library.Settings finds it and respects the false toggle.
 func TestPostImport_RasterToggleOff(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "librarian@example.com")

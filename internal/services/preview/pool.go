@@ -25,7 +25,7 @@ type Job struct {
 // every version with queued files is re-enqueued through enq. ProcessVersion is
 // idempotent — content-addressed derivatives mean a re-run is cheap and safe;
 // the River enqueuer additionally dedupes so this is safe to run every boot.
-func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job) }) (int, error) {
+func ResumeInFlight(ctx context.Context, db *gorm.DB, enq Enqueuer) (int, error) {
 	if err := db.WithContext(ctx).Model(&models.AssetFile{}).
 		Where("preview_status = ?", StatusProcessing).
 		Update("preview_status", StatusQueued).Error; err != nil {
@@ -49,7 +49,9 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job
 		return 0, err
 	}
 	for _, r := range refs {
-		enq.Enqueue(Job{LibraryID: r.LibraryID, VersionID: r.VersionID})
+		if err := enq.Enqueue(db.WithContext(ctx), Job{LibraryID: r.LibraryID, VersionID: r.VersionID}); err != nil {
+			return 0, err
+		}
 	}
 	return len(refs), nil
 }

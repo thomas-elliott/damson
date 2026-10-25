@@ -171,6 +171,7 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 			ImportDate:      time.Now().UTC(),
 			CreatedByUserID: &s.userID,
 			PackageKind:     s.packageKind,
+			FilesPending:    true,
 		}
 		if s.sourceRelativePath != "" {
 			kind := s.sourceKind
@@ -228,24 +229,22 @@ func (h *Handler) finishImport(ctx context.Context, s importSpec, rows importRow
 		if err := audit.Write(tx, rows.created); err != nil {
 			return err
 		}
-		if s.isArchive {
-			return nil
+		if !s.isArchive {
+			f := models.AssetFile{
+				AssetVersionID: rows.versionID,
+				RelativePath:   s.filename,
+				SizeBytes:      size,
+				ContentHash:    objectKey,
+				ObjectKey:      objectKey,
+				DetectedType:   s.contentType,
+			}
+			if err := tx.Create(&f).Error; err != nil {
+				return err
+			}
 		}
-		f := models.AssetFile{
-			AssetVersionID: rows.versionID,
-			RelativePath:   s.filename,
-			SizeBytes:      size,
-			ContentHash:    objectKey,
-			ObjectKey:      objectKey,
-			DetectedType:   s.contentType,
-		}
-		return tx.Create(&f).Error
+		return h.importPool.Enqueue(tx, imports.Job{ImportID: rows.importID, LibraryID: s.libraryID})
 	})
-	if err != nil {
-		return err
-	}
-	h.importPool.Enqueue(imports.Job{ImportID: rows.importID, LibraryID: s.libraryID})
-	return nil
+	return err
 }
 
 // suggestMatch offers an existing asset with a similar name. Only meaningful

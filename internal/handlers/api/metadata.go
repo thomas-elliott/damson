@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,12 +17,10 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imports"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
-	"github.com/thomas-elliott/damson/internal/services/tags"
-	"github.com/thomas-elliott/damson/internal/services/thumbnail"
 )
 
 // metadataService is the storefront-metadata dependency the handlers use.
@@ -31,9 +28,6 @@ import (
 // don't perform real outbound HTTP (which the SSRF guard would block anyway).
 type metadataService interface {
 	Fetch(ctx context.Context, rawURL string) (*metadata.Metadata, error)
-	// FetchWaiting is Fetch for background lookups: it sits out a store's
-	// request to pause instead of failing.
-	FetchWaiting(ctx context.Context, rawURL string) (*metadata.Metadata, error)
 	FetchImage(ctx context.Context, rawURL string) ([]byte, string, error)
 	SearchStores(ctx context.Context, query string) ([]metadata.Candidate, []string)
 }
@@ -154,20 +148,12 @@ func sourceMetadataViewFrom(raw json.RawMessage) *sourceMetadataView {
 	}
 }
 
-// metadataConflict names a field whose fetched value differs from the asset's
-// current value and so needs explicit user confirmation to overwrite.
-type metadataConflict struct {
-	Field    string `json:"field"`
-	Current  string `json:"current"`
-	Proposed string `json:"proposed"`
-}
-
 type metadataFetchResponse struct {
-	Store      string             `json:"store"`
-	ListingURL string             `json:"listing_url"`
-	Fetched    *metadataView      `json:"fetched"`
-	Applied    []string           `json:"applied"`
-	Conflicts  []metadataConflict `json:"conflicts"`
+	Store      string            `json:"store"`
+	ListingURL string            `json:"listing_url"`
+	Fetched    *metadataView     `json:"fetched"`
+	Applied    []string          `json:"applied"`
+	Conflicts  []enrich.Conflict `json:"conflicts"`
 	// StoreLookupFailed says the store's adapter failed and the generic
 	// scraper answered; what it read is applied all the same.
 	StoreLookupFailed bool `json:"store_lookup_failed,omitempty"`
@@ -238,18 +224,36 @@ func (h *Handler) postAssetMetadataFetch(c *gin.Context) {
 		return
 	}
 
-	prev := sourceRecordOf(&asset)
-	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, meta, nil, setSourceURL, target, u.ID)
-	// The record keeps the conflicts' fetched values, which the person can
-	// still choose to apply.
-	h.saveLookupRecord(c.Request.Context(), &asset, prev, meta, target, applied, nil)
+	opts := enrich.Options{UserID: &u.ID, By: licence.ByPerson}
+	if setSourceURL {
+		opts.SourceURL = target
+	}
+	plan, err := enrich.Prepare(c.Request.Context(), h.enrichDeps(), &asset, meta, opts)
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+	var res enrich.Result
+	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var err error
+		if res, err = plan.Write(tx); err != nil {
+			return err
+		}
+		// The record keeps the conflicts' fetched values, which the person can
+		// still choose to apply.
+		return plan.SaveRecord(tx, target, res.Applied, nil)
+	})
+	if err != nil {
+		respond500(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, metadataFetchResponse{
 		Store:      meta.Store,
 		ListingURL: firstNonEmptyStr(meta.ListingURL, target),
 		Fetched:    metadataViewFrom(meta),
-		Applied:    applied,
-		Conflicts:  conflicts,
+		Applied:    res.Applied,
+		Conflicts:  res.Conflicts,
 
 		StoreLookupFailed: meta.StoreLookupFailed,
 	})
@@ -331,7 +335,7 @@ func (h *Handler) getMetadataSearch(c *gin.Context) {
 	}
 	cands, failed := h.metadata.SearchStores(c.Request.Context(), q)
 	if lib := getLibrary(c); lib != nil {
-		if s, serr := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), lib.ID); serr == nil {
+		if s, serr := library.Settings(h.db.WithContext(c.Request.Context()), lib.ID); serr == nil {
 			metadata.SortByPreferredStore(cands, s.PreferredStore)
 		}
 	}
@@ -398,292 +402,28 @@ func (h *Handler) postAssetMetadataApply(c *gin.Context) {
 	for _, f := range req.Fields {
 		confirm[f] = true
 	}
-	applied, conflicts := h.applyMetadata(c.Request.Context(), lib.ID, &asset, rec.Metadata, confirm, false, "", u.ID)
+	res, err := enrich.Apply(c.Request.Context(), h.enrichDeps(), &asset, rec.Metadata, enrich.Options{Confirm: confirm, UserID: &u.ID, By: licence.ByPerson})
+	if err != nil {
+		respond500(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, metadataFetchResponse{
 		Store:      rec.Store,
 		ListingURL: rec.ListingURL,
 		Fetched:    metadataViewFrom(rec.Metadata),
-		Applied:    applied,
-		Conflicts:  conflicts,
+		Applied:    res.Applied,
+		Conflicts:  res.Conflicts,
 	})
 }
 
-// applyMetadata applies fetched metadata to an asset. With confirm==nil it
-// fills blank fields only and reports the rest as conflicts; with confirm set
-// it overwrites exactly the confirmed fields. setSourceURL/target set the
-// source URL when the fetch was triggered by a body URL.
-func (h *Handler) applyMetadata(ctx context.Context, libID uint, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool, setSourceURL bool, target string, userID uint) ([]string, []metadataConflict) {
-	applied := []string{}
-	conflicts := []metadataConflict{}
-	updates := map[string]any{}
-	before := map[string]any{}
-
-	if setSourceURL && target != "" && target != asset.SourceURL {
-		before["source_url"] = asset.SourceURL
-		updates["source_url"] = target
-		asset.SourceURL = target
-		applied = append(applied, "source_url")
+// enrichDeps are what applying a listing to an asset needs.
+func (h *Handler) enrichDeps() enrich.Deps {
+	d := enrich.Deps{DB: h.db, Storage: h.storage}
+	if h.metadata != nil {
+		d.Images = h.metadata
 	}
-
-	// Unlike the fill-if-blank fields below, a name is never blank, so a
-	// differing store title is always a confirmable conflict, never a silent fill.
-	if meta.Title != "" && asset.Name != meta.Title {
-		if confirm["name"] {
-			before["name"] = asset.Name
-			updates["name"] = meta.Title
-			asset.Name = meta.Title
-			applied = append(applied, "name")
-		} else {
-			conflicts = append(conflicts, metadataConflict{Field: "name", Current: asset.Name, Proposed: meta.Title})
-		}
-	}
-
-	if meta.Description != "" && asset.Description != meta.Description {
-		if asset.Description == "" || confirm["description"] {
-			before["description"] = asset.Description
-			updates["description"] = meta.Description
-			asset.Description = meta.Description
-			applied = append(applied, "description")
-		} else {
-			conflicts = append(conflicts, metadataConflict{Field: "description", Current: asset.Description, Proposed: meta.Description})
-		}
-	}
-
-	fieldBefore, fieldUpdates, fieldConflicts := imports.MetadataFieldUpdates(asset, meta, confirm)
-	for _, fc := range fieldConflicts {
-		conflicts = append(conflicts, metadataConflict{Field: fc.Field, Current: fc.Current, Proposed: fc.Proposed})
-	}
-	for k, v := range fieldBefore {
-		before[k] = v
-	}
-	for k, v := range fieldUpdates {
-		updates[k] = v
-		applied = append(applied, k)
-	}
-
-	auditBefore := map[string]any{}
-	auditAfter := map[string]any{}
-	if len(updates) > 0 {
-		if err := h.db.WithContext(ctx).Model(asset).Where("id = ?", asset.ID).Updates(updates).Error; err != nil {
-			slog.Warn("metadata: persist fields", "err", err, "asset_id", asset.ID)
-		} else {
-			for k, v := range before {
-				auditBefore[k] = v
-			}
-			for k, v := range updates {
-				auditAfter[k] = v
-			}
-		}
-	}
-
-	if applied2, prevType, newType, conflict := h.applyLicenceFromMeta(ctx, asset, meta, confirm); conflict != nil {
-		conflicts = append(conflicts, *conflict)
-	} else if applied2 {
-		applied = append(applied, "licence")
-		auditBefore["licence"] = prevType
-		auditAfter["licence"] = newType
-	}
-
-	prevThumb := asset.ThumbnailObjectKey
-	if applied3, conflict := h.applyThumbnailFromMeta(ctx, asset, meta, confirm); conflict != nil {
-		conflicts = append(conflicts, *conflict)
-	} else if applied3 {
-		applied = append(applied, "thumbnail")
-		auditBefore["thumbnail_object_key"] = prevThumb
-		auditAfter["thumbnail_object_key"] = asset.ThumbnailObjectKey
-	}
-
-	imports.StoreGalleryImages(ctx, h.db, h.storage, h.metadata, asset.ID, meta.ImageURLs)
-
-	if h.attachMetadataTags(ctx, libID, asset.ID, userID, imports.MetadataTagList(meta)) {
-		applied = append(applied, "tags")
-	}
-
-	if len(auditAfter) > 0 {
-		h.auditMetadata(ctx, libID, asset.ID, userID, "asset.metadata.apply", auditBefore, auditAfter)
-	}
-
-	return applied, conflicts
-}
-
-// applyLicenceFromMeta creates a licence from the fetched hint/text when the
-// asset has none, or reports a conflict when one exists and differs (unless
-// confirmed). A reviewed licence is only ever replaced on explicit confirm.
-// On apply it returns the previous and new detected types for the audit diff.
-func (h *Handler) applyLicenceFromMeta(ctx context.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, string, string, *metadataConflict) {
-	lic := buildLicenceFromMeta(meta)
-	if lic == nil {
-		return false, "", "", nil
-	}
-	prevType := ""
-	if asset.LicenceID != nil {
-		var existing models.Licence
-		if err := h.db.WithContext(ctx).First(&existing, *asset.LicenceID).Error; err == nil {
-			prevType = existing.DetectedType
-			if existing.DetectedType == lic.DetectedType {
-				return false, "", "", nil
-			}
-			if !confirm["licence"] {
-				return false, "", "", &metadataConflict{Field: "licence", Current: existing.DetectedType, Proposed: lic.DetectedType}
-			}
-		}
-	}
-	if err := h.persistLicence(ctx, asset, lic); err != nil {
-		slog.Warn("metadata: persist licence", "err", err, "asset_id", asset.ID)
-		return false, "", "", nil
-	}
-	return true, prevType, lic.DetectedType, nil
-}
-
-// applyThumbnailFromMeta downloads the cover image and stores it as the asset
-// thumbnail via the raster thumbnail pipeline, whose decode + re-encode
-// rejects non-image bodies rather than storing them. Fills when no thumbnail
-// exists; conflicts otherwise unless confirmed.
-func (h *Handler) applyThumbnailFromMeta(ctx context.Context, asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (bool, *metadataConflict) {
-	if meta.CoverURL == "" {
-		return false, nil
-	}
-	if asset.ThumbnailObjectKey != "" && !confirm["thumbnail"] {
-		return false, &metadataConflict{Field: "thumbnail", Current: "existing thumbnail", Proposed: meta.CoverURL}
-	}
-	imgBytes, contentType, err := h.metadata.FetchImage(ctx, meta.CoverURL)
-	if err != nil {
-		slog.Warn("metadata: fetch cover", "err", err, "url", meta.CoverURL)
-		return false, nil
-	}
-	gen := &thumbnail.Generator{Storage: h.storage}
-	res, err := gen.Generate(ctx, thumbnail.Input{
-		Reader:      bytes.NewReader(imgBytes),
-		Filename:    "cover",
-		ContentType: contentType,
-	}, thumbnail.Toggles{Raster: true})
-	if err != nil || res.ObjectKey == "" {
-		if err != nil {
-			slog.Warn("metadata: render cover", "err", err, "url", meta.CoverURL)
-		}
-		return false, nil
-	}
-	if !h.setThumbnail(ctx, asset, res.ObjectKey, res.ContentType, true) {
-		return false, nil
-	}
-	return true, nil
-}
-
-// buildLicenceFromMeta turns a fetched licence hint/text into an unsaved
-// Licence row. Custom text is run through the detector; a bare SPDX/EULA hint
-// gets its known attributes and a synthesised original_text (the model
-// requires non-blank text). Returns nil when there's no licence signal.
-func buildLicenceFromMeta(meta *metadata.Metadata) *models.Licence {
-	text := meta.LicenceText
-	var detType string
-	var attrs licence.Attributes
-	var conf float32
-	var canon string
-	switch {
-	case text != "":
-		r := licence.Detect(text)
-		detType = r.DetectedType
-		attrs = r.Attributes
-		conf = r.DetectionConfidence
-		canon = r.CanonicalDiff
-	case meta.LicenceHint != "":
-		detType = meta.LicenceHint
-		attrs = licence.AttributesForType(detType)
-		text = "Licence: " + meta.LicenceHint + " (from " + storeLabel(meta.Store) + " listing)"
-	default:
-		return nil
-	}
-	attrsJSON, err := json.Marshal(attrs)
-	if err != nil {
-		attrsJSON = []byte("{}")
-	}
-	return &models.Licence{
-		DetectedType:        detType,
-		DetectionConfidence: conf,
-		CanonicalDiff:       canon,
-		OriginalText:        text,
-		AttributesJSON:      attrsJSON,
-	}
-}
-
-func storeLabel(store string) string {
-	if store == "" {
-		return "source"
-	}
-	return store
-}
-
-// persistLicence replaces the asset's licence row with lic in one transaction,
-// mirroring rescanLicence's create-then-point pattern.
-func (h *Handler) persistLicence(ctx context.Context, asset *models.Asset, lic *models.Licence) error {
-	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if asset.LicenceID != nil {
-			if err := tx.Where("id = ?", *asset.LicenceID).Delete(&models.Licence{}).Error; err != nil {
-				return err
-			}
-		}
-		lic.AssetID = asset.ID
-		if err := tx.Create(lic).Error; err != nil {
-			return err
-		}
-		asset.LicenceID = &lic.ID
-		return tx.Model(asset).Where("id = ?", asset.ID).Update("licence_id", lic.ID).Error
-	})
-}
-
-// persistSourceRecord writes the enrichment envelope to source_metadata.
-func (h *Handler) persistSourceRecord(ctx context.Context, asset *models.Asset, rec metadata.SourceRecord) {
-	blob, err := json.Marshal(rec)
-	if err != nil {
-		slog.Warn("metadata: marshal source record", "err", err, "asset_id", asset.ID)
-		return
-	}
-	if err := h.db.WithContext(ctx).Model(asset).
-		Where("id = ?", asset.ID).
-		Update("source_metadata_json", json.RawMessage(blob)).Error; err != nil {
-		slog.Warn("metadata: persist source record", "err", err, "asset_id", asset.ID)
-		return
-	}
-	asset.SourceMetadataJSON = blob
-}
-
-// attachMetadataTags adds every fetched tag to the asset, create-or-reusing
-// each by path. Tags are additive (never removed by a re-fetch); returns true
-// when at least one new link was made so the caller can report "tags" applied.
-func (h *Handler) attachMetadataTags(ctx context.Context, libID, assetID, userID uint, tagList []string) bool {
-	if len(tagList) == 0 {
-		return false
-	}
-	linked := false
-	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, t := range tagList {
-			_, added, err := tags.Attach(tx, libID, &userID, assetID, t)
-			if err != nil {
-				return err
-			}
-			linked = linked || added
-		}
-		return nil
-	})
-	if err != nil {
-		slog.Warn("metadata: attach tags", "err", err, "asset_id", assetID)
-		return false
-	}
-	return linked
-}
-
-func (h *Handler) auditMetadata(ctx context.Context, libID, assetID, userID uint, action string, before, after map[string]any) {
-	if err := audit.Write(h.db.WithContext(ctx), audit.Entry{
-		LibraryID:  &libID,
-		UserID:     &userID,
-		ActionType: action,
-		TargetType: "asset",
-		TargetID:   &assetID,
-		Diff:       audit.Updated(before, after),
-	}); err != nil {
-		slog.Warn("metadata: audit write", "err", err, "asset_id", assetID)
-	}
+	return d
 }
 
 func firstNonEmptyStr(vals ...string) string {

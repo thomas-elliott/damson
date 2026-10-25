@@ -38,7 +38,7 @@ filesystem.
 | `internal/handlers/api` | Every HTTP handler, as methods on one `*Handler` |
 | `internal/auth` | Authenticators (local, OIDC, personal access tokens), middleware and bootstrap |
 | `internal/models` | GORM structs |
-| `internal/services/*` | Domain logic: `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `licence`, `storage`, `uploads`, `audit`, `tags` |
+| `internal/services/*` | Domain logic: `assets`, `imports`, `extract`, `thumbnail`, `preview`, `imaging`, `metadata`, `enrich`, `licence`, `library`, `storage`, `uploads`, `audit`, `tags` |
 | `internal/queue` | River setup and job kinds |
 | `internal/config` | Every environment variable and its default |
 | `internal/{toon,axi,tagpath,importstage,importsource,unitycache,buildinfo}` | Leaf packages that the CLI shares with the server |
@@ -48,10 +48,10 @@ filesystem.
 ## Stack
 
 The backend is Go with Gin and GORM, on Postgres. Postgres is the only database, in production and
-in tests. River runs background jobs on its own `pgx` pool. Auth uses `coreos/go-oidc` or HS256
-JWTs, and S3 goes through `aws-sdk-go-v2`. Images are decoded in pure Go. Both binaries build with
-`CGO_ENABLED=0`. `modernc.org/sqlite` is in `go.mod` only so that the CLI can read Unity's local
-purchases cache.
+in tests. River works background jobs on its own `pgx` pool and inserts them over GORM's. Auth uses
+`coreos/go-oidc` or HS256 JWTs, and S3 goes through `aws-sdk-go-v2`. Images are decoded in pure Go.
+Both binaries build with `CGO_ENABLED=0`. `modernc.org/sqlite` is in `go.mod` only so that the CLI
+can read Unity's local purchases cache.
 
 The frontend is React, strict TypeScript, Vite, TanStack Query, React Router and Tailwind, with
 Radix plus hand-rolled components in `web/src/design-system/` (see `design-system.md`). The
@@ -205,15 +205,19 @@ Bytes arrive by one of two transports, which share `import_create.go`:
   land on different pods.
 
 Clients pick the transport by size. The handler creates the asset, version and import rows, stores
-the bytes, then enqueues an `import` job. `internal/services/imports.Run` moves the import through
-the stages (`internal/importstage`): `uploaded` → `extracting` → `detecting` → `thumbnailing` →
-`enriching` → `done` | `failed`. `asset_imports.stage` is the record. SSE on
+the bytes, then enqueues an `import` job in the transaction that records them.
+`internal/services/imports.Run` moves the import through the stages (`internal/importstage`):
+`uploaded` → `extracting` → `detecting` → `thumbnailing` → `enriching` → `done` | `failed`.
+`asset_imports.stage` is the record. SSE on
 `/api/imports/events` only announces transitions.
 
 Extraction (`internal/services/extract`) handles `.unitypackage`, a tar of GUID bundles, and
 `.zip`. Both enforce size and entry-count caps and skip unsafe paths. Zip needs random access, so
 the archive is copied to a local temp file first. Thumbnailing and enrichment are best-effort and
 never fail an import. Once the files are committed, the version is handed to the preview queue.
+An import creates its version with `files_pending` set. The transaction that writes the files
+clears it, and `imports.ChooseCurrent` passes over a pending version, so an import that fails
+after that point keeps a version that can still be current.
 
 In the SPA, the upload queue is in the notification centre (`components/notifications/`). It is
 mounted above `<Routes>` so that uploads survive navigation.
@@ -240,6 +244,11 @@ and tags. A `Registry` maps a URL host to a store adapter and falls back to a ge
 Auto-enrichment is the import's `enriching` stage. It fills blank fields only, apart from the name.
 Store covers and gallery images are fetched server-side and stored under `thumbs/`.
 
+`internal/services/enrich` applies a listing to an asset for every caller: import enrichment, a
+person's fetch and apply, recording a reference, and background store lookups (`enrich.Lookups`,
+which the queue runs). `Prepare` does the reads and downloads; `Plan.Write` does every write in the
+caller's transaction, so an apply that fails writes nothing.
+
 ### Traps
 
 - Fetch remote URLs only through `metadata.Client`. It is the SSRF guard (checked at dial time, so
@@ -252,15 +261,15 @@ Store covers and gallery images are fetched server-side and stored under `thumbs
 
 `internal/services/licence` first checks a Unity Asset Store EULA fingerprint, then runs
 `google/licensecheck`. Detection runs on demand (rescan, the licence endpoints, storefront text),
-never during import.
+never during import. Every licence write goes through `licence.Replace`, which keeps a reviewed licence from an
+automatic writer (import enrichment, rescan, store lookups).
 
 ### Traps
 
-- Never let an automatic path replace a licence that has `reviewed_at` set.
 - Leave an unknown attribute `nil`, never `false`. `false` is shown to the user as a stated
   restriction.
-- Change a licence status rule in both `LicenceStatusFor` and `licenceStatusSQL` (`licences.go`).
-  The grid, project pins and the status filter use the SQL form.
+- Change a licence status rule in both `licence.StatusFor` and `licence.StatusSQL`
+  (`status.go`). The grid, project pins and the status filter use the SQL form.
   `TestLicenceStatus_AgreesAcrossGridProjectFilterAndDetail` checks that the two agree.
 
 ## Thumbnails and previews
@@ -276,24 +285,28 @@ never during import.
 
 ### Traps
 
-- After writing a version's `asset_files`, call `preview.MarkVersionQueued` and enqueue the
-  version. New rows default to `unsupported`, and nothing else will queue them.
+- After writing a version's `asset_files`, hand the version to `preview.Queue`. New rows default
+  to `unsupported`, and nothing else will queue them.
 
 ## Background jobs
 
-`internal/queue` runs the `import`, `preview` and `store_lookup` queues on River, with its own
-`pgxpool`. River migrates its own `river_*` tables. The database rows (`asset_imports.stage`,
+`internal/queue` runs the `import`, `preview` and `store_lookup` queues on River. Workers run on
+their own `pgxpool`. Jobs are inserted by an insert-only client over GORM's connections, so
+`Enqueue(tx, …)` inserts a job in the transaction that creates its row, and returns its error. River
+migrates its own `river_*` tables. The database rows (`asset_imports.stage`,
 `asset_files.preview_status`, `store_lookups.status`) are the state, and the queue only schedules
-work. Job payloads carry ids only. Jobs are deduplicated by their arguments. An enqueue failure is
-logged, not returned, and at boot each pipeline's `ResumeInFlight` re-enqueues every row left
-non-terminal.
+work. Job payloads carry ids only. Jobs are deduplicated by their arguments.
+
+Each job kind is one `kind` in `queue.go`: how it runs, the `fail` that marks its row failed once
+River gives up, and the boot sweep that re-enqueues every row left non-terminal. `Queue.Resume` runs
+every sweep at boot.
 
 ### Traps
 
-- Mark the row failed before returning a terminal error, and cancel the job with `JobCancel`. Any
-  other error is retried.
-- Give a new job kind a boot-time resume sweep. Enqueue logs its error instead of returning it, so
-  without a sweep the rows stay queued forever.
+- For an error no retry fixes, mark the row failed before returning. The kind's `terminal` check
+  reads the row and cancels the job. Any other error is retried.
+- Pass the transaction that creates the row to `Enqueue`. An enqueue after the commit is lost if
+  the process dies in between, and one before it outlives a rollback.
 - Keep `store_lookup` at one worker. The single worker keeps Damson to one caller per store.
 
 ## Search

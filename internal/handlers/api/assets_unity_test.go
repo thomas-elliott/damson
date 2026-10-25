@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"testing"
 
+	"gorm.io/gorm"
+
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
@@ -408,6 +410,124 @@ func TestPostReExtract_UpdatesVersionInPlace(t *testing.T) {
 	if asset.CurrentVersionID == nil || *asset.CurrentVersionID != firstVersionID {
 		t.Fatalf("current_version_id should remain the re-extracted version: %+v", asset.CurrentVersionID)
 	}
+}
+
+// importTwoVersions imports "Pack 2.0" and then, into the same asset, "Pack
+// 1.0", returning the asset and the two versions' ids.
+func importTwoVersions(t *testing.T, r http.Handler, db *gorm.DB) (assetID, v2, v1 uint) {
+	t.Helper()
+	pkg2 := buildUnityPackage(t, []unityPkgEntry{{guid: testGUID(0x41), pathname: "Assets/a.bin", content: []byte("a")}})
+	b2, ct2 := buildMultipart(t, "file", "Pack 2.0.unitypackage", pkg2)
+	w2 := postMultipart(r, "/api/imports", b2, ct2)
+	requireStatus(t, w2, http.StatusAccepted)
+	assetID = jsonResponse[importEnqueueResponse](t, w2).AssetID
+
+	pkg1 := buildUnityPackage(t, []unityPkgEntry{{guid: testGUID(0x42), pathname: "Assets/b.bin", content: []byte("b")}})
+	b1, ct1 := buildMultipartWithFields(t, "file", "Pack 1.0.unitypackage", pkg1,
+		map[string]string{"asset_id": uintStr(assetID)})
+	w1 := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w1, http.StatusAccepted)
+
+	var versions []models.AssetVersion
+	if err := db.Where("asset_id = ?", assetID).Find(&versions).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range versions {
+		switch v.StoreVersion {
+		case "2.0":
+			v2 = v.ID
+		case "1.0":
+			v1 = v.ID
+		}
+	}
+	if v2 == 0 || v1 == 0 {
+		t.Fatalf("versions after two imports: %+v", versions)
+	}
+	return assetID, v2, v1
+}
+
+func requireCurrentVersion(t *testing.T, db *gorm.DB, assetID, want uint) {
+	t.Helper()
+	var asset models.Asset
+	if err := db.First(&asset, assetID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if asset.CurrentVersionID == nil || *asset.CurrentVersionID != want {
+		t.Fatalf("current version = %v, want %d", asset.CurrentVersionID, want)
+	}
+}
+
+// Importing an older store version after a newer one leaves the newer one
+// current, though the older one was imported last.
+func TestPostImport_OlderStoreVersionLeavesNewerCurrent(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	assetID, v2, _ := importTwoVersions(t, r, db)
+
+	requireCurrentVersion(t, db, assetID, v2)
+}
+
+// Re-extracting an older version rewrites its files without making it
+// current.
+func TestPostReExtract_OlderVersionDoesNotBecomeCurrent(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+	assetID, v2, v1 := importTwoVersions(t, r, db)
+
+	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(assetID)+"/versions/"+uintStr(v1)+"/reextract", nil)
+	requireStatus(t, w, http.StatusCreated)
+
+	requireCurrentVersion(t, db, assetID, v2)
+}
+
+// A version whose import failed after committing its files keeps them, so it
+// stays current when another version changes.
+func TestPostReExtract_VersionFailedAfterFinalizeStaysCurrent(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+	assetID, v2, v1 := importTwoVersions(t, r, db)
+	if err := db.Model(&models.AssetImport{}).Where("asset_version_id = ?", v2).Update("stage", "failed").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	w := performRequest(r, http.MethodPost, "/api/assets/"+uintStr(assetID)+"/versions/"+uintStr(v1)+"/reextract", nil)
+	requireStatus(t, w, http.StatusCreated)
+
+	requireCurrentVersion(t, db, assetID, v2)
+}
+
+// A version whose import failed before committing its files never becomes
+// current, even when it has the highest store version.
+func TestPostReExtract_VersionFailedBeforeFinalizeIsPassedOver(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	_ = seedLibraryAndSwitch(t, h, u)
+	r := setupRouter(h, u)
+
+	pkg := buildUnityPackage(t, []unityPkgEntry{{guid: testGUID(0x43), pathname: "Assets/c.bin", content: []byte("c")}})
+	b1, ct1 := buildMultipart(t, "file", "Pack 1.0.unitypackage", pkg)
+	w := postMultipart(r, "/api/imports", b1, ct1)
+	requireStatus(t, w, http.StatusAccepted)
+	assetID := jsonResponse[importEnqueueResponse](t, w).AssetID
+	var v1 models.AssetVersion
+	if err := db.Where("asset_id = ?", assetID).First(&v1).Error; err != nil {
+		t.Fatal(err)
+	}
+	b2, ct2 := buildMultipartWithFields(t, "file", "Pack 2.0.unitypackage", []byte("not a package"),
+		map[string]string{"asset_id": uintStr(assetID)})
+	requireStatus(t, postMultipart(r, "/api/imports", b2, ct2), http.StatusAccepted)
+
+	w = performRequest(r, http.MethodPost, "/api/assets/"+uintStr(assetID)+"/versions/"+uintStr(v1.ID)+"/reextract", nil)
+	requireStatus(t, w, http.StatusCreated)
+
+	requireCurrentVersion(t, db, assetID, v1.ID)
 }
 
 func TestPostReExtract_RejectsNonUnityVersion(t *testing.T) {

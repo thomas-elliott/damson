@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,6 +16,8 @@ import (
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/audit"
+	"github.com/thomas-elliott/damson/internal/services/enrich"
+	"github.com/thomas-elliott/damson/internal/services/licence"
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 	"github.com/thomas-elliott/damson/internal/services/tags"
 )
@@ -102,6 +105,22 @@ func nameFromLocationPath(p string) string {
 		seg = trimmed
 	}
 	return strings.TrimSpace(seg)
+}
+
+// applyReferenceListing fills the recorded asset's blanks from its listing
+// and saves the lookup's source record, together or not at all.
+func (h *Handler) applyReferenceListing(ctx context.Context, asset *models.Asset, meta *metadata.Metadata, link string, userID uint) error {
+	plan, err := enrich.Prepare(ctx, h.enrichDeps(), asset, meta, enrich.Options{UserID: &userID, By: licence.ByPerson})
+	if err != nil {
+		return err
+	}
+	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res, err := plan.Write(tx)
+		if err != nil {
+			return err
+		}
+		return plan.SaveRecord(tx, link, res.Applied, enrich.ConflictFields(res.Conflicts))
+	})
 }
 
 // referenceName picks a new reference asset's name: the caller's, else the
@@ -207,10 +226,9 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 	}
 
 	var (
-		asset    models.Asset
-		outcome  string
-		lookupID uint
-		batch    models.StoreLookupBatch
+		asset   models.Asset
+		outcome string
+		batch   models.StoreLookupBatch
 	)
 	// recordTx records or updates the asset. It and the queued lookup commit
 	// together, so a recorded asset is never left without the lookup a rerun
@@ -304,8 +322,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
 			return err
 		}
-		lookupID, err = createStoreLookupTx(tx, batch, asset.ID)
-		return err
+		return h.queueStoreLookupTx(tx, batch, asset.ID)
 	})
 	switch {
 	case errors.Is(err, errReferenceNameRequired):
@@ -320,14 +337,11 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respondGORM(c, err, "asset or lookup batch not found")
 		return
 	}
-	if lookupID != 0 {
-		h.storeLookups.EnqueueStoreLookup(lookupID)
-	}
-
 	if meta != nil && outcome != referenceExists {
-		prev := sourceRecordOf(&asset)
-		applied, conflicts := h.applyMetadata(ctx, lib.ID, &asset, meta, nil, false, "", u.ID)
-		h.saveLookupRecord(ctx, &asset, prev, meta, link, applied, conflictedFields(conflicts))
+		if err := h.applyReferenceListing(ctx, &asset, meta, link, u.ID); err != nil {
+			slog.Warn("reference: apply listing", "asset_id", asset.ID, "err", err)
+			metadataFailed = true
+		}
 	}
 
 	status := http.StatusOK
