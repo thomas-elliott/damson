@@ -12,7 +12,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/models"
 	"github.com/thomas-elliott/damson/internal/services/extract"
-	"github.com/thomas-elliott/damson/internal/services/metadata"
+	"github.com/thomas-elliott/damson/internal/services/library"
 	"github.com/thomas-elliott/damson/internal/services/preview"
 	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/thumbnail"
@@ -169,7 +169,7 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		return err
 	}
 
-	settings, sErr := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	settings, sErr := library.Settings(deps.DB.WithContext(ctx), jc.libraryID)
 	if sErr != nil {
 		slog.Warn("imports: load settings", "err", sErr, "library_id", jc.libraryID)
 	}
@@ -228,35 +228,9 @@ func Run(ctx context.Context, deps Deps, job Job) error {
 		// asset_files row (so the pipeline could read filename/content
 		// type for thumbnail detection); nothing to do here.
 
-		var asset models.Asset
-		if err := tx.First(&asset, jc.asset.ID).Error; err != nil {
-			return err
-		}
-		// A retried or resumed import of an older version finishes without
-		// taking the asset back to it, or its cover, once a newer version
-		// is current.
-		makeCurrent := true
-		if asset.CurrentVersionID != nil && *asset.CurrentVersionID != jc.version.ID {
-			var current models.AssetVersion
-			if err := tx.First(&current, *asset.CurrentVersionID).Error; err != nil {
-				return err
-			}
-			makeCurrent = !current.ImportDate.After(jc.version.ImportDate)
-		}
-		if makeCurrent {
-			vid := jc.version.ID
-			asset.CurrentVersionID = &vid
-		}
-		// A storefront cover outlives later extractions, as it does for
-		// rescan and re-extract.
-		if makeCurrent && thumbKey != "" && !asset.ThumbnailFromStore {
-			asset.ThumbnailObjectKey = thumbKey
-			asset.ThumbnailContentType = thumbType
-		}
-		if err := tx.Save(&asset).Error; err != nil {
-			return err
-		}
-		return nil
+		// An import of an older version finishes without taking the asset
+		// back to it, or its cover.
+		return commitFiles(tx, jc.asset.ID, jc.version.ID, thumbKey, thumbType)
 	})
 	if err != nil {
 		return fail("finalize: " + err.Error())
@@ -294,7 +268,7 @@ func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 	if jc.version.OriginalPackageObjectKey == "" {
 		return
 	}
-	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
+	settings, err := library.Settings(deps.DB.WithContext(ctx), jc.libraryID)
 	if err != nil {
 		slog.Warn("imports: load settings for purge", "err", err, "library_id", jc.libraryID)
 		return
@@ -327,28 +301,13 @@ func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 	}
 }
 
-// enqueuePreviews hands a committed version off to the preview processing queue.
-// It marks the version's supported files 'queued' (so they show in the queue
-// immediately) and enqueues the version for the preview worker pool. Gated by
-// the per-library previews_enabled toggle and a nil-safe enqueuer, so a library
-// with previews off — or a server without a preview pool wired — simply skips.
+// enqueuePreviews hands a committed version to the preview queue. A library
+// with previews off skips it.
 func enqueuePreviews(ctx context.Context, deps Deps, jc jobContext) {
-	if deps.Previews == nil {
-		return
+	_, err := preview.Queue(ctx, deps.DB, deps.Previews, preview.Job{LibraryID: jc.libraryID, VersionID: jc.version.ID})
+	if err != nil && !errors.Is(err, preview.ErrDisabled) {
+		slog.Warn("imports: queue previews", "err", err, "version_id", jc.version.ID)
 	}
-	settings, err := loadOrCreateLibrarySettings(deps.DB.WithContext(ctx), jc.libraryID)
-	if err != nil {
-		slog.Warn("imports: load settings for previews", "err", err, "library_id", jc.libraryID)
-		return
-	}
-	if !settings.PreviewsEnabled {
-		return
-	}
-	if _, err := preview.MarkVersionQueued(ctx, deps.DB, jc.version.ID, 0); err != nil {
-		slog.Warn("imports: mark previews queued", "err", err, "version_id", jc.version.ID)
-		return
-	}
-	deps.Previews.EnqueueVersion(jc.libraryID, jc.version.ID)
 }
 
 // loadJobContext hydrates the asset + version + library bits the pipeline
@@ -510,36 +469,4 @@ func WriteAssetFiles(tx *gorm.DB, versionID uint, looseObjectKey string, looseSi
 		return 0, 0, err
 	}
 	return len(rows), total, nil
-}
-
-// loadOrCreateLibrarySettings is the pipeline-local mirror of the api
-// helper of the same name; duplicated to avoid an import cycle (the api
-// package depends on imports, not vice versa). Kept in sync with
-// settings.go's defaults.
-func loadOrCreateLibrarySettings(tx *gorm.DB, libID uint) (*models.LibrarySettings, error) {
-	var s models.LibrarySettings
-	err := tx.Where("library_id = ?", libID).First(&s).Error
-	if err == nil {
-		return &s, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
-	s = models.LibrarySettings{
-		LibraryID:               libID,
-		GridDensityDefault:      "medium",
-		RetainOriginalPackages:  true,
-		DedupeEnabled:           true,
-		ThumbnailsRasterEnabled: true,
-		ThumbnailsAudioEnabled:  true,
-		ThumbnailsFontEnabled:   true,
-		ThumbnailsUnityPreview:  true,
-		PreviewsEnabled:         true,
-		AutoEnrichEnabled:       true,
-		PreferredStore:          metadata.StoreUnity,
-	}
-	if err := tx.Create(&s).Error; err != nil {
-		return nil, err
-	}
-	return &s, nil
 }

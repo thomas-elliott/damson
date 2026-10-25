@@ -3,6 +3,9 @@ package imports
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/color"
+	"image/png"
 	"testing"
 
 	"github.com/thomas-elliott/damson/internal/models"
@@ -160,4 +163,18 @@ func TestBackfillCovers_PrefersACoverLikeNameAsAZipImportDoes(t *testing.T) {
 	if a.ThumbnailObjectKey != want.ObjectKey {
 		t.Errorf("cover = %q, want the one rendered from z/cover.png (%q)", a.ThumbnailObjectKey, want.ObjectKey)
 	}
+}
+
+// pngFetcher answers every URL with a small PNG, a different colour each call.
+type pngFetcher struct{ calls []string }
+
+func (f *pngFetcher) FetchImage(_ context.Context, url string) ([]byte, string, error) {
+	f.calls = append(f.calls, url)
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	img.Set(0, 0, color.RGBA{R: uint8(len(f.calls)), A: 255})
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, "", err
+	}
+	return buf.Bytes(), "image/png", nil
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -82,17 +83,9 @@ func (h *Handler) postAssetPreviewRequeue(c *gin.Context) {
 		respond409(c, "asset has no current version")
 		return
 	}
-	if !h.previewsEnabled(c, lib.ID) {
+	queued, err := preview.Queue(c.Request.Context(), h.db, h.previewPool, preview.Job{LibraryID: lib.ID, VersionID: *asset.CurrentVersionID})
+	if !respondPreviewQueue(c, err) {
 		return
-	}
-
-	queued, err := preview.MarkVersionQueued(c.Request.Context(), h.db, *asset.CurrentVersionID, 0)
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-	if h.previewPool != nil {
-		h.previewPool.EnqueueVersion(lib.ID, *asset.CurrentVersionID)
 	}
 	c.JSON(http.StatusAccepted, gin.H{
 		"asset_id":   asset.ID,
@@ -144,16 +137,9 @@ func (h *Handler) postFilePreviewRequeue(c *gin.Context) {
 		respond409(c, "file type has no backend preview")
 		return
 	}
-	if !h.previewsEnabled(c, lib.ID) {
+	_, err := preview.Queue(c.Request.Context(), h.db, h.previewPool, preview.Job{LibraryID: lib.ID, VersionID: *asset.CurrentVersionID, FileID: file.ID})
+	if !respondPreviewQueue(c, err) {
 		return
-	}
-
-	if _, err := preview.MarkVersionQueued(c.Request.Context(), h.db, *asset.CurrentVersionID, file.ID); err != nil {
-		respond500(c, err)
-		return
-	}
-	if h.previewPool != nil {
-		h.previewPool.Enqueue(preview.Job{LibraryID: lib.ID, VersionID: *asset.CurrentVersionID, FileID: file.ID})
 	}
 	c.JSON(http.StatusAccepted, gin.H{
 		"asset_id":   asset.ID,
@@ -162,17 +148,16 @@ func (h *Handler) postFilePreviewRequeue(c *gin.Context) {
 	})
 }
 
-// previewsEnabled loads the library's previews_enabled toggle, responding 409
-// (and returning false) when previews are disabled so a requeue can't resurrect
-// previews an admin turned off. A load error responds 500.
-func (h *Handler) previewsEnabled(c *gin.Context, libraryID uint) bool {
-	settings, err := loadOrCreateLibrarySettings(h.db.WithContext(c.Request.Context()), libraryID)
-	if err != nil {
-		respond500(c, err)
-		return false
-	}
-	if !settings.PreviewsEnabled {
+// respondPreviewQueue answers a failed preview.Queue and reports whether the
+// handler may go on. A library with previews off is a 409, so a requeue can't
+// resurrect previews an admin turned off.
+func respondPreviewQueue(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, preview.ErrDisabled):
 		respond409(c, "previews are disabled for this library")
+		return false
+	case err != nil:
+		respond500(c, err)
 		return false
 	}
 	return true

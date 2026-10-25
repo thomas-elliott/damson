@@ -1,4 +1,4 @@
-package imports
+package enrich
 
 import (
 	"math"
@@ -10,22 +10,12 @@ import (
 	"github.com/thomas-elliott/damson/internal/services/metadata"
 )
 
-// FieldConflict names a storefront column whose fetched value differs from the
-// asset's current value, so overwriting it needs explicit confirmation.
-type FieldConflict struct {
-	Field    string
-	Current  string
-	Proposed string
-}
-
-// MetadataFieldUpdates computes the storefront-column writes for one fetch.
+// fieldUpdates computes the storefront-column writes for one fetch.
 // A blank column is filled silently; a column that already holds a different
 // value is reported as a conflict unless confirm[field] is set, in which case
 // it is overwritten. asset is mutated for every applied field so the caller's
 // response reflects the new state.
-//
-// Both apply paths go through this so their semantics can't drift.
-func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (before, updates map[string]any, conflicts []FieldConflict) {
+func fieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm map[string]bool) (before, updates map[string]any, conflicts []Conflict) {
 	before = map[string]any{}
 	updates = map[string]any{}
 
@@ -55,7 +45,7 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 		}
 		if current != "" {
 			if !confirm[f.column] {
-				conflicts = append(conflicts, FieldConflict{Field: f.column, Current: current, Proposed: proposed})
+				conflicts = append(conflicts, Conflict{Field: f.column, Current: current, Proposed: proposed})
 				continue
 			}
 			before[f.column] = current
@@ -82,7 +72,7 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 				continue
 			}
 			if !confirm[f.column] {
-				conflicts = append(conflicts, FieldConflict{
+				conflicts = append(conflicts, Conflict{
 					Field:    f.column,
 					Current:  cur.UTC().Format(time.RFC3339),
 					Proposed: f.proposed.UTC().Format(time.RFC3339),
@@ -102,7 +92,7 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 		if cur := asset.Rating; cur == nil || roundRating(*cur) != roundRating(meta.Rating) {
 			switch {
 			case cur != nil && !confirm["rating"]:
-				conflicts = append(conflicts, FieldConflict{
+				conflicts = append(conflicts, Conflict{
 					Field:    "rating",
 					Current:  strconv.FormatFloat(*cur, 'f', -1, 64),
 					Proposed: strconv.FormatFloat(meta.Rating, 'f', -1, 64),
@@ -121,7 +111,7 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 		if cur := asset.RatingCount; cur == nil || *cur != meta.RatingCount {
 			switch {
 			case cur != nil && !confirm["rating_count"]:
-				conflicts = append(conflicts, FieldConflict{
+				conflicts = append(conflicts, Conflict{
 					Field:    "rating_count",
 					Current:  strconv.Itoa(*cur),
 					Proposed: strconv.Itoa(meta.RatingCount),
@@ -149,10 +139,10 @@ func MetadataFieldUpdates(asset *models.Asset, meta *metadata.Metadata, confirm 
 // roundRating is a rating at the two decimal places the rating column keeps.
 func roundRating(r float64) float64 { return math.Round(r*100) / 100 }
 
-// MetadataTagList is the full tag set one fetch contributes: the store's flat
+// tagList is the full tag set one fetch contributes: the store's flat
 // keyword tags plus its category as a single hierarchical path. tags.Attach
 // normalises each path, so they are passed through as the store wrote them.
-func MetadataTagList(meta *metadata.Metadata) []string {
+func tagList(meta *metadata.Metadata) []string {
 	out := make([]string, 0, len(meta.Tags)+1)
 	out = append(out, meta.Tags...)
 	if p := strings.TrimSpace(meta.CategoryPath); p != "" {
@@ -168,42 +158,11 @@ func derefString(p *string) string {
 	return *p
 }
 
-// StoreUpdateAvailable reports whether latestStoreVersion is newer than every
-// store version the asset already holds, and returns the highest version held.
-//
-// Comparison is semantic, not textual: "1.10" is newer than "1.9". A version
-// either side that isn't dotted-numeric can't be ordered, so it is ignored
-// rather than guessed at — an unorderable latest version means "no update
-// known", never a false positive.
-func StoreUpdateAvailable(latestStoreVersion string, heldVersions []string) (available bool, highestHeld string) {
-	latest, ok := ParseStoreVersion(latestStoreVersion)
-	if !ok {
-		return false, ""
-	}
-	var best []int
-	for _, held := range heldVersions {
-		parts, ok := ParseStoreVersion(held)
-		if !ok {
-			continue
-		}
-		if best == nil || CompareStoreVersions(parts, best) > 0 {
-			best = parts
-			highestHeld = strings.TrimSpace(strings.TrimLeft(held, "vV"))
-		}
-	}
-	// An asset with no orderable version at all has nothing to compare, so it
-	// isn't reported as out of date; the user hasn't told us what they have.
-	if best == nil {
-		return false, ""
-	}
-	return CompareStoreVersions(latest, best) > 0, highestHeld
-}
-
-// ChangedSince reports which of the asset's storefront columns, and its name
+// changedSince reports which of the asset's storefront columns, and its name
 // and description, no longer hold what last (the previous lookup) gave them:
 // someone changed them since. A blank column is never changed, since a lookup
 // fills it anyway; a column holding a value the lookup didn't give is.
-func ChangedSince(asset *models.Asset, last *metadata.Metadata) map[string]bool {
+func changedSince(asset *models.Asset, last *metadata.Metadata) map[string]bool {
 	changed := map[string]bool{}
 	text := map[string]struct{ current, last string }{
 		"name":                 {asset.Name, last.Title},

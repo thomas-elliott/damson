@@ -18,7 +18,7 @@ import (
 // boot (and alongside the handler enqueue paths) is safe. The pipeline itself is
 // idempotent — re-running against an existing row re-extracts/re-thumbnails into
 // the same content-addressed blobs and rewrites asset_files for the version.
-func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job) }) (int, error) {
+func ResumeInFlight(ctx context.Context, db *gorm.DB, enq Enqueuer) (int, error) {
 	type joined struct {
 		ImportID                 uint
 		LibraryID                uint
@@ -45,7 +45,9 @@ func ResumeInFlight(ctx context.Context, db *gorm.DB, enq interface{ Enqueue(Job
 			}
 			continue
 		}
-		enq.Enqueue(Job{ImportID: r.ImportID, LibraryID: r.LibraryID})
+		if err := enq.Enqueue(db.WithContext(ctx), Job{ImportID: r.ImportID, LibraryID: r.LibraryID}); err != nil {
+			return enqueued, err
+		}
 		enqueued++
 	}
 	return enqueued, nil

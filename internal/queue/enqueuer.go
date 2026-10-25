@@ -1,11 +1,8 @@
 package queue
 
 import (
-	"context"
-	"log/slog"
-
-	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
+	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/services/imports"
 	"github.com/thomas-elliott/damson/internal/services/preview"
@@ -29,68 +26,31 @@ var activeStates = []rivertype.JobState{
 	rivertype.JobStateScheduled,
 }
 
-// ImportEnqueuer inserts import jobs into River. It satisfies the enqueuer
-// interface the API handlers depend on. Enqueue is fire-and-forget: a failure is
-// logged, and the startup reconcile re-enqueues any domain row left without a job.
+// ImportEnqueuer inserts import jobs into River. It satisfies
+// imports.Enqueuer.
 type ImportEnqueuer struct{ q *Queue }
 
-// Enqueue inserts an import job on the import queue, deduped by args across
-// active states.
-func (e ImportEnqueuer) Enqueue(job imports.Job) {
-	_, err := e.q.client.Insert(context.Background(),
-		ImportArgs{ImportID: job.ImportID, LibraryID: job.LibraryID},
-		&river.InsertOpts{
-			Queue:       QueueImport,
-			MaxAttempts: maxAttempts,
-			UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: activeStates},
-		},
-	)
-	if err != nil {
-		slog.Error("queue: enqueue import", "import_id", job.ImportID, "library_id", job.LibraryID, "err", err)
-	}
+// Enqueue inserts an import job in tx, deduped by args across active states.
+func (e ImportEnqueuer) Enqueue(tx *gorm.DB, job imports.Job) error {
+	return e.q.insert(tx, ImportArgs{ImportID: job.ImportID, LibraryID: job.LibraryID}, QueueImport)
 }
 
-// PreviewEnqueuer inserts preview jobs into River. Satisfies both the API
-// handlers' enqueuer interface and the import pipeline's PreviewEnqueuer (the
-// import→preview handoff).
+// PreviewEnqueuer inserts preview jobs into River. It satisfies
+// preview.Enqueuer.
 type PreviewEnqueuer struct{ q *Queue }
 
 // Enqueue inserts a preview job for a specific file (or the whole version when
-// FileID == 0) on the preview queue, deduped by args across active states.
-func (e PreviewEnqueuer) Enqueue(job preview.Job) {
-	_, err := e.q.client.Insert(context.Background(),
-		PreviewArgs{LibraryID: job.LibraryID, VersionID: job.VersionID, FileID: job.FileID},
-		&river.InsertOpts{
-			Queue:       QueuePreview,
-			MaxAttempts: maxAttempts,
-			UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: activeStates},
-		},
-	)
-	if err != nil {
-		slog.Error("queue: enqueue preview", "version_id", job.VersionID, "file_id", job.FileID, "err", err)
-	}
+// FileID == 0) in tx, deduped by args across active states.
+func (e PreviewEnqueuer) Enqueue(tx *gorm.DB, job preview.Job) error {
+	return e.q.insert(tx, PreviewArgs{LibraryID: job.LibraryID, VersionID: job.VersionID, FileID: job.FileID}, QueuePreview)
 }
 
-// EnqueueVersion inserts a preview job covering every queued file in a version.
-func (e PreviewEnqueuer) EnqueueVersion(libraryID, versionID uint) {
-	e.Enqueue(preview.Job{LibraryID: libraryID, VersionID: versionID})
-}
-
-// StoreLookupEnqueuer inserts store lookup jobs into River. It satisfies the
-// API handlers' StoreLookupEnqueuer.
+// StoreLookupEnqueuer inserts store lookup jobs into River. It satisfies
+// enrich.LookupEnqueuer.
 type StoreLookupEnqueuer struct{ q *Queue }
 
-// EnqueueStoreLookup inserts a job for one store_lookups row, deduped by args
-// across active states.
-func (e StoreLookupEnqueuer) EnqueueStoreLookup(lookupID uint) {
-	_, err := e.q.client.Insert(context.Background(), StoreLookupArgs{LookupID: lookupID},
-		&river.InsertOpts{
-			Queue:       QueueStoreLookup,
-			MaxAttempts: maxAttempts,
-			UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: activeStates},
-		},
-	)
-	if err != nil {
-		slog.Error("queue: enqueue store lookup", "lookup_id", lookupID, "err", err)
-	}
+// EnqueueStoreLookup inserts a job for one store_lookups row in tx, deduped
+// by args across active states.
+func (e StoreLookupEnqueuer) EnqueueStoreLookup(tx *gorm.DB, lookupID uint) error {
+	return e.q.insert(tx, StoreLookupArgs{LookupID: lookupID}, QueueStoreLookup)
 }

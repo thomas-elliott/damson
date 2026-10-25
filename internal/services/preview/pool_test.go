@@ -57,8 +57,9 @@ func seedRenderableFile(t *testing.T, db *gorm.DB, store storage.Service, librar
 // inlineEnqueuer processes each job on the calling goroutine.
 type inlineEnqueuer struct{ deps Deps }
 
-func (e inlineEnqueuer) Enqueue(job Job) {
+func (e inlineEnqueuer) Enqueue(_ *gorm.DB, job Job) error {
 	_ = ProcessVersion(context.Background(), e.deps, job.LibraryID, job.VersionID, job.FileID)
+	return nil
 }
 
 func TestResumeInFlight_RecoversCrashedProcessing(t *testing.T) {

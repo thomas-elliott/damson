@@ -3,6 +3,7 @@ package preview
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"sync"
@@ -109,7 +110,7 @@ func TestProcessVersion_DrivesPerFileStatus(t *testing.T) {
 	}
 
 	// Enqueue: supported files (bmp, psd) become queued; the dll stays unsupported.
-	queued, err := MarkVersionQueued(ctx, db, version.ID, 0)
+	queued, err := Queue(ctx, db, nil, Job{LibraryID: 7, VersionID: version.ID})
 	if err != nil {
 		t.Fatalf("mark queued: %v", err)
 	}
@@ -161,7 +162,7 @@ func TestProcessVersion_DrivesPerFileStatus(t *testing.T) {
 	}
 }
 
-func TestMarkVersionQueued_SingleFile(t *testing.T) {
+func TestQueue_SingleFile(t *testing.T) {
 	ctx := context.Background()
 	db := newProcessDB(t)
 
@@ -184,7 +185,7 @@ func TestMarkVersionQueued_SingleFile(t *testing.T) {
 	}
 
 	// Targeting one file id must queue only that file.
-	queued, err := MarkVersionQueued(ctx, db, version.ID, a.ID)
+	queued, err := Queue(ctx, db, nil, Job{LibraryID: 1, VersionID: version.ID, FileID: a.ID})
 	if err != nil {
 		t.Fatalf("mark queued: %v", err)
 	}
@@ -197,5 +198,94 @@ func TestMarkVersionQueued_SingleFile(t *testing.T) {
 	}
 	if reloadB.PreviewStatus != StatusUnsupported {
 		t.Errorf("untargeted file should stay unsupported, got %q", reloadB.PreviewStatus)
+	}
+}
+
+type jobRecorder struct{ jobs []Job }
+
+func (r *jobRecorder) Enqueue(_ *gorm.DB, j Job) error {
+	r.jobs = append(r.jobs, j)
+	return nil
+}
+
+// Every hand-off obeys the library's previews toggle: with previews off,
+// Queue marks nothing and enqueues nothing.
+func TestQueue_ObeysTheLibrarysPreviewsToggle(t *testing.T) {
+	ctx := context.Background()
+	db := newProcessDB(t)
+	ensureLibrary(t, db, 1)
+	asset := models.Asset{LibraryID: 1, Name: "a"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	version := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatal(err)
+	}
+	f := models.AssetFile{AssetVersionID: version.ID, RelativePath: "a.bmp", ObjectKey: "k1", ContentHash: "k1"}
+	if err := db.Create(&f).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := Job{LibraryID: 1, VersionID: version.ID}
+
+	if err := db.Create(&models.LibrarySettings{LibraryID: 1, GridDensityDefault: "medium"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.LibrarySettings{}).Where("library_id = 1").Update("previews_enabled", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec := &jobRecorder{}
+	if _, err := Queue(ctx, db, rec, job); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("Queue with previews off: err %v, want ErrDisabled", err)
+	}
+	var got models.AssetFile
+	db.First(&got, f.ID)
+	if got.PreviewStatus != StatusUnsupported || len(rec.jobs) != 0 {
+		t.Fatalf("status %q, jobs %v: previews off must leave the file alone", got.PreviewStatus, rec.jobs)
+	}
+
+	db.Model(&models.LibrarySettings{}).Where("library_id = 1").Update("previews_enabled", true)
+	if n, err := Queue(ctx, db, rec, job); err != nil || n != 1 {
+		t.Fatalf("Queue with previews on: %d, %v; want 1 file queued", n, err)
+	}
+	db.First(&got, f.ID)
+	if got.PreviewStatus != StatusQueued || len(rec.jobs) != 1 || rec.jobs[0] != job {
+		t.Fatalf("status %q, jobs %v: want the file queued and the job enqueued", got.PreviewStatus, rec.jobs)
+	}
+}
+
+// Once the queue gives up on a job, the files it left in flight are failed,
+// and files it finished are left alone.
+func TestFailJob_FailsOnlyTheFilesLeftInFlight(t *testing.T) {
+	ctx := context.Background()
+	db := newProcessDB(t)
+	ensureLibrary(t, db, 1)
+	asset := models.Asset{LibraryID: 1, Name: "a"}
+	if err := db.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	version := models.AssetVersion{AssetID: asset.ID, VersionLabel: "v1"}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatal(err)
+	}
+	files := []models.AssetFile{
+		{AssetVersionID: version.ID, RelativePath: "a.bmp", ObjectKey: "k1", ContentHash: "k1", PreviewStatus: StatusQueued},
+		{AssetVersionID: version.ID, RelativePath: "b.bmp", ObjectKey: "k2", ContentHash: "k2", PreviewStatus: StatusProcessing},
+		{AssetVersionID: version.ID, RelativePath: "c.bmp", ObjectKey: "k3", ContentHash: "k3", PreviewStatus: StatusDone},
+	}
+	if err := db.Create(&files).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if err := FailJob(ctx, db, Job{LibraryID: 1, VersionID: version.ID}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{StatusFailed, StatusFailed, StatusDone}
+	for i, f := range files {
+		var got models.AssetFile
+		db.First(&got, f.ID)
+		if got.PreviewStatus != want[i] {
+			t.Errorf("%s: status %q, want %q", f.RelativePath, got.PreviewStatus, want[i])
+		}
 	}
 }
