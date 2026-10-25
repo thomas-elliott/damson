@@ -14,10 +14,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/audit"
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 // importRow is the wire shape returned by GET /api/imports — the
@@ -254,7 +254,7 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		respond404(c, "import not found")
 		return
 	}
-	if imp.Stage != imports.StageFailed {
+	if imp.Stage != ingest.StageFailed {
 		respond409(c, "import is not in failed state")
 		return
 	}
@@ -275,8 +275,8 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 	}
 
 	var sourceKey string
-	if verr == nil && version.PackageKind == packageKindUnityPackage {
-		if version.OriginalPackageObjectKey != "" && !version.OriginalPackagePurged {
+	if verr == nil && version.PackageKind == models.PackageKindUnityPackage {
+		if version.HasDownloadableOriginal() {
 			sourceKey = version.OriginalPackageObjectKey
 		}
 	} else if verr == nil {
@@ -312,7 +312,7 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		nextImp := models.AssetImport{
 			AssetID:        asset.ID,
 			AssetVersionID: &version.ID,
-			Stage:          imports.StageUploaded,
+			Stage:          ingest.StageUploaded,
 			UpdatedAt:      time.Now().UTC(),
 		}
 		if err := tx.Create(&nextImp).Error; err != nil {
@@ -329,7 +329,7 @@ func (h *Handler) postImportRetry(c *gin.Context) {
 		}); err != nil {
 			return err
 		}
-		return h.importPool.Enqueue(tx, imports.Job{ImportID: newImportID, LibraryID: lib.ID})
+		return h.importPool.Enqueue(tx, ingest.Job{ImportID: newImportID, LibraryID: lib.ID})
 	})
 	if err != nil {
 		respond500(c, err)
@@ -394,7 +394,7 @@ func streamImportEvents(c *gin.Context, h *Handler, libraryID uint) {
 	ch, unsub := h.broadcaster.Subscribe(libraryID)
 	defer unsub()
 
-	snapshot, err := imports.ReplaySnapshot(c.Request.Context(), h.db, libraryID)
+	snapshot, err := ingest.ReplaySnapshot(c.Request.Context(), h.db, libraryID)
 	if err != nil {
 		slog.Warn("import events: replay snapshot", "err", err, "library_id", libraryID)
 	}
@@ -432,7 +432,7 @@ func streamImportEvents(c *gin.Context, h *Handler, libraryID uint) {
 // writeSSEEvent serializes one import event as a `data:` SSE frame.
 // Returns false if the underlying writer rejected the bytes — callers
 // should bail out of the stream loop on false.
-func writeSSEEvent(w gin.ResponseWriter, ev imports.Event) bool {
+func writeSSEEvent(w gin.ResponseWriter, ev ingest.Event) bool {
 	payload, err := json.Marshal(ev)
 	if err != nil {
 		slog.Warn("import events: marshal", "err", err, "import_id", ev.ID)

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 func TestStorageCleanup_RequiresSysadmin(t *testing.T) {
@@ -30,11 +30,11 @@ func TestStorageCleanup_ScanAndDelete(t *testing.T) {
 	admin.Role = "sysadmin"
 	ctx := context.Background()
 
-	orphan, _, err := h.storage.PutBlob(ctx, bytes.NewReader([]byte("orphan")), storage.ObjectMeta{Filename: "lost.bin"})
+	orphan, _, err := h.storage.Put(ctx, storage.Blobs, bytes.NewReader([]byte("orphan")), storage.ObjectMeta{Filename: "lost.bin"})
 	if err != nil {
 		t.Fatalf("put orphan: %v", err)
 	}
-	referenced, _, err := h.storage.PutBlob(ctx, bytes.NewReader([]byte("kept")), storage.ObjectMeta{})
+	referenced, _, err := h.storage.Put(ctx, storage.Blobs, bytes.NewReader([]byte("kept")), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put referenced: %v", err)
 	}
@@ -90,10 +90,10 @@ func TestStorageCleanup_ScanAndDelete(t *testing.T) {
 		t.Fatalf("evil prefix not skipped: %+v", del.Skipped)
 	}
 
-	if _, exists, _ := h.storage.HeadBlob(ctx, orphan); exists {
+	if _, exists, _ := h.storage.Stat(ctx, storage.Blobs, orphan); exists {
 		t.Fatalf("orphan still present after delete")
 	}
-	if _, exists, _ := h.storage.HeadBlob(ctx, referenced); !exists {
+	if _, exists, _ := h.storage.Stat(ctx, storage.Blobs, referenced); !exists {
 		t.Fatalf("referenced blob was wrongly deleted")
 	}
 }

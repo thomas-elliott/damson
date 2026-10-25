@@ -7,12 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/assets"
+	"github.com/thomas-elliott/damson/internal/audit"
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/licence"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/assets"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/licence"
-	"github.com/thomas-elliott/damson/internal/services/tags"
+	"github.com/thomas-elliott/damson/internal/tags"
 )
 
 const maxBulkAssets = 1000

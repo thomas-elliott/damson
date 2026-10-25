@@ -8,7 +8,7 @@ import (
 
 	"github.com/thomas-elliott/damson/internal/config"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/preview"
 )
 
 // spyPreviewEnqueuer is a PreviewEnqueuer that records calls instead of running

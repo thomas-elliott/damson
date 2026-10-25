@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // buildUnityPackage assembles a minimal .unitypackage-shaped tar.gz from the
@@ -171,11 +172,11 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	if err := db.Where("asset_id = ?", unityResp.AssetID).First(&uv).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := h.storage.HeadOriginal(ctx, uv.OriginalPackageObjectKey); !ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Originals, uv.OriginalPackageObjectKey); !ok {
 		t.Fatalf("unity archive not stored under originals/")
 	}
-	if _, ok, _ := h.storage.HeadBlob(ctx, uv.OriginalPackageObjectKey); ok {
-		t.Fatalf("unity archive leaked into blobs/ — routing regressed to PutBlob")
+	if _, ok, _ := h.storage.Stat(ctx, storage.Blobs, uv.OriginalPackageObjectKey); ok {
+		t.Fatalf("unity archive leaked into blobs/ — routing regressed to the Blobs prefix")
 	}
 
 	// A loose upload's content stays in blobs/ and is absent from originals/.
@@ -188,10 +189,10 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	if err := db.Where("asset_id = ?", looseResp.AssetID).First(&lv).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := h.storage.HeadBlob(ctx, lv.OriginalPackageObjectKey); !ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Blobs, lv.OriginalPackageObjectKey); !ok {
 		t.Fatalf("loose content not stored under blobs/")
 	}
-	if _, ok, _ := h.storage.HeadOriginal(ctx, lv.OriginalPackageObjectKey); ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Originals, lv.OriginalPackageObjectKey); ok {
 		t.Fatalf("loose content leaked into originals/")
 	}
 }
@@ -621,8 +622,9 @@ func TestPostReExtract_QueuesFreshPreviews(t *testing.T) {
 
 // The Unity preview setting governs the cover harvested from a package's
 // preview.png files: off, the package gets none (the store cover or the
-// placeholder applies); on, it does.
-func TestPostImport_UnityPreviewSettingControlsTheHarvestedCover(t *testing.T) {
+// placeholder applies); on, it does. A re-extract runs the import's own stages,
+// so it follows the setting too.
+func TestUnityPreviewSetting_ControlsTheCoverOnImportAndReextract(t *testing.T) {
 	for _, on := range []bool{true, false} {
 		t.Run(fmt.Sprintf("unity preview %v", on), func(t *testing.T) {
 			h, db := newTestHandler(t)
@@ -641,7 +643,8 @@ func TestPostImport_UnityPreviewSettingControlsTheHarvestedCover(t *testing.T) {
 				content: makeTestPNG(t, 16, 16), preview: makeTestPNG(t, 8, 8),
 			}})
 			body, ctype := buildMultipart(t, "file", "Grass.unitypackage", pkg)
-			w := postMultipart(setupRouter(h, u), "/api/imports", body, ctype)
+			r := setupRouter(h, u)
+			w := postMultipart(r, "/api/imports", body, ctype)
 			requireStatus(t, w, http.StatusAccepted)
 
 			var a models.Asset
@@ -649,7 +652,19 @@ func TestPostImport_UnityPreviewSettingControlsTheHarvestedCover(t *testing.T) {
 				t.Fatal(err)
 			}
 			if got := a.ThumbnailObjectKey != ""; got != on {
-				t.Fatalf("cover set = %v (key %q), want %v", got, a.ThumbnailObjectKey, on)
+				t.Fatalf("import: cover set = %v (key %q), want %v", got, a.ThumbnailObjectKey, on)
+			}
+
+			if err := db.Model(&a).Update("thumbnail_object_key", "").Error; err != nil {
+				t.Fatal(err)
+			}
+			w = performRequest(r, http.MethodPost, "/api/assets/"+uintStr(a.ID)+"/versions/"+uintStr(*a.CurrentVersionID)+"/reextract", nil)
+			requireStatus(t, w, http.StatusCreated)
+			if err := db.First(&a, a.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if got := a.ThumbnailObjectKey != ""; got != on {
+				t.Fatalf("re-extract: cover set = %v (key %q), want %v", got, a.ThumbnailObjectKey, on)
 			}
 		})
 	}

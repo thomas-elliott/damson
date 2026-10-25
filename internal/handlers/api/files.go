@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // object_key is SHA-256 hex (64 chars). Anything else is a 400 — don't let a
@@ -78,7 +79,8 @@ func (h *Handler) getFile(c *gin.Context) {
 			Table("assets AS a").
 			Select("a.name, v.package_kind").
 			Joins("JOIN asset_versions v ON v.asset_id = a.id").
-			Where("a.library_id = ? AND v.original_package_object_key = ? AND v.package_kind IN ? AND v.original_package_purged = false", lib.ID, key, []string{"unitypackage", "zip"}).
+			Where("a.library_id = ? AND v.original_package_object_key = ?", lib.ID, key).
+			Where(models.DownloadableOriginalSQL("v")).
 			Limit(1).
 			Scan(&original).Error
 		if err != nil {
@@ -93,16 +95,16 @@ func (h *Handler) getFile(c *gin.Context) {
 		fromOriginal = true
 	}
 
-	head, get := h.storage.HeadBlob, h.storage.GetBlob
+	prefix := storage.Blobs
 	if fromOriginal {
-		head, get = h.storage.HeadOriginal, h.storage.GetOriginal
+		prefix = storage.Originals
 	}
-	size, exists, herr := head(c.Request.Context(), key)
+	info, exists, herr := h.storage.Stat(c.Request.Context(), prefix, key)
 	if herr != nil || !exists {
 		respond404(c, "not found")
 		return
 	}
-	r, err := get(c.Request.Context(), key)
+	r, err := h.storage.Get(c.Request.Context(), prefix, key)
 	if err != nil {
 		respond404(c, "not found")
 		return
@@ -110,7 +112,7 @@ func (h *Handler) getFile(c *gin.Context) {
 	defer r.Close()
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("Content-Disposition", `attachment; filename="`+sanitiseFilename(ref.RelativePath)+`"`)
-	c.Header("Content-Length", strconv.FormatInt(size, 10))
+	c.Header("Content-Length", strconv.FormatInt(info.Size, 10))
 	c.Header("Cache-Control", "private, max-age=3600")
 	if _, err := io.Copy(c.Writer, r); err != nil {
 		// Can't reset the status once bytes have gone out; just log.
@@ -165,7 +167,7 @@ func (h *Handler) getThumb(c *gin.Context) {
 	if !ok {
 		return
 	}
-	r, err := h.storage.GetThumb(c.Request.Context(), key)
+	r, err := h.storage.Get(c.Request.Context(), storage.Thumbs, key)
 	if err != nil {
 		respond404(c, "not found")
 		return
@@ -212,7 +214,7 @@ func (h *Handler) getPreview(c *gin.Context) {
 		respond404(c, "not found")
 		return
 	}
-	r, err := h.storage.GetThumb(c.Request.Context(), key)
+	r, err := h.storage.Get(c.Request.Context(), storage.Thumbs, key)
 	if err != nil {
 		respond404(c, "not found")
 		return

@@ -8,10 +8,10 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/audit"
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // importSpec is everything the import transaction needs that does not depend
@@ -48,14 +48,14 @@ func newImportSpec(libraryID, userID uint, filename, contentType string) importS
 		userID:      userID,
 		filename:    name,
 		contentType: contentType,
-		packageKind: packageKindLoose,
+		packageKind: models.PackageKindLoose,
 	}
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".unitypackage":
-		s.packageKind = packageKindUnityPackage
+		s.packageKind = models.PackageKindUnityPackage
 		s.isArchive = true
 	case ".zip":
-		s.packageKind = packageKindZip
+		s.packageKind = models.PackageKindZip
 		s.isArchive = true
 	}
 	return s
@@ -64,8 +64,8 @@ func newImportSpec(libraryID, userID uint, filename, contentType string) importS
 // storeVersion resolves the version label: parsed from the filename, dropped
 // for sources whose filenames don't carry one, overridden by the client.
 func (s importSpec) storeVersion() string {
-	_, v := imports.ParseImportFilename(s.filename)
-	if imports.SuppressesFilenameVersion(s.sourceKind) {
+	_, v := ingest.ParseImportFilename(s.filename)
+	if ingest.SuppressesFilenameVersion(s.sourceKind) {
 		v = ""
 	}
 	if s.reqStoreVersion != "" {
@@ -84,11 +84,8 @@ func (s importSpec) objectMeta(assetID, versionID uint) storage.ObjectMeta {
 	}
 }
 
-func (s importSpec) storagePrefix() string {
-	if s.isArchive {
-		return "originals"
-	}
-	return "blobs"
+func (s importSpec) storagePrefix() storage.Prefix {
+	return ingest.OriginalPrefix(s.packageKind)
 }
 
 // checkImportConflict answers "would this upload be rejected?" without
@@ -154,7 +151,7 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 				return err
 			}
 		} else {
-			assetName, _ := imports.ParseImportFilename(s.filename)
+			assetName, _ := ingest.ParseImportFilename(s.filename)
 			asset = models.Asset{
 				LibraryID:       s.libraryID,
 				Name:            assetName,
@@ -194,7 +191,7 @@ func (h *Handler) createImportRows(ctx context.Context, s importSpec) (importRow
 		imp := models.AssetImport{
 			AssetID:        asset.ID,
 			AssetVersionID: &version.ID,
-			Stage:          imports.StageUploaded,
+			Stage:          ingest.StageUploaded,
 			UpdatedAt:      time.Now().UTC(),
 		}
 		if err := tx.Create(&imp).Error; err != nil {
@@ -242,7 +239,7 @@ func (h *Handler) finishImport(ctx context.Context, s importSpec, rows importRow
 				return err
 			}
 		}
-		return h.importPool.Enqueue(tx, imports.Job{ImportID: rows.importID, LibraryID: s.libraryID})
+		return h.importPool.Enqueue(tx, ingest.Job{ImportID: rows.importID, LibraryID: s.libraryID})
 	})
 	return err
 }
@@ -253,8 +250,8 @@ func (h *Handler) suggestMatch(ctx context.Context, s importSpec, assetID uint) 
 	if s.targetAssetID != 0 {
 		return nil
 	}
-	name, _ := imports.ParseImportFilename(s.filename)
-	m, err := imports.MatchAssetByName(h.db.WithContext(ctx), s.libraryID, assetID, name)
+	name, _ := ingest.ParseImportFilename(s.filename)
+	m, err := ingest.MatchAssetByName(h.db.WithContext(ctx), s.libraryID, assetID, name)
 	if err != nil || m == nil {
 		return nil
 	}

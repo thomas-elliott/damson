@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/preview"
+	"github.com/thomas-elliott/damson/internal/preview"
 )
 
 // previewQueueResponse is the snapshot shape returned by GET /api/previews —

@@ -6,7 +6,7 @@
 //
 // The fixture is a minimal-but-valid Unity .unitypackage with one asset
 // (`Assets/E2EFixture.txt`). The format mirrors the test packages built
-// in internal/services/extract/unitypackage_test.go: each entry lives
+// in internal/extract/unitypackage_test.go: each entry lives
 // under a 32-hex-char GUID directory, with `pathname` carrying the
 // in-Unity virtual path and `asset` carrying the bytes.
 package main

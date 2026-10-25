@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/thomas-elliott/damson/internal/ingest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
 )
 
 func preflightEntries(t *testing.T, h *Handler, u *models.User, entries []map[string]any) preflightPayload {
@@ -20,7 +20,7 @@ func seedSourcedVersion(t *testing.T, h *Handler, assetID uint, path string, siz
 	t.Helper()
 	v := models.AssetVersion{
 		AssetID:            assetID,
-		SourceKind:         ptrTo(imports.SourceKindUnityCache),
+		SourceKind:         ptrTo(ingest.SourceKindUnityCache),
 		SourceRelativePath: ptrTo(path),
 		SourceSizeBytes:    ptrTo(size),
 	}
@@ -45,16 +45,16 @@ func TestPreflight_PathAndSizeStatuses(t *testing.T) {
 	got := preflightEntries(t, h, u, []map[string]any{
 		// Same path, same size → already held.
 		{"filename": "RPG Builder.unitypackage", "size_bytes": 5000,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": heldPath},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": heldPath},
 		// Same path, different size → a newer download of the same package.
 		{"filename": "RPG Builder.unitypackage", "size_bytes": 6000,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": heldPath},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": heldPath},
 		// Unknown path, but the name matches an asset imported by hand.
 		{"filename": "Fantasy Pack.unitypackage", "size_bytes": 100,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": "Someone/Audio/Fantasy Pack.unitypackage"},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": "Someone/Audio/Fantasy Pack.unitypackage"},
 		// Nothing matches at all.
 		{"filename": "Brand New.unitypackage", "size_bytes": 100,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": "Someone/Audio/Brand New.unitypackage"},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": "Someone/Audio/Brand New.unitypackage"},
 	})
 
 	if len(got.Results) != 4 {
@@ -94,7 +94,7 @@ func TestPreflight_PathBeatsName(t *testing.T) {
 
 	got := preflightEntries(t, h, u, []map[string]any{
 		{"filename": "RPG Builder.unitypackage", "size_bytes": 5000,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": path},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": path},
 	})
 	if got.Results[0].Status != "already_imported" {
 		t.Errorf("status = %q, want already_imported", got.Results[0].Status)
@@ -115,7 +115,7 @@ func TestPreflight_SourcePathsAreLibraryScoped(t *testing.T) {
 
 	got := preflightEntries(t, h, mine, []map[string]any{
 		{"filename": "RPG Builder.unitypackage", "size_bytes": 5000,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": path},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": path},
 	})
 	if got.Results[0].Status != "new" {
 		t.Errorf("status = %q, want new — another library's cache path must not leak", got.Results[0].Status)
@@ -157,9 +157,9 @@ func TestPreflight_RejectsBadSourcePaths(t *testing.T) {
 		entry map[string]any
 	}{
 		{"absolute", map[string]any{"filename": "x.unitypackage", "size_bytes": 1,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": "/etc/x.unitypackage"}},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": "/etc/x.unitypackage"}},
 		{"traversal", map[string]any{"filename": "x.unitypackage", "size_bytes": 1,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": "a/../../x.unitypackage"}},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": "a/../../x.unitypackage"}},
 		{"unknown kind", map[string]any{"filename": "x.unitypackage", "size_bytes": 1,
 			"source_kind": "dropbox", "relative_path": "a/x.unitypackage"}},
 		{"path without kind", map[string]any{"filename": "x.unitypackage", "size_bytes": 1,
@@ -184,9 +184,9 @@ func TestPreflight_RepeatedPathIsOneLookup(t *testing.T) {
 
 	got := preflightEntries(t, h, u, []map[string]any{
 		{"filename": "RPG Builder.unitypackage", "size_bytes": 5000,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": path},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": path},
 		{"filename": "RPG Builder.unitypackage", "size_bytes": 9999,
-			"source_kind": imports.SourceKindUnityCache, "relative_path": path},
+			"source_kind": ingest.SourceKindUnityCache, "relative_path": path},
 	})
 	if got.Results[0].Status != "already_imported" {
 		t.Errorf("results[0].Status = %q, want already_imported", got.Results[0].Status)

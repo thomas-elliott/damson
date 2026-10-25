@@ -14,12 +14,12 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/config"
+	"github.com/thomas-elliott/damson/internal/ingest"
+	"github.com/thomas-elliott/damson/internal/ingest/ingesttest"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/imports"
-	"github.com/thomas-elliott/damson/internal/services/imports/importstest"
-	"github.com/thomas-elliott/damson/internal/services/preview"
-	"github.com/thomas-elliott/damson/internal/services/preview/previewtest"
-	"github.com/thomas-elliott/damson/internal/services/storage"
+	"github.com/thomas-elliott/damson/internal/preview"
+	"github.com/thomas-elliott/damson/internal/preview/previewtest"
+	"github.com/thomas-elliott/damson/internal/storage"
 )
 
 // testChunkBytes is deliberately tiny so a handful of bytes exercises the
@@ -30,10 +30,10 @@ func newChunkedHandler(t *testing.T) (*Handler, *gorm.DB, storage.Service) {
 	t.Helper()
 	db := newTestDB(t)
 	store := newTestStorage(t)
-	bc := imports.NewBroadcaster()
+	bc := ingest.NewBroadcaster()
 	pbc := preview.NewBroadcaster()
 	previewPool := previewtest.NewSync(preview.Deps{DB: db, Storage: store, Broadcaster: pbc})
-	pool := importstest.NewSync(imports.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
+	pool := ingesttest.NewSync(ingest.Deps{DB: db, Storage: store, Broadcaster: bc, Previews: previewPool})
 	h := New(Deps{
 		DB:                 db,
 		AuthMode:           config.AuthModeOIDC,
@@ -135,7 +135,7 @@ func TestChunkedUpload_RoundTrip(t *testing.T) {
 		t.Fatalf("complete returned asset=%d import=%d, want both set", done.AssetID, done.ImportID)
 	}
 
-	rc, err := store.GetOriginal(t.Context(), digest)
+	rc, err := store.Get(t.Context(), storage.Originals, digest)
 	if err != nil {
 		t.Fatalf("stored object: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestChunkedUpload_DedupesWithoutTransfer(t *testing.T) {
 
 	payload := []byte("already in the bucket")
 	digest := hexSum(payload)
-	if _, _, err := store.PutOriginal(t.Context(), bytes.NewReader(payload), storage.ObjectMeta{}); err != nil {
+	if _, _, err := store.Put(t.Context(), storage.Originals, bytes.NewReader(payload), storage.ObjectMeta{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,7 +232,7 @@ func TestChunkedUpload_RejectsHashMismatch(t *testing.T) {
 	w = performRequest(r, http.MethodPost, "/api/imports/uploads/"+itoa(session.UploadID)+"/complete", nil)
 	requireStatus(t, w, http.StatusBadRequest)
 
-	if _, ok, err := store.HeadOriginal(t.Context(), claimed); err != nil || ok {
+	if _, ok, err := store.Stat(t.Context(), storage.Originals, claimed); err != nil || ok {
 		t.Errorf("object present = %v (err %v), want nothing published at the declared key", ok, err)
 	}
 	var assets int64

@@ -12,14 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/thomas-elliott/damson/internal/audit"
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/imaging"
+	"github.com/thomas-elliott/damson/internal/library"
+	"github.com/thomas-elliott/damson/internal/licence"
 	"github.com/thomas-elliott/damson/internal/models"
-	"github.com/thomas-elliott/damson/internal/services/audit"
-	"github.com/thomas-elliott/damson/internal/services/imaging"
-	"github.com/thomas-elliott/damson/internal/services/library"
-	"github.com/thomas-elliott/damson/internal/services/licence"
-	"github.com/thomas-elliott/damson/internal/services/preview"
-	"github.com/thomas-elliott/damson/internal/services/thumbnail"
+	"github.com/thomas-elliott/damson/internal/preview"
+	"github.com/thomas-elliott/damson/internal/storage"
+	"github.com/thomas-elliott/damson/internal/thumbnail"
 )
 
 // rescanResponse summarises what a rescan touched so the SPA can toast the
@@ -112,7 +113,7 @@ func (h *Handler) rescanLicence(c *gin.Context, asset *models.Asset, files []mod
 	if candidate == nil {
 		return false, ""
 	}
-	blob, err := h.storage.GetBlob(c.Request.Context(), candidate.ObjectKey)
+	blob, err := h.storage.Get(c.Request.Context(), storage.Blobs, candidate.ObjectKey)
 	if err != nil {
 		slog.Warn("rescan: fetch licence blob", "err", err, "object_key", candidate.ObjectKey)
 		return false, ""
@@ -181,7 +182,7 @@ func (h *Handler) rescanThumbnail(c *gin.Context, libraryID uint, asset *models.
 	}
 
 	if candidate := pickThumbnailCandidate(files); candidate != nil {
-		if blob, ferr := h.storage.GetBlob(c.Request.Context(), candidate.ObjectKey); ferr != nil {
+		if blob, ferr := h.storage.Get(c.Request.Context(), storage.Blobs, candidate.ObjectKey); ferr != nil {
 			slog.Warn("rescan: fetch thumbnail blob", "err", ferr, "object_key", candidate.ObjectKey)
 		} else {
 			gen := &thumbnail.Generator{Storage: h.storage}
