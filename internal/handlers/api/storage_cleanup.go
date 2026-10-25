@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/thomas-elliott/damson/internal/auth"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 	"github.com/thomas-elliott/damson/internal/services/storage/cleanup"
 )
 
@@ -49,7 +50,7 @@ func (h *Handler) postStorageCleanupScan(c *gin.Context) {
 	}
 	for _, cand := range cands {
 		view.Candidates = append(view.Candidates, storageCleanupCandidateView{
-			Prefix:       cand.Prefix,
+			Prefix:       string(cand.Prefix),
 			Key:          cand.Key,
 			Size:         cand.Size,
 			LastModified: cand.LastModified,
@@ -99,7 +100,7 @@ func (h *Handler) postStorageCleanupDelete(c *gin.Context) {
 	}
 	keys := make([]cleanup.Key, 0, len(req.Keys))
 	for _, k := range req.Keys {
-		keys = append(keys, cleanup.Key{Prefix: k.Prefix, Key: k.Key})
+		keys = append(keys, cleanup.Key{Prefix: storage.Prefix(k.Prefix), Key: k.Key})
 	}
 	var actorID *uint
 	if u := auth.GetUser(c); u != nil {
@@ -116,7 +117,7 @@ func (h *Handler) postStorageCleanupDelete(c *gin.Context) {
 		Skipped:      make([]storageCleanupSkippedView, 0, len(res.Skipped)),
 	}
 	for _, s := range res.Skipped {
-		view.Skipped = append(view.Skipped, storageCleanupSkippedView{Prefix: s.Prefix, Key: s.Key, Reason: s.Reason})
+		view.Skipped = append(view.Skipped, storageCleanupSkippedView{Prefix: string(s.Prefix), Key: s.Key, Reason: s.Reason})
 	}
 	c.JSON(http.StatusOK, view)
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
 func TestImport_PurgesOriginalWhenRetentionOff(t *testing.T) {
@@ -42,7 +43,7 @@ func TestImport_PurgesOriginalWhenRetentionOff(t *testing.T) {
 	if v.OriginalPackageObjectKey == "" {
 		t.Fatalf("object key should be retained on the row (D3-B), got empty")
 	}
-	if _, ok, _ := h.storage.HeadOriginal(context.Background(), v.OriginalPackageObjectKey); ok {
+	if _, ok, _ := h.storage.Stat(context.Background(), storage.Originals, v.OriginalPackageObjectKey); ok {
 		t.Fatalf("original archive should have been deleted from storage")
 	}
 }
@@ -68,7 +69,7 @@ func TestImport_KeepsOriginalWhenRetentionOn(t *testing.T) {
 	if v.OriginalPackagePurged {
 		t.Fatalf("original should not be purged when retention is on")
 	}
-	if _, ok, _ := h.storage.HeadOriginal(context.Background(), v.OriginalPackageObjectKey); !ok {
+	if _, ok, _ := h.storage.Stat(context.Background(), storage.Originals, v.OriginalPackageObjectKey); !ok {
 		t.Fatalf("original archive should be retained in storage")
 	}
 }

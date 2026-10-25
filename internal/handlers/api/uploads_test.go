@@ -135,7 +135,7 @@ func TestChunkedUpload_RoundTrip(t *testing.T) {
 		t.Fatalf("complete returned asset=%d import=%d, want both set", done.AssetID, done.ImportID)
 	}
 
-	rc, err := store.GetOriginal(t.Context(), digest)
+	rc, err := store.Get(t.Context(), storage.Originals, digest)
 	if err != nil {
 		t.Fatalf("stored object: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestChunkedUpload_DedupesWithoutTransfer(t *testing.T) {
 
 	payload := []byte("already in the bucket")
 	digest := hexSum(payload)
-	if _, _, err := store.PutOriginal(t.Context(), bytes.NewReader(payload), storage.ObjectMeta{}); err != nil {
+	if _, _, err := store.Put(t.Context(), storage.Originals, bytes.NewReader(payload), storage.ObjectMeta{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,7 +232,7 @@ func TestChunkedUpload_RejectsHashMismatch(t *testing.T) {
 	w = performRequest(r, http.MethodPost, "/api/imports/uploads/"+itoa(session.UploadID)+"/complete", nil)
 	requireStatus(t, w, http.StatusBadRequest)
 
-	if _, ok, err := store.HeadOriginal(t.Context(), claimed); err != nil || ok {
+	if _, ok, err := store.Stat(t.Context(), storage.Originals, claimed); err != nil || ok {
 		t.Errorf("object present = %v (err %v), want nothing published at the declared key", ok, err)
 	}
 	var assets int64

@@ -19,7 +19,7 @@ const (
 	uploadMetaFile = "meta.json"
 )
 
-func (l *LocalFS) BeginMultipart(_ context.Context, prefix, objectKey string, meta ObjectMeta) (MultipartUpload, error) {
+func (l *LocalFS) BeginMultipart(_ context.Context, prefix Prefix, objectKey string, meta ObjectMeta) (MultipartUpload, error) {
 	if _, err := l.pathFor(prefix, objectKey); err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (l *LocalFS) BeginMultipart(_ context.Context, prefix, objectKey string, me
 	return m, nil
 }
 
-func (l *LocalFS) ResumeMultipart(_ context.Context, prefix, objectKey, uploadID string) (MultipartUpload, error) {
+func (l *LocalFS) ResumeMultipart(_ context.Context, prefix Prefix, objectKey, uploadID string) (MultipartUpload, error) {
 	if _, err := l.pathFor(prefix, objectKey); err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (l *LocalFS) ResumeMultipart(_ context.Context, prefix, objectKey, uploadID
 
 type localMultipart struct {
 	l      *LocalFS
-	prefix string
+	prefix Prefix
 	key    string
 	id     string
 	meta   ObjectMeta

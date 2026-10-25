@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-func (s *S3) BeginMultipart(ctx context.Context, prefix, objectKey string, meta ObjectMeta) (MultipartUpload, error) {
-	key := prefix + "/" + shardedKey(objectKey)
+func (s *S3) BeginMultipart(ctx context.Context, prefix Prefix, objectKey string, meta ObjectMeta) (MultipartUpload, error) {
+	key := objectPath(prefix, objectKey)
 	out, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
 		Bucket:   &s.bucket,
 		Key:      &key,
@@ -25,13 +25,13 @@ func (s *S3) BeginMultipart(ctx context.Context, prefix, objectKey string, meta 
 	return &s3Multipart{s: s, key: key, bare: objectKey, uploadID: aws.ToString(out.UploadId)}, nil
 }
 
-func (s *S3) ResumeMultipart(_ context.Context, prefix, objectKey, uploadID string) (MultipartUpload, error) {
+func (s *S3) ResumeMultipart(_ context.Context, prefix Prefix, objectKey, uploadID string) (MultipartUpload, error) {
 	if uploadID == "" {
 		return nil, errors.New("s3 multipart: empty upload id")
 	}
 	return &s3Multipart{
 		s:        s,
-		key:      prefix + "/" + shardedKey(objectKey),
+		key:      objectPath(prefix, objectKey),
 		bare:     objectKey,
 		uploadID: uploadID,
 	}, nil

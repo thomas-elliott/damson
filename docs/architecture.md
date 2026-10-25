@@ -112,7 +112,8 @@ change goes in both a new migration and the struct (see `CONVENTIONS.md`, Databa
 
 `internal/services/storage` provides a `local` backend (the default) and an `s3` backend
 (path-style, for MinIO or Garage). Both use the same key layout, so a deployment can move between
-them with a plain copy. Keys are `<prefix>/<hh>/<sha256>`:
+them with a plain copy. `cmd/server` picks the backend from config. `storage.Service` addresses
+every object by a `storage.Prefix` and the SHA-256 of its bytes, stored as `<prefix>/<hh>/<sha256>`:
 
 - `blobs/` holds extracted content.
 - `originals/` holds uploaded archives, kept apart so that retention can purge them.

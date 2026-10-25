@@ -83,7 +83,7 @@ func RepairGallery(ctx context.Context, db *gorm.DB, store storage.Service, fetc
 	if err := db.WithContext(ctx).Find(&rows).Error; err != nil {
 		return err
 	}
-	objs, err := store.List(ctx, "thumbs")
+	objs, err := store.List(ctx, storage.Thumbs)
 	if err != nil {
 		return err
 	}

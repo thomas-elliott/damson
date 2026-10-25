@@ -54,7 +54,7 @@ func TestGenerator_Raster_PNG(t *testing.T) {
 		t.Fatalf("expected PNG (alpha-tolerant), got %q", res.ContentType)
 	}
 	// Verify the stored thumb is decodable and downscaled.
-	rc, err := store.GetThumb(context.Background(), res.ObjectKey)
+	rc, err := store.Get(context.Background(), storage.Thumbs, res.ObjectKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestGenerator_Audio_WAV(t *testing.T) {
 	if res.Category != "audio" || res.ContentType != "image/png" {
 		t.Fatalf("expected audio waveform PNG, got %+v", res)
 	}
-	rc, err := store.GetThumb(context.Background(), res.ObjectKey)
+	rc, err := store.Get(context.Background(), storage.Thumbs, res.ObjectKey)
 	if err != nil {
 		t.Fatal(err)
 	}

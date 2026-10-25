@@ -28,7 +28,7 @@ func TestBackfill_Tier2FilesImportedEarlierGainACoverAndAPreview(t *testing.T) {
 				t.Fatal(err)
 			}
 			asset := seedEnrichAsset(t, db, "Old import", false)
-			key, _, err := store.PutBlob(ctx, bytes.NewReader(data), storage.ObjectMeta{})
+			key, _, err := store.Put(ctx, storage.Blobs, bytes.NewReader(data), storage.ObjectMeta{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -90,7 +90,7 @@ func TestBackfillCovers_RespectsArchiveCoverRules(t *testing.T) {
 				t.Fatal(err)
 			}
 			asset := seedEnrichAsset(t, db, "Archive", false)
-			key, _, err := store.PutBlob(ctx, bytes.NewReader(imagingtest.TGA(t)), storage.ObjectMeta{})
+			key, _, err := store.Put(ctx, storage.Blobs, bytes.NewReader(imagingtest.TGA(t)), storage.ObjectMeta{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,7 +138,7 @@ func TestBackfillCovers_PrefersACoverLikeNameAsAZipImportDoes(t *testing.T) {
 		if path == "z/cover.png" {
 			coverPNG = data
 		}
-		key, _, err := store.PutBlob(ctx, bytes.NewReader(data), storage.ObjectMeta{})
+		key, _, err := store.Put(ctx, storage.Blobs, bytes.NewReader(data), storage.ObjectMeta{})
 		if err != nil {
 			t.Fatal(err)
 		}

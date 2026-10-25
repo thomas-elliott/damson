@@ -85,7 +85,7 @@ func renderableBMP(t *testing.T) []byte {
 
 func seedQueuedFile(t *testing.T, gdb *gorm.DB, store storage.Service, payload []byte, path string) (libID, versionID, fileID uint) {
 	t.Helper()
-	key, _, err := store.PutBlob(context.Background(), bytes.NewReader(payload), storage.ObjectMeta{})
+	key, _, err := store.Put(context.Background(), storage.Blobs, bytes.NewReader(payload), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put blob: %v", err)
 	}

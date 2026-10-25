@@ -78,15 +78,15 @@ func TestProcessVersion_DrivesPerFileStatus(t *testing.T) {
 	if err := bmp.Encode(&bmpBuf, img); err != nil {
 		t.Fatalf("encode bmp: %v", err)
 	}
-	bmpKey, _, err := store.PutBlob(ctx, bytes.NewReader(bmpBuf.Bytes()), storage.ObjectMeta{})
+	bmpKey, _, err := store.Put(ctx, storage.Blobs, bytes.NewReader(bmpBuf.Bytes()), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put bmp: %v", err)
 	}
-	psdKey, _, err := store.PutBlob(ctx, bytes.NewReader([]byte("not a real psd")), storage.ObjectMeta{})
+	psdKey, _, err := store.Put(ctx, storage.Blobs, bytes.NewReader([]byte("not a real psd")), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put psd: %v", err)
 	}
-	dllKey, _, err := store.PutBlob(ctx, bytes.NewReader([]byte("MZ binary")), storage.ObjectMeta{})
+	dllKey, _, err := store.Put(ctx, storage.Blobs, bytes.NewReader([]byte("MZ binary")), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatalf("put dll: %v", err)
 	}

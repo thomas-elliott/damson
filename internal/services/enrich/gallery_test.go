@@ -47,8 +47,8 @@ func TestRepairGallery_RefetchesImagesWhoseObjectIsGone(t *testing.T) {
 		t.Fatalf("seed source record: %v", err)
 	}
 
-	kept := "1111111111111111111111111111111111111111111111111111111111111111"
-	if err := store.PutThumb(ctx, kept, bytes.NewReader([]byte("kept"))); err != nil {
+	kept, _, err := store.Put(ctx, storage.Thumbs, bytes.NewReader([]byte("kept")), storage.ObjectMeta{})
+	if err != nil {
 		t.Fatalf("put kept: %v", err)
 	}
 	swept := "2222222222222222222222222222222222222222222222222222222222222222"

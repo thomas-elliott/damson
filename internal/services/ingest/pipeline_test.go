@@ -28,7 +28,7 @@ func TestRun_OlderVersionImportDoesNotRollBackCurrentVersion(t *testing.T) {
 	}
 	asset := seedEnrichAsset(t, db, "Texture", false)
 
-	key, _, err := store.PutBlob(ctx, bytes.NewReader(imagingtest.TGA(t)), storage.ObjectMeta{})
+	key, _, err := store.Put(ctx, storage.Blobs, bytes.NewReader(imagingtest.TGA(t)), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +76,14 @@ type flakyStore struct {
 	failGetOriginal, failReadOriginal, failPutBlob bool
 }
 
-func (s flakyStore) GetOriginal(ctx context.Context, key string) (io.ReadCloser, error) {
+func (s flakyStore) Get(ctx context.Context, prefix storage.Prefix, key string) (io.ReadCloser, error) {
+	if prefix != storage.Originals {
+		return s.Service.Get(ctx, prefix, key)
+	}
 	if s.failGetOriginal {
 		return nil, errors.New("connection reset")
 	}
-	rc, err := s.Service.GetOriginal(ctx, key)
+	rc, err := s.Service.Get(ctx, prefix, key)
 	if err != nil || !s.failReadOriginal {
 		return rc, err
 	}
@@ -88,11 +91,11 @@ func (s flakyStore) GetOriginal(ctx context.Context, key string) (io.ReadCloser,
 	return io.NopCloser(iotest.ErrReader(errors.New("connection reset"))), nil
 }
 
-func (s flakyStore) PutBlob(ctx context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
-	if s.failPutBlob {
+func (s flakyStore) Put(ctx context.Context, prefix storage.Prefix, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
+	if prefix == storage.Blobs && s.failPutBlob {
 		return "", 0, errors.New("connection reset")
 	}
-	return s.Service.PutBlob(ctx, r, meta)
+	return s.Service.Put(ctx, prefix, r, meta)
 }
 
 // seedZipImport stores payload as a zip original and creates the import for
@@ -104,7 +107,7 @@ func seedZipImport(t *testing.T, payload []byte) (*gorm.DB, storage.Service, mod
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _, err := store.PutOriginal(context.Background(), bytes.NewReader(payload), storage.ObjectMeta{})
+	key, _, err := store.Put(context.Background(), storage.Originals, bytes.NewReader(payload), storage.ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +171,7 @@ func TestRun_MissingOriginalFailsTheImport(t *testing.T) {
 	if err := db.First(&v, *imp.AssetVersionID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := store.DeleteOriginal(context.Background(), v.OriginalPackageObjectKey); err != nil {
+	if err := store.Delete(context.Background(), storage.Originals, v.OriginalPackageObjectKey); err != nil {
 		t.Fatal(err)
 	}
 

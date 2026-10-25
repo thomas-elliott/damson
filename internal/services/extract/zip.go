@@ -107,7 +107,7 @@ func (e *ZipExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult, 
 		if oerr != nil {
 			return nil, fmt.Errorf("open entry %q: %w", f.Name, oerr)
 		}
-		key, wsize, serr := e.Storage.PutBlob(ctx, io.LimitReader(rc, maxEntry+1), e.EntryMeta)
+		key, wsize, serr := e.Storage.Put(ctx, storage.Blobs, io.LimitReader(rc, maxEntry+1), e.EntryMeta)
 		rc.Close()
 		if serr != nil {
 			return nil, fmt.Errorf("put blob %s: %w: %w", f.Name, ErrStorage, serr)

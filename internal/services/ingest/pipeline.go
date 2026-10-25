@@ -20,9 +20,9 @@ import (
 
 func OpenOriginal(ctx context.Context, s storage.Service, v models.AssetVersion) (io.ReadCloser, error) {
 	if models.IsArchiveKind(v.PackageKind) {
-		return s.GetOriginal(ctx, v.OriginalPackageObjectKey)
+		return s.Get(ctx, storage.Originals, v.OriginalPackageObjectKey)
 	}
-	return s.GetBlob(ctx, v.OriginalPackageObjectKey)
+	return s.Get(ctx, storage.Blobs, v.OriginalPackageObjectKey)
 }
 
 // storageReader tags a failed read of an original as a storage error, so a
@@ -191,7 +191,7 @@ func extractFiles(ctx context.Context, deps Deps, jc *jobContext) error {
 	if err != nil {
 		// A missing original never comes back, so only a store that could
 		// not answer is worth retrying.
-		if _, ok, herr := deps.Storage.HeadOriginal(ctx, jc.version.OriginalPackageObjectKey); herr == nil && !ok {
+		if _, ok, herr := deps.Storage.Stat(ctx, storage.Originals, jc.version.OriginalPackageObjectKey); herr == nil && !ok {
 			return errOriginalMissing
 		}
 		return &retryError{op: "fetch blob", err: err}
@@ -327,7 +327,7 @@ func maybePurgeOriginal(ctx context.Context, deps Deps, jc jobContext) {
 	// another asset shares one object; only delete it when no other live
 	// version still references it. The per-version flag is set regardless.
 	if liveReferrers == 0 {
-		if err := deps.Storage.DeleteOriginal(ctx, jc.version.OriginalPackageObjectKey); err != nil {
+		if err := deps.Storage.Delete(ctx, storage.Originals, jc.version.OriginalPackageObjectKey); err != nil {
 			slog.Warn("imports: purge original blob", "err", err, "object_key", jc.version.OriginalPackageObjectKey)
 			return
 		}

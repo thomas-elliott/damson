@@ -13,8 +13,6 @@ package preview
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"image"
@@ -202,9 +200,8 @@ func isOpaque(img image.Image) bool {
 // putBytes writes derivative bytes content-addressed (sha256) into the thumb
 // namespace, so retries and duplicates collapse onto the same object.
 func (g *Generator) putBytes(ctx context.Context, b []byte) (string, error) {
-	sum := sha256.Sum256(b)
-	key := hex.EncodeToString(sum[:])
-	if err := g.Storage.PutThumb(ctx, key, bytes.NewReader(b)); err != nil {
+	key, _, err := g.Storage.Put(ctx, storage.Thumbs, bytes.NewReader(b), storage.ObjectMeta{})
+	if err != nil {
 		return "", fmt.Errorf("preview put: %w", err)
 	}
 	return key, nil

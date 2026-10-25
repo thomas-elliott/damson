@@ -35,65 +35,34 @@ func newFakeStorage() *fakeStorage {
 	}
 }
 
-func (f *fakeStorage) PutBlob(_ context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return "", 0, err
-	}
-	sum := sha256.Sum256(data)
-	key := hex.EncodeToString(sum[:])
-	f.blobs[key] = data
-	f.meta[key] = meta
-	return key, int64(len(data)), nil
-}
-
-func (f *fakeStorage) GetBlob(_ context.Context, key string) (io.ReadCloser, error) {
-	return io.NopCloser(bytes.NewReader(f.blobs[key])), nil
-}
-
-func (f *fakeStorage) HeadBlob(_ context.Context, key string) (int64, bool, error) {
-	b, ok := f.blobs[key]
-	return int64(len(b)), ok, nil
-}
-
-func (f *fakeStorage) PutOriginal(_ context.Context, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return "", 0, err
-	}
-	sum := sha256.Sum256(data)
-	key := hex.EncodeToString(sum[:])
-	f.originals[key] = data
-	f.meta[key] = meta
-	return key, int64(len(data)), nil
-}
-
-func (f *fakeStorage) GetOriginal(_ context.Context, key string) (io.ReadCloser, error) {
-	return io.NopCloser(bytes.NewReader(f.originals[key])), nil
-}
-
-func (f *fakeStorage) HeadOriginal(_ context.Context, key string) (int64, bool, error) {
-	b, ok := f.originals[key]
-	return int64(len(b)), ok, nil
-}
-
-func (f *fakeStorage) DeleteOriginal(_ context.Context, key string) error {
-	delete(f.originals, key)
-	return nil
-}
-
-func (f *fakeStorage) bucket(prefix string) map[string][]byte {
+func (f *fakeStorage) bucket(prefix storage.Prefix) map[string][]byte {
 	switch prefix {
-	case "thumbs":
+	case storage.Thumbs:
 		return f.thumbs
-	case "originals":
+	case storage.Originals:
 		return f.originals
 	default:
 		return f.blobs
 	}
 }
 
-func (f *fakeStorage) List(_ context.Context, prefix string) ([]storage.ObjectInfo, error) {
+func (f *fakeStorage) Put(_ context.Context, prefix storage.Prefix, r io.Reader, meta storage.ObjectMeta) (string, int64, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return "", 0, err
+	}
+	sum := sha256.Sum256(data)
+	key := hex.EncodeToString(sum[:])
+	f.bucket(prefix)[key] = data
+	f.meta[key] = meta
+	return key, int64(len(data)), nil
+}
+
+func (f *fakeStorage) Get(_ context.Context, prefix storage.Prefix, key string) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(f.bucket(prefix)[key])), nil
+}
+
+func (f *fakeStorage) List(_ context.Context, prefix storage.Prefix) ([]storage.ObjectInfo, error) {
 	var out []storage.ObjectInfo
 	for key, data := range f.bucket(prefix) {
 		out = append(out, storage.ObjectInfo{Key: key, Size: int64(len(data))})
@@ -101,46 +70,33 @@ func (f *fakeStorage) List(_ context.Context, prefix string) ([]storage.ObjectIn
 	return out, nil
 }
 
-func (f *fakeStorage) StatMeta(_ context.Context, _ string, key string) (storage.ObjectMeta, error) {
+func (f *fakeStorage) StatMeta(_ context.Context, _ storage.Prefix, key string) (storage.ObjectMeta, error) {
 	return f.meta[key], nil
 }
 
-func (f *fakeStorage) Stat(_ context.Context, prefix, key string) (storage.ObjectInfo, bool, error) {
+func (f *fakeStorage) Stat(_ context.Context, prefix storage.Prefix, key string) (storage.ObjectInfo, bool, error) {
 	data, ok := f.bucket(prefix)[key]
 	return storage.ObjectInfo{Key: key, Size: int64(len(data))}, ok, nil
 }
 
-func (f *fakeStorage) Touch(_ context.Context, prefix, key string) (bool, error) {
+func (f *fakeStorage) Touch(_ context.Context, prefix storage.Prefix, key string) (bool, error) {
 	_, ok := f.bucket(prefix)[key]
 	return ok, nil
 }
 
-func (f *fakeStorage) Delete(_ context.Context, prefix, key string) error {
+func (f *fakeStorage) Delete(_ context.Context, prefix storage.Prefix, key string) error {
 	delete(f.bucket(prefix), key)
 	return nil
 }
 
-func (f *fakeStorage) PutThumb(_ context.Context, key string, r io.Reader) error {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	f.thumbs[key] = data
-	return nil
-}
-
-func (f *fakeStorage) GetThumb(_ context.Context, key string) (io.ReadCloser, error) {
-	return io.NopCloser(bytes.NewReader(f.thumbs[key])), nil
-}
-
-func (f *fakeStorage) BeginMultipart(_ context.Context, prefix, key string, meta storage.ObjectMeta) (storage.MultipartUpload, error) {
+func (f *fakeStorage) BeginMultipart(_ context.Context, prefix storage.Prefix, key string, meta storage.ObjectMeta) (storage.MultipartUpload, error) {
 	id := fmt.Sprintf("mpu-%d", len(f.uploads)+1)
 	u := &fakeMultipart{s: f, id: id, prefix: prefix, key: key, meta: meta, parts: map[int][]byte{}}
 	f.uploads[id] = u
 	return u, nil
 }
 
-func (f *fakeStorage) ResumeMultipart(_ context.Context, _, _, uploadID string) (storage.MultipartUpload, error) {
+func (f *fakeStorage) ResumeMultipart(_ context.Context, _ storage.Prefix, _, uploadID string) (storage.MultipartUpload, error) {
 	u, ok := f.uploads[uploadID]
 	if !ok {
 		return nil, fmt.Errorf("no such upload %q", uploadID)
@@ -151,7 +107,7 @@ func (f *fakeStorage) ResumeMultipart(_ context.Context, _, _, uploadID string) 
 type fakeMultipart struct {
 	s      *fakeStorage
 	id     string
-	prefix string
+	prefix storage.Prefix
 	key    string
 	meta   storage.ObjectMeta
 	parts  map[int][]byte

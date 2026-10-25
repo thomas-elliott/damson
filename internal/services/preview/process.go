@@ -153,7 +153,7 @@ func ProcessVersion(ctx context.Context, deps Deps, libraryID, versionID, fileID
 // (the caller marks the file failed) on any fetch/render error or when the
 // renderer declines to produce output (e.g. dimensions over the bomb ceiling).
 func render(ctx context.Context, gen *Generator, store storage.Service, f models.AssetFile) (key, contentType string, ok bool) {
-	blob, err := store.GetBlob(ctx, f.ObjectKey)
+	blob, err := store.Get(ctx, storage.Blobs, f.ObjectKey)
 	if err != nil {
 		slog.Warn("preview: fetch blob", "err", err, "object_key", f.ObjectKey)
 		return "", "", false

@@ -19,8 +19,6 @@ package thumbnail
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -125,9 +123,8 @@ func classify(in Input) string {
 // so retries + duplicates collapse onto the same object. Keeps the serving
 // handler's long-cache headers safe.
 func (g *Generator) putThumbBytes(ctx context.Context, b []byte) (string, error) {
-	sum := sha256.Sum256(b)
-	key := hex.EncodeToString(sum[:])
-	if err := g.Storage.PutThumb(ctx, key, bytes.NewReader(b)); err != nil {
+	key, _, err := g.Storage.Put(ctx, storage.Thumbs, bytes.NewReader(b), storage.ObjectMeta{})
+	if err != nil {
 		return "", fmt.Errorf("put thumb: %w", err)
 	}
 	return key, nil

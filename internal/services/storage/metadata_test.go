@@ -3,8 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -53,16 +51,16 @@ func TestLocalFS_Original_RoundTripSidecarDelete(t *testing.T) {
 
 	payload := []byte("archive bytes")
 	meta := ObjectMeta{Filename: "Pack.unitypackage", LibraryID: 1, AssetID: 2, VersionID: 3, Kind: "unitypackage"}
-	key, _, err := s.PutOriginal(ctx, bytes.NewReader(payload), meta)
+	key, _, err := s.Put(ctx, Originals, bytes.NewReader(payload), meta)
 	if err != nil {
 		t.Fatalf("put original: %v", err)
 	}
 
 	// Lives under originals/, and is NOT reachable via the blobs/ prefix.
-	if sz, exists, err := s.HeadOriginal(ctx, key); err != nil || !exists || sz != int64(len(payload)) {
-		t.Fatalf("head original: size=%d exists=%v err=%v", sz, exists, err)
+	if info, exists, err := s.Stat(ctx, Originals, key); err != nil || !exists || info.Size != int64(len(payload)) {
+		t.Fatalf("head original: size=%d exists=%v err=%v", info.Size, exists, err)
 	}
-	if _, exists, _ := s.HeadBlob(ctx, key); exists {
+	if _, exists, _ := s.Stat(ctx, Blobs, key); exists {
 		t.Fatalf("original key leaked into blobs/ prefix")
 	}
 
@@ -81,10 +79,10 @@ func TestLocalFS_Original_RoundTripSidecarDelete(t *testing.T) {
 	}
 
 	// Delete removes both object and sidecar.
-	if err := s.DeleteOriginal(ctx, key); err != nil {
+	if err := s.Delete(ctx, Originals, key); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, exists, _ := s.HeadOriginal(ctx, key); exists {
+	if _, exists, _ := s.Stat(ctx, Originals, key); exists {
 		t.Fatalf("original still present after delete")
 	}
 	if _, err := os.Stat(sidecar); !os.IsNotExist(err) {
@@ -126,18 +124,16 @@ func TestLocalFS_ListStatDelete(t *testing.T) {
 	ctx := context.Background()
 
 	meta := ObjectMeta{Filename: "a.png", LibraryID: 1, AssetID: 2, VersionID: 3, Kind: "loose"}
-	withMeta, _, err := s.PutBlob(ctx, bytes.NewReader([]byte("with-meta")), meta)
+	withMeta, _, err := s.Put(ctx, Blobs, bytes.NewReader([]byte("with-meta")), meta)
 	if err != nil {
 		t.Fatal(err)
 	}
-	noMeta, _, err := s.PutBlob(ctx, bytes.NewReader([]byte("no-meta")), ObjectMeta{})
+	noMeta, _, err := s.Put(ctx, Blobs, bytes.NewReader([]byte("no-meta")), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	thumbData := []byte("thumb bytes")
-	sum := sha256.Sum256(thumbData)
-	thumbKey := hex.EncodeToString(sum[:])
-	if err := s.PutThumb(ctx, thumbKey, bytes.NewReader(thumbData)); err != nil {
+	thumbKey, _, err := s.Put(ctx, Thumbs, bytes.NewReader([]byte("thumb bytes")), ObjectMeta{})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -172,7 +168,7 @@ func TestLocalFS_ListStatDelete(t *testing.T) {
 	if err := s.Delete(ctx, "blobs", withMeta); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, exists, _ := s.HeadBlob(ctx, withMeta); exists {
+	if _, exists, _ := s.Stat(ctx, Blobs, withMeta); exists {
 		t.Fatalf("blob still present after delete")
 	}
 	if err := s.Delete(ctx, "blobs", withMeta); err != nil {
@@ -190,7 +186,7 @@ func TestLocalFS_PutBlob_EmptyMetaWritesNoSidecar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, _, err := s.PutBlob(context.Background(), bytes.NewReader([]byte("x")), ObjectMeta{})
+	key, _, err := s.Put(context.Background(), Blobs, bytes.NewReader([]byte("x")), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}

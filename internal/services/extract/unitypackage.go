@@ -9,8 +9,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -202,7 +200,7 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 			if totalBytes > maxTotal {
 				return nil, fmt.Errorf("extract: total size exceeds cap (>%d bytes)", maxTotal)
 			}
-			key, size, perr := e.Storage.PutBlob(ctx, io.LimitReader(tr, maxEntry+1), e.EntryMeta)
+			key, size, perr := e.Storage.Put(ctx, storage.Blobs, io.LimitReader(tr, maxEntry+1), e.EntryMeta)
 			if perr != nil {
 				return nil, fmt.Errorf("put blob %s: %w: %w", hdr.Name, ErrStorage, perr)
 			}
@@ -267,10 +265,8 @@ func (e *UnityExtractor) Extract(ctx context.Context, r io.Reader) (*UnityResult
 		cover = previewOrder[0]
 	}
 	if cover != "" {
-		data := previewData[cover]
-		sum := sha256.Sum256(data)
-		key := hex.EncodeToString(sum[:])
-		if perr := e.Storage.PutThumb(ctx, key, bytes.NewReader(data)); perr != nil {
+		key, _, perr := e.Storage.Put(ctx, storage.Thumbs, bytes.NewReader(previewData[cover]), storage.ObjectMeta{})
+		if perr != nil {
 			return nil, fmt.Errorf("put thumb: %w: %w", ErrStorage, perr)
 		}
 		result.ThumbObjectKey = key

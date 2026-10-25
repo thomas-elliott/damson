@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/models"
+	"github.com/thomas-elliott/damson/internal/services/storage"
 )
 
 // buildUnityPackage assembles a minimal .unitypackage-shaped tar.gz from the
@@ -171,10 +172,10 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	if err := db.Where("asset_id = ?", unityResp.AssetID).First(&uv).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := h.storage.HeadOriginal(ctx, uv.OriginalPackageObjectKey); !ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Originals, uv.OriginalPackageObjectKey); !ok {
 		t.Fatalf("unity archive not stored under originals/")
 	}
-	if _, ok, _ := h.storage.HeadBlob(ctx, uv.OriginalPackageObjectKey); ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Blobs, uv.OriginalPackageObjectKey); ok {
 		t.Fatalf("unity archive leaked into blobs/ — routing regressed to PutBlob")
 	}
 
@@ -188,10 +189,10 @@ func TestUploadRouting_UnityToOriginals_LooseToBlobs(t *testing.T) {
 	if err := db.Where("asset_id = ?", looseResp.AssetID).First(&lv).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := h.storage.HeadBlob(ctx, lv.OriginalPackageObjectKey); !ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Blobs, lv.OriginalPackageObjectKey); !ok {
 		t.Fatalf("loose content not stored under blobs/")
 	}
-	if _, ok, _ := h.storage.HeadOriginal(ctx, lv.OriginalPackageObjectKey); ok {
+	if _, ok, _ := h.storage.Stat(ctx, storage.Originals, lv.OriginalPackageObjectKey); ok {
 		t.Fatalf("loose content leaked into originals/")
 	}
 }

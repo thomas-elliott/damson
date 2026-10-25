@@ -470,11 +470,7 @@ func (h *Handler) postImport(c *gin.Context) {
 		objectKey string
 		size      int64
 	)
-	if spec.isArchive {
-		objectKey, size, err = h.storage.PutOriginal(c.Request.Context(), src, meta)
-	} else {
-		objectKey, size, err = h.storage.PutBlob(c.Request.Context(), src, meta)
-	}
+	objectKey, size, err = h.storage.Put(c.Request.Context(), spec.storagePrefix(), src, meta)
 	// The rows exist by now, so any failure past this point has to undo them.
 	// Detached from the request context, which a client abort has cancelled.
 	abandon := func() {

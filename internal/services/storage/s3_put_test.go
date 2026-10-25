@@ -159,7 +159,7 @@ func TestS3PutHashed_SmallBodyGoesStraightToItsKey(t *testing.T) {
 	s, fake := newTestS3(t)
 	body := []byte("a small loose file")
 
-	key, n, err := s.PutBlob(context.Background(), bytes.NewReader(body), ObjectMeta{Filename: "x.txt"})
+	key, n, err := s.Put(context.Background(), Blobs, bytes.NewReader(body), ObjectMeta{Filename: "x.txt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestS3PutHashed_LargeBodyStagesThenCopies(t *testing.T) {
 	// Just over the inline threshold, so the staged path is taken.
 	body := bytes.Repeat([]byte("z"), inlinePutBytes+1024)
 
-	key, n, err := s.PutOriginal(context.Background(), bytes.NewReader(body), ObjectMeta{Filename: "big.zip"})
+	key, n, err := s.Put(context.Background(), Originals, bytes.NewReader(body), ObjectMeta{Filename: "big.zip"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,13 +238,13 @@ func TestS3PutHashed_DedupeSkipsTheCopy(t *testing.T) {
 	s, fake := newTestS3(t)
 	body := bytes.Repeat([]byte("y"), inlinePutBytes+1024)
 
-	key, _, err := s.PutOriginal(context.Background(), bytes.NewReader(body), ObjectMeta{})
+	key, _, err := s.Put(context.Background(), Originals, bytes.NewReader(body), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	copiesAfterFirst := len(fake.copies)
 
-	key2, _, err := s.PutOriginal(context.Background(), bytes.NewReader(body), ObjectMeta{})
+	key2, _, err := s.Put(context.Background(), Originals, bytes.NewReader(body), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestS3PutHashed_HashesWhatActuallyArrived(t *testing.T) {
 	s, fake := newTestS3(t)
 	body := bytes.Repeat([]byte("q"), inlinePutBytes+7)
 
-	key, _, err := s.PutBlob(context.Background(), iotaReader(body), ObjectMeta{})
+	key, _, err := s.Put(context.Background(), Blobs, iotaReader(body), ObjectMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestS3PutHashed_AbortedUploadLeavesNoIncompleteMultipart(t *testing.T) {
 	body := bytes.Repeat([]byte("w"), inlinePutBytes*4)
 	r := &cancelAfterReader{b: body, after: inlinePutBytes + uploadPartBytes, cancel: cancel}
 
-	if _, _, err := s.PutOriginal(ctx, r, ObjectMeta{}); err == nil {
+	if _, _, err := s.Put(ctx, Originals, r, ObjectMeta{}); err == nil {
 		t.Fatal("want an error when the request is cancelled mid-upload")
 	}
 
