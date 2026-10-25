@@ -117,3 +117,10 @@ Mode: committing — feature branch `dam-59-backend-hygiene`, one commit per sta
 - `internal/services/metadata`: the unexported client type is `httpClient`, not `client`, so it
   does not shadow the many `client` parameters; the unused `Registry.Client()` accessor is
   deleted with it.
+- `internal/handlers/api/helpers.go`: gathered `parseIDParam`, `parsePositiveID`,
+  `parsePagination` (with its page-size constants), `requireSysadmin`, `isUniqueViolation`,
+  `respond502` and `respond503`. `respondLookupFailed` stays in `metadata.go` (store-specific),
+  `getLibrary`/`getMembership` beside the middleware that sets them, and the upload responders in
+  `upload_errors.go`.
+- The SQLite comments on the hand-written child deletes now say the cascades make them redundant;
+  the deletes themselves stay for the library and asset work in DAM-60.

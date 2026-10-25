@@ -44,7 +44,7 @@ API handlers are receiver methods on a shared exported `Handler` struct that car
 Access the current user with `auth.GetUser(c)`.
 
 ### Error responses
-Respond through the helpers in `helpers.go` (`respond400/400Msg/404/409/500`, `respondForbidden`; `respondGORM` for transaction errors). Never call `AbortWithStatusJSON` for a 4xx/5xx with a cause: only `respond400`/`respond500` attach it via `c.Error`, which is what puts `err` on the request log line.
+Respond through the helpers in `helpers.go` (`respond400/400Msg/404/409/500/502/503`, `respondForbidden`; `respondGORM` for transaction errors). The other cross-handler helpers live there too: `parseIDParam`, `parsePagination`, `requireAdmin`, `requireSysadmin`, `isUniqueViolation`. Never call `AbortWithStatusJSON` for a 4xx/5xx with a cause: only `respond400`/`respond500` attach it via `c.Error`, which is what puts `err` on the request log line.
 
 - `400` — bad request (e.g. validation failure) — include `err.Error()`
 - `401` — unauthenticated
@@ -54,8 +54,8 @@ Respond through the helpers in `helpers.go` (`respond400/400Msg/404/409/500`, `r
 - `500` — internal error — use the generic string `"internal error"`, don't leak internals
 
 Rarer statuses have their own homes: upload transport failures (413, 408, 507, …) go through
-`respondUploadFailure` in `upload_errors.go`; store-metadata errors through `respond502`/`respond503`
-in `metadata.go`.
+`respondUploadFailure` in `upload_errors.go`; store-metadata errors through `respondLookupFailed` in
+`metadata.go`.
 
 Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON handler) including operation context as structured fields. Don't panic. A startup failure is an error returned from `run()`; `main` logs it with `slog.Error` and exits 1.
 

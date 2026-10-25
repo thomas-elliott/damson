@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
 )
 
@@ -345,15 +344,4 @@ func (h *Handler) getAdminAudit(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, auditListResponse{Entries: entries, Total: total})
-}
-
-// requireSysadmin gates handlers that operate on server-wide state. The
-// matching membership-level helper is requireAdmin in helpers.go.
-func requireSysadmin(c *gin.Context) bool {
-	u := auth.GetUser(c)
-	if u == nil || u.Role != "sysadmin" {
-		respondForbidden(c, "sysadmin required")
-		return false
-	}
-	return true
 }
