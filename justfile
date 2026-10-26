@@ -22,12 +22,6 @@ mod lint 'tools/lint.just'
 mod release 'tools/release.just'
 mod test 'tools/test.just'
 
-# Every Go test and the e2e server run against Postgres — there is no SQLite
-# backend. They default to the compose Postgres on 55432 (`just db up`),
-# isolating themselves in a dedicated `damson_test` database. An exported
-# DAMSON_TEST_POSTGRES_DSN, from CI or `.env`, wins over these.
-TEST_PG_DSN := "postgres://damson:damson@localhost:55432/damson_test?sslmode=disable"
-
 _default:
     @just --list --list-submodules
 
@@ -47,7 +41,6 @@ dev: backend frontend
 # database and a throwaway local admin, listening on loopback only, which Vite
 # proxies to. Anything set in `.env` or the environment wins over these.
 DEV_LISTEN_ADDR := "127.0.0.1:8080"
-DEV_PG_DSN := "postgres://damson:damson@localhost:55432/damson?sslmode=disable"
 DEV_ADMIN_EMAIL := "dev@example.com"
 DEV_ADMIN_PASSWORD := "password1"
 AIR_VERSION := "v1.67.4"
@@ -57,8 +50,8 @@ backend:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -z "${DAMSON_POSTGRES_DSN:-}${DAMSON_POSTGRES_DSN_FILE:-}" ]; then
-      just db up
-      export DAMSON_POSTGRES_DSN="{{ DEV_PG_DSN }}"
+      DAMSON_POSTGRES_DSN="$(just db dsn damson)"
+      export DAMSON_POSTGRES_DSN
     fi
     if [ -z "${DAMSON_LOCAL_ADMIN_EMAIL:-}${DAMSON_LOCAL_ADMIN_PASSWORD:-}${DAMSON_LOCAL_ADMIN_PASSWORD_FILE:-}" ]; then
       export DAMSON_LOCAL_ADMIN_EMAIL="{{ DEV_ADMIN_EMAIL }}"
@@ -73,7 +66,8 @@ seed:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -z "${DAMSON_POSTGRES_DSN:-}${DAMSON_POSTGRES_DSN_FILE:-}" ]; then
-      export DAMSON_POSTGRES_DSN="{{ DEV_PG_DSN }}"
+      DAMSON_POSTGRES_DSN="$(just db dsn damson)"
+      export DAMSON_POSTGRES_DSN
     fi
     DAMSON_LOCAL_ADMIN_EMAIL="${DAMSON_LOCAL_ADMIN_EMAIL:-{{ DEV_ADMIN_EMAIL }}}" \
     DAMSON_LOCAL_ADMIN_PASSWORD="${DAMSON_LOCAL_ADMIN_PASSWORD:-{{ DEV_ADMIN_PASSWORD }}}" \
@@ -115,9 +109,10 @@ clean:
     rm -f damson dmsn coverage.out coverage.html
     rm -rf web/dist web/e2e/.bin web/storybook-static web/static
 
-# Resolve the DSN the Go suite and the e2e server run against. An explicit
-# DAMSON_TEST_POSTGRES_DSN wins; otherwise this starts the compose Postgres, which
-# creates `damson_test` on first start. It prints rather than exports because a
+# Resolve the DSN the Go suite and the e2e server run against. Every Go test and
+# the e2e server run against Postgres — there is no SQLite backend. An exported
+# DAMSON_TEST_POSTGRES_DSN, from CI or `.env`, wins; otherwise this starts the
+# checkout's compose Postgres, which creates `damson_test` on first start. It prints rather than exports because a
 # recipe cannot export into its caller — the callers read it as
 # `DAMSON_TEST_POSTGRES_DSN="$(just _test-dsn)"`.
 
@@ -130,8 +125,7 @@ _test-dsn:
       echo "$DAMSON_TEST_POSTGRES_DSN"
       exit 0
     fi
-    just db up >&2
-    echo "{{ TEST_PG_DSN }}"
+    just db dsn damson_test
 
 # Task ran this as a `status:` guard on every frontend recipe. `just` always runs
 # a recipe, and a module recipe cannot depend on a root one, so the frontend

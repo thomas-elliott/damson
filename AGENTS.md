@@ -24,7 +24,7 @@ All workflows go through [just](https://just.systems) (`justfile`, plus modules 
 
 **`just check` is the full preflight, not a quick one.** Run `just check` before pushing — it is what CI gates on.
 
-Run one Go test — `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` for you, defaulting to the `damson_test` database on the compose Postgres (`:55432`), which it starts if needed:
+Run one Go test — `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` for you, defaulting to the `damson_test` database on this checkout's compose Postgres, which it starts if needed:
 
 ```
 just test backend ./internal/handlers/api -run '^TestName$'
@@ -58,7 +58,7 @@ Driving it as an agent:
 
 `just test e2e` uses its own servers on 5174/8081 and the `damson_test` database, so it can run while `just dev` is up.
 
-Docker installed as a snap cannot see `/tmp`, so a worktree there cannot start the compose Postgres; keep worktrees under the home directory.
+Every checkout, clone or worktree gets its own compose Postgres: `just db` names the project after a hash of the checkout's path and lets Docker pick a free loopback port, and `just db dsn [damson|damson_test]` prints the address. Delete a clone, then run `just db prune` to remove the Postgres of every checkout whose directory is gone. Docker installed as a snap cannot see `/tmp`, so a worktree there cannot start its Postgres; keep worktrees under the home directory.
 
 ## Conventions
 
