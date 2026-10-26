@@ -266,6 +266,12 @@ caller's transaction, so an apply that fails writes nothing.
 never during import. Every licence write goes through `licence.Replace`, which keeps a reviewed licence from an
 automatic writer (import enrichment, rescan, store lookups).
 
+A person's licence write, from the asset panel or the bulk `set_licence` action, goes through
+`requestedLicence` in `internal/handlers/api/licences.go`. A type the request names wins over the
+detector's, and keeps the detector's confidence and diff only when the detector agrees with it. The
+asset panel's licence edit never saves the type `unknown`: an unmatched or unknown licence is saved
+as `custom`, because `StatusFor` ignores the attributes of an `unknown` licence.
+
 ### Traps
 
 - Leave an unknown attribute `nil`, never `false`. `false` is shown to the user as a stated
