@@ -359,6 +359,10 @@ carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.
 - The SPA reads the auth mode from `GET /api/auth/mode` (`useAuthMode()`), and `AuthGuard` gates
   the app. OIDC uses `oidc-client-ts`, and local mode keeps its JWT in `localStorage`. Logout is
   local only.
+- Sign-in returns to the page that was asked for. `AuthGuard` passes it to `/login` in router state,
+  and to the IdP round trip as the `oidc-client-ts` sign-in state, which `LoginCallbackPage` reads
+  back. Both go through `safeReturnTo` (`lib/returnTo.ts`), which honours only paths inside the app
+  and falls back to `/`.
 - The theme is light by default, with dark as the `.dark` class on `<html>`.
 
 ### Traps
