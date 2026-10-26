@@ -94,4 +94,61 @@ test.describe("Asset edits persist across reload", () => {
     await expect(page.getByText("Original text")).toBeVisible();
     await expect(page.getByPlaceholder(/MIT License\.\.\./)).toHaveCount(0);
   });
+  // DAM-47: editing a set licence replaces it, and the replacement starts
+  // unreviewed. The licence and its review are seeded through the API; the
+  // edit itself is the journey.
+  test("a licence edit survives a reload and clears the review", async ({
+    page,
+    request,
+    noConsoleErrors,
+  }) => {
+    void noConsoleErrors;
+    test.setTimeout(60_000);
+
+    const session = await bootstrapAdmin(request);
+    const auth = { Authorization: `Bearer ${session.token}` };
+    const fileBytes = await readFile(FIXTURE_PATH);
+    const { asset_id } = await uploadImport(
+      request,
+      session,
+      "licence-edit.unitypackage",
+      fileBytes,
+    );
+    const put = await request.put(`/api/assets/${asset_id}/licence`, {
+      headers: auth,
+      data: { original_text: LICENCE_TEXT, use_detected: true },
+    });
+    expect(put.ok(), "seeding the licence").toBe(true);
+    const review = await request.post(`/api/assets/${asset_id}/licence/review`, { headers: auth });
+    expect(review.ok(), "seeding the review").toBe(true);
+
+    await installSession(page, session);
+    await page.goto(`/library/${asset_id}`);
+    await page.getByRole("button", { name: "Licence", exact: true }).click();
+    await expect(page.getByText("reviewed", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Edit licence" }).click();
+    await page
+      .getByRole("radiogroup", { name: "Commercial use" })
+      .getByRole("radio", { name: "No", exact: true })
+      .click();
+    await Promise.all([
+      page.waitForResponse(
+        (r) => /\/api\/assets\/\d+\/licence$/.test(r.url()) && r.request().method() === "PUT",
+      ),
+      page.getByRole("button", { name: "Save licence" }).click(),
+    ]);
+    await expect(page.getByRole("button", { name: "Mark reviewed" })).toBeVisible();
+
+    await page.reload();
+
+    await page.getByRole("button", { name: "Licence", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Mark reviewed" })).toBeVisible();
+    await page.getByRole("button", { name: "Edit licence" }).click();
+    await expect(
+      page
+        .getByRole("radiogroup", { name: "Commercial use" })
+        .getByRole("radio", { name: "No", exact: true }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
 });

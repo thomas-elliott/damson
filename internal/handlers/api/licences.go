@@ -95,19 +95,22 @@ func (h *Handler) putLicence(c *gin.Context) {
 	c.JSON(http.StatusOK, licenceViewFrom(&out))
 }
 
-// requestedLicence builds the licence a person asked for. With no detected
-// type, or with useDetected, it runs the detector over the text; useDetected
-// also takes the detector's attributes over the client's.
+// requestedLicence builds the licence a person asked for, from the asset panel
+// or the bulk set_licence action. With no detected type, or with useDetected,
+// it takes the detector's type; useDetected also takes its attributes. The
+// detector's confidence and diff are kept only when its type is the one saved.
 func requestedLicence(text, detectedType string, attrs licence.Attributes, useDetected bool) (models.Licence, error) {
 	l := models.Licence{DetectedType: detectedType, OriginalText: text}
+	r := licence.Detect(text)
 	if useDetected || detectedType == "" {
-		r := licence.Detect(text)
 		l.DetectedType = r.DetectedType
-		l.CanonicalDiff = r.CanonicalDiff
-		l.DetectionConfidence = r.DetectionConfidence
 		if useDetected {
 			attrs = r.Attributes
 		}
+	}
+	if r.DetectedType == l.DetectedType {
+		l.CanonicalDiff = r.CanonicalDiff
+		l.DetectionConfidence = r.DetectionConfidence
 	}
 	var err error
 	l.AttributesJSON, err = json.Marshal(attrs)
