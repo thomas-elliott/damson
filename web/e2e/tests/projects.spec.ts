@@ -22,7 +22,7 @@ const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
 //   1. updates_available drifts — a pin pointing at v1 of an asset whose
 //      current_version is now v2 must show as "1 update available". Lose
 //      the SQL `<>` comparison and this counter goes to 0 silently.
-//   2. project.pin.upgrade audit row missing — the audit feed is the only
+//   2. project.pin.change audit row missing — the audit feed is the only
 //      built-in trail for "who upgraded what to which version, when". A
 //      same-version repin must NOT emit; a true upgrade must emit exactly
 //      one row with the previous + new version_ids in the diff.
@@ -109,11 +109,11 @@ test.describe("Project pin + upgrade flow", () => {
     await expect(page.getByText("Up to date")).toBeVisible();
 
     // Audit assertion. Library audit feed should now contain exactly one
-    // project.pin.upgrade row whose diff captures the version delta.
+    // project.pin.change row whose diff captures the version delta.
     const audit = await listAuditEntries(request, session, {
-      action_type: "project.pin.upgrade",
+      action_type: "project.pin.change",
     });
-    expect(audit, "exactly one project.pin.upgrade row expected").toHaveLength(1);
+    expect(audit, "exactly one project.pin.change row expected").toHaveLength(1);
     const diff = audit[0].diff as {
       after?: { asset_id: number; version_id: number };
       before?: { asset_id: number; version_id: number };
@@ -185,5 +185,66 @@ test.describe("Pinning from the whole library", () => {
     // The asset's name opens it in the library.
     await row.getByRole("link", { name: "zeppelin hangar" }).click();
     await expect(page).toHaveURL(new RegExp(`/library/${upload.asset_id}$`));
+  });
+
+  test("finds an older asset by its exact name and changes its pinned version", async ({
+    page,
+    request,
+    noConsoleErrors,
+  }) => {
+    void noConsoleErrors;
+    test.setTimeout(60_000);
+
+    const session = await bootstrapAdmin(request);
+    const fileBytes = await readFile(FIXTURE_PATH);
+    // Imported first, behind 30 newer assets whose names start with its own.
+    const upload = await uploadImport(request, session, "rock.unitypackage", fileBytes);
+    const detail = await getAssetDetail(request, session, upload.asset_id);
+    await subsetVersion(
+      request,
+      session,
+      upload.asset_id,
+      upload.asset_version_id,
+      [detail.files[0].id],
+      "v2",
+    );
+    for (let i = 1; i <= 30; i++) {
+      await createReferenceAsset(request, session, `Rock Pack ${String(i).padStart(2, "0")}`);
+    }
+
+    await installSession(page, session);
+    await page.goto("/projects");
+    await page.getByRole("button", { name: "New project" }).first().click();
+    await page.getByPlaceholder("Ashfall").fill("Quarry");
+    await Promise.all([
+      page.waitForURL(/\/projects\/\d+$/),
+      page.getByRole("button", { name: "Create", exact: true }).click(),
+    ]);
+
+    await page.getByRole("button", { name: "Pin asset" }).first().click();
+    let dialog = page.getByRole("dialog");
+    await dialog.getByRole("searchbox", { name: "Asset" }).fill("rock");
+    await expect(dialog.getByText(/Showing the first 25 of 31 matches/)).toBeVisible();
+    await dialog.getByRole("button", { name: "rock", exact: true }).click();
+    await dialog.getByRole("button", { name: "Pin version" }).click();
+    const row = page.getByRole("row", { name: /^rock/ });
+    await expect(row.getByText("Up to date")).toBeVisible();
+
+    // Opened again, the picker marks it as pinned and offers a change.
+    await page.getByRole("button", { name: "Pin asset" }).first().click();
+    dialog = page.getByRole("dialog");
+    await dialog.getByRole("searchbox", { name: "Asset" }).fill("rock");
+    await dialog.getByRole("button", { name: "rock · Pinned · v2", exact: true }).click();
+    await expect(dialog.getByText("rock is pinned at v2")).toBeVisible();
+    const change = dialog.getByRole("button", { name: "Change pinned version" });
+    await expect(change).toBeDisabled();
+    await dialog.getByRole("combobox", { name: "Version" }).click();
+    await page.getByRole("option").filter({ hasNotText: "v2" }).click();
+    await change.click();
+    await expect(row.getByText("Upgrade to v2")).toBeVisible();
+
+    // A downgrade is audited under the neutral name.
+    const audit = await listAuditEntries(request, session, { action_type: "project.pin.change" });
+    expect(audit).toHaveLength(1);
   });
 });

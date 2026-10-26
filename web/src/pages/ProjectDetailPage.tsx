@@ -219,6 +219,7 @@ export function ProjectDetailPage() {
             open={pinDialogOpen}
             onOpenChange={setPinDialogOpen}
             projectId={projectId}
+            pins={project?.pins ?? []}
           />
           {confirmDialog}
         </>
@@ -330,24 +331,50 @@ function summariseLicenceCounts(pins: { licence_status: LicenceStatus }[]) {
   return counts;
 }
 
+function pinnedNote(p: ProjectPinDetail) {
+  return p.is_reference ? "Pinned" : `Pinned · ${p.version_label || "unversioned"}`;
+}
+
+function pinnedSentence(p: ProjectPinDetail) {
+  return p.is_reference
+    ? " is already pinned"
+    : ` is pinned at ${p.version_label || "unversioned"}`;
+}
+
+function pinButtonLabel(versioned: boolean, pinned: boolean) {
+  if (pinned) return versioned ? "Change pinned version" : "Already pinned";
+  return versioned ? "Pin version" : "Pin asset";
+}
+
 function PinAssetDialog({
   open,
   onOpenChange,
   projectId,
+  pins,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   projectId: number;
+  pins: ProjectPinDetail[];
 }) {
   const pin = usePinAssetToProject();
   const [picked, setPicked] = useState<AssetRow | null>(null);
-  // A version the user chose; null means the picked asset's current one.
+  // A version the user chose; null means the one it is pinned at, or else the
+  // picked asset's current one.
   const [versionId, setVersionId] = useState<string | null>(null);
   const versioned = picked != null && !picked.is_reference;
-  const { data: detail } = useAssetDetail(versioned ? picked.id : null);
+  const existing = picked ? pins.find((p) => p.asset_id === picked.id) : undefined;
+  const {
+    data: detail,
+    failed: detailFailed,
+    reload: reloadDetail,
+  } = useAssetDetail(versioned ? picked.id : null);
   const versions = detail?.versions ?? [];
-  const chosenVersion =
-    versionId ?? (detail?.current_version_id != null ? String(detail.current_version_id) : "");
+  const defaultVersion = existing?.pinned_version_id ?? detail?.current_version_id;
+  const chosenVersion = versionId ?? (defaultVersion != null ? String(defaultVersion) : "");
+  // Re-pinning an asset at the version it already has changes nothing.
+  const unchanged =
+    existing != null && (!versioned || chosenVersion === String(existing.pinned_version_id));
 
   const reset = () => {
     setPicked(null);
@@ -382,6 +409,7 @@ function PinAssetDialog({
           <AssetPicker
             aria-label="Asset"
             placeholder="Search assets to pin"
+            notes={new Map(pins.map((p) => [p.asset_id, pinnedNote(p)]))}
             selectedId={picked?.id ?? null}
             onSelect={(a) => {
               setPicked(a);
@@ -389,6 +417,19 @@ function PinAssetDialog({
               pin.reset();
             }}
           />
+          {picked && (
+            <p className="text-label text-muted-foreground">
+              {existing ? "" : "Pinning "}
+              <span className="text-foreground">{picked.name}</span>
+              {existing && pinnedSentence(existing)}
+            </p>
+          )}
+          {versioned && detailFailed && (
+            <ErrorState title="Couldn't load this asset's versions" onRetry={reloadDetail} />
+          )}
+          {versioned && detail && versions.length === 0 && (
+            <p className="text-label text-subtle-foreground">This asset has no versions to pin</p>
+          )}
           {versioned && versions.length > 0 && (
             <FieldRow label="Version">
               <Select value={chosenVersion} onValueChange={setVersionId}>
@@ -415,9 +456,9 @@ function PinAssetDialog({
           <Button
             variant="primary"
             onClick={submit}
-            disabled={!picked || (versioned && !chosenVersion) || pin.isPending}
+            disabled={!picked || (versioned && !chosenVersion) || unchanged || pin.isPending}
           >
-            {versioned ? "Pin version" : "Pin asset"}
+            {pinButtonLabel(versioned, existing != null)}
           </Button>
         </DialogFooter>
       </DialogContent>
