@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // A plain function, not vi.fn: vitest tracks a vi.fn's returned promise, and
@@ -17,6 +17,11 @@ vi.mock("@/lib/oidc", () => ({
   }),
 }));
 
+function Requested() {
+  const { pathname, search, hash } = useLocation();
+  return <p>Requested {pathname + search + hash}</p>;
+}
+
 // The callback is memoised per module, as it is per document, so each test
 // gets a fresh copy of the page.
 async function renderCallback() {
@@ -27,6 +32,7 @@ async function renderCallback() {
       <Routes>
         <Route path="/auth/callback" element={<LoginCallbackPage />} />
         <Route path="/" element={<p>Home</p>} />
+        <Route path="/library/:assetId" element={<Requested />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -41,6 +47,22 @@ describe("LoginCallbackPage", () => {
     await renderCallback();
     expect(await screen.findByText("Home")).toBeInTheDocument();
   });
+
+  it("returns to the page that was asked for, with its query and hash", async () => {
+    oidc.signinRedirectCallback = () =>
+      Promise.resolve({ state: { returnTo: "/library/42?q=x#files" } });
+    await renderCallback();
+    expect(await screen.findByText("Requested /library/42?q=x#files")).toBeInTheDocument();
+  });
+
+  it.each(["https://evil.example/", "//evil.example/library"])(
+    "goes home instead of to %s, outside the app",
+    async (returnTo) => {
+      oidc.signinRedirectCallback = () => Promise.resolve({ state: { returnTo } });
+      await renderCallback();
+      expect(await screen.findByText("Home")).toBeInTheDocument();
+    },
+  );
 
   it("stays on a failed sign-in, shows why, and offers to sign in again", async () => {
     oidc.signinRedirectCallback = () => Promise.reject(new Error("access_denied: user cancelled"));
