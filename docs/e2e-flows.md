@@ -22,8 +22,8 @@ effectively off. It adds two test-only routes: `POST /api/test/reset` and `POST 
 
 Specs import `test` from `web/e2e/fixtures.ts`, which resets the backend before every test. They
 seed through the real API (`bootstrapAdmin`, `createLibrary`, `switchCurrentLibrary`,
-`uploadImport`, `createTestUser`) and authenticate by writing the session into local storage
-before the SPA loads (`installSession`); only the login and bootstrap specs drive the forms.
+`uploadImport`, `createReferenceAsset`, `createTestUser`) and authenticate by writing the session
+into local storage before the SPA loads (`installSession`); only the login and bootstrap specs drive the forms.
 `uploadImport` blocks until the import row is `done`. The OIDC spec runs entirely in the browser:
 it intercepts `/api/auth/mode` and the IdP endpoints with `page.route`.
 
@@ -33,8 +33,9 @@ Covered, one spec per flow in `web/e2e/tests/`: first-run bootstrap and the Auth
 local login, the library page rendering a seeded asset, paging through the library with the page
 in the URL (reload, back/forward, page size, clamping, reset on search), a UI upload accepted and shown as a
 placeholder, library switching without leaking the other library's assets, tag and licence edits
-surviving a reload, the OIDC callback and sign-out, project pins, collection add/remove, search,
-sysadmin gating of the audit page, paging both audit pages (reload, back/forward, reset on search
+surviving a reload, the OIDC callback and sign-out, project pins (finding an asset past the first
+page, choosing a version, the unpin confirm, the asset link), collection add/remove and paging,
+search, sysadmin gating of the audit page, paging both audit pages (reload, back/forward, reset on search
 and scope, a search reaching a later page), and library settings surviving a
 reload.
 
