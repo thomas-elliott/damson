@@ -17,6 +17,9 @@ export function safeReturnTo(candidate: unknown): string {
   }
   // "//host" and "/\host" resolve to another origin.
   if (url.origin !== window.location.origin) return "/";
+  // Dot-segment removal can leave "//host" ("/.//host"), which is
+  // protocol-relative once returned.
+  if (url.pathname.startsWith("//")) return "/";
   // Going back to a sign-in page would loop.
   if (SIGN_IN_PATHS.has(url.pathname.replace(/\/+$/, ""))) return "/";
   return url.pathname + url.search + url.hash;

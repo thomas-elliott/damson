@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/ingest"
@@ -70,7 +71,7 @@ type assetListFilters struct {
 	ReleasedAfter   *time.Time // released_at >= this instant
 	UpdatesOnly     bool       // latest_store_version is newer than every version held
 	NotDownloaded   bool       // Purchased, not downloaded: a reference asset with no path
-	Sort            string     // created_desc (default) | released_desc | released_asc | name_asc
+	Sort            string     // created_desc (default) | released_desc | released_asc | name_asc | relevance
 }
 
 // storeVersionArraySQL renders a dotted-numeric store version as an int[] for
@@ -109,13 +110,26 @@ var assetSortColumns = map[string]string{
 
 const defaultAssetSort = "created_desc"
 
-// assetOrderClause resolves a sort value, falling back to the default for
-// anything unrecognised.
-func assetOrderClause(sort string) string {
-	if clause, ok := assetSortColumns[sort]; ok {
-		return clause
+// assetOrder resolves the filters' sort, falling back to the default for
+// anything unrecognised. relevance, with a query, puts an exact name match
+// first, then names starting with the query, then the rest by text rank, so a
+// first page of matches always holds the asset named what was typed. Without a
+// query it is the default.
+func assetOrder(f assetListFilters) clause.OrderBy {
+	if f.Sort == "relevance" && f.Query != "" {
+		return clause.OrderBy{Expression: clause.Expr{
+			SQL: `CASE WHEN lower(a.name) = lower(?) THEN 0
+				WHEN lower(a.name) LIKE lower(?) ESCAPE '\' THEN 1 ELSE 2 END,
+				ts_rank(a.search_vector, to_tsquery('simple', ?)) DESC, ` + assetSortColumns[defaultAssetSort],
+			Vars:               []any{f.Query, escapeLikePattern(f.Query) + "%", buildPrefixTsQuery(f.Query)},
+			WithoutParentheses: true,
+		}}
 	}
-	return assetSortColumns[defaultAssetSort]
+	order, ok := assetSortColumns[f.Sort]
+	if !ok {
+		order = assetSortColumns[defaultAssetSort]
+	}
+	return clause.OrderBy{Expression: clause.Expr{SQL: order}}
 }
 
 func parseAssetFilters(c *gin.Context) assetListFilters {
@@ -329,7 +343,7 @@ func (h *Handler) getAssets(c *gin.Context) {
 		Joins("LEFT JOIN asset_versions cv2 ON cv2.id = a.current_version_id").
 		Joins("LEFT JOIN licences l2 ON l2.id = a.licence_id").
 		Group("a.id, cv2.package_kind, l2.detected_type, l2.attributes_json").
-		Order(assetOrderClause(f.Sort)).
+		Order(assetOrder(f)).
 		Limit(limit).
 		Offset(offset).
 		Scan(&rows).Error

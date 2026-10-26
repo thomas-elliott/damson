@@ -215,9 +215,11 @@ export function LicenceEditor({
 
 /**
  * Edits a set licence's text and attributes. Detect replaces the drafted type
- * and attributes with the detector's; when it finds no match the draft becomes
- * custom and keeps the person's attributes. A save never stores "unknown", so
- * the attributes a person sets always count towards the licence's status.
+ * and attributes with the detector's, keeping custom terms only when it finds
+ * the drafted type; when it finds no match the draft becomes custom and keeps
+ * the person's attributes. Save needs a change, since any save replaces the
+ * licence and clears its review. A save never stores "unknown", so the
+ * attributes a person sets always count towards the licence's status.
  */
 function LicenceEditForm({
   assetId,
@@ -241,12 +243,18 @@ function LicenceEditForm({
   const [detectError, setDetectError] = useState<string | null>(null);
 
   const textChecked = detection ? detection.text === text : text === existing.original_text;
+  const changed =
+    text !== existing.original_text ||
+    type !== existing.detected_type ||
+    (attrs.custom_terms || "") !== (existing.attributes.custom_terms || "") ||
+    ATTR_ROWS.some(({ key }) => toTri(attrs[key]) !== toTri(existing.attributes[key]));
 
   const runDetection = async () => {
     if (!text.trim()) return;
     const sent = text;
     setDetecting(true);
     setDetectError(null);
+    put.reset();
     try {
       const result = await detect(sent);
       setDetection({ text: sent, result });
@@ -254,7 +262,11 @@ function LicenceEditForm({
         setType("custom");
       } else {
         setType(result.detected_type);
-        setAttrs((prev) => ({ ...result.attributes, custom_terms: prev.custom_terms }));
+        setAttrs((prev) =>
+          result.detected_type === type
+            ? { ...result.attributes, custom_terms: prev.custom_terms }
+            : result.attributes,
+        );
       }
     } catch (err) {
       setDetectError(err instanceof Error ? err.message : "detection failed");
@@ -312,7 +324,7 @@ function LicenceEditForm({
           variant="secondary"
           leadingIcon={<Search size={12} />}
           onClick={runDetection}
-          disabled={!text.trim() || detecting}
+          disabled={!text.trim() || detecting || put.isPending}
         >
           {detecting ? "Detecting…" : "Detect"}
         </Button>
@@ -322,7 +334,7 @@ function LicenceEditForm({
           variant="primary"
           aria-label="Save licence"
           onClick={save}
-          disabled={!text.trim() || !textChecked || detecting || put.isPending}
+          disabled={!text.trim() || !textChecked || !changed || detecting || put.isPending}
         >
           Save
         </Button>

@@ -66,3 +66,26 @@ None
   - LOW · code review: Save is enabled as soon as the form opens, so Edit then Save with nothing changed still replaces the licence, clearing its review and turning an unknown licence into custom. Not addressed (LicenceEditForm's Save condition)
   - LOW · code review: the form shows one error, so after a failed save a later successful Detect brings the old save error back. Not addressed (call put.reset() when Detect starts)
   - LOW · code review: no vitest case makes /detect fail. Not addressed (web/src/components/detail/LicenceEditor.test.tsx)
+
+### Follow-up: fac-2
+
+- The code-review findings above, with two more from the same review, were fixed on branch
+  `fac-2-board/licence-review-fixes` by the stagecraft `spec-to-pr` factory as work item
+  `fac-2-board`, planned from ticket fac-2. `just check` passed on 5b97481.
+  - LOW · Save with nothing changed replaced the licence. Addressed: Save waits for a change to the
+    text, type or an attribute (web/src/components/detail/LicenceEditor.tsx)
+  - LOW · the bulk Licence action changed behaviour. Addressed: a named type is stored with no
+    detector confidence or diff again; only the panel's PUT carries them over
+    (internal/handlers/api/licences.go, TestBulkAssets_SetLicence)
+  - LOW · a failed save's error came back after a successful Detect. Addressed: Detect resets the
+    save when it starts
+  - LOW · Detect carried hidden custom terms over to a different licence. Addressed: custom terms
+    survive Detect only when it finds the drafted type
+  - LOW · no test made /detect fail. Addressed (web/src/components/detail/LicenceEditor.test.tsx)
+- Open findings from fac-2's own reviews:
+  - MED · plan review: resetting the save when Detect starts would detach an in-flight save.
+    Addressed: Detect is disabled while a save is pending
+  - LOW · plan review: the test for a cleared save error checked only after Detect finished.
+    Addressed: it checks while Detect is still running
+  - LOW · code review: no test covers Detect being disabled while a save is pending. Not addressed
+    (web/src/components/detail/LicenceEditor.test.tsx)
