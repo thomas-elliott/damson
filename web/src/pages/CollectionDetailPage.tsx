@@ -33,6 +33,8 @@ export function CollectionDetailPage() {
     loading: assetsLoading,
     placeholder,
     error: assetsError,
+    failed: assetsFailed,
+    reload: reloadAssets,
   } = useAssets(collectionId ? { collection_id: collectionId } : undefined, collectionId != null, {
     limit: pageSize,
     offset: (page - 1) * pageSize,
@@ -92,6 +94,12 @@ export function CollectionDetailPage() {
             <ErrorState title="Couldn't load this collection" onRetry={reload} />
           ) : !collection ? (
             <EmptyState title="Collection not found" />
+          ) : assetsLoading ? (
+            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
+              Loading…
+            </div>
+          ) : assetsFailed ? (
+            <ErrorState title="Couldn't load this collection's assets" onRetry={reloadAssets} />
           ) : total === 0 ? (
             <EmptyState
               title="No assets in this collection"
