@@ -73,3 +73,12 @@ By: settled by web/src/components/UrlPager.tsx (DAM-51, f296852) (2026-10-25)
 ## Deferred follow-ups
 
 None
+
+### Cleanup
+
+- Built by the stagecraft `spec-to-pr` factory as work item `dam-44` and merged as PR #15; no `/cleanup` pass ran. `just check` passed on the merged commit (lint, format, tidy, build, Go, Vitest, stories, e2e).
+- No `docs/intent/` in the repo, so nothing graduated. Retired with these open findings from the code review:
+  - MED · collection detail branches only on the collection lookup, so a failed asset list still shows "No assets in this collection"; project detail's audit section has the same gap (web/src/pages/CollectionDetailPage.tsx)
+  - LOW · Library's error state replaces the pager too: the URL keeps the requested page, but there is no pager on screen to step back with (web/src/pages/LibraryPage.tsx)
+  - LOW · a 400 counting as not found has no test; the detail tests cover 404 and 500 (web/src/api.ts, web/src/pages/ErrorStates.test.tsx)
+  - LOW · the callback page shows any callback error's message, including oidc-client-ts internals such as "No matching state found in storage"; a fixed fallback line would read better (web/src/pages/LoginCallbackPage.tsx)
