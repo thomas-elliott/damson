@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pinMutate = vi.fn();
 const unpinMutate = vi.fn();
+const reloadDetail = vi.fn();
 
 const project = {
   id: 7,
@@ -25,6 +26,18 @@ const project = {
       size_bytes: 10,
       pinned_at: "2026-10-01T00:00:00Z",
     },
+    {
+      pin_id: 71,
+      asset_id: 8,
+      asset_name: "Map Link",
+      pinned_version_id: null,
+      version_label: "",
+      is_reference: true,
+      has_update: false,
+      licence_status: "unk",
+      size_bytes: 0,
+      pinned_at: "2026-10-01T00:00:00Z",
+    },
   ],
 };
 
@@ -32,19 +45,31 @@ const library = [
   { id: 1, name: "Forest Pack" },
   { id: 2, name: "Desert Pack" },
   { id: 5, name: "Store Link", is_reference: true },
+  { id: 3, name: "Castle Kit" },
+  { id: 4, name: "Empty Pack" },
+  { id: 6, name: "Broken Pack" },
+  { id: 8, name: "Map Link", is_reference: true },
 ];
 
 // Each asset with versions: its versions, and which one is current.
-const details: Record<number, { current_version_id: number; versions: number[] }> = {
+const details: Record<number, { current_version_id: number | null; versions: number[] }> = {
   1: { current_version_id: 12, versions: [11, 12] },
   2: { current_version_id: 22, versions: [21, 22] },
+  3: { current_version_id: 32, versions: [31, 32] },
+  4: { current_version_id: null, versions: [] },
 };
+// An asset whose details fail to load.
+const BROKEN = 6;
 
 vi.mock("@/hooks/useDataQueries", () => ({
   useProject: () => ({ data: project, loading: false, failed: false, error: null }),
   useProjectAudit: () => ({ data: [], loading: false }),
-  useAssets: () => ({ data: library, total: library.length, loading: false, placeholder: false }),
+  useAssets: ({ q }: { q?: string }) => {
+    const data = library.filter((a) => !q || a.name.toLowerCase().includes(q.toLowerCase()));
+    return { data, total: data.length, loading: false, placeholder: false };
+  },
   useAssetDetail: (id: number | null) => {
+    if (id === BROKEN) return { data: null, loading: false, failed: true, reload: reloadDetail };
     const d = id == null ? undefined : details[id];
     return {
       data: d && {
@@ -58,6 +83,8 @@ vi.mock("@/hooks/useDataQueries", () => ({
         })),
       },
       loading: false,
+      failed: false,
+      reload: reloadDetail,
     };
   },
 }));
@@ -103,6 +130,7 @@ async function openPinDialog() {
 beforeEach(() => {
   pinMutate.mockReset();
   unpinMutate.mockReset();
+  reloadDetail.mockReset();
 });
 
 describe("ProjectDetailPage pin dialog", () => {
@@ -146,6 +174,58 @@ describe("ProjectDetailPage pin dialog", () => {
       expect.anything(),
     );
   });
+  it("still names the picked asset once a new search hides it", async () => {
+    mount();
+    const dialog = await openPinDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Forest Pack" }));
+    await userEvent.type(within(dialog).getByRole("searchbox", { name: "Asset" }), "desert");
+
+    await waitFor(() =>
+      expect(within(dialog).queryByRole("button", { name: "Forest Pack" })).toBeNull(),
+    );
+    expect(within(dialog).getByText(/Pinning/)).toHaveTextContent("Pinning Forest Pack");
+  });
+
+  it("shows why it cannot pin when the asset's versions fail to load", async () => {
+    mount();
+    const dialog = await openPinDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Broken Pack" }));
+
+    expect(within(dialog).getByText("Couldn't load this asset's versions")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: /Retry/ }));
+    expect(reloadDetail).toHaveBeenCalled();
+    expect(within(dialog).getByRole("button", { name: "Pin version" })).toBeDisabled();
+  });
+
+  it("says when an asset has no versions to pin", async () => {
+    mount();
+    const dialog = await openPinDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Empty Pack" }));
+
+    expect(within(dialog).getByText("This asset has no versions to pin")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Pin version" })).toBeDisabled();
+  });
+
+  it("marks an already pinned asset and offers to change its version", async () => {
+    mount();
+    const dialog = await openPinDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Castle Kit · Pinned · v1" }));
+
+    expect(within(dialog).getByText(/is pinned at/)).toHaveTextContent(
+      "Castle Kit is pinned at v1",
+    );
+    expect(within(dialog).getByRole("combobox", { name: "Version" })).toHaveTextContent("v31");
+    // Already at the chosen version: changing to it would do nothing.
+    expect(within(dialog).getByRole("button", { name: "Change pinned version" })).toBeDisabled();
+  });
+
+  it("does not offer to pin a pinned reference asset again", async () => {
+    mount();
+    const dialog = await openPinDialog();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Map Link · Pinned" }));
+
+    expect(within(dialog).getByRole("button", { name: "Already pinned" })).toBeDisabled();
+  });
 });
 
 describe("ProjectDetailPage pin table", () => {
@@ -157,7 +237,7 @@ describe("ProjectDetailPage pin table", () => {
 
   it("asks before unpinning", async () => {
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Unpin" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Unpin" })[0]);
     expect(unpinMutate).not.toHaveBeenCalled();
 
     const confirm = screen.getByRole("dialog", { name: 'Unpin "Castle Kit"?' });

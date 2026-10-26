@@ -84,7 +84,7 @@ func TestProjectPin_PinsCurrentVersionAndDetectsUpgrade(t *testing.T) {
 	// Audit row for upgrade.
 	var upgradeAudits int64
 	_ = db.Model(&models.AuditLog{}).
-		Where("action_type = ?", "project.pin.upgrade").
+		Where("action_type = ?", "project.pin.change").
 		Count(&upgradeAudits)
 	if upgradeAudits != 1 {
 		t.Fatalf("expected 1 upgrade audit, got %d", upgradeAudits)
