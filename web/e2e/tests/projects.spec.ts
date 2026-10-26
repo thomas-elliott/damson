@@ -11,6 +11,7 @@ import {
   subsetVersion,
   getAssetDetail,
   listAuditEntries,
+  createReferenceAsset,
 } from "../fixtures";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,18 +59,17 @@ test.describe("Project pin + upgrade flow", () => {
     const projectId = Number(new URL(page.url()).pathname.split("/").pop());
     expect(projectId).toBeGreaterThan(0);
 
-    // Pin the asset's current version (v1). PinAssetDialog's submit posts
-    // {asset_id} without a version_id, so the server pins current.
+    // Pin the asset's current version (v1), which the dialog preselects.
     await page.getByRole("button", { name: "Pin asset" }).first().click();
-    await page.getByRole("combobox", { name: "Asset" }).click();
-    await page.getByRole("option", { name: "pin target" }).click();
+    await page.getByRole("searchbox", { name: "Asset" }).fill("pin");
+    await page.getByRole("button", { name: "pin target" }).click();
     await Promise.all([
       page.waitForResponse(
         (r) =>
           new RegExp(`/api/projects/${projectId}/pins$`).test(r.url()) &&
           r.request().method() === "POST",
       ),
-      page.getByRole("button", { name: "Pin current version" }).click(),
+      page.getByRole("button", { name: "Pin version" }).click(),
     ]);
     // Pin lands as "Up to date" — current_version still equals pinned_version.
     await expect(page.getByText("Up to date")).toBeVisible();
@@ -120,5 +120,70 @@ test.describe("Project pin + upgrade flow", () => {
     };
     expect(diff.after?.version_id).toBe(v2.asset_version_id);
     expect(diff.before?.version_id).toBe(upload.asset_version_id);
+  });
+});
+
+// DAM-45 — the pin dialog searches the whole library, not its first page,
+// lets the user pin an older version, and the pin table links and confirms.
+test.describe("Pinning from the whole library", () => {
+  test("finds an asset past the first page and pins a chosen version", async ({
+    page,
+    request,
+    noConsoleErrors,
+  }) => {
+    void noConsoleErrors;
+    test.setTimeout(60_000);
+
+    const session = await bootstrapAdmin(request);
+    const fileBytes = await readFile(FIXTURE_PATH);
+    // Imported first, so the newest-first list puts it behind the fillers.
+    const upload = await uploadImport(request, session, "zeppelin-hangar.unitypackage", fileBytes);
+    const detail = await getAssetDetail(request, session, upload.asset_id);
+    await subsetVersion(
+      request,
+      session,
+      upload.asset_id,
+      upload.asset_version_id,
+      [detail.files[0].id],
+      "v2",
+    );
+    for (let i = 1; i <= 60; i++) {
+      await createReferenceAsset(request, session, `Filler ${String(i).padStart(2, "0")}`);
+    }
+
+    await installSession(page, session);
+    await page.goto("/projects");
+    await page.getByRole("button", { name: "New project" }).first().click();
+    await page.getByPlaceholder("Ashfall").fill("Whole library");
+    await Promise.all([
+      page.waitForURL(/\/projects\/\d+$/),
+      page.getByRole("button", { name: "Create", exact: true }).click(),
+    ]);
+
+    await page.getByRole("button", { name: "Pin asset" }).first().click();
+    const dialog = page.getByRole("dialog");
+    // A broad search shows a page and asks for a narrower one.
+    await expect(dialog.getByText(/Showing the first 25 of 61 matches/)).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "zeppelin hangar" })).toHaveCount(0);
+
+    await dialog.getByRole("searchbox", { name: "Asset" }).fill("zepp");
+    await dialog.getByRole("button", { name: "zeppelin hangar" }).click();
+    // The current version, v2, is preselected; pick the older one.
+    await expect(dialog.getByRole("combobox", { name: "Version" })).toContainText("v2 (current)");
+    await dialog.getByRole("combobox", { name: "Version" }).click();
+    await page.getByRole("option").filter({ hasNotText: "v2" }).click();
+    await dialog.getByRole("button", { name: "Pin version" }).click();
+
+    const row = page.getByRole("row", { name: /zeppelin hangar/ });
+    await expect(row.getByText("Upgrade to v2")).toBeVisible();
+
+    // Unpin asks first; cancelling keeps the pin.
+    await row.getByRole("button", { name: "Unpin" }).click();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(row).toBeVisible();
+
+    // The asset's name opens it in the library.
+    await row.getByRole("link", { name: "zeppelin hangar" }).click();
+    await expect(page).toHaveURL(new RegExp(`/library/${upload.asset_id}$`));
   });
 });
