@@ -45,6 +45,15 @@ const MIT_DETECTION = {
   status: "ok",
 };
 
+const MIT_WITH_TERMS: LicenceView = {
+  ...CUSTOM,
+  detected_type: "MIT",
+  detection_confidence: 0.98,
+  original_text: "MIT License ...",
+  attributes: { ...MIT_DETECTION.attributes, custom_terms: "no resale" },
+  status: "ok",
+};
+
 const UNKNOWN_DETECTION = {
   detected_type: "unknown",
   detection_confidence: 0,
@@ -145,8 +154,21 @@ describe("LicenceEditor editing a set licence", () => {
     expect(putBody()).toEqual({
       original_text: "MIT License ...",
       detected_type: "MIT",
-      attributes: { ...MIT_DETECTION.attributes, custom_terms: "games only" },
+      attributes: MIT_DETECTION.attributes,
     });
+  });
+
+  it("keeps custom terms when Detect finds the licence's own type", async () => {
+    respondToDetect(MIT_DETECTION);
+    renderEditor(MIT_WITH_TERMS);
+    openEdit();
+    changeText("MIT License, 2025 ...");
+    fireEvent.click(screen.getByRole("button", { name: "Detect" }));
+    await screen.findByText("98% match");
+    fireEvent.click(screen.getByRole("button", { name: "Save licence" }));
+
+    await waitFor(() => expect(putBody()).toBeDefined());
+    expect(putBody().attributes).toEqual(MIT_WITH_TERMS.attributes);
   });
 
   it("needs Detect again when the text changes back after a Detect", async () => {
@@ -179,10 +201,72 @@ describe("LicenceEditor editing a set licence", () => {
     });
   });
 
+  it.each([
+    ["a custom", CUSTOM],
+    ["an unknown", { ...CUSTOM, detected_type: "unknown", status: "unk" } as LicenceView],
+  ])("keeps Save disabled until %s licence is changed", (_, licence) => {
+    renderEditor(licence);
+    openEdit();
+    const save = screen.getByRole("button", { name: "Save licence" });
+    expect(save).toBeDisabled();
+
+    setAttr("Commercial use", "No");
+    expect(save).toBeEnabled();
+    setAttr("Commercial use", "Unknown");
+    expect(save).toBeDisabled();
+  });
+
+  it("clears a failed save's error when Detect starts", async () => {
+    let finishDetect: (result: unknown) => void = () => {};
+    fetchJson.mockImplementation((url: string) =>
+      url.endsWith("/detect")
+        ? new Promise((resolve) => (finishDetect = resolve))
+        : Promise.reject(new Error("licence save failed")),
+    );
+    renderEditor(CUSTOM);
+    openEdit();
+    setAttr("Commercial use", "No");
+    fireEvent.click(screen.getByRole("button", { name: "Save licence" }));
+    await screen.findByText("licence save failed");
+
+    changeText("MIT License ...");
+    fireEvent.click(screen.getByRole("button", { name: "Detect" }));
+    await screen.findByText("Detecting…");
+    expect(screen.queryByText("licence save failed")).not.toBeInTheDocument();
+
+    finishDetect(MIT_DETECTION);
+    await screen.findByText("98% match");
+    expect(screen.queryByText("licence save failed")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed Detect and leaves the draft as it was", async () => {
+    fetchJson.mockImplementation((url: string) =>
+      url.endsWith("/detect") ? Promise.reject(new Error("detect failed")) : Promise.resolve({}),
+    );
+    renderEditor(CUSTOM);
+    openEdit();
+    setAttr("Commercial use", "No");
+    fireEvent.click(screen.getByRole("button", { name: "Detect" }));
+
+    expect(await screen.findByText("detect failed")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue(CUSTOM.original_text);
+    const save = screen.getByRole("button", { name: "Save licence" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    await waitFor(() => expect(putBody()).toBeDefined());
+    expect(putBody()).toEqual({
+      original_text: CUSTOM.original_text,
+      detected_type: "custom",
+      attributes: { ...CUSTOM.attributes, commercial_use: false },
+    });
+  });
+
   it("keeps the form open with the error when the save fails", async () => {
     fetchJson.mockRejectedValue(new Error("licence save failed"));
     renderEditor(CUSTOM);
     openEdit();
+    setAttr("Commercial use", "No");
     fireEvent.click(screen.getByRole("button", { name: "Save licence" }));
 
     expect(await screen.findByText("licence save failed")).toBeInTheDocument();
