@@ -175,8 +175,13 @@ const REFERENCE: AssetDetailView = {
 
 const DELETING: AssetDetailView = { ...SPARSE, id: 6, name: "Throwaway Pack" };
 
+const LICENCE_EDITING: AssetDetailView = { ...ASSET, id: 7 };
+
 const ASSETS = new Map(
-  [ASSET, NO_DESCRIPTION, SPARSE, EDITING, REFERENCE, DELETING].map((a) => [a.id, a]),
+  [ASSET, NO_DESCRIPTION, SPARSE, EDITING, REFERENCE, DELETING, LICENCE_EDITING].map((a) => [
+    a.id,
+    a,
+  ]),
 );
 
 const AUDIT: AuditEntry[] = [
@@ -325,5 +330,17 @@ export const DeleteCloses: Story = {
     const dialog = await body.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Delete asset" }));
     await waitFor(() => expect(canvas.queryByText("Throwaway Pack")).not.toBeInTheDocument());
+  },
+};
+
+/** Editing a set licence: its text and each attribute, prefilled. */
+export const EditingLicence: Story = {
+  render: () => <PanelHarness assetId={LICENCE_EDITING.id} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "Licence" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "Edit licence" }));
+    await expect(await canvas.findByRole("radiogroup", { name: "Redistribution" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Save licence" })).toBeEnabled();
   },
 };

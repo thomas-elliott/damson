@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, fetchMaybeJson } from "@/api";
 import type {
   ApiToken,
+  LicenceAttributes,
   Me,
   MetadataFetchResponse,
   MetadataSearchResponse,
@@ -267,7 +268,7 @@ export function usePutLicence() {
       original_text: string;
       use_detected?: boolean;
       detected_type?: string;
-      attributes?: Record<string, unknown>;
+      attributes?: Partial<LicenceAttributes>;
     }) => {
       const { assetId, ...body } = input;
       return fetchJson<unknown>(`/api/assets/${assetId}/licence`, {
