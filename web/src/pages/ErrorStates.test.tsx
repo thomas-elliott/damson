@@ -205,3 +205,37 @@ describe.each<[string, string, string, ReactNode, string, unknown, string, unkno
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 });
+
+// The asset panel's activity sits in a collapsed section, so the test opens it.
+describe("Asset panel's activity", () => {
+  it("shows the error with a Retry that loads the list once it succeeds", async () => {
+    others = {
+      "/api/assets/5": {
+        id: 5,
+        name: "Castle",
+        description: "",
+        source_url: "",
+        needs_review: false,
+        is_reference: false,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        tags: [],
+        versions: [],
+        files: [],
+        images: [],
+        projects: [],
+        collections: [],
+      },
+    };
+    endpoint = "/api/assets/5/audit";
+    failing = [500];
+    body = { entries: [], total: 0 };
+    renderAt("/", "/", <AssetDetailPanel assetId={5} onClose={() => {}} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Audit" }));
+    expect(await screen.findByText("Couldn't load recent activity")).toBeInTheDocument();
+    expect(screen.queryByText("No activity yet")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("No activity yet")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load recent activity")).not.toBeInTheDocument();
+  });
+});
