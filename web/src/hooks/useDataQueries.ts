@@ -729,6 +729,7 @@ export function useProjectAudit(projectId: number | null) {
     total: q.data?.total ?? 0,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }

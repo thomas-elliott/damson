@@ -70,6 +70,15 @@ export function withPage(search: URLSearchParams, page: number): URLSearchParams
   return next;
 }
 
+// The search without its page and page size: what a list shows, whichever
+// page of it is on screen.
+export function withoutPaging(search: URLSearchParams): string {
+  const next = new URLSearchParams(search);
+  next.delete("page");
+  next.delete("page_size");
+  return next.toString();
+}
+
 // Counts the sidebar filters only: the search term has its own visible input,
 // so badging it would flag something already on screen.
 export function activeFilterCount(filters: AssetFilters): number {
