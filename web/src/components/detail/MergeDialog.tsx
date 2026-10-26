@@ -10,10 +10,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  SearchInput,
-  cn,
 } from "@/design-system";
-import { useAssets } from "@/hooks/useDataQueries";
+import { AssetPicker } from "@/components/AssetPicker";
 import { useMergeAssets, usePatchAsset, type MergeResponse } from "@/hooks/useMutations";
 
 export function MergeDialog({
@@ -27,40 +25,15 @@ export function MergeDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [q, setQ] = useState("");
   const [sourceId, setSourceId] = useState<number | null>(null);
   const [result, setResult] = useState<MergeResponse | null>(null);
   const [adoptName, setAdoptName] = useState(true);
   const [adoptDescription, setAdoptDescription] = useState(true);
 
-  const { data: assets, loading } = useAssets({ q: q || undefined }, open);
   const merge = useMergeAssets();
   const patch = usePatchAsset();
 
-  const candidates = assets.filter((a) => a.id !== targetId);
-
-  const candidateRows = () => {
-    if (loading) return <li className="px-2 py-3 text-label text-faint-foreground">Searching…</li>;
-    if (candidates.length === 0)
-      return <li className="px-2 py-3 text-label text-faint-foreground">No other assets</li>;
-    return candidates.map((a) => (
-      <li key={a.id}>
-        <button
-          type="button"
-          onClick={() => setSourceId(a.id)}
-          className={cn(
-            "w-full truncate rounded-md px-2 py-1.5 text-left text-label text-muted-foreground transition-colors duration-fast ease-standard hover:bg-muted",
-            sourceId === a.id && "bg-muted text-foreground",
-          )}
-        >
-          {a.name}
-        </button>
-      </li>
-    ));
-  };
-
   const reset = () => {
-    setQ("");
     setSourceId(null);
     setResult(null);
     setAdoptName(true);
@@ -156,14 +129,14 @@ export function MergeDialog({
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
-              <SearchInput
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
+              <AssetPicker
+                aria-label="Asset to merge in"
                 placeholder="Search assets to merge in"
-                autoFocus
+                selectedId={sourceId}
+                onSelect={(a) => setSourceId(a.id)}
+                excludeId={targetId}
               />
               {merge.error && <p className="text-label text-destructive">{merge.error.message}</p>}
-              <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">{candidateRows()}</ul>
             </DialogBody>
             <DialogFooter>
               <Button variant="ghost" onClick={() => onOpenChange(false)}>

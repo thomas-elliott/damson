@@ -10,6 +10,7 @@ import {
   uploadImport,
   addAssetToCollection,
   removeAssetFromCollection,
+  createReferenceAsset,
 } from "../fixtures";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -81,5 +82,40 @@ test.describe("Collection create + asset add/remove", () => {
     await page.reload();
     await expect(page.getByRole("button", { name: /\basset a\b/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /\basset b\b/i })).toBeVisible();
+  });
+});
+
+// DAM-45 — a collection larger than a page pages with the Library pager.
+test.describe("Collection paging", () => {
+  test("shows a collection's assets across pages", async ({ page, request, noConsoleErrors }) => {
+    void noConsoleErrors;
+    test.setTimeout(60_000);
+
+    const session = await bootstrapAdmin(request);
+    await installSession(page, session);
+    await page.goto("/collections");
+    await page.getByRole("button", { name: "New collection" }).first().click();
+    await page.getByPlaceholder("Boss fight audio").fill("Big set");
+    await Promise.all([
+      page.waitForURL(/\/collections\/\d+$/),
+      page.getByRole("button", { name: "Create", exact: true }).click(),
+    ]);
+    const collectionId = Number(new URL(page.url()).pathname.split("/").pop());
+
+    for (let i = 1; i <= 26; i++) {
+      const { asset_id } = await createReferenceAsset(
+        request,
+        session,
+        `Crate ${String(i).padStart(2, "0")}`,
+      );
+      await addAssetToCollection(request, session, collectionId, asset_id);
+    }
+
+    await page.goto(`/collections/${collectionId}?page_size=25`);
+    const pager = page.getByRole("navigation", { name: "Collection pages" });
+    await expect(pager).toContainText("Page 1 of 2");
+    await pager.getByRole("button", { name: "Next page" }).click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(page.getByRole("button", { name: /Crate/ })).toHaveCount(1);
   });
 });
