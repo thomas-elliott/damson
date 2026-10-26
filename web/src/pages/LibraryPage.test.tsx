@@ -14,10 +14,17 @@ const library = vi.hoisted(() => ({
   failed: false,
   pages: [] as ({ limit: number; offset: number } | undefined)[],
 }));
+// The library settings as useLibrarySettings returns them, and every density
+// the grid was drawn with.
+const settings = vi.hoisted(() => ({
+  data: null as { grid_density_default: string } | null,
+  loading: false,
+  densities: [] as (string | undefined)[],
+}));
 
 vi.mock("@/hooks/useDataQueries", () => ({
   useMe: () => ({ data: { id: 1, current_library: { id: 1, name: "Main" } } }),
-  useLibrarySettings: () => ({ data: null }),
+  useLibrarySettings: () => ({ data: settings.data, loading: settings.loading }),
   useAssets: (_filters: unknown, _enabled: boolean, page?: { limit: number; offset: number }) => {
     library.pages.push(page);
     if (library.failed) {
@@ -29,7 +36,14 @@ vi.mock("@/hooks/useDataQueries", () => ({
 }));
 // The grid is what knows how many columns it shows; this one reports three.
 vi.mock("@/components/AssetGrid", () => ({
-  AssetGrid: ({ onColumnsChange }: { onColumnsChange?: (n: number) => void }) => {
+  AssetGrid: ({
+    onColumnsChange,
+    density,
+  }: {
+    onColumnsChange?: (n: number) => void;
+    density?: string;
+  }) => {
+    settings.densities.push(density);
     onColumnsChange?.(3);
     return <div>grid</div>;
   },
@@ -65,20 +79,27 @@ beforeEach(() => {
   library.total = 12;
   library.failed = false;
   library.pages = [];
+  settings.data = { grid_density_default: "medium" };
+  settings.loading = false;
+  settings.densities = [];
 });
 
 const lastPage = () => library.pages[library.pages.length - 1];
 const query = () => screen.getByLabelText("query").textContent;
 
-function mount(path: string) {
-  return render(
+function page(path: string) {
+  return (
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/library/:assetId?" element={<LibraryPage />} />
       </Routes>
       <Location />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+}
+
+function mount(path: string) {
+  return render(page(path));
 }
 
 // Arrow Up and Down move one visible row: as many assets as the grid shows
@@ -192,5 +213,36 @@ describe("LibraryPage load failure", () => {
     expect(lastPage()).toEqual({ limit: 50, offset: 100 });
     expect(screen.getByText("grid")).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load assets")).toBeNull();
+  });
+});
+
+describe("LibraryPage density", () => {
+  it.each(["small", "large"])("draws the grid at the library's %s density", (density) => {
+    settings.data = { grid_density_default: density };
+    mount("/library");
+    expect(settings.densities).not.toHaveLength(0);
+    expect(settings.densities.every((d) => d === density)).toBe(true);
+  });
+
+  it("waits for the settings before drawing the grid", () => {
+    settings.data = null;
+    settings.loading = true;
+    const { rerender } = mount("/library");
+    expect(screen.getByText("Loading assets…")).toBeInTheDocument();
+    expect(screen.queryByText("grid")).toBeNull();
+
+    settings.data = { grid_density_default: "small" };
+    settings.loading = false;
+    rerender(page("/library"));
+    expect(screen.getByText("grid")).toBeInTheDocument();
+    expect(settings.densities.every((d) => d === "small")).toBe(true);
+  });
+
+  it("draws the grid at the default density when the settings failed", () => {
+    settings.data = null;
+    settings.loading = false;
+    mount("/library");
+    expect(screen.getByText("grid")).toBeInTheDocument();
+    expect(settings.densities.every((d) => d === undefined)).toBe(true);
   });
 });
