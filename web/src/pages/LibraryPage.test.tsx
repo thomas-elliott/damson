@@ -12,6 +12,8 @@ const assets = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Asset $
 const library = vi.hoisted(() => ({
   total: 12,
   failed: false,
+  // While a new search loads, the hook keeps answering with the old results.
+  placeholder: false,
   pages: [] as ({ limit: number; offset: number } | undefined)[],
 }));
 // The library settings as useLibrarySettings returns them, and every density
@@ -32,7 +34,7 @@ vi.mock("@/hooks/useDataQueries", () => ({
       return { data: [], total: 0, loading: false, placeholder: false, error, failed: true };
     }
     const data = library.total === 0 ? [] : assets;
-    return { data, total: library.total, loading: false, placeholder: false };
+    return { data, total: library.total, loading: false, placeholder: library.placeholder };
   },
 }));
 // The grid is what knows how many columns it shows; this one reports three.
@@ -79,6 +81,7 @@ function Location() {
 beforeEach(() => {
   library.total = 12;
   library.failed = false;
+  library.placeholder = false;
   library.pages = [];
   settings.data = { grid_density_default: "medium" };
   settings.loading = false;
@@ -87,6 +90,9 @@ beforeEach(() => {
 
 const lastPage = () => library.pages[library.pages.length - 1];
 const query = () => screen.getByLabelText("query").textContent;
+const pager = () => screen.queryByRole("navigation", { name: "Library pages" });
+const typeSearch = (text: string) =>
+  userEvent.type(screen.getByRole("searchbox", { name: "Search assets" }), text);
 
 function page(path: string) {
   return (
@@ -214,6 +220,32 @@ describe("LibraryPage load failure", () => {
     expect(lastPage()).toEqual({ limit: 50, offset: 100 });
     expect(screen.getByText("grid")).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load assets")).toBeNull();
+  });
+
+  // The remembered total belongs to the search it was loaded for.
+  it("hides the pager when a changed search fails", async () => {
+    library.total = 120;
+    mount("/library");
+    expect(pager()).toHaveTextContent("Page 1 of 3");
+    library.failed = true;
+    await typeSearch("x");
+    expect(screen.getByText("Couldn't load assets")).toBeInTheDocument();
+    expect(pager()).toBeNull();
+  });
+
+  it("does not remember the old search's total while the new one loads", async () => {
+    library.total = 120;
+    const { rerender } = mount("/library");
+    library.placeholder = true;
+    await typeSearch("x");
+    expect(query()).toBe("?q=x");
+    expect(pager()).toHaveTextContent("Page 1 of 3");
+
+    library.placeholder = false;
+    library.failed = true;
+    rerender(page("/library"));
+    expect(screen.getByText("Couldn't load assets")).toBeInTheDocument();
+    expect(pager()).toBeNull();
   });
 });
 
