@@ -268,9 +268,10 @@ automatic writer (import enrichment, rescan, store lookups).
 
 A person's licence write, from the asset panel or the bulk `set_licence` action, goes through
 `requestedLicence` in `internal/handlers/api/licences.go`. A type the request names wins over the
-detector's, and keeps the detector's confidence and diff only when the detector agrees with it. The
-asset panel's licence edit never saves the type `unknown`: an unmatched or unknown licence is saved
-as `custom`, because `StatusFor` ignores the attributes of an `unknown` licence.
+detector's. On the asset panel's PUT it keeps the detector's confidence and diff when the detector
+agrees with it; the bulk action stores none for a named type. The asset panel's licence edit saves
+only once something has changed, and never saves the type `unknown`: an unmatched or unknown
+licence is saved as `custom`, because `StatusFor` ignores the attributes of an `unknown` licence.
 
 ### Traps
 
@@ -359,7 +360,9 @@ carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.
 - Without a page, `useAssets` gets the API's default of 50 rows, so a list of assets either pages
   (`components/UrlPager.tsx`, as Library and Collection detail do) or searches the server
   (`components/AssetPicker.tsx`, the pin and merge dialogs' picker, which shows the first page and
-  asks for a narrower search when there are more).
+  asks for a narrower search when there are more). The picker asks for `sort=relevance`, which
+  puts an exact name match first and names starting with the search next, so the asset named
+  what was typed is always on that first page.
 - API calls go through `fetchJson` / `fetchMaybeJson` / `fetchBlob` in `src/api.ts`. These attach
   the bearer, renew once on a 401, and throw `ApiError`.
 - The SPA reads the auth mode from `GET /api/auth/mode` (`useAuthMode()`), and `AuthGuard` gates

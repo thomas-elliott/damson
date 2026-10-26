@@ -31,7 +31,7 @@ export const VERBS: Record<string, string> = {
   "project.update": "updated project",
   "project.delete": "deleted project",
   "project.pin": "pinned to project",
-  "project.pin.upgrade": "upgraded pin in project",
+  "project.pin.change": "changed pinned version in project",
   "project.unpin": "unpinned from project",
   "collection.create": "created collection",
   "collection.update": "updated collection",

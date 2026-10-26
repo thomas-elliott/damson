@@ -77,6 +77,29 @@ describe("LoginCallbackPage", () => {
     expect(await screen.findByText("Home")).toBeInTheDocument();
   });
 
+  it("signs in again to the page that was asked for", async () => {
+    oidc.signinRedirectCallback = () =>
+      Promise.reject(
+        new ErrorResponse({
+          error: "access_denied",
+          userState: { returnTo: "/library/42?q=x#files" },
+        }),
+      );
+    await renderCallback();
+    await userEvent.click(await screen.findByRole("button", { name: "Sign in again" }));
+    expect(await screen.findByText("Requested /library/42?q=x#files")).toBeInTheDocument();
+  });
+
+  it("signs in again from home when the asked-for page is outside the app", async () => {
+    oidc.signinRedirectCallback = () =>
+      Promise.reject(
+        new ErrorResponse({ error: "access_denied", userState: { returnTo: "/.//evil.example" } }),
+      );
+    await renderCallback();
+    await userEvent.click(await screen.findByRole("button", { name: "Sign in again" }));
+    expect(await screen.findByText("Home")).toBeInTheDocument();
+  });
+
   it("shows a fixed line for a failure the IdP did not describe", async () => {
     oidc.signinRedirectCallback = () =>
       Promise.reject(new Error("No matching state found in storage"));

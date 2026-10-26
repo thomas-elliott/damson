@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -91,5 +92,61 @@ func TestSearch_TsvectorMatchesLocationPathWords(t *testing.T) {
 		if len(body.Assets) != 1 || body.Assets[0].ID != ref.ID {
 			t.Fatalf("q=%s: path-word query returned wrong rows: %+v", q, body.Assets)
 		}
+	}
+}
+
+// TestSearch_RelevanceRanksNameMatchesFirst proves sort=relevance lifts an
+// exact name match above newer name-prefix matches, and a name-prefix match
+// above a newer name match that is not a prefix. Without it the picker's
+// first page, newest first, can bury an older asset named exactly what was
+// typed.
+func TestSearch_RelevanceRanksNameMatchesFirst(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+
+	rock := seedAsset(t, db, lib.ID, "Rock")
+	rocky := seedAsset(t, db, lib.ID, "Rocky Cliff")
+	_ = seedAsset(t, db, lib.ID, "Big Rock")
+	for i := 1; i <= 26; i++ {
+		_ = seedAsset(t, db, lib.ID, fmt.Sprintf("Rocks Pack %d", i))
+	}
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/assets?q=rock&sort=relevance&limit=25")
+	requireStatus(t, w, http.StatusOK)
+	body := jsonResponse[assetListResponse](t, w)
+	if body.Total != 29 || len(body.Assets) != 25 {
+		t.Fatalf("got %d of %d, want 25 of 29", len(body.Assets), body.Total)
+	}
+	if body.Assets[0].ID != rock.ID {
+		t.Fatalf("first = %q, want the exact match Rock", body.Assets[0].Name)
+	}
+
+	w = performGET(r, "/api/assets?q=rocky&sort=relevance")
+	requireStatus(t, w, http.StatusOK)
+	body = jsonResponse[assetListResponse](t, w)
+	if len(body.Assets) != 1 || body.Assets[0].ID != rocky.ID {
+		t.Fatalf("q=rocky returned %+v", body.Assets)
+	}
+
+	// "Rocky Cliff" starts with "rock"; "Big Rock" is newer but only contains it.
+	w = performGET(r, "/api/assets?q=rock&sort=relevance&limit=100")
+	requireStatus(t, w, http.StatusOK)
+	body = jsonResponse[assetListResponse](t, w)
+	pos := map[string]int{}
+	for i, a := range body.Assets {
+		pos[a.Name] = i
+	}
+	if pos["Rocky Cliff"] > pos["Big Rock"] {
+		t.Fatalf("prefix match Rocky Cliff at %d after Big Rock at %d", pos["Rocky Cliff"], pos["Big Rock"])
+	}
+
+	// With no query, relevance falls back to newest first.
+	w = performGET(r, "/api/assets?sort=relevance&limit=1")
+	requireStatus(t, w, http.StatusOK)
+	body = jsonResponse[assetListResponse](t, w)
+	if len(body.Assets) != 1 || body.Assets[0].Name != "Rocks Pack 26" {
+		t.Fatalf("no-query relevance first = %+v, want the newest", body.Assets)
 	}
 }
