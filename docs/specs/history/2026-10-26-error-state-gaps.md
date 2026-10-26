@@ -80,3 +80,26 @@ from its reviews, and whether this change addressed them:
   shows the error clearing but not assets loading. Not addressed (web/src/pages/ErrorStates.test.tsx).
 - LOW · code review: Collection detail's loading line while its assets load has no test. Not
   addressed (web/src/pages/CollectionDetailPage.tsx).
+
+### Follow-up: fac-5
+
+An independent review of PR #20 found two more low gaps. Follow-up `fac-5` (branch
+`fac-5-board/library-pager-and-asset-activity-errors`) fixed both:
+
+- LOW · independent review: nothing tested the guard on the Library pager's remembered total. The
+  mock never returned a placeholder load, so dropping `!placeholder` from `settledTotal` would show
+  a stale pager on a failed new search. Addressed: one test covers a placeholder load followed by a
+  failure, and one covers a changed search that fails. Each fails if its guard is removed
+  (web/src/pages/LibraryPage.test.tsx).
+- LOW · independent review: the asset panel's activity showed "No activity yet" when its load
+  failed. Addressed: it shows "Couldn't load recent activity" with a Retry, as Project detail does
+  (web/src/hooks/useDataQueries.ts, web/src/components/detail/AssetDetailPanel.tsx,
+  web/src/pages/ErrorStates.test.tsx).
+
+Its reviews left these low findings:
+
+- LOW · plan review: the plan checked only the placeholder guard by removing it, not the search
+  check in `pagerTotal`. Addressed: both guards were removed in turn, and each removal failed its
+  test.
+- LOW · plan review: the activity test asserted only a Retry, and the panel has another. Addressed:
+  it asserts the activity error's own title (web/src/pages/ErrorStates.test.tsx).
