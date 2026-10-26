@@ -1073,9 +1073,12 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
 }
 
 function AssetAuditSection({ assetId }: { assetId: number }) {
-  const { data: entries, loading } = useAssetAudit(assetId);
+  const { data: entries, loading, failed, reload } = useAssetAudit(assetId);
   if (loading) {
     return <div className="text-label text-faint-foreground">Loading…</div>;
+  }
+  if (failed) {
+    return <ErrorState title="Couldn't load recent activity" onRetry={reload} />;
   }
   return (
     <AuditList
