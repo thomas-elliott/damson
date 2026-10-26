@@ -44,7 +44,7 @@ import {
 
 export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const { data: me } = useMe();
-  const { data: settings } = useLibrarySettings(!!me?.current_library);
+  const { data: settings, loading: settingsLoading } = useLibrarySettings(!!me?.current_library);
   const params = useParams();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
@@ -281,7 +281,9 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
-            {loading ? (
+            {/* The grid waits for the settings so it first draws at the library's
+                density; if they fail it draws at medium. */}
+            {loading || settingsLoading ? (
               <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
                 Loading assets…
               </div>
