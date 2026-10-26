@@ -305,9 +305,12 @@ function ProjectPinRow({
 }
 
 function ProjectAuditPanel({ projectId }: { projectId: number }) {
-  const { data: entries, loading } = useProjectAudit(projectId);
+  const { data: entries, loading, failed, reload } = useProjectAudit(projectId);
   if (loading) {
     return <div className="text-label text-faint-foreground">Loading…</div>;
+  }
+  if (failed) {
+    return <ErrorState title="Couldn't load recent activity" onRetry={reload} />;
   }
   return (
     <AuditList
