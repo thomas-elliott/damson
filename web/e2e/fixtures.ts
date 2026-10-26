@@ -340,7 +340,7 @@ export async function removeAssetFromCollection(
 }
 
 // listAuditEntries returns the library-scoped audit feed. Tests use it to
-// assert specific action_type rows exist (e.g. project.pin.upgrade in
+// assert specific action_type rows exist (e.g. project.pin.change in
 // PER-79) without depending on the audit UI's pagination.
 export async function listAuditEntries(
   request: APIRequestContext,

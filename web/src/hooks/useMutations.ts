@@ -450,7 +450,7 @@ export function usePatchLibrarySettings() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.librarySettings });
+      qc.invalidateQueries({ queryKey: queryKeys.librarySettings() });
     },
   });
 }
@@ -699,7 +699,10 @@ export function useSwitchCurrentLibrary() {
       qc.invalidateQueries({ queryKey: queryKeys.tags });
       qc.invalidateQueries({ queryKey: queryKeys.projects });
       qc.invalidateQueries({ queryKey: queryKeys.collections });
-      qc.invalidateQueries({ queryKey: queryKeys.librarySettings });
+      // Marked stale, not refetched: until me refetches, the settings on
+      // screen are keyed by the old library, and /api/settings would answer
+      // for the new one into that key.
+      qc.invalidateQueries({ queryKey: queryKeys.librarySettings(), refetchType: "none" });
     },
   });
 }

@@ -15,7 +15,9 @@ export const queryKeys = {
   projectAudit: (id: number) => ["project", id, "audit"] as const,
   collections: ["collections"] as const,
   collection: (id: number) => ["collection", id] as const,
-  librarySettings: ["librarySettings"] as const,
+  // /api/settings answers for the current library, so its key names it.
+  librarySettings: (libraryId?: number) =>
+    libraryId != null ? (["librarySettings", libraryId] as const) : (["librarySettings"] as const),
   audit: (filters?: Record<string, string | number | boolean>) =>
     filters ? (["audit", filters] as const) : (["audit"] as const),
   adminAudit: (filters?: Record<string, string | number | boolean>) =>

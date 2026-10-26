@@ -42,18 +42,27 @@ function runCallbackOnce(): Promise<CallbackResult> {
       return { inIframe, returnTo: safeReturnTo(state?.returnTo) };
     } catch (err) {
       console.error("OIDC callback failed", err);
-      return { inIframe, error: err };
+      // An IdP error still carries the sign-in state, so a retry can keep the
+      // requested page.
+      const state = isErrorResponse(err)
+        ? (err as { state?: { returnTo?: unknown } }).state
+        : undefined;
+      return { inIframe, returnTo: safeReturnTo(state?.returnTo), error: err };
     }
   })();
   return callbackInFlight;
 }
 
+// ErrorResponse is matched by the name it sets, not instanceof, which a second
+// copy of the library would break.
+function isErrorResponse(error: unknown): boolean {
+  return error instanceof Error && error.name === "ErrorResponse";
+}
+
 // Only the IdP's description is shown: other errors are oidc-client-ts
-// internals such as "No matching state found in storage". ErrorResponse is
-// matched by the name it sets, not instanceof, which a second copy of the
-// library would break.
+// internals such as "No matching state found in storage".
 function failureMessage(error: unknown): string {
-  if (error instanceof Error && error.name === "ErrorResponse") {
+  if (isErrorResponse(error)) {
     const description = (error as { error_description?: unknown }).error_description;
     if (typeof description === "string" && description) return description;
   }
@@ -62,7 +71,7 @@ function failureMessage(error: unknown): string {
 
 export function LoginCallbackPage() {
   const navigate = useNavigate();
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ message: string; returnTo: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
     void runCallbackOnce().then(({ inIframe, returnTo, error }) => {
@@ -71,7 +80,7 @@ export function LoginCallbackPage() {
       if (cancelled || inIframe) return;
       // A failed sign-in stays here: going to / would have AuthGuard send the
       // browser straight back to the IdP.
-      if (error) setFailure(failureMessage(error));
+      if (error) setFailure({ message: failureMessage(error), returnTo: returnTo ?? "/" });
       else navigate(returnTo ?? "/", { replace: true });
     });
     return () => {
@@ -82,8 +91,8 @@ export function LoginCallbackPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-center">
         <p className="text-subhead font-medium text-foreground">Sign-in didn't complete</p>
-        <p className="max-w-[42ch] text-body text-muted-foreground">{failure}</p>
-        <Button variant="primary" onClick={() => navigate("/", { replace: true })}>
+        <p className="max-w-[42ch] text-body text-muted-foreground">{failure.message}</p>
+        <Button variant="primary" onClick={() => navigate(failure.returnTo, { replace: true })}>
           Sign in again
         </Button>
       </div>
