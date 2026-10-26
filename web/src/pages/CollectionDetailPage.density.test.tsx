@@ -39,6 +39,9 @@ beforeEach(() => {
     "fetch",
     vi.fn((url: string) => {
       const path = new URL(url, "http://x").pathname;
+      if (path === "/api/me") {
+        return Promise.resolve(Response.json({ id: 1, current_library: { id: 1 } }));
+      }
       if (path === "/api/settings") return settings;
       if (path === "/api/collections/5") return Promise.resolve(Response.json(collection));
       if (path === "/api/assets") {

@@ -44,7 +44,7 @@ import {
 
 export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const { data: me } = useMe();
-  const { data: settings, loading: settingsLoading } = useLibrarySettings(!!me?.current_library);
+  const { data: settings, loading: settingsLoading } = useLibrarySettings(me?.current_library?.id);
   const params = useParams();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
@@ -281,9 +281,10 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
-            {/* The grid waits for the settings so it first draws at the library's
-                density; if they fail it draws at medium. */}
-            {loading || settingsLoading ? (
+            {/* Assets wait for the settings so the grid first draws them at the
+                library's density; if the settings fail it draws at medium. The
+                error and the empty library need no density, so they do not wait. */}
+            {loading || (settingsLoading && !failed && assets.length > 0) ? (
               <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
                 Loading assets…
               </div>
