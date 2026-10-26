@@ -31,7 +31,8 @@ vi.mock("@/hooks/useDataQueries", () => ({
       const error = new Error("network");
       return { data: [], total: 0, loading: false, placeholder: false, error, failed: true };
     }
-    return { data: assets, total: library.total, loading: false, placeholder: false };
+    const data = library.total === 0 ? [] : assets;
+    return { data, total: library.total, loading: false, placeholder: false };
   },
 }));
 // The grid is what knows how many columns it shows; this one reports three.
@@ -236,6 +237,21 @@ describe("LibraryPage density", () => {
     rerender(page("/library"));
     expect(screen.getByText("grid")).toBeInTheDocument();
     expect(settings.densities.every((d) => d === "small")).toBe(true);
+  });
+
+  it("shows a failed load without waiting for the settings", () => {
+    settings.loading = true;
+    library.failed = true;
+    mount("/library");
+    expect(screen.getByText("Couldn't load assets")).toBeInTheDocument();
+  });
+
+  it("shows an empty library without waiting for the settings", () => {
+    settings.loading = true;
+    library.total = 0;
+    mount("/library");
+    expect(screen.queryByText("Loading assets…")).toBeNull();
+    expect(screen.getByText("grid")).toBeInTheDocument();
   });
 
   it("draws the grid at the default density when the settings failed", () => {
