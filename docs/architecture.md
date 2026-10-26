@@ -268,9 +268,10 @@ automatic writer (import enrichment, rescan, store lookups).
 
 A person's licence write, from the asset panel or the bulk `set_licence` action, goes through
 `requestedLicence` in `internal/handlers/api/licences.go`. A type the request names wins over the
-detector's, and keeps the detector's confidence and diff only when the detector agrees with it. The
-asset panel's licence edit never saves the type `unknown`: an unmatched or unknown licence is saved
-as `custom`, because `StatusFor` ignores the attributes of an `unknown` licence.
+detector's. On the asset panel's PUT it keeps the detector's confidence and diff when the detector
+agrees with it; the bulk action stores none for a named type. The asset panel's licence edit saves
+only once something has changed, and never saves the type `unknown`: an unmatched or unknown
+licence is saved as `custom`, because `StatusFor` ignores the attributes of an `unknown` licence.
 
 ### Traps
 

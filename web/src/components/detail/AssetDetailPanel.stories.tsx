@@ -333,14 +333,18 @@ export const DeleteCloses: Story = {
   },
 };
 
-/** Editing a set licence: its text and each attribute, prefilled. */
+/** Editing a set licence: its text and each attribute, prefilled; Save waits for a change. */
 export const EditingLicence: Story = {
   render: () => <PanelHarness assetId={LICENCE_EDITING.id} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole("button", { name: "Licence" }));
     await userEvent.click(await canvas.findByRole("button", { name: "Edit licence" }));
-    await expect(await canvas.findByRole("radiogroup", { name: "Redistribution" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Save licence" })).toBeEnabled();
+    const redistribution = await canvas.findByRole("radiogroup", { name: "Redistribution" });
+    await expect(redistribution).toBeVisible();
+    const save = canvas.getByRole("button", { name: "Save licence" });
+    await expect(save).toBeDisabled();
+    await userEvent.click(within(redistribution).getByRole("radio", { name: "Yes" }));
+    await expect(save).toBeEnabled();
   },
 };
