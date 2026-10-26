@@ -38,6 +38,7 @@ import {
   parsePaging,
   readFiltersOpen,
   withPage,
+  withoutPaging,
   writeFiltersOpen,
 } from "@/lib/libraryFilters";
 
@@ -72,6 +73,19 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
     failed,
     reload,
   } = useAssets(filters, hasLibrary, { limit: pageSize, offset: (page - 1) * pageSize });
+
+  // The last settled total for this search and filter, so a failed page
+  // change still shows the pager.
+  const totalScope = withoutPaging(search);
+  const [knownTotal, setKnownTotal] = useState({ scope: totalScope, total: 0 });
+  const settledTotal = !loading && !placeholder && !failed ? total : null;
+  if (
+    settledTotal != null &&
+    (knownTotal.scope !== totalScope || knownTotal.total !== settledTotal)
+  ) {
+    setKnownTotal({ scope: totalScope, total: settledTotal });
+  }
+  const pagerTotal = failed ? (knownTotal.scope === totalScope ? knownTotal.total : 0) : total;
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   // Reset the selection when the search/filter scope changes — a render-time
@@ -274,25 +288,25 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
             ) : failed ? (
               <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
             ) : (
-              <>
-                <AssetGrid
-                  // A new page starts scrolled to the top.
-                  key={`${page}/${pageSize}`}
-                  assets={assets}
-                  onOpen={onOpenAsset}
-                  selectedId={assetId}
-                  selectedIds={selectedIds}
-                  onToggleSelect={toggleSelect}
-                  onColumnsChange={onColumnsChange}
-                  density={settings?.grid_density_default}
-                />
-                <UrlPager
-                  aria-label="Library pages"
-                  className="shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5"
-                  total={total}
-                  query={{ loading, placeholder, error }}
-                />
-              </>
+              <AssetGrid
+                // A new page starts scrolled to the top.
+                key={`${page}/${pageSize}`}
+                assets={assets}
+                onOpen={onOpenAsset}
+                selectedId={assetId}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onColumnsChange={onColumnsChange}
+                density={settings?.grid_density_default}
+              />
+            )}
+            {!loading && (
+              <UrlPager
+                aria-label="Library pages"
+                className="shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5"
+                total={pagerTotal}
+                query={{ loading, placeholder, error }}
+              />
             )}
             {selectedList.length > 0 && (
               <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />

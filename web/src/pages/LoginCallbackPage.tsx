@@ -48,6 +48,18 @@ function runCallbackOnce(): Promise<CallbackResult> {
   return callbackInFlight;
 }
 
+// Only the IdP's description is shown: other errors are oidc-client-ts
+// internals such as "No matching state found in storage". ErrorResponse is
+// matched by the name it sets, not instanceof, which a second copy of the
+// library would break.
+function failureMessage(error: unknown): string {
+  if (error instanceof Error && error.name === "ErrorResponse") {
+    const description = (error as { error_description?: unknown }).error_description;
+    if (typeof description === "string" && description) return description;
+  }
+  return "Something went wrong while signing you in. Try signing in again.";
+}
+
 export function LoginCallbackPage() {
   const navigate = useNavigate();
   const [failure, setFailure] = useState<string | null>(null);
@@ -59,7 +71,7 @@ export function LoginCallbackPage() {
       if (cancelled || inIframe) return;
       // A failed sign-in stays here: going to / would have AuthGuard send the
       // browser straight back to the IdP.
-      if (error) setFailure(error instanceof Error ? error.message : "Sign-in failed.");
+      if (error) setFailure(failureMessage(error));
       else navigate(returnTo ?? "/", { replace: true });
     });
     return () => {
