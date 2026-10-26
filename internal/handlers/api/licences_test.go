@@ -149,3 +149,59 @@ func TestLicence_RescanKeepsAReviewedLicenceAndAPersonReplacesIt(t *testing.T) {
 		t.Fatalf("%d licence rows for the asset, want the replaced one deleted", n)
 	}
 }
+
+// Editing a detected licence's attributes keeps its type and the detector's
+// confidence, takes the person's attributes, clears the review and is audited
+// as an update.
+func TestPutLicence_EditingAttributesKeepsDetection(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	asset := seedAsset(t, db, lib.ID, "asset-one")
+	r := setupRouter(h, u)
+
+	requireStatus(t, performRequest(r, http.MethodPut, "/api/assets/1/licence",
+		map[string]any{"original_text": mitLicenceText, "use_detected": true}), http.StatusOK)
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/assets/1/licence/review", nil), http.StatusNoContent)
+
+	w := performRequest(r, http.MethodPut, "/api/assets/1/licence", map[string]any{
+		"original_text": mitLicenceText,
+		"detected_type": "MIT",
+		"attributes":    map[string]any{"commercial_use": false, "custom_terms": "no resale"},
+	})
+	requireStatus(t, w, http.StatusOK)
+
+	got := jsonResponse[licenceView](t, w)
+	if got.DetectedType != "MIT" || got.DetectionConfidence == 0 {
+		t.Fatalf("licence %+v, want MIT with the detector's confidence", got)
+	}
+	if got.Attributes.CommercialUse == nil || *got.Attributes.CommercialUse ||
+		got.Attributes.CustomTerms == nil || *got.Attributes.CustomTerms != "no resale" {
+		t.Fatalf("attributes %+v, want the person's", got.Attributes)
+	}
+	if got.ReviewedAt != nil || got.Status != "err" {
+		t.Fatalf("licence %+v, want it unreviewed with status err", got)
+	}
+	var rows, audits int64
+	db.Model(&models.Licence{}).Where("asset_id = ?", asset.ID).Count(&rows)
+	db.Model(&models.AuditLog{}).Where("action_type = ? AND target_id = ?", "asset.licence.update", asset.ID).Count(&audits)
+	if rows != 1 || audits != 1 {
+		t.Fatalf("%d licence rows and %d update audits, want 1 and 1", rows, audits)
+	}
+}
+
+// A type the detector disagrees with keeps no detection confidence or diff.
+func TestPutLicence_CustomTypeOverDetectedTextHasNoConfidence(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedAsset(t, db, lib.ID, "asset-one")
+	r := setupRouter(h, u)
+
+	w := performRequest(r, http.MethodPut, "/api/assets/1/licence",
+		map[string]any{"original_text": mitLicenceText, "detected_type": "custom"})
+	requireStatus(t, w, http.StatusOK)
+	if got := jsonResponse[licenceView](t, w); got.DetectedType != "custom" || got.DetectionConfidence != 0 || got.CanonicalDiff != "" {
+		t.Fatalf("licence %+v, want custom with no detection", got)
+	}
+}

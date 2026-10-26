@@ -54,3 +54,15 @@ By: settled by internal/licence/replace.go (2026-10-26)
 ## Deferred follow-ups
 
 None
+
+### Cleanup
+
+- Built by the stagecraft `spec-to-pr` factory as work item `dam-47`; no `/cleanup` pass ran. `just check` passed on 86c09dc (lint, format, tidy, build, Go, Vitest, stories, e2e).
+- Retired with these open findings:
+  - MED · plan review: after a Detect, changing the text back to the original re-enabled Save with the detected type still drafted. Addressed: once a Detect has run, Save needs the current text to be the text it was sent with (web/src/components/detail/LicenceEditor.tsx)
+  - LOW · plan review: the edit form did not say what a failed Detect shows. Addressed: the error shows in the form and the draft is unchanged
+  - LOW · plan review: SegmentedControl takes string values. Addressed: yes/no/unknown map to true/false/null
+  - LOW · plan review: the docs step's count did not match its list. Addressed in docs/architecture.md
+  - LOW · code review: Save is enabled as soon as the form opens, so Edit then Save with nothing changed still replaces the licence, clearing its review and turning an unknown licence into custom. Not addressed (LicenceEditForm's Save condition)
+  - LOW · code review: the form shows one error, so after a failed save a later successful Detect brings the old save error back. Not addressed (call put.reset() when Detect starts)
+  - LOW · code review: no vitest case makes /detect fail. Not addressed (web/src/components/detail/LicenceEditor.test.tsx)
