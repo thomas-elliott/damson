@@ -16,7 +16,7 @@ import {
   ToolbarSpacer,
   useConfirm,
 } from "@/design-system";
-import { useAssets, useCollection, useLibrarySettings } from "@/hooks/useDataQueries";
+import { useAssets, useCollection, useLibrarySettings, useMe } from "@/hooks/useDataQueries";
 import { useDeleteCollection } from "@/hooks/useMutations";
 import { parsePaging } from "@/lib/libraryFilters";
 
@@ -24,7 +24,8 @@ export function CollectionDetailPage() {
   const { id } = useParams();
   const collectionId = id ? Number(id) : null;
   const { data: collection, loading, error, failed, reload } = useCollection(collectionId);
-  const { data: settings, loading: settingsLoading } = useLibrarySettings();
+  const { data: me } = useMe();
+  const { data: settings, loading: settingsLoading } = useLibrarySettings(me?.current_library?.id);
   const [search] = useSearchParams();
   const { page, pageSize } = parsePaging(search);
   const {
@@ -86,9 +87,9 @@ export function CollectionDetailPage() {
             </Button>
           </Toolbar>
 
-          {/* The grid waits for the settings so it first draws at the library's
-              density; if they fail it draws at medium. */}
-          {loading || settingsLoading ? (
+          {/* Only the grid waits for the settings, so it first draws at the
+              library's density; if they fail it draws at medium. */}
+          {loading ? (
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading…
             </div>
@@ -96,7 +97,7 @@ export function CollectionDetailPage() {
             <ErrorState title="Couldn't load this collection" onRetry={reload} />
           ) : !collection ? (
             <EmptyState title="Collection not found" />
-          ) : assetsLoading ? (
+          ) : assetsLoading || (settingsLoading && !assetsFailed && total > 0) ? (
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading…
             </div>

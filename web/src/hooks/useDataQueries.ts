@@ -575,13 +575,16 @@ export interface LibrarySettings {
   audit_retention_days: number | null;
 }
 
-export function useLibrarySettings(enabled: boolean = true) {
+export function useLibrarySettings(libraryId: number | undefined) {
   const q = useQuery({
-    queryKey: queryKeys.librarySettings,
+    queryKey: queryKeys.librarySettings(libraryId),
     queryFn: () => fetchJson<LibrarySettings>("/api/settings"),
     staleTime: 5 * MINUTE,
     gcTime: 1 * HOUR,
-    enabled,
+    enabled: libraryId != null,
+    // Grids wait for these and draw at medium without them, so a failure
+    // settles at once. The settings page shows it with no retry.
+    retry: false,
   });
   return {
     data: q.data ?? null,
