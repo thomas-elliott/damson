@@ -1,13 +1,12 @@
 # Postgres for local development and the test suites — `just db up`.
 #
-# One server holds both databases: `damson` for `just dev` and `damson_test` for
-# the Go and e2e suites. It binds 55432 so it does not collide with a system
-# Postgres on 5432. To use your own Postgres instead, set DAMSON_POSTGRES_DSN /
-# DAMSON_TEST_POSTGRES_DSN (in `.env` or the environment) and skip this file.
-#
-# The fixed name makes every checkout of the repo, worktrees included, share
-# this one server instead of each starting its own on the same port.
-name: damson
+# One server per checkout holds both databases: `damson` for `just dev` and
+# `damson_test` for the Go and e2e suites. `just db` names the compose project
+# after the checkout's path, so every clone and worktree gets its own server,
+# and Docker picks a free loopback port that `just db dsn` reads back. Run it
+# through `just db`, not plain `docker compose`. To use your own Postgres
+# instead, set DAMSON_POSTGRES_DSN / DAMSON_TEST_POSTGRES_DSN (in `.env` or the
+# environment) and skip this file.
 
 services:
   postgres:
@@ -17,7 +16,7 @@ services:
       POSTGRES_PASSWORD: damson
       POSTGRES_DB: damson
     ports:
-      - "55432:5432"
+      - "127.0.0.1::5432"
     volumes:
       - postgres:/var/lib/postgresql/data
       - ./database/dev/init:/docker-entrypoint-initdb.d:ro

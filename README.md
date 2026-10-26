@@ -69,8 +69,8 @@ just seed
 
 Open <http://localhost:5173> and sign in as `dev@example.com` / `password1`.
 
-`just dev` needs no configuration. It starts Postgres from `compose.yaml` on
-port 55432, applies migrations, creates that dev admin and installs
+`just dev` needs no configuration. It starts this checkout's own Postgres from
+`compose.yaml` on a free loopback port, applies migrations, creates that dev admin and installs
 [air](https://github.com/air-verse/air) for Go hot-reload if it is missing. To
 use your own Postgres or a different admin, set `DAMSON_POSTGRES_DSN` or
 `DAMSON_LOCAL_ADMIN_EMAIL` / `DAMSON_LOCAL_ADMIN_PASSWORD` in a `.env` (see
@@ -79,7 +79,9 @@ use your own Postgres or a different admin, set `DAMSON_POSTGRES_DSN` or
 `just backend` runs the backend only (no Vite). Useful when you don't need
 SPA changes or you're running Vite separately via `just frontend`.
 
-`just db up`, `down`, `reset` and `psql` manage the dev Postgres directly.
+`just db up`, `down`, `reset` and `psql` manage the dev Postgres directly, and
+`just db dsn` prints its address. Each clone or worktree gets its own; after
+deleting one, `just db prune` removes its Postgres and data.
 
 ### Tests
 
