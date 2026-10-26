@@ -8,13 +8,15 @@ const SEARCH_DELAY_MS = 250;
 
 /**
  * Finds an asset anywhere in the library by searching the server as the user
- * types. It lists the first page of matches; when there are more, it says so
- * and asks for a narrower search rather than paging.
+ * types. It lists the first page of matches, exact and leading name matches
+ * first; when there are more, it says so and asks for a narrower search rather
+ * than paging.
  */
 export function AssetPicker({
   selectedId,
   onSelect,
   excludeId,
+  notes,
   placeholder = "Search assets",
   "aria-label": ariaLabel,
 }: {
@@ -22,6 +24,8 @@ export function AssetPicker({
   onSelect: (asset: AssetRow) => void;
   /** An asset never offered, such as the merge target. */
   excludeId?: number;
+  /** A short note shown after an asset's name, such as what it is pinned at. */
+  notes?: Map<number, string>;
   placeholder?: string;
   "aria-label": string;
 }) {
@@ -37,7 +41,10 @@ export function AssetPicker({
     total,
     loading,
     placeholder: stale,
-  } = useAssets({ q: search || undefined }, true, { limit: PICKER_PAGE_SIZE, offset: 0 });
+  } = useAssets(search ? { q: search, sort: "relevance" } : { q: undefined }, true, {
+    limit: PICKER_PAGE_SIZE,
+    offset: 0,
+  });
   const candidates = assets.filter((a) => a.id !== excludeId);
 
   const rows = () => {
@@ -57,6 +64,12 @@ export function AssetPicker({
           )}
         >
           {a.name}
+          {notes?.has(a.id) && (
+            <>
+              {" "}
+              <span className="text-faint-foreground">· {notes.get(a.id)}</span>
+            </>
+          )}
         </button>
       </li>
     ));

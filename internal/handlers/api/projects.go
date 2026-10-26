@@ -431,8 +431,8 @@ type pinRequest struct {
 
 // postProjectPin pins an asset-version into a project. If VersionID is
 // omitted, pins the asset's current_version_id. Idempotent: re-pinning the
-// same (project, asset) updates the pinned_version_id (that's the "upgrade"
-// path).
+// same (project, asset) updates the pinned_version_id (an upgrade or a
+// downgrade, audited as project.pin.change).
 func (h *Handler) postProjectPin(c *gin.Context) {
 	lib := getLibrary(c)
 	u := auth.GetUser(c)
@@ -513,7 +513,7 @@ func (h *Handler) postProjectPin(c *gin.Context) {
 		return audit.Write(tx, audit.Entry{
 			LibraryID:  &lib.ID,
 			UserID:     &u.ID,
-			ActionType: "project.pin.upgrade",
+			ActionType: "project.pin.change",
 			TargetType: "project",
 			TargetID:   &p.ID,
 			Diff: audit.Updated(

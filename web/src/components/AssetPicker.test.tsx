@@ -4,12 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const server = vi.hoisted(() => ({
   assets: [] as { id: number; name: string }[],
   total: 0,
-  calls: [] as { filters: { q?: string }; page?: { limit: number; offset: number } }[],
+  calls: [] as {
+    filters: { q?: string; sort?: string };
+    page?: { limit: number; offset: number };
+  }[],
 }));
 
 vi.mock("@/hooks/useDataQueries", () => ({
   useAssets: (
-    filters: { q?: string },
+    filters: { q?: string; sort?: string },
     _enabled: boolean,
     page?: { limit: number; offset: number },
   ) => {
@@ -32,7 +35,7 @@ beforeEach(() => {
 });
 
 describe("AssetPicker", () => {
-  it("searches the server for what is typed, one page at a time", async () => {
+  it("searches the server for what is typed, best name matches first, one page at a time", async () => {
     render(<AssetPicker aria-label="Asset" selectedId={null} onSelect={vi.fn()} />);
     expect(lastCall()).toEqual({
       filters: { q: undefined },
@@ -42,7 +45,7 @@ describe("AssetPicker", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Asset" }), {
       target: { value: "cast" },
     });
-    await waitFor(() => expect(lastCall().filters).toEqual({ q: "cast" }));
+    await waitFor(() => expect(lastCall().filters).toEqual({ q: "cast", sort: "relevance" }));
     expect(lastCall().page).toEqual({ limit: PICKER_PAGE_SIZE, offset: 0 });
   });
 
@@ -73,5 +76,18 @@ describe("AssetPicker", () => {
 
     rerender(<AssetPicker aria-label="Asset" selectedId={2} onSelect={onSelect} />);
     expect(screen.getByRole("button", { name: "Bravo" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows a note after an asset's name", () => {
+    render(
+      <AssetPicker
+        aria-label="Asset"
+        selectedId={null}
+        onSelect={vi.fn()}
+        notes={new Map([[2, "Pinned · v1"]])}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Bravo · Pinned · v1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Alpha" })).toBeInTheDocument();
   });
 });
