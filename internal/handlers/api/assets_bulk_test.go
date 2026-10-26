@@ -139,3 +139,48 @@ func TestBulkAssets_ScopedToLibrary(t *testing.T) {
 		t.Fatalf("cross-library asset must survive a scoped bulk delete")
 	}
 }
+
+// The bulk Licence action keeps the detector's confidence only when it takes
+// the detector's type: a type the request names is stored with none.
+func TestBulkAssets_SetLicence(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+	detected := seedAsset(t, db, lib.ID, "detected")
+	named := seedAsset(t, db, lib.ID, "named")
+	r := setupRouter(h, u)
+
+	requireStatus(t, performRequest(r, http.MethodPost, "/api/assets/bulk", map[string]any{
+		"action":        "set_licence",
+		"asset_ids":     []uint{detected.ID},
+		"original_text": mitLicenceText,
+		"use_detected":  true,
+	}), http.StatusOK)
+	w := performRequest(r, http.MethodPost, "/api/assets/bulk", map[string]any{
+		"action":        "set_licence",
+		"asset_ids":     []uint{named.ID},
+		"original_text": mitLicenceText,
+		"detected_type": "MIT",
+		"attributes":    map[string]any{"commercial_use": false},
+	})
+	requireStatus(t, w, http.StatusOK)
+	if got := jsonResponse[bulkResult](t, w).Affected; got != 1 {
+		t.Fatalf("affected: got %d, want 1", got)
+	}
+
+	licenceOf := func(assetID uint) licenceView {
+		var l models.Licence
+		if err := db.Where("asset_id = ?", assetID).First(&l).Error; err != nil {
+			t.Fatalf("licence of asset %d: %v", assetID, err)
+		}
+		return licenceViewFrom(&l)
+	}
+	if got := licenceOf(detected.ID); got.DetectedType != "MIT" || got.DetectionConfidence == 0 ||
+		got.Attributes.CommercialUse == nil || !*got.Attributes.CommercialUse {
+		t.Fatalf("use_detected licence %+v, want MIT with the detector's confidence and attributes", got)
+	}
+	if got := licenceOf(named.ID); got.DetectedType != "MIT" || got.DetectionConfidence != 0 || got.CanonicalDiff != "" ||
+		got.Attributes.CommercialUse == nil || *got.Attributes.CommercialUse {
+		t.Fatalf("named-type licence %+v, want MIT with no detection and the request's attributes", got)
+	}
+}
