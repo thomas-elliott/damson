@@ -25,6 +25,9 @@ describe("safeReturnTo", () => {
     "library/42",
     "/\t/evil.example",
     "/\n/evil.example",
+    "/.//evil.example",
+    "/a/..//evil.example",
+    "/%2e//evil.example",
   ])("ignores %j, which is not a page of this app", (value) => {
     expect(safeReturnTo(value)).toBe("/");
   });
