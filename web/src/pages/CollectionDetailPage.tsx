@@ -24,7 +24,7 @@ export function CollectionDetailPage() {
   const { id } = useParams();
   const collectionId = id ? Number(id) : null;
   const { data: collection, loading, error, failed, reload } = useCollection(collectionId);
-  const { data: settings } = useLibrarySettings();
+  const { data: settings, loading: settingsLoading } = useLibrarySettings();
   const [search] = useSearchParams();
   const { page, pageSize } = parsePaging(search);
   const {
@@ -86,7 +86,9 @@ export function CollectionDetailPage() {
             </Button>
           </Toolbar>
 
-          {loading ? (
+          {/* The grid waits for the settings so it first draws at the library's
+              density; if they fail it draws at medium. */}
+          {loading || settingsLoading ? (
             <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
               Loading…
             </div>
