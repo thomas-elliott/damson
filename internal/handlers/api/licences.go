@@ -85,6 +85,14 @@ func (h *Handler) putLicence(c *gin.Context) {
 		respond500(c, err)
 		return
 	}
+	// The panel's edit names the type it saves. When the detector agrees, keep
+	// its confidence and diff; the bulk action stores none for a named type.
+	if req.DetectedType != "" && !req.UseDetected {
+		if r := licence.Detect(req.OriginalText); r.DetectedType == out.DetectedType {
+			out.CanonicalDiff = r.CanonicalDiff
+			out.DetectionConfidence = r.DetectionConfidence
+		}
+	}
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		return setLicenceTx(tx, lib.ID, u.ID, id, &out)
 	})
@@ -97,20 +105,18 @@ func (h *Handler) putLicence(c *gin.Context) {
 
 // requestedLicence builds the licence a person asked for, from the asset panel
 // or the bulk set_licence action. With no detected type, or with useDetected,
-// it takes the detector's type; useDetected also takes its attributes. The
-// detector's confidence and diff are kept only when its type is the one saved.
+// it runs the detector over the text; useDetected also takes the detector's
+// attributes over the client's.
 func requestedLicence(text, detectedType string, attrs licence.Attributes, useDetected bool) (models.Licence, error) {
 	l := models.Licence{DetectedType: detectedType, OriginalText: text}
-	r := licence.Detect(text)
 	if useDetected || detectedType == "" {
+		r := licence.Detect(text)
 		l.DetectedType = r.DetectedType
+		l.CanonicalDiff = r.CanonicalDiff
+		l.DetectionConfidence = r.DetectionConfidence
 		if useDetected {
 			attrs = r.Attributes
 		}
-	}
-	if r.DetectedType == l.DetectedType {
-		l.CanonicalDiff = r.CanonicalDiff
-		l.DetectionConfidence = r.DetectionConfidence
 	}
 	var err error
 	l.AttributesJSON, err = json.Marshal(attrs)
