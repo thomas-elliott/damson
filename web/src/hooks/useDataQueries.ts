@@ -139,7 +139,13 @@ export interface AssetFilters {
 }
 
 export type AssetSort =
-  "created_desc" | "created_asc" | "released_desc" | "released_asc" | "name_asc";
+  | "created_desc"
+  | "created_asc"
+  | "released_desc"
+  | "released_asc"
+  | "name_asc"
+  // Name matches first; only meaningful with q. The pickers use it, not the grid.
+  | "relevance";
 
 export interface AssetFacet {
   value: string;
