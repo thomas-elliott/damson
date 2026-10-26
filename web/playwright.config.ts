@@ -72,8 +72,8 @@ export default defineConfig({
         E2E_BASE_URL: BACKEND_URL,
         // The e2e binary is Postgres-only and requires this DSN; it opens
         // Postgres and runs the SQL migrations. Forwarded from the process
-        // env (set by `just test e2e`, which defaults it to the compose
-        // Postgres on 55432).
+        // env (set by `just test e2e`, which defaults it to the checkout's
+        // compose Postgres).
         DAMSON_TEST_POSTGRES_DSN: process.env.DAMSON_TEST_POSTGRES_DSN ?? "",
       },
       cwd: repoRoot,
