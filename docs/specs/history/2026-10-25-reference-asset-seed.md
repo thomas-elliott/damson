@@ -79,3 +79,10 @@ By: recommended, operator said "go" (2026-10-25)
 ## Deferred follow-ups
 
 None
+
+### Cleanup
+
+- Built by the stagecraft `spec-to-pr` factory as work item `dam-41` and merged as PR #16; no `/cleanup` pass ran. `just check` passed on the merged commit, and two `just seed` runs on a scratch database gave 0, then 297, then 297.
+- No `docs/intent/` in the repo, so nothing graduated. Retired with these open findings from the code review:
+  - LOW · every linked row gets Engine "Unity" and a Unity minimum version, including the Sketchfab, itch.io and Fab rows, and the real adapters write "unity" in lowercase; set the engine fields on Unity rows only (tools/devseed/references.go)
+  - LOW · Sketchfab links carry the product id in hex, but the store product id is stored in decimal, so the two don't match in the panel (tools/devseed/references.go)
