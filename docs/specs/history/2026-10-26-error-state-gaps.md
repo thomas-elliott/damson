@@ -59,3 +59,24 @@ None
 ## Deferred follow-ups
 
 None
+
+### Review findings
+
+Built by the stagecraft `spec-to-pr` factory as work item `dam-62`. Open medium and low findings
+from its reviews, and whether this change addressed them:
+
+- MED · plan review: Library's remembered total could reset on every page change or record a
+  placeholder total from the previous filter. Addressed: it is kept per search and filter without
+  page and page size, and recorded only when the load has settled (web/src/pages/LibraryPage.tsx).
+- LOW · plan review: the existing callback test expected a plain error's message on screen.
+  Addressed: it now rejects with an IdP `ErrorResponse` (web/src/pages/LoginCallbackPage.test.tsx).
+- LOW · plan review: the detail tests' fetch stub answered every other endpoint with `{}`.
+  Addressed: other endpoints take a body per path (web/src/pages/ErrorStates.test.tsx).
+- LOW · plan review: the 400 test passes on main, since `isNotFound` already counts 400. Addressed
+  as intended: the test pins existing behaviour; no code change.
+- LOW · plan review: `instanceof ErrorResponse` could miss across module copies. Addressed: matched
+  by the name oidc-client-ts sets (web/src/pages/LoginCallbackPage.tsx).
+- LOW · code review: Collection detail's Retry test answers the retry with an empty list, so it
+  shows the error clearing but not assets loading. Not addressed (web/src/pages/ErrorStates.test.tsx).
+- LOW · code review: Collection detail's loading line while its assets load has no test. Not
+  addressed (web/src/pages/CollectionDetailPage.tsx).
