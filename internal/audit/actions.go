@@ -32,7 +32,7 @@ var ActionTypes = []string{
 	"project.update",
 	"project.delete",
 	"project.pin",
-	"project.pin.upgrade",
+	"project.pin.change",
 	"project.unpin",
 	"collection.create",
 	"collection.update",

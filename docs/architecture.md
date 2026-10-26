@@ -360,7 +360,9 @@ carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.
 - Without a page, `useAssets` gets the API's default of 50 rows, so a list of assets either pages
   (`components/UrlPager.tsx`, as Library and Collection detail do) or searches the server
   (`components/AssetPicker.tsx`, the pin and merge dialogs' picker, which shows the first page and
-  asks for a narrower search when there are more).
+  asks for a narrower search when there are more). The picker asks for `sort=relevance`, which
+  puts an exact name match first and names starting with the search next, so the asset named
+  what was typed is always on that first page.
 - API calls go through `fetchJson` / `fetchMaybeJson` / `fetchBlob` in `src/api.ts`. These attach
   the bearer, renew once on a 401, and throw `ApiError`.
 - The SPA reads the auth mode from `GET /api/auth/mode` (`useAuthMode()`), and `AuthGuard` gates
