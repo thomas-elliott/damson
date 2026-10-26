@@ -176,4 +176,21 @@ describe("LibraryPage load failure", () => {
     expect(screen.queryByText("grid")).toBeNull();
     expect(query()).toBe("?page=3");
   });
+
+  it("keeps the pager below the error when a page change fails", async () => {
+    library.total = 120;
+    mount("/library");
+    library.failed = true;
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("Couldn't load assets")).toBeInTheDocument();
+    expect(query()).toBe("?page=2");
+    expect(screen.getByRole("button", { name: "Page 2" })).toHaveAttribute("aria-current", "page");
+
+    library.failed = false;
+    await userEvent.click(screen.getByRole("button", { name: "Page 3" }));
+    expect(query()).toBe("?page=3");
+    expect(lastPage()).toEqual({ limit: 50, offset: 100 });
+    expect(screen.getByText("grid")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load assets")).toBeNull();
+  });
 });
