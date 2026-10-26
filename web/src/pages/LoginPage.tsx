@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate, useLocation, useNavigate } from "react-router";
 
 import { Button, FieldRow, Input } from "@/design-system";
 import { useAuthMode } from "@/hooks/useDataQueries";
 import { localLogin } from "@/lib/localAuth";
+import { safeReturnTo } from "@/lib/returnTo";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  // AuthGuard sends a signed-out visitor here with the page they asked for.
+  const from = (useLocation().state as { from?: unknown } | null)?.from;
   const { mode, needsBootstrap, loading: modeLoading } = useAuthMode();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +28,7 @@ export function LoginPage() {
     setError(null);
     try {
       await localLogin(email, password);
-      navigate("/", { replace: true });
+      navigate(safeReturnTo(from), { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
     } finally {

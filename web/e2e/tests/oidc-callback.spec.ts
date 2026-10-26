@@ -97,12 +97,15 @@ const jsonRoute = (body: unknown) => ({
 // setupOidcRoutes wires the full SPA-side OIDC dance (mode flip, discovery,
 // JWKS, token exchange, signin-state seed) plus the post-login reads. `me` is
 // what GET /api/me returns; `patchedMe`, when given, is returned for the
-// PATCH /api/me the profile step issues. Used by the profile + logout tests;
-// the first test keeps its inline routes for its stricter storage assertions.
+// PATCH /api/me the profile step issues; `returnTo`, when given, is the page
+// AuthGuard asked to come back to, seeded into the SigninState. Used by the
+// profile, deep-link and logout tests; the first test keeps its inline routes
+// for its stricter storage assertions.
 async function setupOidcRoutes(
   page: Page,
   me: Record<string, unknown>,
   patchedMe?: Record<string, unknown>,
+  returnTo?: string,
 ) {
   await page.route("**/api/auth/mode", (route) =>
     // The `oidc` block is what makes fetchAuthMode() call configureOidc();
@@ -152,9 +155,26 @@ async function setupOidcRoutes(
         /* about:blank — storage isn't available here */
       }
     },
-    { key: `oidc.${STATE_ID}`, value: JSON.stringify(SIGNIN_STATE) },
+    {
+      key: `oidc.${STATE_ID}`,
+      value: JSON.stringify({ ...SIGNIN_STATE, data: returnTo ? { returnTo } : undefined }),
+    },
   );
 }
+
+const ME = {
+  id: 1,
+  email: "oidc-user@example.com",
+  display_name: "OIDC Test User",
+  role: "user",
+  needs_profile: false,
+  current_library: { id: 1, name: "OIDC Test Library", role: "admin" },
+};
+
+// A page with no detail fetch, so the catch-all empty mocks are enough.
+const REQUESTED = "/library?q=x#files";
+
+const onRequestedPage = (url: URL) => url.pathname + url.search + url.hash === REQUESTED;
 
 test.describe("OIDC sign-in callback", () => {
   test("exchanges code, stores user, and lands on /library", async ({ page, noConsoleErrors }) => {
@@ -315,6 +335,7 @@ test.describe("OIDC sign-in callback", () => {
         needs_profile: false,
         current_library: { id: 1, name: "OIDC Test Library", role: "admin" },
       },
+      REQUESTED,
     );
 
     await page.goto(`/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`);
@@ -327,7 +348,57 @@ test.describe("OIDC sign-in callback", () => {
     await page.locator('input[type="email"]').fill("filled-in@example.com");
     await page.getByRole("button", { name: "Continue" }).click();
 
-    // PATCH flips needs_profile → false; the gate falls through to /library.
+    // PATCH flips needs_profile → false; the gate falls through to the page
+    // that was asked for, which the callback had already navigated to.
+    await expect(page).toHaveURL(onRequestedPage);
+    await expect(
+      page.getByRole("heading", { name: /finish setting up your profile/i }),
+    ).toBeHidden();
+  });
+
+  test("signed out, opening a page sends it to the IdP in the sign-in state", async ({ page }) => {
+    await setupOidcRoutes(page, ME);
+    // Answer the IdP with 204, which leaves the app's document in place, so
+    // the SigninState oidc-client-ts stored can still be read.
+    const authorize = new Promise<string>((resolve) => {
+      void page.route(`${AUTHORITY}/authorize**`, async (route) => {
+        await route.fulfill({ status: 204 });
+        resolve(new URL(route.request().url()).searchParams.get("state") ?? "");
+      });
+    });
+
+    await page.goto(REQUESTED);
+    const stateId = await authorize;
+
+    const stored = await page.evaluate(
+      (key) => window.localStorage.getItem(key),
+      `oidc.${stateId}`,
+    );
+    expect(stored, "SigninState should be stored for the redirect").not.toBeNull();
+    expect(JSON.parse(stored!).data).toEqual({ returnTo: REQUESTED });
+  });
+
+  test("returns to the page that was asked for, with its query and hash", async ({
+    page,
+    noConsoleErrors,
+  }) => {
+    void noConsoleErrors;
+    await setupOidcRoutes(page, ME, undefined, REQUESTED);
+
+    await page.goto(`/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`);
+
+    await expect(page).toHaveURL(onRequestedPage);
+  });
+
+  test("ignores a requested page outside the app and opens /library", async ({
+    page,
+    noConsoleErrors,
+  }) => {
+    void noConsoleErrors;
+    await setupOidcRoutes(page, ME, undefined, "https://evil.example/");
+
+    await page.goto(`/auth/callback?code=stub-code-per78&state=${encodeURIComponent(STATE_ID)}`);
+
     await page.waitForURL("**/library");
   });
 
