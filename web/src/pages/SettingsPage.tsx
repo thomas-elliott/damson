@@ -30,7 +30,7 @@ import { useSavedFlash } from "@/hooks/useSavedFlash";
  */
 export function SettingsPage() {
   const { data: me } = useMe();
-  const { data: settings, loading } = useLibrarySettings(!!me?.current_library);
+  const { data: settings, loading } = useLibrarySettings(me?.current_library?.id);
   const isAdmin = me?.current_library?.role === "admin";
   const isSysadmin = me?.role === "sysadmin";
 
