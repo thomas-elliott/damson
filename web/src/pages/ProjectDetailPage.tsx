@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { ChevronLeft, Plus, Trash2 } from "lucide-react";
 
 import { isNotFound } from "@/api";
+import { AssetPicker } from "@/components/AssetPicker";
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import {
@@ -33,7 +34,14 @@ import {
   formatBytes,
   useConfirm,
 } from "@/design-system";
-import { useAssets, useProject, useProjectAudit, type LicenceStatus } from "@/hooks/useDataQueries";
+import {
+  useAssetDetail,
+  useProject,
+  useProjectAudit,
+  type AssetRow,
+  type LicenceStatus,
+  type ProjectPinDetail,
+} from "@/hooks/useDataQueries";
 import {
   useDeleteProject,
   usePinAssetToProject,
@@ -188,7 +196,12 @@ export function ProjectDetailPage() {
                     </thead>
                     <tbody>
                       {project.pins.map((p) => (
-                        <ProjectPinRow key={p.pin_id} projectId={project.id} pin={p} />
+                        <ProjectPinRow
+                          key={p.pin_id}
+                          projectId={project.id}
+                          pin={p}
+                          confirm={confirm}
+                        />
                       ))}
                     </tbody>
                   </table>
@@ -217,15 +230,21 @@ export function ProjectDetailPage() {
 function ProjectPinRow({
   projectId,
   pin,
+  confirm,
 }: {
   projectId: number;
-  pin: import("@/hooks/useDataQueries").ProjectPinDetail;
+  pin: ProjectPinDetail;
+  confirm: ReturnType<typeof useConfirm>["confirm"];
 }) {
   const unpin = useUnpinAssetFromProject();
   const repin = usePinAssetToProject();
   return (
     <tr className="border-b border-border/60 hover:bg-muted">
-      <td className="py-2 text-foreground">{pin.asset_name}</td>
+      <td className="py-2 text-foreground">
+        <Link to={`/library/${pin.asset_id}`} className="hover:underline">
+          {pin.asset_name}
+        </Link>
+      </td>
       <td className="py-2 font-mono text-muted-foreground">
         {pin.is_reference ? "Reference" : pin.version_label}
       </td>
@@ -268,7 +287,15 @@ function ProjectPinRow({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => unpin.mutate({ projectId, pinId: pin.pin_id })}
+          onClick={async () => {
+            const ok = await confirm({
+              title: `Unpin "${pin.asset_name}"?`,
+              description: "The asset stays in your library — only this project's pin is removed.",
+              confirmLabel: "Unpin",
+              tone: "destructive",
+            });
+            if (ok) unpin.mutate({ projectId, pinId: pin.pin_id });
+          }}
         >
           Unpin
         </Button>
@@ -309,53 +336,85 @@ function PinAssetDialog({
   onOpenChange: (v: boolean) => void;
   projectId: number;
 }) {
-  const { data: assets } = useAssets({}, open);
   const pin = usePinAssetToProject();
-  const [selected, setSelected] = useState<string>("");
+  const [picked, setPicked] = useState<AssetRow | null>(null);
+  // A version the user chose; null means the picked asset's current one.
+  const [versionId, setVersionId] = useState<string | null>(null);
+  const versioned = picked != null && !picked.is_reference;
+  const { data: detail } = useAssetDetail(versioned ? picked.id : null);
+  const versions = detail?.versions ?? [];
+  const chosenVersion =
+    versionId ?? (detail?.current_version_id != null ? String(detail.current_version_id) : "");
+
+  const reset = () => {
+    setPicked(null);
+    setVersionId(null);
+    pin.reset();
+  };
+
+  const close = (next: boolean) => {
+    if (!next) reset();
+    onOpenChange(next);
+  };
 
   const submit = () => {
-    if (!selected) return;
+    if (!picked) return;
     pin.mutate(
-      { projectId, asset_id: Number(selected) },
       {
-        onSuccess: () => {
-          onOpenChange(false);
-          setSelected("");
-        },
+        projectId,
+        asset_id: picked.id,
+        version_id: versioned ? Number(chosenVersion) : undefined,
       },
+      { onSuccess: () => close(false) },
     );
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Pin an asset</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <FieldRow label="Asset">
-            <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger aria-label="Asset">
-                <SelectValue placeholder="Pick an asset" />
-              </SelectTrigger>
-              <SelectContent>
-                {assets.map((a) => (
-                  <SelectItem key={a.id} value={String(a.id)}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FieldRow>
+          <AssetPicker
+            aria-label="Asset"
+            placeholder="Search assets to pin"
+            selectedId={picked?.id ?? null}
+            onSelect={(a) => {
+              setPicked(a);
+              setVersionId(null);
+              pin.reset();
+            }}
+          />
+          {versioned && versions.length > 0 && (
+            <FieldRow label="Version">
+              <Select value={chosenVersion} onValueChange={setVersionId}>
+                <SelectTrigger aria-label="Version">
+                  <SelectValue placeholder="Pick a version" />
+                </SelectTrigger>
+                <SelectContent>
+                  {versions.map((v) => (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.version_label || v.store_version || "unversioned"}
+                      {v.is_current ? " (current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FieldRow>
+          )}
+          {pin.error && <p className="text-label text-destructive">{pin.error.message}</p>}
         </DialogBody>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => close(false)}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={submit} disabled={!selected || pin.isPending}>
-            {assets.find((a) => String(a.id) === selected)?.is_reference
-              ? "Pin asset"
-              : "Pin current version"}
+          <Button
+            variant="primary"
+            onClick={submit}
+            disabled={!picked || (versioned && !chosenVersion) || pin.isPending}
+          >
+            {versioned ? "Pin version" : "Pin asset"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -207,6 +207,23 @@ async function waitForImportDone(
   throw new Error(`import ${importId} did not finish within 15s`);
 }
 
+// createReferenceAsset records an asset by its location, with no import, so
+// a spec can fill a library past a page quickly.
+export async function createReferenceAsset(
+  request: APIRequestContext,
+  session: Session,
+  name: string,
+): Promise<{ asset_id: number }> {
+  const res = await request.post("/api/assets/references", {
+    headers: { Authorization: `Bearer ${session.token}` },
+    data: { name, location_path: `/library/${name.toLowerCase().replaceAll(" ", "-")}` },
+  });
+  if (!res.ok()) {
+    throw new Error(`create reference asset: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as { asset_id: number };
+}
+
 // createTestUser hits the /api/test/users endpoint exposed by the e2e
 // binary. There's no public admin-invite flow yet, so multi-user specs
 // (e.g. PER-82's sysadmin-vs-member gating) need this lever.
