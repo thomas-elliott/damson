@@ -12,8 +12,10 @@ type AuthState = "checking" | "ready" | "needs-login";
 // /api/auth/mode lookup, then dispatches to the right flow:
 //
 //   - OIDC: getUser() from oidc-client-ts; if missing/expired, trigger
-//           signinRedirect (browser leaves the SPA entirely).
-//   - Local: read the stored JWT; if missing/expired, bounce to /login.
+//           signinRedirect (browser leaves the SPA entirely), carrying the
+//           requested page for LoginCallbackPage to return to.
+//   - Local: read the stored JWT; if missing/expired, bounce to /login with
+//           the requested page in router state.
 export function AuthGuard() {
   const { mode, needsBootstrap, loading: modeLoading } = useAuthMode();
   const location = useLocation();
@@ -37,13 +39,17 @@ export function AuthGuard() {
       };
     }
 
-    // OIDC path.
+    // OIDC path. The requested page rides along in the sign-in state, which
+    // oidc-client-ts keeps in local storage and hands back to the callback.
+    const { pathname, search, hash } = window.location;
+    const signIn = () =>
+      void getUserManager().signinRedirect({ state: { returnTo: pathname + search + hash } });
     getUserManager()
       .getUser()
       .then((user) => {
         if (cancelled) return;
         if (!user || user.expired) {
-          void getUserManager().signinRedirect();
+          signIn();
         } else {
           setState("ready");
         }
@@ -53,7 +59,7 @@ export function AuthGuard() {
         // bounce into the login flow rather than stalling on the spinner.
         if (cancelled) return;
         console.error("OIDC getUser failed", err);
-        void getUserManager().signinRedirect();
+        signIn();
       });
     return () => {
       cancelled = true;
