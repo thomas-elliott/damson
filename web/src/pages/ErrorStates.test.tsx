@@ -23,12 +23,15 @@ vi.mock("@/hooks/useImportEvents", () => ({ useImportEvents: () => {} }));
 vi.mock("@/hooks/usePreviewEvents", () => ({ usePreviewEvents: () => {} }));
 
 // The endpoint under test answers each status in `failing` in turn, then 200
-// with `body`; every other endpoint answers 200 with an empty object.
+// with `body`; every other endpoint answers 200 with its entry in `others`, or
+// an empty object.
 let endpoint: string;
 let failing: number[];
 let body: unknown;
+let others: Record<string, unknown>;
 
 beforeEach(() => {
+  others = {};
   // The asset panel goes fullscreen on narrow screens; jsdom has no matchMedia.
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
@@ -39,7 +42,7 @@ beforeEach(() => {
     "fetch",
     vi.fn((url: string) => {
       const path = new URL(url, "http://x").pathname;
-      if (path !== endpoint) return Promise.resolve(Response.json({}));
+      if (path !== endpoint) return Promise.resolve(Response.json(others[path] ?? {}));
       const status = failing.shift();
       return Promise.resolve(
         status ? Response.json({ error: "internal error" }, { status }) : Response.json(body),
@@ -145,6 +148,14 @@ describe.each<[string, string, string, ReactNode, string, string]>([
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
+  it("says not found for a 400", async () => {
+    endpoint = api;
+    failing = [400];
+    renderAt(path, route, element);
+    expect(await screen.findByText(notFound)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
   it("shows the error with a Retry for any other failure", async () => {
     endpoint = api;
     failing = [500];
@@ -152,5 +163,45 @@ describe.each<[string, string, string, ReactNode, string, string]>([
     expect(await screen.findByText(failed)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(screen.queryByText(notFound)).not.toBeInTheDocument();
+  });
+});
+
+// The detail pages' own lists fail apart from the page itself: the page loads
+// and the list shows the error where its empty state would be.
+describe.each<[string, string, string, ReactNode, string, unknown, string, unknown, string]>([
+  [
+    "Collection detail's assets",
+    "/collections/5",
+    "/collections/:id",
+    <CollectionDetailPage />,
+    "/api/collections/5",
+    { id: 5, name: "Props" },
+    "/api/assets",
+    { assets: [], total: 0 },
+    "No assets in this collection",
+  ],
+  [
+    "Project detail's activity",
+    "/projects/5",
+    "/projects/:id",
+    <ProjectDetailPage />,
+    "/api/projects/5",
+    { id: 5, name: "Castle", pins: [], asset_count: 0, updates_available: 0 },
+    "/api/projects/5/audit",
+    { entries: [], total: 0 },
+    "No activity yet",
+  ],
+])("%s", (_name, path, route, element, pageApi, pageBody, listApi, emptyBody, emptyTitle) => {
+  it("shows the error with a Retry that loads the list once it succeeds", async () => {
+    others = { [pageApi]: pageBody };
+    endpoint = listApi;
+    failing = [500];
+    body = emptyBody;
+    renderAt(path, route, element);
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument();
+    await userEvent.click(retry);
+    expect(await screen.findByText(emptyTitle)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 });
