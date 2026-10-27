@@ -1,9 +1,9 @@
 # Cutting a release.
 #
 # A release promotes current main to prod by pushing a vX.Y.Z tag, which
-# triggers the Woodpecker tag pipeline (.woodpecker.yml): it runs no tests and
-# promotes the main-<sha> image that main's pipeline already tested (no
-# rebuild). Nothing is gated locally — run `just check` yourself first.
+# triggers .github/workflows/release.yml: it runs no tests and promotes the
+# main-<sha> image that CI already built and tested on main (no rebuild).
+# Nothing is gated locally — run `just check` yourself first.
 #
 # A bare `just release` lists; a bare noun that cut a tag would be a surprise.
 
@@ -35,18 +35,13 @@ tag VERSION:
       exit 1
     fi
 
-    # No local CI gate: the tag pipeline re-runs the full test suite, and
-    # release-promote guards itself with `crane manifest` on the main-<sha> image —
-    # so tagging a commit with no tested image fails safe (no promotion).
-    #
-    # An ANNOTATED tag: the message is what
-    # Forgejo shows on the releases page. The pipeline resolves the commit from
-    # CI_COMMIT_REF for exactly this reason — on an annotated tag CI_COMMIT_SHA is
-    # the tag object, not the commit.
+    # No local CI gate: the release workflow checks that main-<sha> exists
+    # before retagging it, and CI only pushes that image once every test job
+    # passes — so tagging a commit with no tested image fails safe.
     echo "Tagging {{ VERSION }} at $SHA ..."
     git tag -a "{{ VERSION }}" -m "{{ VERSION }}" "$SHA"
     git push origin "refs/tags/{{ VERSION }}"
-    echo "Released {{ VERSION }}. The Woodpecker tag pipeline will test and promote main-$(echo "$SHA" | cut -c1-7) to prod."
+    echo "Released {{ VERSION }}. The release workflow will promote main-$(echo "$SHA" | cut -c1-7) to {{ VERSION }}."
 
 # Release the next patch version (vX.Y.Z+1) from the latest tag
 [no-cd]

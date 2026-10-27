@@ -21,7 +21,7 @@ frontend:
     just _web-deps
     pnpm run format
 
-# The Go half is CI's gofmt step; the Prettier half is the `web` step's
+# The Go half is CI's gofmt step; the Prettier half is the `web` job's
 # format:check.
 
 # Fail on an unformatted file, Go or frontend

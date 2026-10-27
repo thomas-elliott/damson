@@ -1,0 +1,148 @@
+# Tests on every pull request and push to main. On main, once every test job passes, the image is
+# built and pushed to ghcr.io as main-<sha7> and latest. release.yml later promotes one of those
+# images to a version tag without rebuilding it.
+#
+# `just check` runs the same gates locally.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: damson
+          POSTGRES_PASSWORD: damson
+          POSTGRES_DB: damson
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U damson -d damson"
+          --health-interval 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: go.mod is tidy
+        run: go mod tidy && git diff --exit-code -- go.mod go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { echo 'gofmt issues:'; gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go tool golangci-lint run ./...
+      # The whole Go suite runs against Postgres; each test isolates itself in its own schema.
+      - run: go test -race -count=1 ./...
+        env:
+          DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@localhost:5432/damson?sslmode=disable
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - run: corepack enable # pnpm version comes from packageManager in web/package.json
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint # check-tokens, ESLint
+      - run: pnpm run format:check
+      - run: pnpm run build # includes the tsc -b type check
+      - run: pnpm run test -- --run
+
+  # Browser jobs use the Playwright image: a run-time browser download can hang with no timeout.
+  # Its tag must match the exact @playwright/test version in web/package.json.
+  stories:
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:stories -- --run
+
+  e2e:
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: damson
+          POSTGRES_PASSWORD: damson
+          POSTGRES_DB: damson
+        options: >-
+          --health-cmd "pg_isready -U damson -d damson"
+          --health-interval 2s
+          --health-retries 30
+    env:
+      CI: "true" # playwright.config keys off it
+      # A container job reaches its services by name, not on localhost.
+      DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@postgres:5432/damson?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build the e2e server
+        run: mkdir -p web/e2e/.bin && go build -o web/e2e/.bin/damson-e2e ./cmd/e2e-server
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      - run: pnpm run e2e
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 14
+
+  image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [go, web, stories, e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image tags
+        id: tags
+        run: |
+          IMAGE="ghcr.io/$GITHUB_REPOSITORY"
+          echo "tags=$IMAGE:main-${GITHUB_SHA::7},$IMAGE:latest" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
