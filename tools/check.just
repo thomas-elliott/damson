@@ -1,6 +1,6 @@
 # The preflight gate.
 #
-# `just check` mirrors what CI gates on (.woodpecker.yml), so passing it locally
+# `just check` mirrors what CI gates on (.github/workflows/ci.yml), so passing it locally
 # is what makes a push safe. `just check fast` is the read-only subset that needs
 # no database and no browser.
 
