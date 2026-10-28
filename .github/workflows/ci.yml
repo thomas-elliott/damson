@@ -104,8 +104,9 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      # -buildvcs=false: inside the container git refuses a checkout owned by another user.
       - name: Build the e2e server
-        run: mkdir -p web/e2e/.bin && go build -o web/e2e/.bin/damson-e2e ./cmd/e2e-server
+        run: mkdir -p web/e2e/.bin && go build -buildvcs=false -o web/e2e/.bin/damson-e2e ./cmd/e2e-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
         working-directory: web
