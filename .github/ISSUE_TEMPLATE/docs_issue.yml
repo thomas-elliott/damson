@@ -1,0 +1,37 @@
+name: Documentation problem
+description: A doc is wrong, missing, or sent you the wrong way.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A command that does not work, a config key that does not exist, a step
+        that assumes something it never told you — all worth reporting. So is
+        a page that is correct but left you stuck.
+
+  - type: input
+    id: page
+    attributes:
+      label: Which page
+      description: A path or a link, plus the heading if the page is long.
+      placeholder: "docs/getting-started.md § Bootstrapping the first admin"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: >-
+        What it says, and what you found to be true instead. If a command
+        failed, paste it with its output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expectation
+    attributes:
+      label: What were you trying to do?
+      description: >-
+        Optional, but it is how a missing page gets written rather than an
+        existing one patched.
