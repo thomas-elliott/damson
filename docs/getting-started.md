@@ -291,6 +291,12 @@ publishers, tags and locations.
 
 ## Where to go next
 
+- [`docs/how-to/`](how-to/README.md) — task guides for the rest of it:
+  [tracking licences](how-to/track-licences.md), [Unity
+  packages](how-to/import-unity-packages.md), [versions and
+  pins](how-to/pin-versions.md), [more than one
+  library](how-to/separate-libraries.md), and
+  [collections](how-to/collections.md).
 - [`docs/configuration.md`](configuration.md) — every environment variable,
   its default, and the OIDC and S3 setups written out properly.
 - [`docs/observability.md`](observability.md) — the log shape, request
