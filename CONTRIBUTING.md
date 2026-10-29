@@ -19,11 +19,17 @@ instead.
 | [Go](https://go.dev) | 1.26 | the backend |
 | [Node](https://nodejs.org) | 24+ | the SPA |
 | [pnpm](https://pnpm.io) | 12.6.0 | frontend package manager — `corepack enable` picks up the version pinned in `web/package.json` |
-| [just](https://just.systems) | any recent | every workflow in this repo goes through it |
+| [just](https://just.systems) | 1.52.0+ | every workflow in this repo goes through it |
 | Docker with Compose v2 | — | the dev Postgres |
 
+The `just` floor is real, not cautious: `tools/release.just` uses `set
+default-list`, which arrived in just 1.52.0. An older `just` fails to *parse*
+the justfile, so every command — including `just install` below — dies with
+`Unknown setting 'default-list'` before it runs anything.
+
 `mise.toml` pins all four for [mise](https://mise.jdx.dev) users, so
-`mise install` gets you the right versions in one step.
+`mise install` gets you the right versions in one step; `just` is pinned to
+`latest` there, which clears the floor.
 
 ### Setup
 
@@ -83,10 +89,16 @@ doubt.
 ```sh
 just test backend    # Go tests, Postgres-backed
 just test frontend   # Vitest unit project (jsdom)
-just test stories    # every *.stories.tsx in real Chromium, with axe-core a11y checks
 just test e2e        # Playwright
-just test            # all of the above
+just test            # the three above
+just test stories    # every *.stories.tsx in real Chromium, with axe-core a11y checks
 ```
+
+**`just test` does not run `just test stories`.** It is `unit` (backend plus
+frontend) then `e2e`, and nothing else — which is why `just check` has to list
+`just test stories` as a step of its own. Stories is a separate CI job and the
+one carrying the axe-core accessibility assertions, so run it yourself after
+touching a component or a story, or let `just check` do it for you.
 
 Narrowing down:
 
