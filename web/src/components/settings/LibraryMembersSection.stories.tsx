@@ -1,0 +1,120 @@
+import { useState } from "react";
+import type { Meta, StoryObj } from "@storybook/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { expect, userEvent, within } from "storybook/test";
+
+import { TooltipProvider } from "@/design-system";
+import type { MemberView } from "@/hooks/useDataQueries";
+
+import { LibraryMembersSection } from "./LibraryMembersSection";
+
+const meta: Meta<typeof LibraryMembersSection> = {
+  title: "App/Settings/LibraryMembersSection",
+  component: LibraryMembersSection,
+  parameters: { layout: "padded" },
+};
+export default meta;
+type Story = StoryObj<typeof LibraryMembersSection>;
+
+const MEMBERS: MemberView[] = [
+  {
+    user_id: 1,
+    email: "thomas@example.com",
+    display_name: "Thomas",
+    role: "admin",
+    global_role: "sysadmin",
+  },
+  {
+    user_id: 2,
+    email: "librarian@example.com",
+    display_name: "Librarian",
+    role: "member",
+    global_role: "user",
+  },
+  {
+    user_id: 3,
+    email: "artist@example.com",
+    display_name: "Artist",
+    role: "member",
+    global_role: "user",
+  },
+];
+
+// Library ids pick the fixture, so stories don't depend on render order.
+const LIBRARY = 7;
+const EMPTY_LIBRARY = 8;
+
+function json(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+const realFetch = window.fetch;
+window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
+  if (path === "/api/auth/mode") return json({ mode: "local", needs_bootstrap: false });
+  const members = /^\/api\/libraries\/(\d+)\/members$/.exec(path);
+  if (members) return json({ members: Number(members[1]) === LIBRARY ? MEMBERS : [] });
+  return realFetch(input, init);
+};
+
+function Harness({ libraryId, isAdmin }: { libraryId: number; isAdmin: boolean }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  return (
+    <QueryClientProvider client={client}>
+      <TooltipProvider>
+        <div className="w-[640px]">
+          <LibraryMembersSection libraryId={libraryId} isAdmin={isAdmin} />
+        </div>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+/** An admin's view: role selects, remove buttons, and Invite. The last admin's role is locked. */
+export const Admin: Story = {
+  render: () => <Harness libraryId={LIBRARY} isAdmin />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Librarian")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Invite" })).toBeVisible();
+  },
+};
+
+/** A member sees the list without any controls. */
+export const ReadOnly: Story = {
+  render: () => <Harness libraryId={LIBRARY} isAdmin={false} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Librarian")).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Invite" })).not.toBeInTheDocument();
+  },
+};
+
+export const Empty: Story = {
+  render: () => <Harness libraryId={EMPTY_LIBRARY} isAdmin />,
+  play: async ({ canvasElement }) => {
+    await expect(await within(canvasElement).findByText("No members yet")).toBeVisible();
+  },
+};
+
+/** Local mode: inviting an unknown email can set the new user's password. */
+export const Inviting: Story = {
+  parameters: {
+    // Contrast gate: FieldRow hints are faint-foreground on card, 4.34:1 under 4.5:1 (audit
+    // finding 5, still on the backlog); drop this when it lands.
+    a11y: { test: "todo" },
+  },
+  render: () => <Harness libraryId={LIBRARY} isAdmin />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "Invite" }));
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog");
+    await expect(dialog).toBeVisible();
+  },
+};
