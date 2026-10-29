@@ -15,7 +15,9 @@ export interface ActivityRowProps extends HTMLAttributes<HTMLDivElement> {
 
 /**
  * Audit-log / activity timeline row. Grid layout matches the mockup's
- * `.activity-row` so columns line up across many rows.
+ * `.activity-row` so columns line up across many rows. The timestamp never
+ * wraps: its track is 8rem, which fits `formatAuditTimestamp`'s output, and
+ * grows to the content only when a locale's timestamp is longer.
  */
 export function ActivityRow({
   className,
@@ -31,10 +33,12 @@ export function ActivityRow({
         "grid items-baseline gap-3 border-b border-border px-3.5 py-2 text-list-row last:border-b-0",
         className,
       )}
-      style={{ gridTemplateColumns: "96px 140px 1fr auto" }}
+      style={{ gridTemplateColumns: "minmax(max-content, 8rem) 140px 1fr" }}
       {...props}
     >
-      <span className="text-mono tabular-nums text-subtle-foreground">{timestamp}</span>
+      <span className="whitespace-nowrap text-mono tabular-nums text-subtle-foreground">
+        {timestamp}
+      </span>
       <span className="truncate text-muted-foreground">{actor}</span>
       <span className="truncate text-muted-foreground">
         <span className="text-subtle-foreground">{action}</span>
