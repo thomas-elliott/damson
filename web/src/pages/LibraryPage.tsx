@@ -232,8 +232,11 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
           <DropZone>
             <Toolbar>
               <LibraryPicker current={lib} />
+              {/* Until the first page settles the hook's total is 0, which is
+                  wrong rather than absent; show the pager's total otherwise, so
+                  a failed page change keeps the last count. */}
               <span className="shrink-0 text-label tabular-nums text-subtle-foreground">
-                {total} assets
+                {loading ? "…" : pagerTotal} assets
               </span>
               <Button
                 variant="secondary"
