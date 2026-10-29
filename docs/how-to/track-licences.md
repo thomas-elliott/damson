@@ -107,7 +107,7 @@ dmsn assets --licence GPL-3.0
 
 ## Answer the question for a project
 
-A project is a set of pinned asset versions (see [Pin a project to a version you have tested](pin-versions.md)). Its page opens with a **Licence mix** bar: a stacked bar with counts of compliant, review, violation and unknown across every pin.
+A project is a set of pinned asset versions (see [Pin a project to a version you have tested](pin-versions.md)). Once something is pinned, its page opens with a **Licence mix** bar: a stacked bar with counts of compliant, review, violation and unknown across every pin.
 
 > _[Screenshot: a project page's Licence mix bar with its four counts underneath, above the Pinned assets table.]_
 

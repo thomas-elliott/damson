@@ -31,7 +31,9 @@ dmsn collections
 
 ## Put assets in it
 
-The web UI has one route, the bulk bar:
+An empty collection has an **Add asset** button. It opens a search over the whole library; pick an asset and press **Add**. It adds one asset at a time, and only while the collection is empty.
+
+For more than one asset, or a collection that already has some, use the bulk bar:
 
 1. Go to **Library**. Filter or search down to the assets you want.
 2. Hover a card and tick the checkbox at its top-left corner. Once one is ticked, the rest stay visible.
@@ -116,7 +118,7 @@ Collections are cheap. Counts show on the Collections page and in `dmsn`'s home 
 
 ## Limits
 
-- Adding is reachable only through the bulk bar. An asset's own panel has no "add to collection" button.
+- Once a collection has assets, adding is reachable only through the bulk bar. An asset's own panel has no "add to collection" button.
 - Removing is API and CLI only. Check the selection before you add 900 assets to the wrong collection.
 - There is no ordering. The grid sorts by the library's rules, not the order you added things.
 - Collections are flat. For a hierarchy, use tags.
