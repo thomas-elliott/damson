@@ -9,6 +9,7 @@ import {
 } from "@/components/notifications/NotificationProvider";
 import type { CollectionView } from "@/hooks/useDataQueries";
 import { contrastDebt } from "@/design-system/_a11yDebt";
+import { stubFetch } from "@/components/_storyStubs";
 
 import { BulkAssetBar } from "./BulkAssetBar";
 
@@ -18,6 +19,7 @@ const meta: Meta<typeof BulkAssetBar> = {
   parameters: { layout: "fullscreen" },
   beforeEach: () => {
     window.localStorage.removeItem("damson.notifications");
+    return stubFetch(fakeApi);
   },
 };
 export default meta;
@@ -45,19 +47,20 @@ function json(body: unknown, status = 200): Response {
 }
 
 // Serves the collection list for the picker and the bulk endpoint itself.
-const realFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
-  if (path === "/api/collections") return json({ collections: COLLECTIONS });
-  if (path === "/api/assets/bulk" && typeof init?.body === "string") {
-    const { asset_ids } = JSON.parse(init.body) as { asset_ids: number[] };
-    if (asset_ids.includes(FAILING_ID)) return json({ error: "storage unavailable" }, 500);
-    return json({ affected: asset_ids.length });
-  }
-  if (path.startsWith("/api/")) return json({});
-  return realFetch(input, init);
-};
+const fakeApi =
+  (realFetch: typeof window.fetch) =>
+  async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
+    if (path === "/api/collections") return json({ collections: COLLECTIONS });
+    if (path === "/api/assets/bulk" && typeof init?.body === "string") {
+      const { asset_ids } = JSON.parse(init.body) as { asset_ids: number[] };
+      if (asset_ids.includes(FAILING_ID)) return json({ error: "storage unavailable" }, 500);
+      return json({ affected: asset_ids.length });
+    }
+    if (path.startsWith("/api/")) return json({});
+    return realFetch(input, init);
+  };
 
 function OpenCentre() {
   const { setOpen } = useNotifications();

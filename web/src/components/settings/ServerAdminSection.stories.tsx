@@ -5,6 +5,7 @@ import { expect, within } from "storybook/test";
 
 import { TooltipProvider } from "@/design-system";
 import type { AdminUser } from "@/hooks/useDataQueries";
+import { stubFetch } from "@/components/_storyStubs";
 
 import { ServerAdminSection } from "./ServerAdminSection";
 
@@ -13,6 +14,7 @@ const meta: Meta<typeof ServerAdminSection> = {
   title: "App/Settings/ServerAdminSection",
   component: ServerAdminSection,
   parameters: { layout: "padded" },
+  beforeEach: () => stubFetch(fakeApi),
 };
 export default meta;
 type Story = StoryObj<typeof ServerAdminSection>;
@@ -33,20 +35,21 @@ function json(body: unknown): Response {
   });
 }
 
-const realFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
-  if (path === "/api/auth/mode") return json({ mode: "local", needs_bootstrap: false });
-  if (path !== "/api/admin/settings" && path !== "/api/admin/users") {
-    return realFetch(input, init);
-  }
-  if (scenario === "loading") return new Promise<Response>(() => {});
-  if (path === "/api/admin/settings") {
-    return json({ max_upload_bytes: 68_719_476_736, licence_kb_auto_update: true });
-  }
-  return json({ users: scenario === "empty" ? [] : USERS });
-};
+const fakeApi =
+  (realFetch: typeof window.fetch) =>
+  async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
+    if (path === "/api/auth/mode") return json({ mode: "local", needs_bootstrap: false });
+    if (path !== "/api/admin/settings" && path !== "/api/admin/users") {
+      return realFetch(input, init);
+    }
+    if (scenario === "loading") return new Promise<Response>(() => {});
+    if (path === "/api/admin/settings") {
+      return json({ max_upload_bytes: 68_719_476_736, licence_kb_auto_update: true });
+    }
+    return json({ users: scenario === "empty" ? [] : USERS });
+  };
 
 function Harness() {
   const [client] = useState(

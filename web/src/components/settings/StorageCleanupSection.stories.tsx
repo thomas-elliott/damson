@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, userEvent, within } from "storybook/test";
 
 import type { StorageCleanupCandidate } from "@/hooks/useMutations";
+import { stubFetch } from "@/components/_storyStubs";
 
 import { StorageCleanupSection } from "./StorageCleanupSection";
 
@@ -12,6 +13,7 @@ const meta: Meta<typeof StorageCleanupSection> = {
   title: "App/Settings/StorageCleanupSection",
   component: StorageCleanupSection,
   parameters: { layout: "padded" },
+  beforeEach: () => stubFetch(fakeApi),
 };
 export default meta;
 type Story = StoryObj<typeof StorageCleanupSection>;
@@ -46,15 +48,16 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-const realFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
-  if (path !== "/api/admin/storage/cleanup/scan") return realFetch(input, init);
-  if (scenario === "scanning") return new Promise<Response>(() => {});
-  if (scenario === "error") return json({ error: "boom" }, 500);
-  return json({ candidates: scenario === "clean" ? [] : CANDIDATES });
-};
+const fakeApi =
+  (realFetch: typeof window.fetch) =>
+  async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
+    if (path !== "/api/admin/storage/cleanup/scan") return realFetch(input, init);
+    if (scenario === "scanning") return new Promise<Response>(() => {});
+    if (scenario === "error") return json({ error: "boom" }, 500);
+    return json({ candidates: scenario === "clean" ? [] : CANDIDATES });
+  };
 
 function Harness() {
   const [client] = useState(

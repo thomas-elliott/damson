@@ -6,6 +6,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { TooltipProvider } from "@/design-system";
 import type { MemberView } from "@/hooks/useDataQueries";
 import { contrastDebt } from "@/design-system/_a11yDebt";
+import { stubFetch } from "@/components/_storyStubs";
 
 import { LibraryMembersSection } from "./LibraryMembersSection";
 
@@ -13,6 +14,7 @@ const meta: Meta<typeof LibraryMembersSection> = {
   title: "App/Settings/LibraryMembersSection",
   component: LibraryMembersSection,
   parameters: { layout: "padded" },
+  beforeEach: () => stubFetch(fakeApi),
 };
 export default meta;
 type Story = StoryObj<typeof LibraryMembersSection>;
@@ -52,15 +54,16 @@ function json(body: unknown): Response {
   });
 }
 
-const realFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
-  if (path === "/api/auth/mode") return json({ mode: "local", needs_bootstrap: false });
-  const members = /^\/api\/libraries\/(\d+)\/members$/.exec(path);
-  if (members) return json({ members: Number(members[1]) === LIBRARY ? MEMBERS : [] });
-  return realFetch(input, init);
-};
+const fakeApi =
+  (realFetch: typeof window.fetch) =>
+  async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
+    if (path === "/api/auth/mode") return json({ mode: "local", needs_bootstrap: false });
+    const members = /^\/api\/libraries\/(\d+)\/members$/.exec(path);
+    if (members) return json({ members: Number(members[1]) === LIBRARY ? MEMBERS : [] });
+    return realFetch(input, init);
+  };
 
 function Harness({ libraryId, isAdmin }: { libraryId: number; isAdmin: boolean }) {
   const [client] = useState(

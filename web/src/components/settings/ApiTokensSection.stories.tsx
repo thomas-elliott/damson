@@ -5,6 +5,7 @@ import { expect, userEvent, within } from "storybook/test";
 
 import type { ApiToken } from "@/hooks/useDataQueries";
 import { contrastDebt } from "@/design-system/_a11yDebt";
+import { stubFetch } from "@/components/_storyStubs";
 
 import { ApiTokensSection } from "./ApiTokensSection";
 
@@ -12,6 +13,7 @@ const meta: Meta<typeof ApiTokensSection> = {
   title: "App/Settings/ApiTokensSection",
   component: ApiTokensSection,
   parameters: { layout: "padded" },
+  beforeEach: () => stubFetch(fakeApi),
 };
 export default meta;
 type Story = StoryObj<typeof ApiTokensSection>;
@@ -58,15 +60,16 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-const realFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
-  if (path !== "/api/me/tokens") return realFetch(input, init);
-  if (scenario === "loading") return new Promise<Response>(() => {});
-  if (scenario === "error") return json({ error: "boom" }, 500);
-  return json({ tokens: scenario === "empty" ? [] : TOKENS });
-};
+const fakeApi =
+  (realFetch: typeof window.fetch) =>
+  async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
+    if (path !== "/api/me/tokens") return realFetch(input, init);
+    if (scenario === "loading") return new Promise<Response>(() => {});
+    if (scenario === "error") return json({ error: "boom" }, 500);
+    return json({ tokens: scenario === "empty" ? [] : TOKENS });
+  };
 
 function Harness() {
   const [client] = useState(
