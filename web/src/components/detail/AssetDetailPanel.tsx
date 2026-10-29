@@ -61,6 +61,7 @@ import {
   usePatchAsset,
   usePatchVersion,
   useReExtractVersion,
+  useRemoveAssetFromCollection,
   useRemoveAssetTag,
   useRequeueAssetPreviews,
   useRescanAsset,
@@ -222,6 +223,7 @@ function AssetDetailBody({
   const del = useDeleteAsset();
   const addTag = useAddAssetTag();
   const removeTag = useRemoveAssetTag();
+  const removeFromCollection = useRemoveAssetFromCollection();
   const reviewLicence = useReviewLicence();
   const requeuePreviews = useRequeueAssetPreviews();
   const reextract = useReExtractVersion();
@@ -404,7 +406,23 @@ function AssetDetailBody({
         ) : (
           <ul className="flex flex-col gap-0.5 text-label text-muted-foreground">
             {asset.collections.map((c) => (
-              <li key={c.collection_id}>{c.collection_name}</li>
+              <li key={c.collection_id} className="flex items-center justify-between gap-2">
+                <span className="truncate">{c.collection_name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove from ${c.collection_name}`}
+                  disabled={removeFromCollection.isPending}
+                  onClick={() =>
+                    removeFromCollection.mutate({
+                      collectionId: c.collection_id,
+                      assetId: asset.id,
+                    })
+                  }
+                >
+                  Remove
+                </Button>
+              </li>
             ))}
           </ul>
         )}
