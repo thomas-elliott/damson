@@ -6,6 +6,7 @@ import { expect, within } from "storybook/test";
 
 import type { AssetFacetsView, AssetFilters, ProjectView, TagView } from "@/hooks/useDataQueries";
 import { contrastDebt } from "@/design-system/_a11yDebt";
+import { stubFetch } from "@/components/_storyStubs";
 
 import { LibraryFilterSidebar } from "./LibraryFilterSidebar";
 
@@ -13,6 +14,7 @@ const meta: Meta<typeof LibraryFilterSidebar> = {
   title: "App/LibraryFilterSidebar",
   component: LibraryFilterSidebar,
   parameters: { layout: "fullscreen" },
+  beforeEach: () => stubFetch(fakeApi),
 };
 export default meta;
 type Story = StoryObj<typeof LibraryFilterSidebar>;
@@ -74,16 +76,17 @@ const BODIES: Record<string, { populated: unknown; empty: unknown }> = {
   },
 };
 
-const realFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
-  const body = BODIES[path];
-  if (!body) return realFetch(input, init);
-  if (mode === "loading") return new Promise<Response>(() => {});
-  if (mode === "failed") return json({ error: "internal error" }, 500);
-  return json(body[mode]);
-};
+const fakeApi =
+  (realFetch: typeof window.fetch) =>
+  async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
+    const body = BODIES[path];
+    if (!body) return realFetch(input, init);
+    if (mode === "loading") return new Promise<Response>(() => {});
+    if (mode === "failed") return json({ error: "internal error" }, 500);
+    return json(body[mode]);
+  };
 
 function Harness({ filters = {}, search = "" }: { filters?: AssetFilters; search?: string }) {
   const [client] = useState(

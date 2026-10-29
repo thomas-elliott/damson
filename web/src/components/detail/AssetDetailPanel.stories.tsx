@@ -5,6 +5,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import type { AssetDetailView, AuditEntry } from "@/hooks/useDataQueries";
 import { contrastDebt } from "@/design-system/_a11yDebt";
+import { stubFetch } from "@/components/_storyStubs";
 
 import { AssetDetailPanel } from "./AssetDetailPanel";
 
@@ -18,6 +19,7 @@ const meta: Meta<typeof AssetDetailPanel> = {
   title: "App/AssetDetailPanel",
   component: AssetDetailPanel,
   parameters: { layout: "fullscreen" },
+  beforeEach: () => stubFetch(fakeApi),
 };
 export default meta;
 type Story = StoryObj<typeof AssetDetailPanel>;
@@ -225,30 +227,31 @@ function json(body: unknown): Response {
 // Serves every endpoint the panel touches so the stories exercise the app's own
 // fetch path. PATCH writes back into the fixture map, so saving the Overview
 // form in Storybook behaves like the real thing; other writes just succeed.
-const realFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const path = raw.startsWith("http") ? new URL(raw).pathname : raw;
-  if (!path.startsWith("/api/")) return realFetch(input, init);
+const fakeApi =
+  (realFetch: typeof window.fetch) =>
+  async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = raw.startsWith("http") ? new URL(raw).pathname : raw;
+    if (!path.startsWith("/api/")) return realFetch(input, init);
 
-  if (path.startsWith("/api/thumbs/")) {
-    return new Response(PNG_BYTES, { status: 200, headers: { "Content-Type": "image/png" } });
-  }
-  const audit = /^\/api\/assets\/(\d+)\/audit$/.exec(path);
-  if (audit) return json({ entries: AUDIT, total: AUDIT.length });
-
-  const detail = /^\/api\/assets\/(\d+)$/.exec(path);
-  if (detail) {
-    const asset = ASSETS.get(Number(detail[1]));
-    if (!asset) return new Response("not found", { status: 404 });
-    if (init?.method === "DELETE") return new Response(null, { status: 204 });
-    if (init?.method === "PATCH" && typeof init.body === "string") {
-      ASSETS.set(asset.id, { ...asset, ...(JSON.parse(init.body) as Partial<AssetDetailView>) });
+    if (path.startsWith("/api/thumbs/")) {
+      return new Response(PNG_BYTES, { status: 200, headers: { "Content-Type": "image/png" } });
     }
-    return json(ASSETS.get(asset.id));
-  }
-  return json({ ok: true });
-};
+    const audit = /^\/api\/assets\/(\d+)\/audit$/.exec(path);
+    if (audit) return json({ entries: AUDIT, total: AUDIT.length });
+
+    const detail = /^\/api\/assets\/(\d+)$/.exec(path);
+    if (detail) {
+      const asset = ASSETS.get(Number(detail[1]));
+      if (!asset) return new Response("not found", { status: 404 });
+      if (init?.method === "DELETE") return new Response(null, { status: 204 });
+      if (init?.method === "PATCH" && typeof init.body === "string") {
+        ASSETS.set(asset.id, { ...asset, ...(JSON.parse(init.body) as Partial<AssetDetailView>) });
+      }
+      return json(ASSETS.get(asset.id));
+    }
+    return json({ ok: true });
+  };
 
 function PanelHarness({ assetId }: { assetId: number }) {
   const [client] = useState(
