@@ -20,18 +20,35 @@ import (
 // LibraryName is populated only on the sysadmin endpoint when scope=all so
 // the SPA can render which library a row came from.
 type auditEntryView struct {
-	ID              uint            `json:"id"`
-	LibraryID       *uint           `json:"library_id,omitempty"`
-	LibraryName     string          `json:"library_name,omitempty"`
-	UserID          *uint           `json:"user_id,omitempty"`
-	UserDisplayName string          `json:"user_display_name,omitempty"`
-	UserEmail       string          `json:"user_email,omitempty"`
-	ActionType      string          `json:"action_type"`
-	TargetType      string          `json:"target_type"`
-	TargetID        *uint           `json:"target_id,omitempty"`
-	Diff            json.RawMessage `json:"diff,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
+	ID              uint   `json:"id"`
+	LibraryID       *uint  `json:"library_id,omitempty"`
+	LibraryName     string `json:"library_name,omitempty"`
+	UserID          *uint  `json:"user_id,omitempty"`
+	UserDisplayName string `json:"user_display_name,omitempty"`
+	UserEmail       string `json:"user_email,omitempty"`
+	ActionType      string `json:"action_type"`
+	TargetType      string `json:"target_type"`
+	TargetID        *uint  `json:"target_id,omitempty"`
+	// TargetName is the target's current name, empty when the row has been
+	// hard-deleted or the target type has none, so the SPA can fall back to
+	// the id. A soft-deleted target keeps its name.
+	TargetName string          `json:"target_name,omitempty"`
+	Diff       json.RawMessage `json:"diff,omitempty"`
+	CreatedAt  time.Time       `json:"created_at"`
 }
+
+// auditTargetNameSQL resolves an audit row's target to its current name, one
+// primary-key lookup per row on the page. A target belongs to the row's own
+// library, or is server-level on the sysadmin feed.
+const auditTargetNameSQL = `COALESCE(CASE a.target_type
+	WHEN 'asset' THEN (SELECT name FROM assets WHERE id = a.target_id)
+	WHEN 'project' THEN (SELECT name FROM projects WHERE id = a.target_id)
+	WHEN 'collection' THEN (SELECT name FROM collections WHERE id = a.target_id)
+	WHEN 'tag' THEN (SELECT path FROM tags WHERE id = a.target_id)
+	WHEN 'library' THEN (SELECT name FROM libraries WHERE id = a.target_id)
+	WHEN 'user' THEN (SELECT COALESCE(NULLIF(display_name, ''), email) FROM users WHERE id = a.target_id)
+	WHEN 'api_token' THEN (SELECT NULLIF(label, '') FROM api_tokens WHERE id = a.target_id)
+END, '') AS target_name`
 
 type auditListResponse struct {
 	Entries []auditEntryView `json:"entries"`
@@ -162,12 +179,13 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 		ActionType      string
 		TargetType      string
 		TargetID        *uint
+		TargetName      string
 		DiffJSON        []byte
 		CreatedAt       time.Time
 	}
-	selectCols := "a.id, a.library_id, a.user_id, COALESCE(u.display_name, '') AS user_display_name, COALESCE(u.email, '') AS user_email, a.action_type, a.target_type, a.target_id, a.diff_json, a.created_at"
+	selectCols := "a.id, a.library_id, a.user_id, COALESCE(u.display_name, '') AS user_display_name, COALESCE(u.email, '') AS user_email, a.action_type, a.target_type, a.target_id, " + auditTargetNameSQL + ", a.diff_json, a.created_at"
 	if includeLibraryName {
-		selectCols = "a.id, a.library_id, COALESCE(l.name, '') AS library_name, a.user_id, COALESCE(u.display_name, '') AS user_display_name, COALESCE(u.email, '') AS user_email, a.action_type, a.target_type, a.target_id, a.diff_json, a.created_at"
+		selectCols = "a.id, a.library_id, COALESCE(l.name, '') AS library_name, a.user_id, COALESCE(u.display_name, '') AS user_display_name, COALESCE(u.email, '') AS user_email, a.action_type, a.target_type, a.target_id, " + auditTargetNameSQL + ", a.diff_json, a.created_at"
 	}
 	var rows []row
 	page := q.Session(&gorm.Session{}).
@@ -195,6 +213,7 @@ func loadAuditPage(c *gin.Context, base *gorm.DB, f auditFilters, limit, offset 
 			ActionType:      r.ActionType,
 			TargetType:      r.TargetType,
 			TargetID:        r.TargetID,
+			TargetName:      r.TargetName,
 			Diff:            json.RawMessage(r.DiffJSON),
 			CreatedAt:       r.CreatedAt,
 		}

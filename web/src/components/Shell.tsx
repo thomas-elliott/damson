@@ -11,7 +11,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 
-import { AppShell, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
+import { AppShell, LoadingState, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { UserMenu } from "@/components/UserMenu";
 import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
@@ -37,12 +37,10 @@ export function Shell({ main, sidebar }: { main: ReactNode; sidebar?: ReactNode 
   );
 }
 
+// The same full-screen state as AuthGuard's, so a cold load reads as one
+// state rather than two in sequence.
 function LoadingShell() {
-  return (
-    <div className="grid h-screen place-items-center bg-background text-ui text-subtle-foreground">
-      Loading…
-    </div>
-  );
+  return <LoadingState className="h-screen bg-background" />;
 }
 
 function DamsonRail({ displayName, email }: { displayName: string; email: string }) {

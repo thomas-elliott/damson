@@ -1,15 +1,36 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import type { ComponentProps } from "react";
+import { createContext, useContext, useState, type ComponentProps } from "react";
 
 import { Button } from "@/design-system/primitives/Button";
 import { cn } from "@/design-system/utils";
 
 // Behaviour and a11y come from Radix — focus trap, scroll lock, Escape,
 // aria-labelledby/describedby wiring off DialogTitle/DialogDescription.
+// Focus return on close is Damson's own; see Dialog.
 
-function Dialog(props: ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+// Radix returns focus on close only to a DialogTrigger, and Damson opens its
+// dialogs from state, so focus fell to <body>. Dialog notes what had focus
+// when `open` turns true, during render, before a field's autoFocus or Radix
+// moves focus in, and DialogContent returns focus to it on close.
+const ReturnFocusContext = createContext<HTMLElement | null>(null);
+
+function focusedElement() {
+  return typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null);
+}
+
+function Dialog({ open, ...props }: ComponentProps<typeof DialogPrimitive.Root>) {
+  const [wasOpen, setWasOpen] = useState(open);
+  const [returnFocus, setReturnFocus] = useState(() => (open ? focusedElement() : null));
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setReturnFocus(focusedElement());
+  }
+  return (
+    <ReturnFocusContext.Provider value={returnFocus}>
+      <DialogPrimitive.Root data-slot="dialog" open={open} {...props} />
+    </ReturnFocusContext.Provider>
+  );
 }
 
 function DialogTrigger(props: ComponentProps<typeof DialogPrimitive.Trigger>) {
@@ -38,8 +59,18 @@ function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrim
 function DialogContent({
   className,
   children,
+  onCloseAutoFocus,
   ...props
 }: ComponentProps<typeof DialogPrimitive.Content>) {
+  const returnFocus = useContext(ReturnFocusContext);
+  const restoreFocus = (event: Event) => {
+    onCloseAutoFocus?.(event);
+    if (event.defaultPrevented) return;
+    if (returnFocus && returnFocus !== document.body && returnFocus.isConnected) {
+      event.preventDefault();
+      returnFocus.focus();
+    }
+  };
   return (
     <DialogPrimitive.Portal data-slot="dialog-portal">
       <DialogOverlay />
@@ -54,6 +85,7 @@ function DialogContent({
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           className,
         )}
+        onCloseAutoFocus={restoreFocus}
         {...props}
       >
         {children}

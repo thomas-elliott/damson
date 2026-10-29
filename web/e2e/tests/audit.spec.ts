@@ -109,17 +109,17 @@ test.describe("Audit log paging", () => {
     await expect(pager).toContainText("Page 1 of 2");
     await pager.getByRole("button", { name: "Page 2" }).click();
     await expect(page.getByText("updated user")).toBeVisible();
-    await expect(page.getByText("created tag")).toHaveCount(0);
+    await expect(page.getByText("tag first-tag")).toHaveCount(0);
 
     // Changing the scope starts again from page 1.
     await page.getByRole("radio", { name: "All libraries" }).click();
     await expect(page).not.toHaveURL(/[?&]page=/);
     await expect(page).toHaveURL(/[?&]scope=all\b/);
     await expect(pager).toContainText("Page 1 of 2");
-    await expect(page.getByText("created tag")).toHaveCount(0);
+    await expect(page.getByText("tag first-tag")).toHaveCount(0);
 
     await pager.getByRole("button", { name: "Next page" }).click();
-    await expect(page.getByText("created tag")).toBeVisible();
+    await expect(page.getByText("tag first-tag")).toBeVisible();
     await expect(page.getByText("updated user")).toBeVisible();
   });
 });

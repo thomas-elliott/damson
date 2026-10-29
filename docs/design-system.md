@@ -25,6 +25,8 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
 - **`EmptyState` sets `role="status"`** and its title is optional.
 - **`ErrorState` is `EmptyState` with a Retry.** The caller gives fixed wording; the server's
   error message is never shown. Retry stays disabled until the retry it started settles.
+- **`LoadingState` is the loading counterpart.** It sets `role="status"` and says "Loading…"
+  unless the caller passes a label; `variant="inline"` is the one-line form inside a section.
 - **`Input` is a wrapping `<div>`** that carries the border and background, with icon and
   keyboard-hint slots; it takes the `--text-field` token and the 16px floor from the contract.
 

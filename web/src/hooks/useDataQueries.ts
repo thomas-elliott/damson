@@ -26,6 +26,7 @@ export function useAuthMode() {
     needsBootstrap: q.data?.needs_bootstrap ?? false,
     loading: q.isPending,
     error: q.error,
+    reload: q.refetch,
   };
 }
 
@@ -589,7 +590,7 @@ export function useLibrarySettings(libraryId: number | undefined) {
     gcTime: 1 * HOUR,
     enabled: libraryId != null,
     // Grids wait for these and draw at medium without them, so a failure
-    // settles at once. The settings page shows it with no retry.
+    // settles at once. The settings page shows it with a Retry.
     retry: false,
   });
   return {
@@ -612,6 +613,8 @@ export interface AuditEntry {
   action_type: string;
   target_type: string;
   target_id?: number;
+  /** The target's current name; absent when it is gone or has none. */
+  target_name?: string;
   diff?: Record<string, unknown>;
   created_at: string;
 }
