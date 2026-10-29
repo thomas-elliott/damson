@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
@@ -33,7 +34,10 @@ export default defineConfig({
       },
       {
         extends: true,
+        // tailwindcss() generates the utilities globals.css asks for. Without it
+        // stories render unstyled and axe's contrast rules see no Damson colours.
         plugins: [
+          tailwindcss(),
           storybookTest({
             configDir: path.join(dirname, ".storybook"),
           }),
