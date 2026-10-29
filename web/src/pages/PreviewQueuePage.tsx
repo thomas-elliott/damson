@@ -35,7 +35,9 @@ export function PreviewQueuePage() {
         <>
           <Toolbar>
             <Breadcrumb count={`${previews.length}`}>
-              <BreadcrumbItem current>Processing queue</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Processing queue
+              </BreadcrumbItem>
             </Breadcrumb>
           </Toolbar>
           {loading ? (

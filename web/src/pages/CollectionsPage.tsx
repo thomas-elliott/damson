@@ -38,7 +38,9 @@ export function CollectionsPage() {
         <>
           <Toolbar>
             <Breadcrumb count={`${collections.length}`}>
-              <BreadcrumbItem current>Collections</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Collections
+              </BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
             <Button

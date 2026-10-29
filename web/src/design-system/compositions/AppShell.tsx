@@ -29,6 +29,9 @@ const DEFAULT_SIDEBAR_W = 248;
  *
  * When `resizableSidebar` is set, a 4px drag handle floats over the
  * sidebar/main boundary and persists width in localStorage.
+ *
+ * The main column is the page's `<main id="main">` landmark, and a "Skip to
+ * content" link to it is the first thing a keyboard user reaches.
  */
 export function AppShell({
   rail,
@@ -72,6 +75,18 @@ export function AppShell({
       )}
       style={{ gridTemplateColumns: gridTemplate }}
     >
+      {/* First stop for a keyboard user, past the rail to the page. Absolute
+          even when shown, so it never takes a grid cell. */}
+      <a
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-tooltip focus:rounded-md focus:border focus:border-border-strong focus:bg-popover focus:px-3 focus:py-1.5 focus:text-ui focus:text-foreground focus:shadow-md"
+      >
+        Skip to content
+      </a>
       <div className="border-r border-border bg-card">{rail}</div>
       {sidebar ? (
         <div className="relative border-r border-border bg-card">
@@ -91,7 +106,9 @@ export function AppShell({
       ) : (
         <div />
       )}
-      <div className="relative flex min-w-0 flex-col">{main}</div>
+      <main id="main" tabIndex={-1} className="relative flex min-w-0 flex-col outline-none">
+        {main}
+      </main>
     </div>
   );
 }
