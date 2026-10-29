@@ -25,6 +25,7 @@ import {
   LicenceBar,
   LicencePill,
   LoadingState,
+  PageContent,
   ProjectGlyph,
   Select,
   SelectContent,
@@ -117,7 +118,7 @@ export function ProjectDetailPage() {
           ) : !project ? (
             <EmptyState title="Project not found" description="It may have been deleted." />
           ) : (
-            <div className="flex flex-col gap-5 p-4">
+            <PageContent className="gap-5">
               <header className="flex items-start gap-4">
                 <ProjectGlyph
                   size="lg"
@@ -211,7 +212,7 @@ export function ProjectDetailPage() {
                 <h2 className="mb-2 text-ui font-medium text-foreground">Recent activity</h2>
                 <ProjectAuditPanel projectId={project.id} />
               </section>
-            </div>
+            </PageContent>
           )}
 
           <PinAssetDialog

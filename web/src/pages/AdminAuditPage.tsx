@@ -8,6 +8,7 @@ import {
   BreadcrumbItem,
   ErrorState,
   LoadingState,
+  PageContent,
   SegmentedControl,
   Toolbar,
 } from "@/design-system";
@@ -83,7 +84,7 @@ export function AdminAuditPage() {
               />
             </div>
           </Toolbar>
-          <div className="mx-auto w-full max-w-[960px] p-3">
+          <PageContent width="wide">
             {loading ? (
               <LoadingState />
             ) : failed ? (
@@ -106,7 +107,7 @@ export function AdminAuditPage() {
               total={total}
               query={{ loading, placeholder, error }}
             />
-          </div>
+          </PageContent>
         </>
       }
     />

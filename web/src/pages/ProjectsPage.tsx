@@ -20,6 +20,7 @@ import {
   Input,
   LicenceBar,
   LoadingState,
+  PageContent,
   ProjectCard,
   ProjectCardNew,
   Select,
@@ -77,32 +78,34 @@ export function ProjectsPage() {
               }
             />
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 p-3.5">
-              {projects.map((p) => (
-                <ProjectCard
-                  key={p.id}
-                  name={p.name}
-                  glyph={p.glyph || p.name.slice(0, 1).toUpperCase()}
-                  color={p.glyph_color || "oklch(0.4 0.14 260)"}
-                  engine={p.target_distribution || undefined}
-                  onOpen={() => navigate(`/projects/${p.id}`)}
-                >
-                  <div className="flex items-center justify-between gap-2 text-label text-subtle-foreground">
-                    <span>
-                      <span className="font-mono text-muted-foreground">{p.asset_count}</span>{" "}
-                      assets
-                    </span>
-                    {p.updates_available > 0 && (
-                      <span className="text-warning">
-                        <span className="font-mono">{p.updates_available}</span> updates
+            <PageContent>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
+                {projects.map((p) => (
+                  <ProjectCard
+                    key={p.id}
+                    name={p.name}
+                    glyph={p.glyph || p.name.slice(0, 1).toUpperCase()}
+                    color={p.glyph_color || "oklch(0.4 0.14 260)"}
+                    engine={p.target_distribution || undefined}
+                    onOpen={() => navigate(`/projects/${p.id}`)}
+                  >
+                    <div className="flex items-center justify-between gap-2 text-label text-subtle-foreground">
+                      <span>
+                        <span className="font-mono text-muted-foreground">{p.asset_count}</span>{" "}
+                        assets
                       </span>
-                    )}
-                  </div>
-                  <LicenceBar counts={p.licence_counts} />
-                </ProjectCard>
-              ))}
-              <ProjectCardNew onClick={() => setDialogOpen(true)} />
-            </div>
+                      {p.updates_available > 0 && (
+                        <span className="text-warning">
+                          <span className="font-mono">{p.updates_available}</span> updates
+                        </span>
+                      )}
+                    </div>
+                    <LicenceBar counts={p.licence_counts} />
+                  </ProjectCard>
+                ))}
+                <ProjectCardNew onClick={() => setDialogOpen(true)} />
+              </div>
+            </PageContent>
           )}
 
           <NewProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
