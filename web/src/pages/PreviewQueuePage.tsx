@@ -10,6 +10,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  PageContent,
   QueueItem,
   Toolbar,
 } from "@/design-system";
@@ -48,7 +49,7 @@ export function PreviewQueuePage() {
               description="Backend previews generated after import show up here while they render. Regenerate one from an asset or file to see it appear."
             />
           ) : (
-            <div className="flex flex-col gap-2 p-3">
+            <PageContent className="gap-2">
               {previews.length === 0 ? (
                 <div className="px-1 py-6 text-center text-ui text-subtle-foreground">
                   Nothing processing right now.
@@ -76,7 +77,7 @@ export function PreviewQueuePage() {
                   ))}
                 </>
               )}
-            </div>
+            </PageContent>
           )}
         </>
       }

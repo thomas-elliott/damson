@@ -9,6 +9,7 @@ export * from "./FilterSidebar";
 export * from "./FullPageView";
 export * from "./LoadingState";
 export * from "./NavRail";
+export * from "./PageContent";
 export * from "./Pager";
 export * from "./ResizeHandle";
 export * from "./Section";

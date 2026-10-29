@@ -15,6 +15,7 @@ import {
   Input,
   KeyValueList,
   LoadingState,
+  PageContent,
   Section,
   SegmentedControl,
   Toolbar,
@@ -57,36 +58,34 @@ export function SettingsPage() {
           ) : !settings ? (
             <ErrorState title="Couldn't load settings" onRetry={reload} />
           ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
-                <header>
-                  <h1 className="text-heading-semibold text-foreground">Library settings</h1>
-                  <p className="mt-1 text-ui text-subtle-foreground">
-                    Applies to <span className="font-mono">{me.current_library.name}</span>. Changes
-                    are audited.
-                    {!isAdmin && <> You have read-only access — ask a library admin to edit.</>}
-                  </p>
-                </header>
+            <PageContent width="narrow" className="gap-4">
+              <header>
+                <h1 className="text-heading-semibold text-foreground">Library settings</h1>
+                <p className="mt-1 text-ui text-subtle-foreground">
+                  Applies to <span className="font-mono">{me.current_library.name}</span>. Changes
+                  are audited.
+                  {!isAdmin && <> You have read-only access — ask a library admin to edit.</>}
+                </p>
+              </header>
 
-                {isAdmin ? (
-                  <AdminSettingsForm settings={settings} />
-                ) : (
-                  <ReadOnlySettings settings={settings} />
-                )}
+              {isAdmin ? (
+                <AdminSettingsForm settings={settings} />
+              ) : (
+                <ReadOnlySettings settings={settings} />
+              )}
 
-                <LibraryMembersSection libraryId={me.current_library.id} isAdmin={isAdmin} />
+              <LibraryMembersSection libraryId={me.current_library.id} isAdmin={isAdmin} />
 
-                <LibraryProfileSection
-                  key={me.current_library.id}
-                  library={me.current_library}
-                  isAdmin={isAdmin}
-                />
+              <LibraryProfileSection
+                key={me.current_library.id}
+                library={me.current_library}
+                isAdmin={isAdmin}
+              />
 
-                <ApiTokensSection />
+              <ApiTokensSection />
 
-                {isSysadmin && <ServerAdminSection />}
-              </div>
-            </div>
+              {isSysadmin && <ServerAdminSection />}
+            </PageContent>
           )}
         </>
       }

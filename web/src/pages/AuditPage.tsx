@@ -8,6 +8,7 @@ import {
   BreadcrumbItem,
   ErrorState,
   LoadingState,
+  PageContent,
   SearchInput,
   Toolbar,
 } from "@/design-system";
@@ -66,7 +67,7 @@ export function AuditPage() {
               />
             </div>
           </Toolbar>
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2">
             {ACTION_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -83,7 +84,7 @@ export function AuditPage() {
               </button>
             ))}
           </div>
-          <div className="mx-auto w-full max-w-[960px] p-3">
+          <PageContent width="wide">
             {loading ? (
               <LoadingState />
             ) : failed ? (
@@ -97,7 +98,7 @@ export function AuditPage() {
               total={total}
               query={{ loading, placeholder, error }}
             />
-          </div>
+          </PageContent>
         </>
       }
     />

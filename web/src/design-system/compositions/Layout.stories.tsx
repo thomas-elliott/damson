@@ -8,9 +8,12 @@ import { TooltipProvider } from "@/design-system/primitives/Tooltip";
 
 import { AppShell } from "./AppShell";
 import { FilterRow, FilterSidebar } from "./FilterSidebar";
+import { Breadcrumb, BreadcrumbItem } from "./Breadcrumb";
 import { NavRail, NavRailItem, NavRailSpacer } from "./NavRail";
+import { PageContent } from "./PageContent";
 import { ResizeHandle } from "./ResizeHandle";
 import { Section } from "./Section";
+import { Toolbar } from "./Toolbar";
 
 const meta: Meta = {
   title: "Compositions/Layout",
@@ -149,6 +152,35 @@ export const RailOnly: Story = {
           <div className="grid h-full place-items-center text-ui text-subtle-foreground">
             Main content only (route: {route})
           </div>
+        }
+      />
+    );
+  },
+};
+
+// A capped column under a full-bleed toolbar: the content starts on the
+// toolbar's edge rather than re-centring.
+export const PageContentWide: Story = {
+  render: function PageContentWideDemo() {
+    const [route, setRoute] = useState("audit");
+    return (
+      <AppShell
+        rail={<RailSample route={route} setRoute={setRoute} />}
+        main={
+          <>
+            <Toolbar>
+              <Breadcrumb>
+                <BreadcrumbItem current>Audit log</BreadcrumbItem>
+              </Breadcrumb>
+            </Toolbar>
+            <PageContent width="wide" className="gap-2">
+              {["Oct 29, 01:10 PM", "Oct 29, 11:58 AM", "Oct 28, 04:02 PM"].map((t) => (
+                <div key={t} className="rounded-md border border-border bg-card p-3 text-ui">
+                  {t}
+                </div>
+              ))}
+            </PageContent>
+          </>
         }
       />
     );
