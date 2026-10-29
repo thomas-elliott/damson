@@ -3,7 +3,14 @@ import { useSearchParams, Link, Navigate } from "react-router";
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import { UrlPager } from "@/components/UrlPager";
-import { Breadcrumb, BreadcrumbItem, ErrorState, SegmentedControl, Toolbar } from "@/design-system";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  ErrorState,
+  LoadingState,
+  SegmentedControl,
+  Toolbar,
+} from "@/design-system";
 import { useAdminAudit, useMe, type AdminAuditScope } from "@/hooks/useDataQueries";
 import { parsePaging, withPage } from "@/lib/libraryFilters";
 
@@ -36,15 +43,7 @@ export function AdminAuditPage() {
   } = useAdminAudit({ limit: pageSize, offset: (page - 1) * pageSize, scope }, isSysadmin);
 
   if (meLoading) {
-    return (
-      <Shell
-        main={
-          <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-            Loading…
-          </div>
-        }
-      />
-    );
+    return <Shell main={<LoadingState />} />;
   }
   if (!isSysadmin) {
     return <Navigate to="/audit" replace />;
@@ -86,9 +85,7 @@ export function AdminAuditPage() {
           </Toolbar>
           <div className="mx-auto w-full max-w-[960px] p-3">
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-                Loading…
-              </div>
+              <LoadingState />
             ) : failed ? (
               <ErrorState title="Couldn't load the audit log" onRetry={reload} />
             ) : (

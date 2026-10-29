@@ -292,7 +292,7 @@ describe("LibraryPage density", () => {
     settings.data = null;
     settings.loading = true;
     const { rerender } = mount("/library");
-    expect(screen.getByText("Loading assets…")).toBeInTheDocument();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
     expect(screen.queryByText("grid")).toBeNull();
 
     settings.data = { grid_density_default: "small" };
@@ -313,7 +313,7 @@ describe("LibraryPage density", () => {
     settings.loading = true;
     library.total = 0;
     mount("/library");
-    expect(screen.queryByText("Loading assets…")).toBeNull();
+    expect(screen.queryByText("Loading…")).toBeNull();
     expect(screen.getByText("grid")).toBeInTheDocument();
   });
 

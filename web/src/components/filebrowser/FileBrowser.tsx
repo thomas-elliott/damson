@@ -2,24 +2,25 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Package } from "lucide-react";
 
 import {
+  buildFileTree,
+  countFiles,
   FileBrowserList,
   FileBrowserToolbar,
   FileCard,
   FileDetailPanel,
   FileSelectionBar,
   FileTreeSidebar,
-  FolderCard,
-  buildFileTree,
-  countFiles,
   flattenFiles,
+  FolderCard,
+  LoadingState,
   nodesAtPath,
   pathKey,
-  typeCounts,
   type FileBrowserView,
   type FileNode,
+  type FileType,
   type FlatFile,
   type FolderNode,
-  type FileType,
+  typeCounts,
 } from "@/design-system";
 import { useAssetDetail } from "@/hooks/useDataQueries";
 import {
@@ -223,11 +224,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
   useKeyboardShortcuts(bindings);
 
   if (!asset && loading) {
-    return (
-      <div className="grid h-full place-items-center text-ui text-subtle-foreground">
-        Loading files…
-      </div>
-    );
+    return <LoadingState className="h-full" />;
   }
   if (!asset) {
     return (

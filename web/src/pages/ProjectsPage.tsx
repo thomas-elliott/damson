@@ -19,6 +19,7 @@ import {
   FieldRow,
   Input,
   LicenceBar,
+  LoadingState,
   ProjectCard,
   ProjectCardNew,
   Select,
@@ -57,9 +58,7 @@ export function ProjectsPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading projects…
-            </div>
+            <LoadingState />
           ) : failed ? (
             <ErrorState title="Couldn't load projects" onRetry={reload} />
           ) : projects.length === 0 ? (
