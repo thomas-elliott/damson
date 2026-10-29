@@ -589,7 +589,7 @@ export function useLibrarySettings(libraryId: number | undefined) {
     gcTime: 1 * HOUR,
     enabled: libraryId != null,
     // Grids wait for these and draw at medium without them, so a failure
-    // settles at once. The settings page shows it with no retry.
+    // settles at once. The settings page shows it with a Retry.
     retry: false,
   });
   return {

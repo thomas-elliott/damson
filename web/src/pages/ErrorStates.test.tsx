@@ -13,6 +13,7 @@ import { PreviewQueuePage } from "./PreviewQueuePage";
 import { ProjectDetailPage } from "./ProjectDetailPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { QueuePage } from "./QueuePage";
+import { SettingsPage } from "./SettingsPage";
 
 vi.mock("@/lib/token", () => ({ getAccessToken: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/components/Shell", () => ({
@@ -237,5 +238,27 @@ describe("Asset panel's activity", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("No activity yet")).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load recent activity")).not.toBeInTheDocument();
+  });
+});
+
+// Settings waits for /api/me to know the library, then loads its settings.
+describe("Settings", () => {
+  it("shows the error with a Retry that loads the settings once it succeeds", async () => {
+    others = {
+      "/api/me": {
+        id: 1,
+        email: "a@example.com",
+        role: "user",
+        current_library: { id: 1, name: "Main", role: "member" },
+      },
+    };
+    endpoint = "/api/settings";
+    failing = [500];
+    body = { theme_default: "dark", grid_density_default: "medium" };
+    renderAt("/", "/", <SettingsPage />);
+    expect(await screen.findByText("Couldn't load settings")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Library settings")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load settings")).not.toBeInTheDocument();
   });
 });
