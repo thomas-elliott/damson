@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Getting Damson running
+    url: https://github.com/thomas-elliott/damson/blob/main/docs/getting-started.md
+    about: Install, bootstrap the first admin, and upload your first asset.
+  - name: Configuration reference
+    url: https://github.com/thomas-elliott/damson/blob/main/docs/configuration.md
+    about: Every environment variable, its default, and the OIDC and S3 setups.
+  - name: How-tos
+    url: https://github.com/thomas-elliott/damson/blob/main/docs/how-to/README.md
+    about: Licences, Unity packages, versions and pins, libraries, collections.
+  - name: Contributing
+    url: https://github.com/thomas-elliott/damson/blob/main/CONTRIBUTING.md
+    about: Get a dev environment up and send a change.

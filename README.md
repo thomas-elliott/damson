@@ -1,192 +1,137 @@
 # Damson
 
-Self-hosted digital asset manager for game-development assets — licence
-tracking, Unity package extraction, versioning, per-library workspaces.
+**A self-hosted catalogue for the asset packs a game team buys and reuses.**
 
-Status: pre-alpha. Single Go binary serves an embedded React SPA backed
-by Postgres and an S3-compatible object store (or a local filesystem).
+Damson takes the pile of `.unitypackage` files, zipped kits and loose textures
+that accumulates on a shared drive and turns it into something you can search,
+preview, and answer questions about — including the question that matters on
+ship day: *are we allowed to use this?*
+
+It is one Go binary that serves its own web UI, backed by Postgres and either
+the local filesystem or an S3-compatible object store.
+
+> **Damson is pre-alpha.** It works, and it is useful, but it is a
+> single-process application with no HA story, no backup tooling of its own,
+> and no upgrade guarantees between versions. See
+> [Project status](#project-status) before you put anything you care about in
+> it.
+
+**→ [Getting started](docs/getting-started.md)** — from nothing to a running
+Damson with your first asset in it.
+
+## What it does
+
+- **Extracts what you upload.** A `.unitypackage` or `.zip` is unpacked into
+  its individual files; anything else is stored whole. Thumbnails and previews
+  are rendered from the contents — resampled images, waveforms for audio, type
+  specimens for fonts.
+- **Tracks the licence.** One licence per asset, with the terms broken out as
+  six yes/no/*unknown* attributes — commercial use, modification,
+  redistribution, attribution, share-alike, open-source required. *Unknown* is
+  a real third state, never silently a "no". Filter a library by what it
+  permits, or open a project and see whether anything in it blocks a commercial
+  release.
+- **Pulls the storefront listing.** Where it can, Damson finds the Unity Asset
+  Store page for a pack and brings back the description, publisher, cover art
+  and tags.
+- **Versions things.** Uploading a newer build of a pack you already have never
+  overwrites it: it lands as its own asset, and when Damson recognises the
+  match it offers to fold it in as a new version instead. Projects pin the
+  specific version they are shipping, so "which pack is this tree from, and
+  which version is in the build" has an answer.
+- **Organises three different ways.** Tags are hierarchical paths describing
+  what an asset *is*; collections are flat bookmarks recording what you
+  *decided* about it; projects pin versions for a build. They are deliberately
+  not interchangeable.
+- **Keeps libraries apart.** A library is the tenancy boundary — assets, tags,
+  projects, settings and the audit log all belong to exactly one, and you only
+  see a library you are a member of.
+- **Has a CLI.** `dmsn` speaks the same HTTP API for scripts and agents;
+  `dmsn sync` bulk-imports Unity's local Asset Store cache, which is usually
+  the fastest way to fill a new library.
+
+## Who it is for
+
+A small game team — or one person with a decade of Asset Store purchases — who
+wants the packs catalogued somewhere they control, on their own hardware,
+without a per-seat subscription. It assumes you are comfortable running a
+container and a Postgres, and that you would rather read a configuration
+reference than click through a setup wizard.
+
+It is **not** a general-purpose DAM for marketing collateral, and it is not a
+version control system for your project's source assets. It is a catalogue of
+things you *acquired*.
+
+## What it looks like
+
+Signing in drops you on **Library**: a paged, virtualised grid of asset tiles,
+with a detail panel that opens over it and a **Filter** sidebar you toggle on
+for projects, tags, file kind, licence status and release date. The left rail
+gets you to **Import queue** and **Processing queue** (both live-updating),
+**Projects**, **Collections**, the **Audit** log, and **Settings**.
+
+> _[Screenshot: the Library grid with the filter sidebar open and an asset
+> detail panel over it.]_
+
+> _[Screenshot: an asset detail panel showing files, versions, tags and the
+> detected licence with its six attributes.]_
 
 ## Documentation
 
-Running Damson:
+**Running Damson**
 
-- [`docs/getting-started.md`](docs/getting-started.md) — start here if you
-  want to *run* Damson: Compose quickstart, first admin, first upload
-- [`docs/configuration.md`](docs/configuration.md) — every environment
-  variable, its default, and the OIDC and S3 setups in full
-- [`docs/how-to/`](docs/how-to/README.md) — task guides for what Damson
-  actually does: licences, Unity packages, versions and pins, libraries,
-  collections
+- [Getting started](docs/getting-started.md) — install with Docker Compose,
+  bootstrap the first admin, upload your first asset
+- [Configuration reference](docs/configuration.md) — every environment
+  variable, its default, and the OIDC and S3 setups written out
+- [How-tos](docs/how-to/README.md) — [licences](docs/how-to/track-licences.md),
+  [Unity packages](docs/how-to/import-unity-packages.md),
+  [versions and pins](docs/how-to/pin-versions.md),
+  [multiple libraries](docs/how-to/separate-libraries.md),
+  [collections](docs/how-to/collections.md)
+- [Observability](docs/observability.md) — log shape, request correlation, and
+  queries worth having
 
-Working on Damson:
+**Building Damson**
 
-- [`AGENTS.md`](AGENTS.md) — start here: commands, conventions and the
-  dev loop, for people and coding agents alike
-- [`docs/architecture.md`](docs/architecture.md) — how the system fits
-  together, and the traps
-- [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) — coding standards,
-  handler patterns, test helpers
-- [`docs/design-system.md`](docs/design-system.md) — frontend tokens and
+- [CONTRIBUTING.md](CONTRIBUTING.md) — get a dev environment up, and what a
+  good pull request looks like here
+- [AGENTS.md](AGENTS.md) — the commands and the dev loop, for people and coding
+  agents alike
+- [docs/architecture.md](docs/architecture.md) — how the system fits together,
+  and the traps
+- [docs/CONVENTIONS.md](docs/CONVENTIONS.md) — coding standards, handler
+  patterns, test helpers
+- [docs/design-system.md](docs/design-system.md) — frontend tokens and
   primitives
-- [`docs/observability.md`](docs/observability.md) — logging shape and
-  queries
-- [`docs/e2e-flows.md`](docs/e2e-flows.md) — Playwright coverage
+- [docs/e2e-flows.md](docs/e2e-flows.md) — what the Playwright suite covers
 
-## Quick start (Docker)
+## Project status
 
-See [`docs/getting-started.md`](docs/getting-started.md) for a Docker
-Compose quickstart — Postgres + Damson, local-mode auth,
-local-filesystem storage, in-app first-admin bootstrap — plus
-bootstrapping the first admin and uploading a first asset.
+Pre-alpha, and honestly so. What that means in practice:
 
-For OIDC and S3 see [`docs/configuration.md`](docs/configuration.md).
+- **One process, no HA.** There is no clustering story and no read replica
+  story. Scaling means a bigger box.
+- **No backup tooling.** Two things need backing up together — the Postgres
+  database and the object store (`/data/blobs` in local mode, or your bucket).
+  Back up the database *after* storage. See
+  [Backups](docs/getting-started.md#backups).
+- **Gaps with no UI yet.** Creating a library is an API call; the web UI can
+  only rename, delete and switch between them. The how-tos name these gaps
+  rather than working around them quietly.
+- **No upgrade guarantees.** Migrations run forward automatically at startup
+  and there is no downgrade path. Nothing stops you upgrading across several
+  versions at once, and nothing promises it will work.
+- **Private repository.** The `ghcr.io/thomas-elliott/damson` images are
+  private too, so `docker pull` needs a GitHub token with `read:packages` — or
+  build the image yourself with `just image-build`.
 
-## Running locally (development)
+Released versions are the `v*.*.*` tags; the published images carry matching
+tags. The root `VERSION` file is not what the build reads and should not be
+trusted as the current version.
 
-### Prerequisites
+## Licence
 
-- Go 1.26
-- Node 24+
-- [pnpm](https://pnpm.io) — frontend package manager (run `corepack enable` to
-  use the version pinned in `web/package.json`)
-- Docker with Compose, for the dev Postgres — or your own Postgres 14+
-- [just](https://just.systems) — workflow runner
-- For the Storybook test project: a Chromium install via
-  `npx playwright install chromium`
-
-### Setup
-
-```sh
-# 1. clone, then install all deps (Go modules, web deps via pnpm, Playwright browsers):
-just install
-
-# 2. dev loop — Postgres, backend and Vite SPA
-just dev
-
-# 3. in another terminal, optionally load sample packs and ~300 reference assets
-just seed
-```
-
-Open <http://localhost:5173> and sign in as `dev@example.com` / `password1`.
-
-`just dev` needs no configuration. It starts this checkout's own Postgres from
-`compose.yaml` on a free loopback port, applies migrations, creates that dev admin and installs
-[air](https://github.com/air-verse/air) for Go hot-reload if it is missing. To
-use your own Postgres or a different admin, set `DAMSON_POSTGRES_DSN` or
-`DAMSON_LOCAL_ADMIN_EMAIL` / `DAMSON_LOCAL_ADMIN_PASSWORD` in a `.env` (see
-`.env.example`); those win over the defaults.
-
-`just backend` runs the backend only (no Vite). Useful when you don't need
-SPA changes or you're running Vite separately via `just frontend`.
-
-`just db up`, `down`, `reset` and `psql` manage the dev Postgres directly, and
-`just db dsn` prints its address. Each clone or worktree gets its own; after
-deleting one, `just db prune` removes its Postgres and data.
-
-### Tests
-
-```sh
-just test backend        # Go unit tests (go test ./...)
-just test frontend       # Vitest unit project (jsdom)
-just test stories        # Vitest storybook project (Playwright Chromium)
-just test                # Full suite: Go unit + Postgres integration + Playwright e2e
-just check               # Preflight: lint + format check + go.mod tidy + SPA build + tests + e2e
-```
-
-Single Go test (the recipe supplies the Postgres DSN):
-
-```sh
-just test backend ./internal/handlers/api -run '^TestName$'
-just test backend ./internal/handlers/api -run '^TestName$/SubtestName$'
-```
-
-Single Vitest file:
-
-```sh
-just test frontend src/path/to/file.test.tsx
-```
-
-### Build
-
-```sh
-just build           # SPA + Go binary (CGO_ENABLED=0) → ./damson
-just image-build     # multi-stage container image → damson:local
-```
-
-## Configuration
-
-Config is loaded from environment variables once at startup
-(`internal/config/config.go`). A `.env` in the repo root is
-auto-loaded; real env vars win on conflict. A missing required value
-or one that does not parse stops startup with exit status 1 and a log
-line naming the variable. See [`.env.example`](.env.example) for the full set.
-
-The only **always**-required value is `DAMSON_POSTGRES_DSN`. The auth
-and storage modes default to `local`, which is the zero-config path.
-
-Common knobs:
-
-| Var | Default | Notes |
-|---|---|---|
-| `DAMSON_POSTGRES_DSN` | — | Required. Or `..._FILE=/path` for Docker Secrets. |
-| `DAMSON_LISTEN_ADDR` | `:8080` | |
-| `DAMSON_BASE_URL` | `http://localhost:8080` | Local-mode JWT `iss`/`aud` only; changing it invalidates existing sessions. Not used for OIDC redirects — the SPA derives those from its own origin. |
-| `DAMSON_AUTH_MODE` | `local` | `local` (bcrypt + JWT) or `oidc`. |
-| `DAMSON_STORAGE_MODE` | `local` | `local` (filesystem) or `s3`. |
-| `DAMSON_LOG_LEVEL` | `info` | |
-
-Secrets accept a `<NAME>_FILE` variant that reads from a path — for
-Docker Secrets / Kubernetes secrets. Setting both the direct var and
-the `_FILE` form stops startup.
-
-For mode-specific variables (OIDC, S3, local-mode bootstrap, JWT
-signing key) and the full list with defaults, see
-[`docs/configuration.md`](docs/configuration.md).
-
-### First-run flow
-
-1. Start Damson with at least `DAMSON_POSTGRES_DSN` set. Migrations run
-   inside a Postgres advisory lock.
-2. First browser hit → `/api/auth/mode` returns
-   `{ mode: "local", needs_bootstrap: true }`. The SPA renders
-   `/bootstrap`.
-3. Submit email + password. The server runs `BootstrapFirstAdmin`:
-   creates the user as `sysadmin`, creates a `"Personal"` library,
-   grants admin membership, sets `current_library_id`, returns a JWT.
-4. Subsequent users sign in but land on "no library access yet" until
-   a library admin invites them.
-
-Alternatives:
-
-- **Env seed.** Set both `DAMSON_LOCAL_ADMIN_EMAIL` and
-  `DAMSON_LOCAL_ADMIN_PASSWORD` — first-admin creation runs at
-  startup, the bootstrap page is skipped.
-- **OIDC.** `DAMSON_AUTH_MODE=oidc` — the first user to sign in on an
-  empty system runs the same bootstrap transaction (no admin email list
-  needed). If the IdP sends no email claim, that user is prompted to add
-  one on first login.
-
-## Layout
-
-- `cmd/server/` — binary entry point
-- `internal/` — backend packages (`auth`, `handlers/api`, `models`,
-  `services/{audit,extract,licence,storage,thumbnail}`, …)
-- `database/migrations/` — `NNN_*.sql` migrations applied at startup
-- `web/` — React SPA (Vite build output at `web/static/`)
-- `docs/` — architecture, conventions, design system
-- `damson.go` — module-root file holding the `//go:embed` directives
-  for migrations and SPA assets. Lives at the root because
-  `//go:embed` cannot traverse upward from `internal/`.
-- `web/static/.gitkeep` — placeholder that lets
-  `//go:embed all:web/static` succeed before the SPA has been built.
-  Don't delete it; don't commit anything else into `web/static/`.
-
-## Releases
-
-Images are published to `ghcr.io/thomas-elliott/damson`. A push to `main`
-publishes `main-<sha>` and `latest`; a `v*.*.*` tag promotes the
-already-tested `main-<sha>` image to the `{version}`, `{major}.{minor}` and
-`{major}` tags without a rebuild.
-
-Locally, `just check` runs the same preflight (lint + format check + go.mod tidy +
-SPA build + unit tests + e2e) before you push.
+No licence file has been added to this repository yet, so default copyright
+applies and there is no grant of use beyond what you have been given
+explicitly. That is an omission rather than a decision.
