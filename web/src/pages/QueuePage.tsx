@@ -237,8 +237,10 @@ function ImportQueueRow({
         )
       }
       actions={
-        <div className="flex flex-col items-stretch gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button size="sm" variant="primary" onClick={onReview}>
+        // Peer actions, so one weight in one row; primary on every row of a
+        // list would mean nothing.
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button size="sm" variant="secondary" onClick={onReview}>
             Review
           </Button>
           <FindListingButton
@@ -249,7 +251,7 @@ function ImportQueueRow({
           {imp.needs_review && (
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               leadingIcon={<Check size={12} />}
               disabled={review.isPending}
               onClick={() => review.mutate(imp.asset_id)}
@@ -260,7 +262,7 @@ function ImportQueueRow({
           {isFailed && (
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               leadingIcon={<RotateCw size={12} />}
               disabled={retry.isPending}
               onClick={() => retry.mutate(imp.id)}
