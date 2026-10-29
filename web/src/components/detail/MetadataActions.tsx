@@ -4,6 +4,7 @@ import { ChevronDown, Download, Search } from "lucide-react";
 import {
   Button,
   Checkbox,
+  cn,
   Dialog,
   DialogBody,
   DialogContent,
@@ -13,7 +14,7 @@ import {
   DialogTitle,
   IconButton,
   Input,
-  cn,
+  LoadingState,
 } from "@/design-system";
 import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 import type { AssetDetailView, MetadataCandidate, MetadataConflict } from "@/hooks/useDataQueries";
@@ -78,9 +79,7 @@ function CandidateRow({ c, onPick }: { c: MetadataCandidate; onPick: () => void 
       </div>
       {expanded && (
         <div className="flex flex-col gap-1.5 border-t border-border p-2">
-          {preview.isPending && (
-            <p className="text-caption text-subtle-foreground">Loading details…</p>
-          )}
+          {preview.isPending && <LoadingState variant="inline" />}
           {preview.isError && (
             <p className="text-caption text-destructive">Couldn't load details</p>
           )}

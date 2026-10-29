@@ -19,11 +19,12 @@ import {
   Breadcrumb,
   BreadcrumbItem,
   Button,
+  cn,
   EmptyState,
   ErrorState,
+  LoadingState,
   QueueItem,
   Toolbar,
-  cn,
 } from "@/design-system";
 import { useImports, useMe, type ImportRow } from "@/hooks/useDataQueries";
 import { useImportEvents } from "@/hooks/useImportEvents";
@@ -76,9 +77,7 @@ export function QueuePage() {
             </Breadcrumb>
           </Toolbar>
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading queue…
-            </div>
+            <LoadingState />
           ) : failed ? (
             <ErrorState title="Couldn't load the import queue" onRetry={reload} />
           ) : imports.length === 0 && finished.length === 0 ? (

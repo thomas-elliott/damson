@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 
+import { LoadingState } from "@/design-system";
 import { useAuthMode, useMe } from "@/hooks/useDataQueries";
 import { readLocalSession } from "@/lib/localAuth";
 import { getUserManager } from "@/lib/oidc";
@@ -29,7 +30,7 @@ export function AuthGuard() {
       const next: AuthState = readLocalSession() ? "ready" : "needs-login";
       // Defer off the effect's synchronous body so we don't trigger a
       // cascading render mid-commit (react-hooks/set-state-in-effect); the
-      // "Authenticating…" spinner covers this microtask. The OIDC branch below
+      // loading state covers this microtask. The OIDC branch below
       // already updates state from async callbacks, which the rule allows.
       queueMicrotask(() => {
         if (!cancelled) setState(next);
@@ -67,11 +68,7 @@ export function AuthGuard() {
   }, [mode, modeLoading]);
 
   if (modeLoading || state === "checking") {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-ui text-subtle-foreground">
-        Authenticating…
-      </div>
-    );
+    return <LoadingState className="h-screen bg-background" />;
   }
   if (state === "needs-login") {
     // `needsBootstrap` only matters for unauthenticated users — an authed
@@ -95,11 +92,7 @@ function ProfileGate() {
   const { data: me, loading } = useMe();
 
   if (loading || !me) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-ui text-subtle-foreground">
-        Authenticating…
-      </div>
-    );
+    return <LoadingState className="h-screen bg-background" />;
   }
   if (me.needs_profile) {
     return <ProfileSetupPage me={me} />;

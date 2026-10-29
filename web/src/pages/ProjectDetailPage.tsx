@@ -21,8 +21,10 @@ import {
   EmptyState,
   ErrorState,
   FieldRow,
+  formatBytes,
   LicenceBar,
   LicencePill,
+  LoadingState,
   ProjectGlyph,
   Select,
   SelectContent,
@@ -31,7 +33,6 @@ import {
   SelectValue,
   Toolbar,
   ToolbarSpacer,
-  formatBytes,
   useConfirm,
 } from "@/design-system";
 import {
@@ -110,9 +111,7 @@ export function ProjectDetailPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading project…
-            </div>
+            <LoadingState />
           ) : failed && !isNotFound(error) ? (
             <ErrorState title="Couldn't load this project" onRetry={reload} />
           ) : !project ? (
@@ -308,7 +307,7 @@ function ProjectPinRow({
 function ProjectAuditPanel({ projectId }: { projectId: number }) {
   const { data: entries, loading, failed, reload } = useProjectAudit(projectId);
   if (loading) {
-    return <div className="text-label text-faint-foreground">Loading…</div>;
+    return <LoadingState variant="inline" />;
   }
   if (failed) {
     return <ErrorState title="Couldn't load recent activity" onRetry={reload} />;

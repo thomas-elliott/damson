@@ -7,6 +7,7 @@ export * from "./EmptyState";
 export * from "./ErrorState";
 export * from "./FilterSidebar";
 export * from "./FullPageView";
+export * from "./LoadingState";
 export * from "./NavRail";
 export * from "./Pager";
 export * from "./ResizeHandle";

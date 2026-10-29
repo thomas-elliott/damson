@@ -18,6 +18,7 @@ import {
   ErrorState,
   FieldRow,
   Input,
+  LoadingState,
   Textarea,
   Toolbar,
   ToolbarSpacer,
@@ -49,9 +50,7 @@ export function CollectionsPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading collections…
-            </div>
+            <LoadingState />
           ) : failed ? (
             <ErrorState title="Couldn't load collections" onRetry={reload} />
           ) : collections.length === 0 ? (
