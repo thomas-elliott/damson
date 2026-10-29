@@ -8,6 +8,15 @@ by Postgres and an S3-compatible object store (or a local filesystem).
 
 ## Documentation
 
+Running Damson:
+
+- [`docs/getting-started.md`](docs/getting-started.md) — start here if you
+  want to *run* Damson: Compose quickstart, first admin, first upload
+- [`docs/configuration.md`](docs/configuration.md) — every environment
+  variable, its default, and the OIDC and S3 setups in full
+
+Working on Damson:
+
 - [`AGENTS.md`](AGENTS.md) — start here: commands, conventions and the
   dev loop, for people and coding agents alike
 - [`docs/architecture.md`](docs/architecture.md) — how the system fits
@@ -22,24 +31,12 @@ by Postgres and an S3-compatible object store (or a local filesystem).
 
 ## Quick start (Docker)
 
-The smallest possible local setup: Postgres + Damson, local-mode auth,
-local-filesystem storage, in-app first-admin bootstrap.
+See [`docs/getting-started.md`](docs/getting-started.md) for a Docker
+Compose quickstart — Postgres + Damson, local-mode auth,
+local-filesystem storage, in-app first-admin bootstrap — plus
+bootstrapping the first admin and uploading a first asset.
 
-```sh
-docker run -d --name damson-pg \
-  -e POSTGRES_USER=damson -e POSTGRES_PASSWORD=damson \
-  -e POSTGRES_DB=damson -p 5432:5432 postgres:16
-
-docker run --rm -p 8080:8080 \
-  -e DAMSON_POSTGRES_DSN='postgres://damson:damson@host.docker.internal:5432/damson?sslmode=disable' \
-  -v damson-data:/data \
-  ghcr.io/thomas-elliott/damson:latest
-```
-
-Visit <http://localhost:8080>; the SPA lands on `/bootstrap` so you can
-create the first admin.
-
-For OIDC and S3 see [Configuration](#configuration) below.
+For OIDC and S3 see [`docs/configuration.md`](docs/configuration.md).
 
 ## Running locally (development)
 
@@ -130,7 +127,7 @@ Common knobs:
 |---|---|---|
 | `DAMSON_POSTGRES_DSN` | — | Required. Or `..._FILE=/path` for Docker Secrets. |
 | `DAMSON_LISTEN_ADDR` | `:8080` | |
-| `DAMSON_BASE_URL` | `http://localhost:8080` | Used for OIDC redirects and local-mode JWT `iss`/`aud`. |
+| `DAMSON_BASE_URL` | `http://localhost:8080` | Local-mode JWT `iss`/`aud` only; changing it invalidates existing sessions. Not used for OIDC redirects — the SPA derives those from its own origin. |
 | `DAMSON_AUTH_MODE` | `local` | `local` (bcrypt + JWT) or `oidc`. |
 | `DAMSON_STORAGE_MODE` | `local` | `local` (filesystem) or `s3`. |
 | `DAMSON_LOG_LEVEL` | `info` | |
@@ -140,7 +137,8 @@ Docker Secrets / Kubernetes secrets. Setting both the direct var and
 the `_FILE` form stops startup.
 
 For mode-specific variables (OIDC, S3, local-mode bootstrap, JWT
-signing key) see the comments in `.env.example`.
+signing key) and the full list with defaults, see
+[`docs/configuration.md`](docs/configuration.md).
 
 ### First-run flow
 
