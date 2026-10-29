@@ -14,10 +14,14 @@ const RULE_SELECTORS = {
 /** The debt, each with the task that tracks it. */
 const DEBTS = {
   /** `faint-foreground` on `card` (4.34:1) or `muted` (3.96:1). SMO-3, audit finding 5. */
-  "faint-foreground": { rule: "color-contrast", selector: '[class*="text-faint-foreground"]' },
+  "faint-foreground": { rule: "color-contrast", selector: ".text-faint-foreground" },
   /** `destructive` on `destructive-soft`, 4.42:1. SMO-22. */
   "destructive-soft": { rule: "color-contrast", selector: ".bg-destructive-soft" },
-  /** Markdown links told apart from body text by colour alone, 1.13:1. SMO-23. */
+  /**
+   * Markdown links told apart from body text by colour alone, 1.13:1. SMO-23.
+   * Skips every link in the story, so use it only where Markdown is the sole
+   * source of links.
+   */
   "markdown-link": { rule: "link-in-text-block", selector: "a" },
 } as const;
 
