@@ -232,6 +232,8 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
         lib ? (
           <DropZone>
             <Toolbar>
+              {/* The library picker names the page visually. */}
+              <h1 className="sr-only">Library</h1>
               <LibraryPicker current={lib} />
               {/* Until the first page settles the hook's total is 0, which is
                   wrong rather than absent; show the pager's total otherwise, so

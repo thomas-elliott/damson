@@ -56,7 +56,9 @@ export function AuditPage() {
         <>
           <Toolbar>
             <Breadcrumb count={loading ? "…" : `${total}`}>
-              <BreadcrumbItem current>Audit log</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Audit log
+              </BreadcrumbItem>
             </Breadcrumb>
             <div className="ml-auto flex items-center gap-2">
               <SearchInput

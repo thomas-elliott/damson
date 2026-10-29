@@ -217,6 +217,13 @@ describe("LibraryPage paging", () => {
 
 // The count is the first number on the screen, so it never shows a total the
 // library doesn't have.
+describe("LibraryPage heading", () => {
+  it("names the page with an h1", () => {
+    mount("/library");
+    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeInTheDocument();
+  });
+});
+
 describe("LibraryPage asset count", () => {
   it("shows an ellipsis, not 0, while the first page loads", () => {
     library.loading = true;

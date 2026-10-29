@@ -274,3 +274,20 @@ describe("Project detail's toolbar", () => {
     expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
   });
 });
+
+// Every screen names itself with one h1, for screen-reader heading navigation.
+describe.each<[string, ComponentType, string, unknown]>([
+  ["Import queue", QueuePage, "/api/imports", { imports: [] }],
+  ["Processing queue", PreviewQueuePage, "/api/previews", { previews: [] }],
+  ["Projects", ProjectsPage, "/api/projects", { projects: [] }],
+  ["Collections", CollectionsPage, "/api/collections", { collections: [] }],
+])("%s", (heading, Page, path, emptyBody) => {
+  it("names the page with one h1", async () => {
+    endpoint = path;
+    failing = [];
+    body = emptyBody;
+    renderAt("/", "/", <Page />);
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(heading);
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+});

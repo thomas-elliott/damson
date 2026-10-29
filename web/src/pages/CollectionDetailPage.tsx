@@ -78,7 +78,9 @@ export function CollectionDetailPage() {
             <Breadcrumb>
               <BreadcrumbItem>Collections</BreadcrumbItem>
               <BreadcrumbSeparator />
-              <BreadcrumbItem current>{collection?.name ?? "—"}</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                {collection?.name ?? "—"}
+              </BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
             <Button
