@@ -98,7 +98,7 @@ Other flags:
 - `--concurrency N` sets parallel uploads.
 - `--wait` follows each import to a terminal stage.
 
-> _[Screenshot: a terminal showing `dmsn sync scan` output — the cache summary block and the packages table with a mix of statuses.]_
+![Terminal output of dmsn sync scan: a cache summary and six packages with the statuses new, updated, already_imported and name_match](../images/dmsn-sync-scan.png)
 
 ### What the cache path provides
 
@@ -113,7 +113,7 @@ Damson does not parse a version from the filename. The cache holds one file per 
 
 Open the asset and expand **Files**. A pack with more than one file has a **Browse all N files** button, which opens a full-pane file browser: folder tree on the left, listing in the middle, preview on the right. You can search and filter by file type. `Esc` steps up a level and then leaves the browser.
 
-> _[Screenshot: the file browser open on a Unity pack, folder tree on the left, a texture selected and previewing on the right.]_
+![The file browser open on Mossy Forest Environment with the Textures folder selected and a moss texture previewing on the right](../images/browse-files.png)
 
 The UI and API do not expose the GUID Damson recorded for each file. It is in `asset_files.unity_guid` if you need to match a file against a Unity project's `.meta` by hand.
 
