@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
+import { expect, within } from "storybook/test";
 
 import { FieldRow } from "@/design-system/domain/FieldRow";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { Markdown } from "./Markdown";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -57,6 +59,11 @@ export const Rendered: Story = {
  * their link entirely. Nothing here is executable.
  */
 export const UntrustedInput: Story = {
+  parameters: {
+    // Known contrast debt: links differ from body text by colour alone,
+    // 1.13:1 where link-in-text-block needs 3:1 (SMO-23).
+    a11y: contrastDebt("markdown-link"),
+  },
   render: () => (
     <div className="max-w-[420px]">
       <Markdown>{`<script>alert(1)</script> and <img src=x onerror=alert(1)>
@@ -71,6 +78,13 @@ export const UntrustedInput: Story = {
 /** The CodeMirror editing surface, with the rendered result beside it. */
 export const Editor: Story = {
   parameters: { layout: "padded" },
+  // MarkdownEditorView loads lazily; wait for it so the a11y check sees the
+  // CodeMirror surface rather than the Suspense fallback.
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("textbox", { name: "Description" }),
+    ).toBeVisible();
+  },
   render: function EditorDemo() {
     const [value, setValue] = useState(SAMPLE);
     return (
@@ -95,6 +109,13 @@ export const Editor: Story = {
 
 /** Empty editor — placeholder state. */
 export const EditorEmpty: Story = {
+  // MarkdownEditorView loads lazily; wait for it so the a11y check sees the
+  // CodeMirror surface rather than the Suspense fallback.
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("textbox", { name: "Description" }),
+    ).toBeVisible();
+  },
   render: function EmptyDemo() {
     const [value, setValue] = useState("");
     return (

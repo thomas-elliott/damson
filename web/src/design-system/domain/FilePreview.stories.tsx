@@ -1,6 +1,8 @@
 import { type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { contrastDebt } from "@/design-system/_a11yDebt";
+
 import { FilePreview } from "./FilePreview";
 import type { FileNode } from "./fileTree";
 
@@ -43,10 +45,18 @@ export const Image: Story = {
 
 /** Image type whose bytes haven't resolved yet → placeholder fallback. */
 export const ImageLoading: Story = {
+  parameters: {
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
+  },
   render: () => frame(<FilePreview node={node("Brick_Albedo.png", "texture")} large />),
 };
 
 /** Non-image type → type placeholder, regardless of any URL. */
 export const NonImageFallback: Story = {
+  parameters: {
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
+  },
   render: () => frame(<FilePreview node={node("PlayerController.cs", "script")} large />),
 };

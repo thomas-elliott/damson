@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { contrastDebt } from "@/design-system/_a11yDebt";
+
 import { FileBrowserList } from "./FileBrowserList";
 import { FileBrowserToolbar, type FileBrowserView } from "./FileBrowserToolbar";
 import { FileCard, FolderCard } from "./FileCard";
@@ -110,7 +112,11 @@ export const Glyphs: Story = {
 };
 
 export const Thumbnails: Story = {
-  parameters: { layout: "padded" },
+  parameters: {
+    layout: "padded",
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
+  },
   render: () => (
     <div className="grid grid-cols-4 gap-3">
       {[
@@ -131,7 +137,11 @@ export const Thumbnails: Story = {
 };
 
 export const Cards: Story = {
-  parameters: { layout: "padded" },
+  parameters: {
+    layout: "padded",
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
+  },
   render: function CardsStory() {
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const files = ALL_FILES.filter((x) => x.dir.join("/").startsWith("Assets"));
@@ -266,7 +276,11 @@ export const SelectionBar: Story = {
 };
 
 export const FullLayout: Story = {
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
+  },
   render: function FullLayoutStory() {
     const [query, setQuery] = useState("");
     const [path, setPath] = useState<string[]>(["Assets"]);
