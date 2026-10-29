@@ -140,7 +140,7 @@ set it in one go.
 
 > _[Screenshot: the Library grid with four cards selected and the bulk action
 > bar showing Mark reviewed / Needs review / Tag / Collection / Licence /
-> Delete.]_
+> Delete / Clear.]_
 
 The bulk action always runs the detector over the text you pasted and stores
 its answer — there is no "save as custom" here. It is one transaction over up
@@ -200,8 +200,9 @@ reading the bar.
 - **Status is derived, never stored.** Change an attribute and every count
   moves with it. There is no separate "approved" flag to get out of sync.
 - **A rescan can only find a licence file that was extracted.** A loose upload,
-  or a pack with no `LICENSE` at the root of its tree, has nothing for the
-  detector to read. Paste the text instead.
+  or a pack that ships no licence file under any of the six recognised names,
+  has nothing for the detector to read. Paste the text instead. Depth is not
+  the problem — a `LICENSE` four directories down is found.
 - **Rescan is non-destructive by design.** If it reports nothing changed on an
   asset that plainly has a `LICENSE` file, check whether its licence is already
   marked reviewed — that is the rule doing its job.

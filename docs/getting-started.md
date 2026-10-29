@@ -267,8 +267,10 @@ Server settings → Max upload bytes**.
 off and separators become spaces, so `Forest_Pack_v2.1.unitypackage` becomes an
 asset named "Forest Pack" at version `2.1`. A bare trailing integer is kept as
 part of the name, so `Rock Set 2.zip` is just "Rock Set 2" with no version.
-Uploading a new file for an existing asset adds a new version rather than
-replacing anything.
+Uploading a new file for an asset you already have never overwrites it. In the
+SPA it lands as its own asset first, and if Damson recognises a match a toast
+offers to fold it in as a new version instead — see
+[Pin a project to a version you have tested](how-to/pin-versions.md).
 
 The upload returns as soon as the asset record is written, so a placeholder
 tile appears in the grid immediately while the rest happens in the background:

@@ -76,9 +76,10 @@ curl -sS -X POST localhost:8080/api/libraries \
 Whoever creates it becomes its admin. **It does not become your current
 library** — switching is a separate, deliberate step.
 
-Note that there is no instance-wide gate on this: any member of any library can
-create more. If that matters to you, it is a thing to watch in the audit log
-(`library.create`), not a thing to configure.
+Note that there is no instance-wide gate on this: any authenticated user can
+create more, including one who is not a member of a single library yet. If that
+matters to you, it is a thing to watch in the audit log (`library.create`), not
+a thing to configure.
 
 ## Switch between them
 
@@ -209,9 +210,12 @@ again, back up Postgres and the object store first; see the Backups note in
 
 ## Things that will catch you out
 
-- **403, never 404.** Asking for something in another library is refused as
-  forbidden, not reported as missing. That is deliberate: a 404 would confirm
-  what does and does not exist elsewhere.
+- **A 403 is about you, a 404 is about the resource.** If your current library
+  is gone — deleted, or your membership removed — every scoped route answers
+  403 before it looks at what you asked for. Asking for an asset that belongs
+  to a library you are not in is a plain 404 instead: scoped queries match on
+  the id *and* the current library, so the row simply is not there. Neither
+  response tells you whether something exists elsewhere.
 - **A user with no membership can sign in and then has nowhere to go.** They
   see "No library access yet" with their own email on it. There is no
   "everyone can see everything" mode and no default library.
