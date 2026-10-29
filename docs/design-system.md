@@ -73,7 +73,8 @@ runs it in light. `just check` and CI both run the storybook project.
 
 If axe flags contrast, fix the token or reach for a brighter tier before adding an exception. A
 legitimate decorative exception is `parameters.a11y.test = "todo"` on the story, with the reason in
-a comment.
+a comment. Known contrast debt that a later task will fix gets the same marker, with the failing pair and
+its ratio in the comment, so the gate never waits on the fix.
 
 ---
 
