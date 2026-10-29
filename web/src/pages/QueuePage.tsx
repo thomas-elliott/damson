@@ -23,6 +23,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  PageContent,
   QueueItem,
   Toolbar,
 } from "@/design-system";
@@ -87,9 +88,9 @@ export function QueuePage() {
               description="Everything that arrived via import has been checked. New unreviewed assets will show up here automatically."
             />
           ) : (
-            <div
-              style={{ paddingRight: reserved ? reserved + 12 : undefined }}
-              className="flex flex-1 flex-col gap-2 overflow-auto p-3"
+            <PageContent
+              style={{ paddingRight: reserved ? reserved + 14 : undefined }}
+              className="gap-2"
             >
               {imports.length === 0 ? (
                 <div className="px-1 py-6 text-center text-ui text-subtle-foreground">
@@ -120,7 +121,7 @@ export function QueuePage() {
                   ))}
                 </>
               )}
-            </div>
+            </PageContent>
           )}
           <AssetDetailPanel
             assetId={reviewing}
