@@ -210,8 +210,9 @@ store link, or both — so the catalogue is complete even when the bytes are not
 in Damson. It has no versions.
 
 Pin one and the pin carries no version; the project page shows `Reference` in
-both the Pinned and Size columns. Pinning the same reference twice is a no-op,
-and passing a `version_id` for one is a 400.
+the Pinned column and an em dash in Size, because there are no bytes to
+measure. Pinning the same reference twice is a no-op, and passing a
+`version_id` for one is a 400.
 
 ## Things that will catch you out
 

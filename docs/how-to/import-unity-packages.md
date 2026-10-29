@@ -246,9 +246,12 @@ over: a rescan or a re-extract leaves a store cover alone.
   with no cover and no storefront data is a successful import.
 - **A `.unitypackage` that is a plain tar still works** — Damson sniffs the
   first two bytes for the gzip magic and falls through to tar.
-- **Nothing on the write path deletes an object.** Deleting an asset leaves
-  its blobs; reclaiming them is the sysadmin's storage cleanup, documented in
-  [`docs/configuration.md`](../configuration.md).
+- **Deleting an asset leaves its blobs.** Reclaiming them is the sysadmin's
+  storage cleanup, documented in
+  [`docs/configuration.md`](../configuration.md). The one place an import
+  deletes a stored object itself is the original-archive purge described under
+  [Turning off retention](#turning-off-retention), and only once no other live
+  version still points at that archive.
 
 ## Where to go next
 
