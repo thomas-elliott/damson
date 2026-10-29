@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, userEvent, within } from "storybook/test";
 
 import { contrastDebt } from "@/design-system/_a11yDebt";
+import { holdXhrUploads } from "@/components/_storyStubs";
 
 import { NotificationCentre } from "./NotificationCentre";
 import {
@@ -21,6 +22,7 @@ const meta: Meta<typeof NotificationCentre> = {
   title: "App/NotificationCentre",
   component: NotificationCentre,
   parameters: { layout: "fullscreen" },
+  beforeEach: () => holdXhrUploads(),
 };
 export default meta;
 type Story = StoryObj<typeof NotificationCentre>;
@@ -68,9 +70,6 @@ const READ: Omit<AppNotification, "createdAt">[] = [
   },
   { id: "r2", tone: "success", title: "Tagged 12 assets", read: true, source: "toast" },
 ];
-
-// Uploads stay in flight: the request is opened but never sent.
-XMLHttpRequest.prototype.send = function send() {};
 
 function Open({ files }: { files?: File[] }) {
   const { setOpen, startUpload } = useNotifications();
