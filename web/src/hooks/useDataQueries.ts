@@ -613,6 +613,8 @@ export interface AuditEntry {
   action_type: string;
   target_type: string;
   target_id?: number;
+  /** The target's current name; absent when it is gone or has none. */
+  target_name?: string;
   diff?: Record<string, unknown>;
   created_at: string;
 }
