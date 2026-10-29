@@ -46,14 +46,23 @@ vi.mock("@/hooks/useDataQueries", () => ({
 vi.mock("@/components/AssetGrid", () => ({
   AssetGrid: ({
     onColumnsChange,
+    onToggleSelect,
     density,
   }: {
     onColumnsChange?: (n: number) => void;
+    onToggleSelect?: (id: number) => void;
     density?: string;
   }) => {
     settings.densities.push(density);
     onColumnsChange?.(3);
-    return <div>grid</div>;
+    return (
+      <div>
+        grid
+        <button type="button" onClick={() => onToggleSelect?.(1)}>
+          Select asset 1
+        </button>
+      </div>
+    );
   },
 }));
 vi.mock("@/components/Shell", () => ({
@@ -67,7 +76,9 @@ vi.mock("@/components/detail/AssetDetailPanel", () => ({ AssetDetailPanel: () =>
 vi.mock("@/components/LibraryFilterSidebar", () => ({ LibraryFilterSidebar: () => null }));
 vi.mock("@/components/LibraryPicker", () => ({ LibraryPicker: () => null }));
 vi.mock("@/components/AddByLocationDialog", () => ({ AddByLocationButton: () => null }));
-vi.mock("@/components/BulkAssetBar", () => ({ BulkAssetBar: () => null }));
+vi.mock("@/components/BulkAssetBar", () => ({
+  BulkAssetBar: () => <div role="status">bulk bar</div>,
+}));
 vi.mock("@/components/AssetSortMenu", () => ({
   AssetSortMenu: () => null,
   DEFAULT_ASSET_SORT: "newest",
@@ -223,6 +234,19 @@ describe("LibraryPage asset count", () => {
     library.failed = true;
     await userEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(screen.getByText("120 assets")).toBeInTheDocument();
+  });
+});
+
+// The selection bar is absolutely positioned, so it must share a positioned
+// box with the grid and not the pager, or it floats over the pager.
+describe("LibraryPage selection bar", () => {
+  it("sits in the grid's box, apart from the pager", async () => {
+    library.total = 120;
+    mount("/library");
+    await userEvent.click(screen.getByRole("button", { name: "Select asset 1" }));
+    const box = screen.getByText("bulk bar").parentElement!;
+    expect(box).toContainElement(screen.getByText("grid"));
+    expect(box).not.toContainElement(pager());
   });
 });
 
