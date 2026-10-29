@@ -12,6 +12,8 @@ const assets = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Asset $
 const library = vi.hoisted(() => ({
   total: 12,
   failed: false,
+  // The first page is still in flight.
+  loading: false,
   // While a new search loads, the hook keeps answering with the old results.
   placeholder: false,
   pages: [] as ({ limit: number; offset: number } | undefined)[],
@@ -32,6 +34,9 @@ vi.mock("@/hooks/useDataQueries", () => ({
     if (library.failed) {
       const error = new Error("network");
       return { data: [], total: 0, loading: false, placeholder: false, error, failed: true };
+    }
+    if (library.loading) {
+      return { data: [], total: 0, loading: true, placeholder: false };
     }
     const data = library.total === 0 ? [] : assets;
     return { data, total: library.total, loading: false, placeholder: library.placeholder };
@@ -81,6 +86,7 @@ function Location() {
 beforeEach(() => {
   library.total = 12;
   library.failed = false;
+  library.loading = false;
   library.placeholder = false;
   library.pages = [];
   settings.data = { grid_density_default: "medium" };
@@ -192,6 +198,31 @@ describe("LibraryPage paging", () => {
     library.total = 0;
     mount("/library");
     expect(screen.queryByRole("navigation", { name: "Library pages" })).toBeNull();
+  });
+});
+
+// The count is the first number on the screen, so it never shows a total the
+// library doesn't have.
+describe("LibraryPage asset count", () => {
+  it("shows an ellipsis, not 0, while the first page loads", () => {
+    library.loading = true;
+    mount("/library");
+    expect(screen.getByText("… assets")).toBeInTheDocument();
+    expect(screen.queryByText("0 assets")).toBeNull();
+  });
+
+  it("shows the total once the page settles", () => {
+    library.total = 120;
+    mount("/library");
+    expect(screen.getByText("120 assets")).toBeInTheDocument();
+  });
+
+  it("keeps the last total when a page change fails", async () => {
+    library.total = 120;
+    mount("/library");
+    library.failed = true;
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("120 assets")).toBeInTheDocument();
   });
 });
 
