@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ChevronDown, Download, MoreHorizontal, Settings, Trash2 } from "lucide-react";
 
 import { Button } from "./Button";
@@ -197,4 +198,46 @@ export const DialogExample: Story = {
       </DialogContent>
     </Dialog>
   ),
+};
+
+// Opened from state, the way Damson's dialogs are, with a field that takes
+// focus as it mounts. Closing returns focus to the button that opened it.
+export const DialogFocusReturn: Story = {
+  render: function DialogFocusReturnDemo() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
+          Add by location
+        </Button>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add by location</DialogTitle>
+              <DialogDescription>Record an asset by where it lives.</DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <Input aria-label="Path" placeholder="/mnt/assets/…" autoFocus />
+            </DialogBody>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const opener = within(canvasElement).getByRole("button", { name: "Add by location" });
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(opener);
+    await expect(await body.findByLabelText("Path")).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(opener).toHaveFocus());
+    await userEvent.click(opener);
+    await userEvent.click(await body.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(opener).toHaveFocus());
+  },
 };
