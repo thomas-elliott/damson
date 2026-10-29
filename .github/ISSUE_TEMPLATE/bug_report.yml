@@ -5,12 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Damson is pre-alpha, so rough edges are expected — but a gap we have
-        not written down is still worth reporting.
-
-        If the behaviour you hit is already named as a known gap in the
-        [how-tos](https://github.com/thomas-elliott/damson/blob/main/docs/how-to/README.md),
-        there is no need to file it again.
+        Damson is pre-alpha. Report any gap that is not already named as a known
+        gap in the
+        [how-tos](https://github.com/thomas-elliott/damson/blob/main/docs/how-to/README.md).
 
   - type: textarea
     id: what-happened
@@ -44,8 +41,7 @@ body:
       label: Version
       description: >-
         The image tag you are running, or the commit you built from.
-        `/api/health` reports `"dev"` for the published images, so the tag is
-        the reliable answer.
+        `/api/health` reports `"dev"` for the published images, so use the tag.
       placeholder: "ghcr.io/thomas-elliott/damson:0.4.0"
     validations:
       required: true
@@ -92,9 +88,9 @@ body:
       label: Logs
       description: >-
         Damson logs JSON. The lines around the failure, with any `request_id`
-        intact, are usually enough — see
+        intact, are usually enough. See
         [docs/observability.md](https://github.com/thomas-elliott/damson/blob/main/docs/observability.md).
-        **Check for anything you would rather not publish before pasting.**
+        Remove anything you would rather not publish before pasting.
       render: text
 
   - type: textarea
@@ -102,5 +98,5 @@ body:
     attributes:
       label: Anything else
       description: >-
-        Reverse proxy in front of it, non-default configuration, how big the
-        library is — whatever you think might matter.
+        Reverse proxy, non-default configuration, library size, or anything else
+        that might matter.

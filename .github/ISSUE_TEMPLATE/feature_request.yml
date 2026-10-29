@@ -5,9 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        The most useful feature requests describe the problem first. What
-        Damson should do about it is a decision; what you were trying to get
-        done is a fact, and it is the part that cannot be reconstructed later.
+        Describe the problem first. What Damson should do about it is a decision;
+        what you were trying to get done is a fact that cannot be reconstructed
+        later.
 
   - type: textarea
     id: problem
@@ -24,8 +24,8 @@ body:
     attributes:
       label: How do you do it today?
       description: >-
-        The API call, the workaround, the spreadsheet — or "I can't". Some
-        gaps already have an API-only path; see the
+        The API call, the workaround, the spreadsheet, or "I can't". Some gaps
+        already have an API-only path; see the
         [how-tos](https://github.com/thomas-elliott/damson/blob/main/docs/how-to/README.md).
     validations:
       required: true
@@ -34,12 +34,12 @@ body:
     id: proposal
     attributes:
       label: What would you like instead?
-      description: Optional. A rough shape is fine; so is leaving it open.
+      description: Optional. A rough shape is fine.
 
   - type: textarea
     id: anything-else
     attributes:
       label: Anything else
       description: >-
-        Scale it needs to work at, how often you hit this, prior art in another
-        tool you liked.
+        Scale it needs to work at, how often you hit this, or a tool that does
+        this well.
