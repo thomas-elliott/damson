@@ -262,3 +262,15 @@ describe("Settings", () => {
     expect(screen.queryByText("Couldn't load settings")).not.toBeInTheDocument();
   });
 });
+
+// A project the client failed to load has nothing to pin to or delete.
+describe("Project detail's toolbar", () => {
+  it("disables Pin asset and Delete when the project fails to load", async () => {
+    endpoint = "/api/projects/5";
+    failing = [500];
+    renderAt("/projects/5", "/projects/:id", <ProjectDetailPage />);
+    expect(await screen.findByText("Couldn't load this project")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pin asset" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+});
