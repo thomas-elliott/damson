@@ -65,10 +65,12 @@ things you *acquired*.
 ## What it looks like
 
 Signing in drops you on **Library**: a paged, virtualised grid of asset tiles,
-with a detail panel that opens over it and a **Filter** sidebar you toggle on
-for projects, tags, file kind, licence status and release date. The left rail
-gets you to **Import queue** and **Processing queue** (both live-updating),
-**Projects**, **Collections**, the **Audit** log, and **Settings**.
+with a detail panel that opens over it and a **Filter** sidebar you toggle on:
+ten sections, among them tags, licence status, projects, file kind, publisher,
+store and release date. The left rail gets you to **Import queue** and
+**Processing queue** (both live-updating), **Projects**, **Collections**, the
+**Audit log**, **Settings**, and a **Notifications** panel — which is where
+Damson offers to fold a new upload into a pack you already have.
 
 > _[Screenshot: the Library grid with the filter sidebar open and an asset
 > detail panel over it.]_
@@ -126,9 +128,10 @@ Pre-alpha, and honestly so. What that means in practice:
   private too, so `docker pull` needs a GitHub token with `read:packages` — or
   build the image yourself with `just image-build`.
 
-Released versions are the `v*.*.*` tags; the published images carry matching
-tags. The root `VERSION` file is not what the build reads and should not be
-trusted as the current version.
+Releases are the `v*.*.*` git tags. The published images drop the `v`: each
+release is tagged `X.Y.Z`, `X.Y` and `X`, so `:0.4.0` pins exactly and `:0.4`
+follows the patches. Every commit that passes CI on `main` is also pushed as
+`main-<sha7>` and `latest`.
 
 ## Licence
 
