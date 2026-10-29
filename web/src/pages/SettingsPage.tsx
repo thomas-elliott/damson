@@ -11,6 +11,7 @@ import {
   BreadcrumbItem,
   Checkbox,
   EmptyState,
+  ErrorState,
   Input,
   KeyValueList,
   Section,
@@ -30,7 +31,7 @@ import { useSavedFlash } from "@/hooks/useSavedFlash";
  */
 export function SettingsPage() {
   const { data: me } = useMe();
-  const { data: settings, loading } = useLibrarySettings(me?.current_library?.id);
+  const { data: settings, loading, reload } = useLibrarySettings(me?.current_library?.id);
   const isAdmin = me?.current_library?.role === "admin";
   const isSysadmin = me?.role === "sysadmin";
 
@@ -55,7 +56,7 @@ export function SettingsPage() {
               Loading…
             </div>
           ) : !settings ? (
-            <EmptyState title="Settings unavailable" />
+            <ErrorState title="Couldn't load settings" onRetry={reload} />
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
