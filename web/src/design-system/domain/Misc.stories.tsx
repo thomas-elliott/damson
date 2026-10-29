@@ -188,6 +188,28 @@ export const Activity: Story = {
   ),
 };
 
+// The audit feed's own timestamp format, which is longer than the ISO stamps
+// above. Every row stays on one line.
+export const ActivityAuditTimestamps: Story = {
+  parameters: { layout: "padded" },
+  render: () => (
+    <div className="overflow-hidden rounded-md border border-border bg-background">
+      <ActivityRow
+        timestamp="Oct 29, 01:10 PM"
+        actor="librarian@example.com"
+        action="created"
+        target="project #1"
+      />
+      <ActivityRow
+        timestamp="Oct 9, 11:58 AM"
+        actor="system"
+        action="imported"
+        target="asset #297"
+      />
+    </div>
+  ),
+};
+
 export const Fields: Story = {
   parameters: { layout: "centered" },
   render: () => (
