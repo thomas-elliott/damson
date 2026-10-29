@@ -285,8 +285,9 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
-            {/* The selection bar floats over the grid's area, not the whole
-                column, so it clears the pager below. */}
+            {/* The selection bar and the detail panel float over the grid's
+                area, not the whole column, so the bar clears the pager and the
+                panel leaves the toolbar's actions uncovered. */}
             <div className="relative flex min-h-0 flex-1 flex-col">
               {/* Assets wait for the settings so the grid first draws them at the
                 library's density; if the settings fail it draws at medium. The
@@ -311,6 +312,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               {selectedList.length > 0 && (
                 <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
               )}
+              <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
             </div>
             {!loading && (
               <UrlPager
@@ -319,7 +321,6 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 query={{ loading, placeholder, error }}
               />
             )}
-            <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
           </DropZone>
         ) : (
           <EmptyState
