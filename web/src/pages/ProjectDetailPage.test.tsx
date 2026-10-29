@@ -245,3 +245,28 @@ describe("ProjectDetailPage pin table", () => {
     await waitFor(() => expect(unpinMutate).toHaveBeenCalledWith({ projectId: 7, pinId: 70 }));
   });
 });
+
+describe("ProjectDetailPage header", () => {
+  it("names Projects once, with a chevron back button", () => {
+    mount();
+    expect(screen.getByRole("button", { name: "Back to projects" })).toHaveTextContent("");
+    expect(screen.getAllByText("Projects")).toHaveLength(1);
+  });
+
+  it("shows the licence mix for a project with pins", () => {
+    mount();
+    expect(screen.getByText("Licence mix")).toBeInTheDocument();
+  });
+
+  it("hides the licence mix for a project with no pins", () => {
+    const { pins, asset_count } = project;
+    Object.assign(project, { pins: [], asset_count: 0 });
+    try {
+      mount();
+      expect(screen.queryByText("Licence mix")).toBeNull();
+      expect(screen.getByText("No assets pinned")).toBeInTheDocument();
+    } finally {
+      Object.assign(project, { pins, asset_count });
+    }
+  });
+});
