@@ -284,6 +284,20 @@ export const ErrorStateExample: Story = {
   ),
 };
 
+export const ErrorStateWithWayOut: Story = {
+  parameters: { layout: "centered" },
+  render: () => (
+    <div className="flex h-[360px] w-[640px] flex-col border border-border bg-background">
+      <ErrorState
+        className="flex-1"
+        title="Couldn't sign you in"
+        onRetry={() => {}}
+        secondaryAction={<Button variant="ghost">Sign out</Button>}
+      />
+    </div>
+  ),
+};
+
 export const LoadingStateExample: Story = {
   parameters: { layout: "centered" },
   render: () => (
