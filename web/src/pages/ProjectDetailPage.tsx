@@ -22,6 +22,7 @@ import {
   ErrorState,
   FieldRow,
   formatBytes,
+  IconButton,
   LicenceBar,
   LicencePill,
   LoadingState,
@@ -68,23 +69,26 @@ export function ProjectDetailPage() {
       main={
         <>
           <Toolbar>
-            <Button
-              variant="ghost"
+            {/* The crumb beside it already says Projects; the back button is the
+                chevron alone. */}
+            <IconButton
+              aria-label="Back to projects"
               size="sm"
-              leadingIcon={<ChevronLeft size={12} />}
               onClick={() => navigate("/projects")}
             >
-              Projects
-            </Button>
+              <ChevronLeft />
+            </IconButton>
             <Breadcrumb>
               <BreadcrumbItem>Projects</BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem current>{project?.name ?? "—"}</BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
+            {/* Nothing to act on until the project loads, or if it fails to. */}
             <Button
               variant="primary"
               leadingIcon={<Plus size={12} />}
+              disabled={!project}
               onClick={() => setPinDialogOpen(true)}
             >
               Pin asset
@@ -92,6 +96,7 @@ export function ProjectDetailPage() {
             <Button
               variant="destructive"
               leadingIcon={<Trash2 size={12} />}
+              disabled={!project}
               onClick={async () => {
                 if (!project) return;
                 const ok = await confirm({
@@ -146,24 +151,28 @@ export function ProjectDetailPage() {
                 </div>
               </header>
 
-              <section className="rounded-md border border-border bg-card p-3">
-                <div className="mb-2 text-overline text-subtle-foreground">Licence mix</div>
-                <LicenceBar counts={counts} size="md" />
-                <div className="mt-1 flex gap-3 text-label text-subtle-foreground">
-                  <span>
-                    <span className="font-mono text-success">{counts.ok}</span> compliant
-                  </span>
-                  <span>
-                    <span className="font-mono text-warning">{counts.warn}</span> review
-                  </span>
-                  <span>
-                    <span className="font-mono text-destructive">{counts.err}</span> violation
-                  </span>
-                  <span>
-                    <span className="font-mono text-unknown">{counts.unk}</span> unknown
-                  </span>
-                </div>
-              </section>
+              {/* A meter with nothing to meter says "empty" twice; the pinned
+                  assets' empty state below already does. */}
+              {project.asset_count > 0 && (
+                <section className="rounded-md border border-border bg-card p-3">
+                  <div className="mb-2 text-overline text-subtle-foreground">Licence mix</div>
+                  <LicenceBar counts={counts} size="md" />
+                  <div className="mt-1 flex gap-3 text-label text-subtle-foreground">
+                    <span>
+                      <span className="font-mono text-success">{counts.ok}</span> compliant
+                    </span>
+                    <span>
+                      <span className="font-mono text-warning">{counts.warn}</span> review
+                    </span>
+                    <span>
+                      <span className="font-mono text-destructive">{counts.err}</span> violation
+                    </span>
+                    <span>
+                      <span className="font-mono text-unknown">{counts.unk}</span> unknown
+                    </span>
+                  </div>
+                </section>
+              )}
 
               <section>
                 <h2 className="mb-2 text-ui font-medium text-foreground">Pinned assets</h2>
