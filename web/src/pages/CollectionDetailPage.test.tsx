@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +18,15 @@ vi.mock("@/hooks/useDataQueries", () => ({
       ? { data: { id: 4, name: "Props" }, loading: false, failed: false }
       : { data: null, loading: false, failed: false },
   useLibrarySettings: () => ({ data: null, loading: collection.settingsLoading }),
-  useAssets: (_filters: unknown, _enabled: boolean, page?: { limit: number; offset: number }) => {
+  useAssets: (
+    filters: { collection_id?: number } | undefined,
+    _enabled: boolean,
+    page?: { limit: number; offset: number },
+  ) => {
+    // The asset picker searches the whole library.
+    if (!filters?.collection_id) {
+      return { data: [{ id: 9, name: "Crate" }], total: 1, loading: false, placeholder: false };
+    }
     collection.pages.push(page);
     return {
       data: collection.total > 0 ? [{ id: 1, name: "Barrel" }] : [],
@@ -28,7 +37,16 @@ vi.mock("@/hooks/useDataQueries", () => ({
     };
   },
 }));
-vi.mock("@/hooks/useMutations", () => ({ useDeleteCollection: () => ({ mutate: vi.fn() }) }));
+const addToCollection = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/useMutations", () => ({
+  useDeleteCollection: () => ({ mutate: vi.fn() }),
+  useAddAssetToCollection: () => ({
+    mutate: addToCollection,
+    reset: vi.fn(),
+    isPending: false,
+    error: null,
+  }),
+}));
 vi.mock("@/components/AssetGrid", () => ({ AssetGrid: () => <div>grid</div> }));
 vi.mock("@/components/Shell", () => ({
   Shell: ({ main }: { main: ReactNode }) => <main>{main}</main>,
@@ -94,5 +112,20 @@ describe("CollectionDetailPage while the settings load", () => {
     mount("/collections/4");
     expect(screen.getByText("Loading…")).toBeInTheDocument();
     expect(screen.queryByText("grid")).toBeNull();
+  });
+});
+
+// The empty collection offers the same picker the empty project does.
+describe("CollectionDetailPage empty state", () => {
+  it("adds an asset picked from the library", async () => {
+    mount("/collections/4");
+    await userEvent.click(screen.getByRole("button", { name: "Add asset" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add an asset" });
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Crate" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+    expect(addToCollection).toHaveBeenCalledWith(
+      { collectionId: 4, asset_id: 9 },
+      expect.anything(),
+    );
   });
 });
