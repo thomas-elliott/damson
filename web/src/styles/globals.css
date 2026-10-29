@@ -161,6 +161,10 @@
   --width-rail: var(--rail-w);
   --width-detail: var(--detail-w);
 
+  /* Content column caps for PageContent: `max-w-content-wide` / `-narrow`. */
+  --container-content-wide: 960px;
+  --container-content-narrow: 720px;
+
   --animate-slide-in-right: slide-in-right 160ms cubic-bezier(0.4, 0, 0.2, 1);
   --animate-fade-in: fade-in 100ms ease;
   --animate-pop-up: pop-up 140ms cubic-bezier(0.34, 1.56, 0.64, 1);

@@ -19,11 +19,13 @@ import {
   Breadcrumb,
   BreadcrumbItem,
   Button,
+  cn,
   EmptyState,
   ErrorState,
+  LoadingState,
+  PageContent,
   QueueItem,
   Toolbar,
-  cn,
 } from "@/design-system";
 import { useImports, useMe, type ImportRow } from "@/hooks/useDataQueries";
 import { useImportEvents } from "@/hooks/useImportEvents";
@@ -72,13 +74,13 @@ export function QueuePage() {
         <>
           <Toolbar>
             <Breadcrumb count={`${imports.length}`}>
-              <BreadcrumbItem current>Import queue</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Import queue
+              </BreadcrumbItem>
             </Breadcrumb>
           </Toolbar>
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading queue…
-            </div>
+            <LoadingState />
           ) : failed ? (
             <ErrorState title="Couldn't load the import queue" onRetry={reload} />
           ) : imports.length === 0 && finished.length === 0 ? (
@@ -88,9 +90,9 @@ export function QueuePage() {
               description="Everything that arrived via import has been checked. New unreviewed assets will show up here automatically."
             />
           ) : (
-            <div
-              style={{ paddingRight: reserved ? reserved + 12 : undefined }}
-              className="flex flex-1 flex-col gap-2 overflow-auto p-3"
+            <PageContent
+              style={{ paddingRight: reserved ? reserved + 14 : undefined }}
+              className="gap-2"
             >
               {imports.length === 0 ? (
                 <div className="px-1 py-6 text-center text-ui text-subtle-foreground">
@@ -121,7 +123,7 @@ export function QueuePage() {
                   ))}
                 </>
               )}
-            </div>
+            </PageContent>
           )}
           <AssetDetailPanel
             assetId={reviewing}
@@ -237,8 +239,10 @@ function ImportQueueRow({
         )
       }
       actions={
-        <div className="flex flex-col items-stretch gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button size="sm" variant="primary" onClick={onReview}>
+        // Peer actions, so one weight in one row; primary on every row of a
+        // list would mean nothing.
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button size="sm" variant="secondary" onClick={onReview}>
             Review
           </Button>
           <FindListingButton
@@ -249,7 +253,7 @@ function ImportQueueRow({
           {imp.needs_review && (
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               leadingIcon={<Check size={12} />}
               disabled={review.isPending}
               onClick={() => review.mutate(imp.asset_id)}
@@ -260,7 +264,7 @@ function ImportQueueRow({
           {isFailed && (
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               leadingIcon={<RotateCw size={12} />}
               disabled={retry.isPending}
               onClick={() => retry.mutate(imp.id)}

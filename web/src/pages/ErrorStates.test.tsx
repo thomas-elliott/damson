@@ -13,6 +13,7 @@ import { PreviewQueuePage } from "./PreviewQueuePage";
 import { ProjectDetailPage } from "./ProjectDetailPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { QueuePage } from "./QueuePage";
+import { SettingsPage } from "./SettingsPage";
 
 vi.mock("@/lib/token", () => ({ getAccessToken: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/components/Shell", () => ({
@@ -237,5 +238,56 @@ describe("Asset panel's activity", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("No activity yet")).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load recent activity")).not.toBeInTheDocument();
+  });
+});
+
+// Settings waits for /api/me to know the library, then loads its settings.
+describe("Settings", () => {
+  it("shows the error with a Retry that loads the settings once it succeeds", async () => {
+    others = {
+      "/api/me": {
+        id: 1,
+        email: "a@example.com",
+        role: "user",
+        current_library: { id: 1, name: "Main", role: "member" },
+      },
+    };
+    endpoint = "/api/settings";
+    failing = [500];
+    body = { theme_default: "dark", grid_density_default: "medium" };
+    renderAt("/", "/", <SettingsPage />);
+    expect(await screen.findByText("Couldn't load settings")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Library settings")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load settings")).not.toBeInTheDocument();
+  });
+});
+
+// A project the client failed to load has nothing to pin to or delete.
+describe("Project detail's toolbar", () => {
+  it("disables Pin asset and Delete when the project fails to load", async () => {
+    endpoint = "/api/projects/5";
+    failing = [500];
+    renderAt("/projects/5", "/projects/:id", <ProjectDetailPage />);
+    expect(await screen.findByText("Couldn't load this project")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pin asset" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+});
+
+// Every screen names itself with one h1, for screen-reader heading navigation.
+describe.each<[string, ComponentType, string, unknown]>([
+  ["Import queue", QueuePage, "/api/imports", { imports: [] }],
+  ["Processing queue", PreviewQueuePage, "/api/previews", { previews: [] }],
+  ["Projects", ProjectsPage, "/api/projects", { projects: [] }],
+  ["Collections", CollectionsPage, "/api/collections", { collections: [] }],
+])("%s", (heading, Page, path, emptyBody) => {
+  it("names the page with one h1", async () => {
+    endpoint = path;
+    failing = [];
+    body = emptyBody;
+    renderAt("/", "/", <Page />);
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(heading);
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 });

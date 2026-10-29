@@ -27,6 +27,7 @@ import { DetailPanel } from "./DetailPanel";
 import { DropOverlay } from "./DropOverlay";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
+import { LoadingState } from "./LoadingState";
 import { FullPageView } from "./FullPageView";
 import { Pager } from "./Pager";
 import { SelectionBar } from "./SelectionBar";
@@ -279,6 +280,34 @@ export const ErrorStateExample: Story = {
   render: () => (
     <div className="h-[360px] w-[640px] border border-border bg-background">
       <ErrorState title="Couldn't load assets" onRetry={() => {}} />
+    </div>
+  ),
+};
+
+export const ErrorStateWithWayOut: Story = {
+  parameters: { layout: "centered" },
+  render: () => (
+    <div className="flex h-[360px] w-[640px] flex-col border border-border bg-background">
+      <ErrorState
+        className="flex-1"
+        title="Couldn't sign you in"
+        onRetry={() => {}}
+        secondaryAction={<Button variant="ghost">Sign out</Button>}
+      />
+    </div>
+  ),
+};
+
+export const LoadingStateExample: Story = {
+  parameters: { layout: "centered" },
+  render: () => (
+    <div className="flex w-[640px] flex-col gap-4">
+      <div className="flex h-[240px] flex-col border border-border bg-background">
+        <LoadingState />
+      </div>
+      <div className="border border-border bg-card px-3.5">
+        <LoadingState variant="inline" />
+      </div>
     </div>
   ),
 };

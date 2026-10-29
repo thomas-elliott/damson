@@ -1,4 +1,4 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useEffect, useId, useRef, type HTMLAttributes, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
@@ -31,6 +31,26 @@ export interface DetailPanelProps extends Omit<HTMLAttributes<HTMLElement>, "tit
   fullscreen?: boolean;
 }
 
+// An overlay opens over whatever the user was working in, so it takes focus
+// to its heading as it mounts and gives focus back to what had it when it
+// unmounts, unless the user has already moved focus elsewhere.
+function useOverlayFocus(enabled: boolean) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const opener = document.activeElement as HTMLElement | null;
+    headingRef.current?.focus();
+    const panel = panelRef.current;
+    return () => {
+      const active = document.activeElement;
+      const lost = active === null || active === document.body || panel?.contains(active);
+      if (lost && opener?.isConnected && opener !== document.body) opener.focus();
+    };
+  }, [enabled]);
+  return { headingRef, panelRef };
+}
+
 /**
  * Slide-in side panel with a sticky header and a scrollable body. Use
  * `variant="overlay"` for the asset-detail-over-grid case, `variant="flush"`
@@ -39,6 +59,9 @@ export interface DetailPanelProps extends Omit<HTMLAttributes<HTMLElement>, "tit
  * Pass `resizable` (overlay only) plus `width` + `onWidthChange` to enable
  * left-edge drag-resize. Pass `fullscreen` to make the panel fill its
  * positioned ancestor — the resize handle is hidden in that mode.
+ *
+ * The panel is named by its title, an `h2`. The overlay moves focus to that
+ * heading as it opens and returns it to the opener when it closes.
  */
 export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function DetailPanel(
   {
@@ -58,13 +81,20 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
   },
   ref,
 ) {
+  const titleId = useId();
+  const { headingRef, panelRef } = useOverlayFocus(variant === "overlay");
+  const setRefs = (node: HTMLElement | null) => {
+    panelRef.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) ref.current = node;
+  };
   const numericWidth = typeof width === "number" ? width : Number.NaN;
   const style: React.CSSProperties =
     !fullscreen && width ? { width: typeof width === "number" ? `${width}px` : width } : {};
   return (
     <aside
-      ref={ref}
-      aria-label="Details"
+      ref={setRefs}
+      aria-labelledby={titleId}
       className={cn(
         "flex h-full flex-col border-l border-border bg-card text-foreground",
         variant === "overlay" &&
@@ -93,7 +123,14 @@ export const DetailPanel = forwardRef<HTMLElement, DetailPanelProps>(function De
         </div>
       )}
       <header className="flex shrink-0 items-center gap-2 border-b border-border px-3.5 py-2.5">
-        <div className="flex-1 truncate text-subhead-semibold text-foreground">{title}</div>
+        <h2
+          ref={headingRef}
+          id={titleId}
+          tabIndex={-1}
+          className="flex-1 truncate text-subhead-semibold text-foreground outline-none"
+        >
+          {title}
+        </h2>
         {actions && <div className="flex items-center gap-1">{actions}</div>}
         {onClose && (
           <IconButton aria-label="Close details" size="sm" onClick={onClose}>

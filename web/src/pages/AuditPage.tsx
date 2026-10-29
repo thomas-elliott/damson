@@ -3,7 +3,15 @@ import { useSearchParams } from "react-router";
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import { UrlPager } from "@/components/UrlPager";
-import { Breadcrumb, BreadcrumbItem, ErrorState, SearchInput, Toolbar } from "@/design-system";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  ErrorState,
+  LoadingState,
+  PageContent,
+  SearchInput,
+  Toolbar,
+} from "@/design-system";
 import { cn } from "@/design-system/utils";
 import { useLibraryAudit } from "@/hooks/useDataQueries";
 import { ACTION_FILTERS } from "@/lib/auditFilters";
@@ -48,7 +56,9 @@ export function AuditPage() {
         <>
           <Toolbar>
             <Breadcrumb count={loading ? "…" : `${total}`}>
-              <BreadcrumbItem current>Audit log</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Audit log
+              </BreadcrumbItem>
             </Breadcrumb>
             <div className="ml-auto flex items-center gap-2">
               <SearchInput
@@ -59,7 +69,7 @@ export function AuditPage() {
               />
             </div>
           </Toolbar>
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2">
             {ACTION_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -76,23 +86,20 @@ export function AuditPage() {
               </button>
             ))}
           </div>
-          <div className="mx-auto w-full max-w-[960px] p-3">
+          <PageContent width="wide">
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-                Loading…
-              </div>
+              <LoadingState />
             ) : failed ? (
               <ErrorState title="Couldn't load the audit log" onRetry={reload} />
             ) : (
               <AuditList entries={entries} linkTargets />
             )}
-            <UrlPager
-              aria-label="Audit log pages"
-              className="mt-2 justify-end"
-              total={total}
-              query={{ loading, placeholder, error }}
-            />
-          </div>
+          </PageContent>
+          <UrlPager
+            aria-label="Audit log pages"
+            total={total}
+            query={{ loading, placeholder, error }}
+          />
         </>
       }
     />

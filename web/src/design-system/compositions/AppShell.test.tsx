@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { AppShell } from "./AppShell";
@@ -16,9 +17,10 @@ function mount(sidebar?: string) {
   );
 }
 
+// The sidebar column's width; the grid template reads it as --sidebar-col.
 function columns(): string {
-  return (screen.getByText("rail").parentElement!.parentElement as HTMLElement).style
-    .gridTemplateColumns;
+  const shell = screen.getByText("rail").parentElement!.parentElement as HTMLElement;
+  return `var(--rail-w) ${shell.style.getPropertyValue("--sidebar-col")} 1fr`;
 }
 
 describe("AppShell sidebar column", () => {
@@ -78,5 +80,21 @@ describe("AppShell sidebar column", () => {
       />,
     );
     expect(columns()).toBe("var(--rail-w) 200px 1fr");
+  });
+});
+
+describe("AppShell landmarks", () => {
+  it("renders the main column as the main landmark", () => {
+    mount();
+    expect(screen.getByRole("main")).toHaveTextContent("main");
+  });
+
+  it("offers a skip link first, which moves focus to main", async () => {
+    mount();
+    await userEvent.tab();
+    const skip = screen.getByRole("link", { name: "Skip to content" });
+    expect(skip).toHaveFocus();
+    await userEvent.click(skip);
+    expect(screen.getByRole("main")).toHaveFocus();
   });
 });

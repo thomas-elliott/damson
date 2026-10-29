@@ -23,4 +23,16 @@ describe("ErrorState", () => {
     settle();
     await vi.waitFor(() => expect(retry).toBeEnabled());
   });
+
+  it("renders a way out beside Retry", () => {
+    render(
+      <ErrorState
+        title="Couldn't sign you in"
+        onRetry={() => {}}
+        secondaryAction={<button>Sign out</button>}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  });
 });

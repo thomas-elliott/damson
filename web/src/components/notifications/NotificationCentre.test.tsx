@@ -49,7 +49,7 @@ describe("NotificationCentre", () => {
     expect(screen.getByRole("region", { name: "Notification centre" })).toBeInTheDocument();
   });
 
-  it("marking a notification read removes it from the Notifications tab", async () => {
+  it("marking a notification read removes it from the Unread tab", async () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify([
@@ -71,6 +71,16 @@ describe("NotificationCentre", () => {
 
     await waitFor(() => expect(screen.queryByText("Hello there")).toBeNull());
     expect(screen.getByText("No new notifications")).toBeInTheDocument();
+  });
+
+  // The panel's heading already says Notifications; the tabs split it.
+  it("names its tabs Unread and Read, and announces an empty tab", async () => {
+    mount();
+    await userEvent.click(screen.getByText("open-centre"));
+    expect(screen.getByRole("tab", { name: "Unread" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Read" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Notifications/ })).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("No new notifications");
   });
 
   it("shows the Uploads tab only while an upload is in flight and cancels it", async () => {

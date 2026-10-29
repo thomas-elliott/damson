@@ -17,10 +17,11 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  isBrowsable,
+  LoadingState,
   SearchInput,
   Toolbar,
   ToolbarSpacer,
-  isBrowsable,
 } from "@/design-system";
 import { FolderOpen, Library as LibraryIcon } from "lucide-react";
 import { AssetSortMenu, DEFAULT_ASSET_SORT } from "@/components/AssetSortMenu";
@@ -231,9 +232,14 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
         lib ? (
           <DropZone>
             <Toolbar>
+              {/* The library picker names the page visually. */}
+              <h1 className="sr-only">Library</h1>
               <LibraryPicker current={lib} />
+              {/* Until the first page settles the hook's total is 0, which is
+                  wrong rather than absent; show the pager's total otherwise, so
+                  a failed page change keeps the last count. */}
               <span className="shrink-0 text-label tabular-nums text-subtle-foreground">
-                {total} assets
+                {loading ? "…" : pagerTotal} assets
               </span>
               <Button
                 variant="secondary"
@@ -281,40 +287,42 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
-            {/* Assets wait for the settings so the grid first draws them at the
+            {/* The selection bar and the detail panel float over the grid's
+                area, not the whole column, so the bar clears the pager and the
+                panel leaves the toolbar's actions uncovered. */}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {/* Assets wait for the settings so the grid first draws them at the
                 library's density; if the settings fail it draws at medium. The
                 error and the empty library need no density, so they do not wait. */}
-            {loading || (settingsLoading && !failed && assets.length > 0) ? (
-              <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-                Loading assets…
-              </div>
-            ) : failed ? (
-              <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
-            ) : (
-              <AssetGrid
-                // A new page starts scrolled to the top.
-                key={`${page}/${pageSize}`}
-                assets={assets}
-                onOpen={onOpenAsset}
-                selectedId={assetId}
-                selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
-                onColumnsChange={onColumnsChange}
-                density={settings?.grid_density_default}
-              />
-            )}
+              {loading || (settingsLoading && !failed && assets.length > 0) ? (
+                <LoadingState />
+              ) : failed ? (
+                <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
+              ) : (
+                <AssetGrid
+                  // A new page starts scrolled to the top.
+                  key={`${page}/${pageSize}`}
+                  assets={assets}
+                  onOpen={onOpenAsset}
+                  selectedId={assetId}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelect}
+                  onColumnsChange={onColumnsChange}
+                  density={settings?.grid_density_default}
+                />
+              )}
+              {selectedList.length > 0 && (
+                <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
+              )}
+              <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
+            </div>
             {!loading && (
               <UrlPager
                 aria-label="Library pages"
-                className="shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5"
                 total={pagerTotal}
                 query={{ loading, placeholder, error }}
               />
             )}
-            {selectedList.length > 0 && (
-              <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
-            )}
-            <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
           </DropZone>
         ) : (
           <EmptyState

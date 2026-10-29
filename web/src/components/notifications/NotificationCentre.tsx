@@ -1,11 +1,19 @@
 import { useState } from "react";
-import { AlertCircle, AlertTriangle, CheckCircle2, Info, Minus, UploadCloud } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  BellOff,
+  CheckCircle2,
+  Info,
+  Minus,
+  UploadCloud,
+} from "lucide-react";
 
 import {
   Button,
+  EmptyState,
   IconButton,
   QueueItem,
-  StatusDot,
   Tabs,
   TabsContent,
   TabsList,
@@ -22,7 +30,7 @@ import {
   type Upload,
 } from "./NotificationProvider";
 
-type TabKey = "uploads" | "notifications" | "read";
+type TabKey = "uploads" | "unread" | "read";
 
 function uploadStatusLine(u: Upload): string {
   if (u.queued) return `Queued · ${formatBytes(u.size)}`;
@@ -45,19 +53,20 @@ export function NotificationCentre() {
     clearRead,
     clearUnread,
   } = useNotifications();
-  const [tab, setTab] = useState<TabKey>("notifications");
+  const [tab, setTab] = useState<TabKey>("unread");
 
   if (!open) return null;
 
   const unread = notifications.filter((n) => !n.read);
   const read = notifications.filter((n) => n.read);
   const showUploads = inFlightCount > 0;
-  const activeTab: TabKey = tab === "uploads" && !showUploads ? "notifications" : tab;
+  const activeTab: TabKey = tab === "uploads" && !showUploads ? "unread" : tab;
 
   return (
     <section
       aria-label="Notification centre"
-      className="fixed bottom-4 right-4 z-selbar flex max-h-[70vh] w-[340px] flex-col overflow-hidden rounded-lg border border-border-strong bg-card shadow-lg"
+      // Opens beside the rail's bell, which is what toggles it.
+      className="fixed bottom-4 left-[calc(var(--rail-w)+0.5rem)] z-selbar flex max-h-[70vh] w-[340px] flex-col overflow-hidden rounded-lg border border-border-strong bg-card shadow-lg"
     >
       <header className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <h2 className="text-ui font-semibold text-foreground">Notifications</h2>
@@ -77,8 +86,8 @@ export function NotificationCentre() {
               Uploads <TabCount>{inFlightCount}</TabCount>
             </TabsTrigger>
           )}
-          <TabsTrigger value="notifications">
-            Notifications {unread.length > 0 && <TabCount>{unread.length}</TabCount>}
+          <TabsTrigger value="unread">
+            Unread {unread.length > 0 && <TabCount>{unread.length}</TabCount>}
           </TabsTrigger>
           <TabsTrigger value="read">Read</TabsTrigger>
         </TabsList>
@@ -114,9 +123,9 @@ export function NotificationCentre() {
           </TabsContent>
         )}
 
-        <TabsContent value="notifications" className="min-h-0 flex-1 overflow-y-auto p-2.5">
+        <TabsContent value="unread" className="min-h-0 flex-1 overflow-y-auto p-2.5">
           {unread.length === 0 ? (
-            <EmptyRow>No new notifications</EmptyRow>
+            <EmptyState icon={<BellOff size={28} />} title="No new notifications" />
           ) : (
             <>
               <div className="mb-2 flex justify-end">
@@ -141,7 +150,7 @@ export function NotificationCentre() {
 
         <TabsContent value="read" className="min-h-0 flex-1 overflow-y-auto p-2.5">
           {read.length === 0 ? (
-            <EmptyRow>No read notifications</EmptyRow>
+            <EmptyState icon={<BellOff size={28} />} title="No read notifications" />
           ) : (
             <>
               <div className="mb-2 flex justify-end">
@@ -216,15 +225,6 @@ function NotificationRow({
         </Button>
       </div>
     </li>
-  );
-}
-
-function EmptyRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-center gap-2 py-8 text-label text-faint-foreground">
-      <StatusDot tone="neutral" />
-      {children}
-    </div>
   );
 }
 

@@ -13,6 +13,7 @@ import {
   EmptyState,
   FieldRow,
   Input,
+  LoadingState,
   Section,
   Select,
   SelectContent,
@@ -62,7 +63,7 @@ export function ApiTokensSection() {
           description="Your tokens are still there — this list just failed to load. Reload to try again."
         />
       ) : loading ? (
-        <div className="py-2 text-ui text-subtle-foreground">Loading…</div>
+        <LoadingState variant="inline" />
       ) : tokens.length === 0 ? (
         <EmptyState
           title="No access tokens"

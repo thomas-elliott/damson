@@ -11,8 +11,11 @@ import {
   BreadcrumbItem,
   Checkbox,
   EmptyState,
+  ErrorState,
   Input,
   KeyValueList,
+  LoadingState,
+  PageContent,
   Section,
   SegmentedControl,
   Toolbar,
@@ -30,7 +33,7 @@ import { useSavedFlash } from "@/hooks/useSavedFlash";
  */
 export function SettingsPage() {
   const { data: me } = useMe();
-  const { data: settings, loading } = useLibrarySettings(me?.current_library?.id);
+  const { data: settings, loading, reload } = useLibrarySettings(me?.current_library?.id);
   const isAdmin = me?.current_library?.role === "admin";
   const isSysadmin = me?.role === "sysadmin";
 
@@ -51,42 +54,38 @@ export function SettingsPage() {
               description="You need to be in a library to configure its settings."
             />
           ) : loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading…
-            </div>
+            <LoadingState />
           ) : !settings ? (
-            <EmptyState title="Settings unavailable" />
+            <ErrorState title="Couldn't load settings" onRetry={reload} />
           ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-4">
-                <header>
-                  <h1 className="text-heading-semibold text-foreground">Library settings</h1>
-                  <p className="mt-1 text-ui text-subtle-foreground">
-                    Applies to <span className="font-mono">{me.current_library.name}</span>. Changes
-                    are audited.
-                    {!isAdmin && <> You have read-only access — ask a library admin to edit.</>}
-                  </p>
-                </header>
+            <PageContent width="narrow" className="gap-4">
+              <header>
+                <h1 className="text-heading-semibold text-foreground">Library settings</h1>
+                <p className="mt-1 text-ui text-subtle-foreground">
+                  Applies to <span className="font-mono">{me.current_library.name}</span>. Changes
+                  are audited.
+                  {!isAdmin && <> You have read-only access — ask a library admin to edit.</>}
+                </p>
+              </header>
 
-                {isAdmin ? (
-                  <AdminSettingsForm settings={settings} />
-                ) : (
-                  <ReadOnlySettings settings={settings} />
-                )}
+              {isAdmin ? (
+                <AdminSettingsForm settings={settings} />
+              ) : (
+                <ReadOnlySettings settings={settings} />
+              )}
 
-                <LibraryMembersSection libraryId={me.current_library.id} isAdmin={isAdmin} />
+              <LibraryMembersSection libraryId={me.current_library.id} isAdmin={isAdmin} />
 
-                <LibraryProfileSection
-                  key={me.current_library.id}
-                  library={me.current_library}
-                  isAdmin={isAdmin}
-                />
+              <LibraryProfileSection
+                key={me.current_library.id}
+                library={me.current_library}
+                isAdmin={isAdmin}
+              />
 
-                <ApiTokensSection />
+              <ApiTokensSection />
 
-                {isSysadmin && <ServerAdminSection />}
-              </div>
-            </div>
+              {isSysadmin && <ServerAdminSection />}
+            </PageContent>
           )}
         </>
       }

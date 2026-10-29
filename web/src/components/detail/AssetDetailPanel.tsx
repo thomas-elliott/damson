@@ -19,25 +19,26 @@ import {
 import { isNotFound } from "@/api";
 import {
   Button,
+  cn,
   DetailPanel,
   EmptyState,
   ErrorState,
   FieldRow,
+  formatBytes,
   IconButton,
   Input,
+  isBrowsable,
   KeyValueList,
   LicencePill,
+  LoadingState,
   Markdown,
   MarkdownEditor,
   Pill,
   Section,
   StatusDot,
   Tag,
-  VersionItem,
-  cn,
-  formatBytes,
-  isBrowsable,
   useConfirm,
+  VersionItem,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
 import {
@@ -60,6 +61,7 @@ import {
   usePatchAsset,
   usePatchVersion,
   useReExtractVersion,
+  useRemoveAssetFromCollection,
   useRemoveAssetTag,
   useRequeueAssetPreviews,
   useRescanAsset,
@@ -221,6 +223,7 @@ function AssetDetailBody({
   const del = useDeleteAsset();
   const addTag = useAddAssetTag();
   const removeTag = useRemoveAssetTag();
+  const removeFromCollection = useRemoveAssetFromCollection();
   const reviewLicence = useReviewLicence();
   const requeuePreviews = useRequeueAssetPreviews();
   const reextract = useReExtractVersion();
@@ -403,7 +406,23 @@ function AssetDetailBody({
         ) : (
           <ul className="flex flex-col gap-0.5 text-label text-muted-foreground">
             {asset.collections.map((c) => (
-              <li key={c.collection_id}>{c.collection_name}</li>
+              <li key={c.collection_id} className="flex items-center justify-between gap-2">
+                <span className="truncate">{c.collection_name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove from ${c.collection_name}`}
+                  disabled={removeFromCollection.isPending}
+                  onClick={() =>
+                    removeFromCollection.mutate({
+                      collectionId: c.collection_id,
+                      assetId: asset.id,
+                    })
+                  }
+                >
+                  Remove
+                </Button>
+              </li>
             ))}
           </ul>
         )}
@@ -1075,7 +1094,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
 function AssetAuditSection({ assetId }: { assetId: number }) {
   const { data: entries, loading, failed, reload } = useAssetAudit(assetId);
   if (loading) {
-    return <div className="text-label text-faint-foreground">Loading…</div>;
+    return <LoadingState variant="inline" />;
   }
   if (failed) {
     return <ErrorState title="Couldn't load recent activity" onRetry={reload} />;

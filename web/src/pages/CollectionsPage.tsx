@@ -18,6 +18,8 @@ import {
   ErrorState,
   FieldRow,
   Input,
+  LoadingState,
+  PageContent,
   Textarea,
   Toolbar,
   ToolbarSpacer,
@@ -36,7 +38,9 @@ export function CollectionsPage() {
         <>
           <Toolbar>
             <Breadcrumb count={`${collections.length}`}>
-              <BreadcrumbItem current>Collections</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Collections
+              </BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
             <Button
@@ -49,9 +53,7 @@ export function CollectionsPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading collections…
-            </div>
+            <LoadingState />
           ) : failed ? (
             <ErrorState title="Couldn't load collections" onRetry={reload} />
           ) : collections.length === 0 ? (
@@ -70,16 +72,18 @@ export function CollectionsPage() {
               }
             />
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 p-3.5">
-              {collections.map((c) => (
-                <CollectionCard
-                  key={c.id}
-                  name={c.name}
-                  count={c.asset_count}
-                  onSelect={() => navigate(`/collections/${c.id}`)}
-                />
-              ))}
-            </div>
+            <PageContent>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+                {collections.map((c) => (
+                  <CollectionCard
+                    key={c.id}
+                    name={c.name}
+                    count={c.asset_count}
+                    onSelect={() => navigate(`/collections/${c.id}`)}
+                  />
+                ))}
+              </div>
+            </PageContent>
           )}
 
           <NewCollectionDialog open={dialogOpen} onOpenChange={setDialogOpen} />

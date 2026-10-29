@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router";
 
-import { Pager } from "@/design-system";
+import { Pager, cn } from "@/design-system";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES, parsePaging, withPage } from "@/lib/libraryFilters";
 
 /**
@@ -12,6 +12,10 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES, parsePaging, withPage } from "@/lib/libr
  * A page past the end (a stale link, or entries gone) moves to the last
  * page once `query` has settled, so `total` is the real total for this URL,
  * not a placeholder carried over from the previous one or a failed fetch.
+ *
+ * It renders as the bar pinned under a page's content, the same on every
+ * page: mount it as the last child of the page's flex column, after the
+ * scrolling content rather than inside it.
  */
 export function UrlPager({
   total,
@@ -46,7 +50,10 @@ export function UrlPager({
   return (
     <Pager
       aria-label={ariaLabel}
-      className={className}
+      className={cn(
+        "shrink-0 flex-wrap justify-end gap-y-1 border-t border-border bg-background px-3.5 py-1.5",
+        className,
+      )}
       page={Math.min(page, pageCount)}
       pageCount={pageCount}
       onPageChange={(next) => setSearch(withPage(search, next))}
