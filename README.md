@@ -14,6 +14,9 @@ Running Damson:
   want to *run* Damson: Compose quickstart, first admin, first upload
 - [`docs/configuration.md`](docs/configuration.md) — every environment
   variable, its default, and the OIDC and S3 setups in full
+- [`docs/how-to/`](docs/how-to/README.md) — task guides for what Damson
+  actually does: licences, Unity packages, versions and pins, libraries,
+  collections
 
 Working on Damson:
 
