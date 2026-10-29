@@ -120,7 +120,7 @@ export function CollectionDetailPage() {
           ) : total === 0 ? (
             <EmptyState
               title="No assets in this collection"
-              description="Add assets from your library, or from an asset's detail panel."
+              description="Pick assets from your library to add them here. In the Library, you can also select several and press Collection in the bar at the bottom."
               action={
                 <Button
                   variant="primary"
