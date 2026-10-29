@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronLeft, Trash2 } from "lucide-react";
+import { ChevronLeft, Plus, Trash2 } from "lucide-react";
 
 import { isNotFound } from "@/api";
 import { AssetGrid } from "@/components/AssetGrid";
+import { AssetPicker } from "@/components/AssetPicker";
 import { Shell } from "@/components/Shell";
 import { UrlPager } from "@/components/UrlPager";
 import {
@@ -10,6 +12,12 @@ import {
   BreadcrumbItem,
   BreadcrumbSeparator,
   Button,
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -17,8 +25,14 @@ import {
   ToolbarSpacer,
   useConfirm,
 } from "@/design-system";
-import { useAssets, useCollection, useLibrarySettings, useMe } from "@/hooks/useDataQueries";
-import { useDeleteCollection } from "@/hooks/useMutations";
+import {
+  useAssets,
+  useCollection,
+  useLibrarySettings,
+  useMe,
+  type AssetRow,
+} from "@/hooks/useDataQueries";
+import { useAddAssetToCollection, useDeleteCollection } from "@/hooks/useMutations";
 import { parsePaging } from "@/lib/libraryFilters";
 
 export function CollectionDetailPage() {
@@ -44,6 +58,7 @@ export function CollectionDetailPage() {
   const navigate = useNavigate();
   const del = useDeleteCollection();
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const [addOpen, setAddOpen] = useState(false);
 
   if (!collectionId) return null;
 
@@ -103,7 +118,16 @@ export function CollectionDetailPage() {
           ) : total === 0 ? (
             <EmptyState
               title="No assets in this collection"
-              description="Add assets from their detail panels."
+              description="Add assets from your library, or from an asset's detail panel."
+              action={
+                <Button
+                  variant="primary"
+                  leadingIcon={<Plus size={12} />}
+                  onClick={() => setAddOpen(true)}
+                >
+                  Add asset
+                </Button>
+              }
             />
           ) : (
             <>
@@ -122,8 +146,86 @@ export function CollectionDetailPage() {
             </>
           )}
           {confirmDialog}
+          <AddAssetDialog
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            collectionId={collectionId}
+            onAdded={reloadAssets}
+          />
         </>
       }
     />
+  );
+}
+
+function AddAssetDialog({
+  open,
+  onOpenChange,
+  collectionId,
+  onAdded,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  collectionId: number;
+  /** The collection's asset list is its own query, so the caller reloads it. */
+  onAdded: () => unknown;
+}) {
+  const add = useAddAssetToCollection();
+  const [picked, setPicked] = useState<AssetRow | null>(null);
+
+  const close = (next: boolean) => {
+    if (!next) {
+      setPicked(null);
+      add.reset();
+    }
+    onOpenChange(next);
+  };
+
+  const submit = () => {
+    if (!picked) return;
+    add.mutate(
+      { collectionId, asset_id: picked.id },
+      {
+        onSuccess: () => {
+          void onAdded();
+          close(false);
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add an asset</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <AssetPicker
+            aria-label="Asset"
+            placeholder="Search assets to add"
+            selectedId={picked?.id ?? null}
+            onSelect={(a) => {
+              setPicked(a);
+              add.reset();
+            }}
+          />
+          {picked && (
+            <p className="text-label text-muted-foreground">
+              Adding <span className="text-foreground">{picked.name}</span>
+            </p>
+          )}
+          {add.error && <p className="text-label text-destructive">{add.error.message}</p>}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => close(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={!picked || add.isPending}>
+            Add
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
