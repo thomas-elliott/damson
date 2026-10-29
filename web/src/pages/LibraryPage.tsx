@@ -285,35 +285,39 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
-            {/* Assets wait for the settings so the grid first draws them at the
+            {/* The selection bar floats over the grid's area, not the whole
+                column, so it clears the pager below. */}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {/* Assets wait for the settings so the grid first draws them at the
                 library's density; if the settings fail it draws at medium. The
                 error and the empty library need no density, so they do not wait. */}
-            {loading || (settingsLoading && !failed && assets.length > 0) ? (
-              <LoadingState />
-            ) : failed ? (
-              <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
-            ) : (
-              <AssetGrid
-                // A new page starts scrolled to the top.
-                key={`${page}/${pageSize}`}
-                assets={assets}
-                onOpen={onOpenAsset}
-                selectedId={assetId}
-                selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
-                onColumnsChange={onColumnsChange}
-                density={settings?.grid_density_default}
-              />
-            )}
+              {loading || (settingsLoading && !failed && assets.length > 0) ? (
+                <LoadingState />
+              ) : failed ? (
+                <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
+              ) : (
+                <AssetGrid
+                  // A new page starts scrolled to the top.
+                  key={`${page}/${pageSize}`}
+                  assets={assets}
+                  onOpen={onOpenAsset}
+                  selectedId={assetId}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelect}
+                  onColumnsChange={onColumnsChange}
+                  density={settings?.grid_density_default}
+                />
+              )}
+              {selectedList.length > 0 && (
+                <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
+              )}
+            </div>
             {!loading && (
               <UrlPager
                 aria-label="Library pages"
                 total={pagerTotal}
                 query={{ loading, placeholder, error }}
               />
-            )}
-            {selectedList.length > 0 && (
-              <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
             )}
             <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
           </DropZone>
