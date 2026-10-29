@@ -3,6 +3,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, userEvent, within } from "storybook/test";
 
+import { contrastDebt } from "@/design-system/_a11yDebt";
+
 import { NotificationCentre } from "./NotificationCentre";
 import {
   NotificationProvider,
@@ -110,9 +112,8 @@ export const Empty: Story = {
 /** One of each tone waiting to be read. */
 export const Unread: Story = {
   parameters: {
-    // Contrast gate: each row's timestamp is faint-foreground on card, 4.34:1, under 4.5:1
-    // (audit finding 5, still on the backlog). Drop this when it lands.
-    a11y: { test: "todo" },
+    // Known contrast debt: timestamps, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
     seed([...UNREAD, ...READ], [0, 4, 18, 90, 60 * 26]);
@@ -128,8 +129,8 @@ export const Unread: Story = {
 /** The Read tab: no Mark read, and its own Clear all. */
 export const Read: Story = {
   parameters: {
-    // Contrast gate: as Unread, the timestamps are faint-foreground on card (audit finding 5).
-    a11y: { test: "todo" },
+    // Known contrast debt: timestamps, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
     seed(READ, [90, 60 * 26]);

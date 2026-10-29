@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router";
 import { expect, userEvent, within } from "storybook/test";
 
 import type { MeLibrary } from "@/hooks/useDataQueries";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { LibraryProfileSection } from "./LibraryProfileSection";
 
@@ -62,10 +63,9 @@ export const ReadOnly: Story = {
 /** Deleting asks for the library name before the button arms. */
 export const ConfirmingDelete: Story = {
   parameters: {
-    // Contrast gate: FieldRow hints are faint-foreground on card, 4.34:1 (audit finding 5),
-    // and the Delete library button is destructive on destructive-soft, 4.45:1; both under
-    // 4.5:1 and both palette debt. Drop this when they are fixed.
-    a11y: { test: "todo" },
+    // Known contrast debt: FieldRow hints, faint-foreground on card, 4.34:1 (SMO-3 finding 5);
+    // Delete library, destructive on destructive-soft, 4.45:1 (SMO-22).
+    a11y: contrastDebt("faint-foreground", "destructive-soft"),
   },
   render: () => <Harness isAdmin />,
   play: async ({ canvasElement }) => {

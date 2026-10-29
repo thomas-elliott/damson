@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, userEvent, within } from "storybook/test";
 
 import type { ApiToken } from "@/hooks/useDataQueries";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { ApiTokensSection } from "./ApiTokensSection";
 
@@ -126,9 +127,8 @@ export const Error: Story = {
 /** The create dialog, as New token opens it. */
 export const Creating: Story = {
   parameters: {
-    // Contrast gate: FieldRow hints are faint-foreground on card, 4.34:1 under 4.5:1 (audit
-    // finding 5, still on the backlog); drop this when it lands.
-    a11y: { test: "todo" },
+    // Known contrast debt: FieldRow hints, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
     scenario = "populated";

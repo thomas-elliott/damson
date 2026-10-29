@@ -8,6 +8,7 @@ import {
   useNotifications,
 } from "@/components/notifications/NotificationProvider";
 import type { CollectionView } from "@/hooks/useDataQueries";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { BulkAssetBar } from "./BulkAssetBar";
 
@@ -84,9 +85,8 @@ function Harness({ assetIds, showCentre }: { assetIds: number[]; showCentre?: bo
 /** Three assets selected in the library grid. */
 export const Default: Story = {
   parameters: {
-    // Contrast gate: the Delete button's destructive on destructive-soft is 4.42:1, under
-    // 4.5:1; the token is at fault, not the call site. Drop this when the token is fixed.
-    a11y: { test: "todo" },
+    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2, 3]} />,
   play: async ({ canvasElement }) => {
@@ -100,8 +100,8 @@ export const Default: Story = {
 /** The tag dialog, opened from the bar. */
 export const TagDialog: Story = {
   parameters: {
-    // Contrast gate: as Default, destructive on destructive-soft is 4.42:1.
-    a11y: { test: "todo" },
+    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2, 3]} />,
   play: async ({ canvasElement }) => {
@@ -115,8 +115,8 @@ export const TagDialog: Story = {
 /** The collection dialog, with the library's collections in the picker. */
 export const CollectionDialog: Story = {
   parameters: {
-    // Contrast gate: as Default, destructive on destructive-soft is 4.42:1.
-    a11y: { test: "todo" },
+    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2]} />,
   play: async ({ canvasElement }) => {
@@ -131,8 +131,8 @@ export const CollectionDialog: Story = {
 /** Delete asks first. */
 export const ConfirmDelete: Story = {
   parameters: {
-    // Contrast gate: as Default, destructive on destructive-soft is 4.42:1.
-    a11y: { test: "todo" },
+    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2, 3]} />,
   play: async ({ canvasElement }) => {
@@ -145,9 +145,9 @@ export const ConfirmDelete: Story = {
 /** A failed bulk action keeps the selection and reports in the notification centre. */
 export const Failed: Story = {
   parameters: {
-    // Contrast gate: as Default, destructive on destructive-soft is 4.42:1, and the
-    // notification's timestamp is faint-foreground on card, 4.34:1 (audit finding 5).
-    a11y: { test: "todo" },
+    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22);
+    // the notification's timestamp, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("destructive-soft", "faint-foreground"),
   },
   render: () => <Harness assetIds={[1, FAILING_ID]} showCentre />,
   play: async ({ canvasElement }) => {

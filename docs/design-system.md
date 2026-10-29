@@ -73,8 +73,11 @@ runs it in light. `just check` and CI both run the storybook project.
 
 If axe flags contrast, fix the token or reach for a brighter tier before adding an exception. A
 legitimate decorative exception is `parameters.a11y.test = "todo"` on the story, with the reason in
-a comment. Known contrast debt that a later task will fix gets the same marker, with the failing pair and
-its ratio in the comment, so the gate never waits on the fix.
+a comment. Known contrast debt doesn't get the marker, because the marker silences every rule on
+the story. Use `a11y: contrastDebt(...)` from `design-system/_a11yDebt.ts` instead. It narrows only
+the failing rule, and only on elements carrying the faulty token. Each debt there must name the task
+that tracks its fix. The story's comment gives the failing pair and its ratio, so the gate never
+waits on the fix.
 
 ---
 

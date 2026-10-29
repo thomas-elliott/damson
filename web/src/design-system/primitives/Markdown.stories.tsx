@@ -3,6 +3,7 @@ import { useState } from "react";
 import { expect, within } from "storybook/test";
 
 import { FieldRow } from "@/design-system/domain/FieldRow";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { Markdown } from "./Markdown";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -59,10 +60,9 @@ export const Rendered: Story = {
  */
 export const UntrustedInput: Story = {
   parameters: {
-    // Contrast gate: a link inside body text is told apart by colour alone, and the brand
-    // link colour is 1.13:1 against the surrounding text (axe link-in-text-block, needs
-    // 3:1). Drop this when Markdown links get an underline or the palette moves.
-    a11y: { test: "todo" },
+    // Known contrast debt: links differ from body text by colour alone,
+    // 1.13:1 where link-in-text-block needs 3:1 (SMO-23).
+    a11y: contrastDebt("markdown-link"),
   },
   render: () => (
     <div className="max-w-[420px]">
