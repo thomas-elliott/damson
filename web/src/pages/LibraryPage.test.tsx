@@ -12,6 +12,8 @@ const assets = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Asset $
 const library = vi.hoisted(() => ({
   total: 12,
   failed: false,
+  // The first page is still in flight.
+  loading: false,
   // While a new search loads, the hook keeps answering with the old results.
   placeholder: false,
   pages: [] as ({ limit: number; offset: number } | undefined)[],
@@ -33,6 +35,9 @@ vi.mock("@/hooks/useDataQueries", () => ({
       const error = new Error("network");
       return { data: [], total: 0, loading: false, placeholder: false, error, failed: true };
     }
+    if (library.loading) {
+      return { data: [], total: 0, loading: true, placeholder: false };
+    }
     const data = library.total === 0 ? [] : assets;
     return { data, total: library.total, loading: false, placeholder: library.placeholder };
   },
@@ -41,14 +46,23 @@ vi.mock("@/hooks/useDataQueries", () => ({
 vi.mock("@/components/AssetGrid", () => ({
   AssetGrid: ({
     onColumnsChange,
+    onToggleSelect,
     density,
   }: {
     onColumnsChange?: (n: number) => void;
+    onToggleSelect?: (id: number) => void;
     density?: string;
   }) => {
     settings.densities.push(density);
     onColumnsChange?.(3);
-    return <div>grid</div>;
+    return (
+      <div>
+        grid
+        <button type="button" onClick={() => onToggleSelect?.(1)}>
+          Select asset 1
+        </button>
+      </div>
+    );
   },
 }));
 vi.mock("@/components/Shell", () => ({
@@ -58,11 +72,16 @@ vi.mock("@/components/DropZone", () => ({
   DropZone: ({ children }: { children: ReactNode }) => <>{children}</>,
   useDropZoneOpen: () => () => {},
 }));
-vi.mock("@/components/detail/AssetDetailPanel", () => ({ AssetDetailPanel: () => null }));
+vi.mock("@/components/detail/AssetDetailPanel", () => ({
+  AssetDetailPanel: ({ assetId }: { assetId: number | null }) =>
+    assetId == null ? null : <aside aria-label="Details">panel</aside>,
+}));
 vi.mock("@/components/LibraryFilterSidebar", () => ({ LibraryFilterSidebar: () => null }));
 vi.mock("@/components/LibraryPicker", () => ({ LibraryPicker: () => null }));
 vi.mock("@/components/AddByLocationDialog", () => ({ AddByLocationButton: () => null }));
-vi.mock("@/components/BulkAssetBar", () => ({ BulkAssetBar: () => null }));
+vi.mock("@/components/BulkAssetBar", () => ({
+  BulkAssetBar: () => <div role="status">bulk bar</div>,
+}));
 vi.mock("@/components/AssetSortMenu", () => ({
   AssetSortMenu: () => null,
   DEFAULT_ASSET_SORT: "newest",
@@ -81,6 +100,7 @@ function Location() {
 beforeEach(() => {
   library.total = 12;
   library.failed = false;
+  library.loading = false;
   library.placeholder = false;
   library.pages = [];
   settings.data = { grid_density_default: "medium" };
@@ -195,6 +215,62 @@ describe("LibraryPage paging", () => {
   });
 });
 
+// The count is the first number on the screen, so it never shows a total the
+// library doesn't have.
+describe("LibraryPage heading", () => {
+  it("names the page with an h1", () => {
+    mount("/library");
+    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeInTheDocument();
+  });
+});
+
+describe("LibraryPage asset count", () => {
+  it("shows an ellipsis, not 0, while the first page loads", () => {
+    library.loading = true;
+    mount("/library");
+    expect(screen.getByText("… assets")).toBeInTheDocument();
+    expect(screen.queryByText("0 assets")).toBeNull();
+  });
+
+  it("shows the total once the page settles", () => {
+    library.total = 120;
+    mount("/library");
+    expect(screen.getByText("120 assets")).toBeInTheDocument();
+  });
+
+  it("keeps the last total when a page change fails", async () => {
+    library.total = 120;
+    mount("/library");
+    library.failed = true;
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("120 assets")).toBeInTheDocument();
+  });
+});
+
+// The selection bar is absolutely positioned, so it must share a positioned
+// box with the grid and not the pager, or it floats over the pager.
+describe("LibraryPage selection bar", () => {
+  it("sits in the grid's box, apart from the pager", async () => {
+    library.total = 120;
+    mount("/library");
+    await userEvent.click(screen.getByRole("button", { name: "Select asset 1" }));
+    const box = screen.getByText("bulk bar").parentElement!;
+    expect(box).toContainElement(screen.getByText("grid"));
+    expect(box).not.toContainElement(pager());
+  });
+});
+
+// The detail panel overlays the grid, never the toolbar, so Upload and Add
+// by location stay reachable with an asset open.
+describe("LibraryPage detail panel", () => {
+  it("sits in the grid's box, apart from the toolbar", () => {
+    mount("/library/3");
+    const box = screen.getByRole("complementary", { name: "Details" }).parentElement!;
+    expect(box).toContainElement(screen.getByText("grid"));
+    expect(box).not.toContainElement(screen.getByRole("toolbar"));
+  });
+});
+
 describe("LibraryPage load failure", () => {
   it("shows the error with a Retry and keeps the requested page", () => {
     library.failed = true;
@@ -261,7 +337,7 @@ describe("LibraryPage density", () => {
     settings.data = null;
     settings.loading = true;
     const { rerender } = mount("/library");
-    expect(screen.getByText("Loading assets…")).toBeInTheDocument();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
     expect(screen.queryByText("grid")).toBeNull();
 
     settings.data = { grid_density_default: "small" };
@@ -282,7 +358,7 @@ describe("LibraryPage density", () => {
     settings.loading = true;
     library.total = 0;
     mount("/library");
-    expect(screen.queryByText("Loading assets…")).toBeNull();
+    expect(screen.queryByText("Loading…")).toBeNull();
     expect(screen.getByText("grid")).toBeInTheDocument();
   });
 

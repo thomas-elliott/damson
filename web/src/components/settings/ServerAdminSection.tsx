@@ -13,6 +13,7 @@ import {
   EmptyState,
   FieldRow,
   Input,
+  LoadingState,
   Section,
   Select,
   SelectContent,
@@ -59,7 +60,7 @@ function ServerSettingsForm() {
   if (loading || !settings) {
     return (
       <Section title="Server settings" defaultOpen>
-        <div className="text-caption">Loading…</div>
+        <LoadingState variant="inline" />
       </Section>
     );
   }
@@ -138,7 +139,7 @@ function UsersSection() {
   return (
     <Section title={`Users (${users.length})`} defaultOpen>
       {loading ? (
-        <div className="text-caption">Loading…</div>
+        <LoadingState variant="inline" />
       ) : users.length === 0 ? (
         <EmptyState title="No users yet" />
       ) : (

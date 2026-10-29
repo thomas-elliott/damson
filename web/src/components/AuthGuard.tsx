@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 
+import { isAuthRedirectError } from "@/api";
+import { Button, ErrorState, LoadingState } from "@/design-system";
 import { useAuthMode, useMe } from "@/hooks/useDataQueries";
+import { logout } from "@/lib/logout";
 import { readLocalSession } from "@/lib/localAuth";
 import { getUserManager } from "@/lib/oidc";
 import { ProfileSetupPage } from "@/pages/ProfileSetupPage";
@@ -17,7 +20,13 @@ type AuthState = "checking" | "ready" | "needs-login";
 //   - Local: read the stored JWT; if missing/expired, bounce to /login with
 //           the requested page in router state.
 export function AuthGuard() {
-  const { mode, needsBootstrap, loading: modeLoading } = useAuthMode();
+  const {
+    mode,
+    needsBootstrap,
+    loading: modeLoading,
+    error: modeError,
+    reload: reloadMode,
+  } = useAuthMode();
   const location = useLocation();
   const [state, setState] = useState<AuthState>("checking");
 
@@ -29,7 +38,7 @@ export function AuthGuard() {
       const next: AuthState = readLocalSession() ? "ready" : "needs-login";
       // Defer off the effect's synchronous body so we don't trigger a
       // cascading render mid-commit (react-hooks/set-state-in-effect); the
-      // "Authenticating…" spinner covers this microtask. The OIDC branch below
+      // loading state covers this microtask. The OIDC branch below
       // already updates state from async callbacks, which the rule allows.
       queueMicrotask(() => {
         if (!cancelled) setState(next);
@@ -66,12 +75,11 @@ export function AuthGuard() {
     };
   }, [mode, modeLoading]);
 
+  if (!modeLoading && !mode && modeError) {
+    return <AuthFailure title="Couldn't reach Damson" onRetry={reloadMode} />;
+  }
   if (modeLoading || state === "checking") {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-ui text-subtle-foreground">
-        Authenticating…
-      </div>
-    );
+    return <LoadingState className="h-screen bg-background" />;
   }
   if (state === "needs-login") {
     // `needsBootstrap` only matters for unauthenticated users — an authed
@@ -92,17 +100,36 @@ export function AuthGuard() {
 // then falls through to the routed app. Separate component so useMe only runs
 // once we know the session is ready.
 function ProfileGate() {
-  const { data: me, loading } = useMe();
+  const { data: me, loading, error, reload } = useMe();
 
+  // An auth redirect is already leaving the page, so it keeps the loading state.
+  if (!loading && !me && error && !isAuthRedirectError(error)) {
+    return <AuthFailure title="Couldn't load your account" onRetry={reload} />;
+  }
   if (loading || !me) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-ui text-subtle-foreground">
-        Authenticating…
-      </div>
-    );
+    return <LoadingState className="h-screen bg-background" />;
   }
   if (me.needs_profile) {
     return <ProfileSetupPage me={me} />;
   }
   return <Outlet />;
+}
+
+// The queries that gate the whole app have no page to fall back to, so their
+// failure fills the screen with a Retry and a way out to the sign-in page.
+function AuthFailure({ title, onRetry }: { title: string; onRetry: () => unknown }) {
+  return (
+    <div className="flex h-screen flex-col bg-background">
+      <ErrorState
+        className="flex-1"
+        title={title}
+        onRetry={onRetry}
+        secondaryAction={
+          <Button variant="ghost" onClick={() => void logout()}>
+            Sign out
+          </Button>
+        }
+      />
+    </div>
+  );
 }

@@ -21,8 +21,12 @@ import {
   EmptyState,
   ErrorState,
   FieldRow,
+  formatBytes,
+  IconButton,
   LicenceBar,
   LicencePill,
+  LoadingState,
+  PageContent,
   ProjectGlyph,
   Select,
   SelectContent,
@@ -31,7 +35,6 @@ import {
   SelectValue,
   Toolbar,
   ToolbarSpacer,
-  formatBytes,
   useConfirm,
 } from "@/design-system";
 import {
@@ -66,23 +69,26 @@ export function ProjectDetailPage() {
       main={
         <>
           <Toolbar>
-            <Button
-              variant="ghost"
+            {/* The crumb beside it already says Projects; the back button is the
+                chevron alone. */}
+            <IconButton
+              aria-label="Back to projects"
               size="sm"
-              leadingIcon={<ChevronLeft size={12} />}
               onClick={() => navigate("/projects")}
             >
-              Projects
-            </Button>
+              <ChevronLeft />
+            </IconButton>
             <Breadcrumb>
               <BreadcrumbItem>Projects</BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem current>{project?.name ?? "—"}</BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
+            {/* Nothing to act on until the project loads, or if it fails to. */}
             <Button
               variant="primary"
               leadingIcon={<Plus size={12} />}
+              disabled={!project}
               onClick={() => setPinDialogOpen(true)}
             >
               Pin asset
@@ -90,6 +96,7 @@ export function ProjectDetailPage() {
             <Button
               variant="destructive"
               leadingIcon={<Trash2 size={12} />}
+              disabled={!project}
               onClick={async () => {
                 if (!project) return;
                 const ok = await confirm({
@@ -110,15 +117,13 @@ export function ProjectDetailPage() {
           </Toolbar>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading project…
-            </div>
+            <LoadingState />
           ) : failed && !isNotFound(error) ? (
             <ErrorState title="Couldn't load this project" onRetry={reload} />
           ) : !project ? (
             <EmptyState title="Project not found" description="It may have been deleted." />
           ) : (
-            <div className="flex flex-col gap-5 p-4">
+            <PageContent className="gap-5">
               <header className="flex items-start gap-4">
                 <ProjectGlyph
                   size="lg"
@@ -146,24 +151,28 @@ export function ProjectDetailPage() {
                 </div>
               </header>
 
-              <section className="rounded-md border border-border bg-card p-3">
-                <div className="mb-2 text-overline text-subtle-foreground">Licence mix</div>
-                <LicenceBar counts={counts} size="md" />
-                <div className="mt-1 flex gap-3 text-label text-subtle-foreground">
-                  <span>
-                    <span className="font-mono text-success">{counts.ok}</span> compliant
-                  </span>
-                  <span>
-                    <span className="font-mono text-warning">{counts.warn}</span> review
-                  </span>
-                  <span>
-                    <span className="font-mono text-destructive">{counts.err}</span> violation
-                  </span>
-                  <span>
-                    <span className="font-mono text-unknown">{counts.unk}</span> unknown
-                  </span>
-                </div>
-              </section>
+              {/* A meter with nothing to meter says "empty" twice; the pinned
+                  assets' empty state below already does. */}
+              {project.asset_count > 0 && (
+                <section className="rounded-md border border-border bg-card p-3">
+                  <div className="mb-2 text-overline text-subtle-foreground">Licence mix</div>
+                  <LicenceBar counts={counts} size="md" />
+                  <div className="mt-1 flex gap-3 text-label text-subtle-foreground">
+                    <span>
+                      <span className="font-mono text-success">{counts.ok}</span> compliant
+                    </span>
+                    <span>
+                      <span className="font-mono text-warning">{counts.warn}</span> review
+                    </span>
+                    <span>
+                      <span className="font-mono text-destructive">{counts.err}</span> violation
+                    </span>
+                    <span>
+                      <span className="font-mono text-unknown">{counts.unk}</span> unknown
+                    </span>
+                  </div>
+                </section>
+              )}
 
               <section>
                 <h2 className="mb-2 text-ui font-medium text-foreground">Pinned assets</h2>
@@ -212,7 +221,7 @@ export function ProjectDetailPage() {
                 <h2 className="mb-2 text-ui font-medium text-foreground">Recent activity</h2>
                 <ProjectAuditPanel projectId={project.id} />
               </section>
-            </div>
+            </PageContent>
           )}
 
           <PinAssetDialog
@@ -308,7 +317,7 @@ function ProjectPinRow({
 function ProjectAuditPanel({ projectId }: { projectId: number }) {
   const { data: entries, loading, failed, reload } = useProjectAudit(projectId);
   if (loading) {
-    return <div className="text-label text-faint-foreground">Loading…</div>;
+    return <LoadingState variant="inline" />;
   }
   if (failed) {
     return <ErrorState title="Couldn't load recent activity" onRetry={reload} />;

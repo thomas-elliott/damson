@@ -63,7 +63,16 @@ export function AuditList({
 }
 
 function renderTarget(e: AuditEntry, linkTargets: boolean) {
-  const label = formatAuditTarget(e.target_type, e.target_id);
+  const named = formatAuditTarget(e.target_type, e.target_id, e.target_name);
+  // A named target keeps its id beside it, muted, to tell same-named rows apart.
+  const label =
+    e.target_name && e.target_id ? (
+      <>
+        {named} <span className="font-normal text-subtle-foreground">#{e.target_id}</span>
+      </>
+    ) : (
+      named
+    );
   if (!linkTargets || !e.target_id) return label;
   switch (e.target_type) {
     case "asset":

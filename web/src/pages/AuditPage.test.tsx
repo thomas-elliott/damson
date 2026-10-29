@@ -67,6 +67,13 @@ function mount(path: string) {
   );
 }
 
+describe("Audit pages' headings", () => {
+  it("names the audit log with an h1", () => {
+    mount("/audit");
+    expect(screen.getByRole("heading", { level: 1, name: "Audit log" })).toBeInTheDocument();
+  });
+});
+
 describe("AuditPage paging", () => {
   it("asks for the page in the URL", () => {
     mount("/audit?page=3&page_size=25");
