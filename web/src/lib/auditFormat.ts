@@ -77,8 +77,15 @@ const TARGET_LABELS: Record<string, string> = {
   storage_object: "storage object",
 };
 
-export function formatAuditTarget(targetType: string, targetId?: number): string {
+// A named target reads by its name ("project Ashfall"); the caller shows the
+// id beside it. Without a name, the id stands in ("project #1").
+export function formatAuditTarget(
+  targetType: string,
+  targetId?: number,
+  targetName?: string,
+): string {
   const label = TARGET_LABELS[targetType] ?? targetType;
+  if (targetName) return `${label} ${targetName}`;
   return targetId ? `${label} #${targetId}` : label;
 }
 

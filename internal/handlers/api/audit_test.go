@@ -447,3 +447,61 @@ func TestPostImportRetry_Audits(t *testing.T) {
 
 	requireAuditRow(t, db, "asset.import.retry", imported.AssetID, u.ID, lib.ID)
 }
+
+// The feed names each target by its current name, so the SPA need not show a
+// bare id; a target that is gone, or a type with no name, leaves it empty.
+func TestGetLibraryAudit_NamesTargets(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "librarian@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+
+	asset := seedAsset(t, db, lib.ID, "Castle Kit")
+	project := models.Project{LibraryID: lib.ID, Name: "Ashfall"}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatal(err)
+	}
+	tag := models.Tag{LibraryID: lib.ID, Path: "props/barrels"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatal(err)
+	}
+	gone := uint(99999)
+
+	now := time.Now().UTC()
+	rows := []models.AuditLog{
+		{ActionType: "asset.update", TargetType: "asset", TargetID: &asset.ID},
+		{ActionType: "project.create", TargetType: "project", TargetID: &project.ID},
+		{ActionType: "tag.create", TargetType: "tag", TargetID: &tag.ID},
+		{ActionType: "library.update", TargetType: "library", TargetID: &lib.ID},
+		{ActionType: "library.member.add", TargetType: "user", TargetID: &u.ID},
+		{ActionType: "asset.delete", TargetType: "asset", TargetID: &gone},
+	}
+	for i := range rows {
+		rows[i].LibraryID = &lib.ID
+		rows[i].UserID = &u.ID
+		rows[i].CreatedAt = now.Add(time.Duration(i) * time.Second)
+		if err := db.Create(&rows[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	w := performGET(setupRouter(h, u), "/api/audit")
+	requireStatus(t, w, http.StatusOK)
+	body := jsonResponse[auditListResponse](t, w)
+	got := map[string]string{}
+	for _, e := range body.Entries {
+		got[e.ActionType] = e.TargetName
+	}
+	want := map[string]string{
+		"asset.update":       "Castle Kit",
+		"project.create":     "Ashfall",
+		"tag.create":         "props/barrels",
+		"library.update":     lib.Name,
+		"library.member.add": u.DisplayName,
+		"asset.delete":       "",
+	}
+	for action, name := range want {
+		if got[action] != name {
+			t.Errorf("%s: target_name = %q, want %q", action, got[action], name)
+		}
+	}
+}

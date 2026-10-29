@@ -47,3 +47,14 @@ describe("formatAuditAction with formatAuditTarget", () => {
     expect(`${formatAuditAction(action)} ${formatAuditTarget(targetType, 5)}`).toBe(phrase);
   });
 });
+
+describe("formatAuditTarget", () => {
+  it("names a target by its name when it has one", () => {
+    expect(formatAuditTarget("project", 1, "Ashfall")).toBe("project Ashfall");
+  });
+
+  it("falls back to the id when the target has no name", () => {
+    expect(formatAuditTarget("asset", 297)).toBe("asset #297");
+    expect(formatAuditTarget("asset", 297, "")).toBe("asset #297");
+  });
+});
