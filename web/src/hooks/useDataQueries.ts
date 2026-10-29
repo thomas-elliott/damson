@@ -26,6 +26,7 @@ export function useAuthMode() {
     needsBootstrap: q.data?.needs_bootstrap ?? false,
     loading: q.isPending,
     error: q.error,
+    reload: q.refetch,
   };
 }
 

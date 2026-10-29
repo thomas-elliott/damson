@@ -9,11 +9,19 @@ export type ErrorStateProps = {
   description?: ReactNode;
   /** Retry stays disabled until a returned promise settles. */
   onRetry: () => unknown;
+  /** A way out beside Retry, for a failure that blocks the whole screen. */
+  secondaryAction?: ReactNode;
   className?: string;
 };
 
 /** A failed load, in place of the content: fixed wording and a Retry. */
-export function ErrorState({ title, description, onRetry, className }: ErrorStateProps) {
+export function ErrorState({
+  title,
+  description,
+  onRetry,
+  secondaryAction,
+  className,
+}: ErrorStateProps) {
   const [retrying, setRetrying] = useState(false);
   const retry = async () => {
     setRetrying(true);
@@ -30,14 +38,17 @@ export function ErrorState({ title, description, onRetry, className }: ErrorStat
       title={title}
       description={description ?? "Something went wrong while loading. Try again."}
       action={
-        <Button
-          variant="secondary"
-          leadingIcon={<RotateCw size={12} />}
-          loading={retrying}
-          onClick={() => void retry()}
-        >
-          Retry
-        </Button>
+        <>
+          <Button
+            variant="secondary"
+            leadingIcon={<RotateCw size={12} />}
+            loading={retrying}
+            onClick={() => void retry()}
+          >
+            Retry
+          </Button>
+          {secondaryAction}
+        </>
       }
     />
   );
