@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
+import { expect, within } from "storybook/test";
 
 import { FieldRow } from "@/design-system/domain/FieldRow";
 
@@ -77,6 +78,13 @@ export const UntrustedInput: Story = {
 /** The CodeMirror editing surface, with the rendered result beside it. */
 export const Editor: Story = {
   parameters: { layout: "padded" },
+  // MarkdownEditorView loads lazily; wait for it so the a11y check sees the
+  // CodeMirror surface rather than the Suspense fallback.
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("textbox", { name: "Description" }),
+    ).toBeVisible();
+  },
   render: function EditorDemo() {
     const [value, setValue] = useState(SAMPLE);
     return (
@@ -101,6 +109,13 @@ export const Editor: Story = {
 
 /** Empty editor — placeholder state. */
 export const EditorEmpty: Story = {
+  // MarkdownEditorView loads lazily; wait for it so the a11y check sees the
+  // CodeMirror surface rather than the Suspense fallback.
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("textbox", { name: "Description" }),
+    ).toBeVisible();
+  },
   render: function EmptyDemo() {
     const [value, setValue] = useState("");
     return (
