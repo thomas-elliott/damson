@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import type { AssetDetailView, AuditEntry } from "@/hooks/useDataQueries";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { AssetDetailPanel } from "./AssetDetailPanel";
 
@@ -301,10 +302,9 @@ export const EditingOverview: Story = {
 /** Reviewed, unlicensed, one version, no gallery — the sparse end of the panel. */
 export const Sparse: Story = {
   parameters: {
-    // Contrast gate: faint-foreground on card is 4.34:1, under 4.5:1 (audit finding 5, still on the
-    // backlog),
-    // and the Delete button's destructive on destructive-soft is 4.42:1, under 4.5:1; the token is at fault, not the call site. Drop this when both are fixed.
-    a11y: { test: "todo" },
+    // Known contrast debt: faint-foreground on card, 4.34:1 (SMO-3 finding 5);
+    // Delete, destructive on destructive-soft, 4.42:1 (SMO-22).
+    a11y: contrastDebt("faint-foreground", "destructive-soft"),
   },
   render: () => <PanelHarness assetId={SPARSE.id} />,
 };
@@ -312,9 +312,8 @@ export const Sparse: Story = {
 /** Recorded by its location: the badge and Location block replace versions and files. */
 export const Reference: Story = {
   parameters: {
-    // Contrast gate: the Delete button's destructive on destructive-soft is 4.42:1, under 4.5:1; the token is at fault, not the call site.
-    // Drop this when the token is fixed.
-    a11y: { test: "todo" },
+    // Known contrast debt: Delete, destructive on destructive-soft, 4.42:1 (SMO-22).
+    a11y: contrastDebt("destructive-soft"),
   },
   render: () => <PanelHarness assetId={REFERENCE.id} />,
   play: async ({ canvasElement }) => {

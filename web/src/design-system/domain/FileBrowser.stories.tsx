@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { contrastDebt } from "@/design-system/_a11yDebt";
+
 import { FileBrowserList } from "./FileBrowserList";
 import { FileBrowserToolbar, type FileBrowserView } from "./FileBrowserToolbar";
 import { FileCard, FolderCard } from "./FileCard";
@@ -112,9 +114,8 @@ export const Glyphs: Story = {
 export const Thumbnails: Story = {
   parameters: {
     layout: "padded",
-    // Contrast gate: faint-foreground on muted is 3.96:1, under 4.5:1. That is audit
-    // finding 5 (the faint-foreground sweep), still on the backlog; drop this when it lands.
-    a11y: { test: "todo" },
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   render: () => (
     <div className="grid grid-cols-4 gap-3">
@@ -138,9 +139,8 @@ export const Thumbnails: Story = {
 export const Cards: Story = {
   parameters: {
     layout: "padded",
-    // Contrast gate: faint-foreground on muted is 3.96:1, under 4.5:1. That is audit
-    // finding 5 (the faint-foreground sweep), still on the backlog; drop this when it lands.
-    a11y: { test: "todo" },
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   render: function CardsStory() {
     const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -278,9 +278,8 @@ export const SelectionBar: Story = {
 export const FullLayout: Story = {
   parameters: {
     layout: "fullscreen",
-    // Contrast gate: faint-foreground on muted is 3.96:1, under 4.5:1. That is audit
-    // finding 5 (the faint-foreground sweep), still on the backlog; drop this when it lands.
-    a11y: { test: "todo" },
+    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   render: function FullLayoutStory() {
     const [query, setQuery] = useState("");
