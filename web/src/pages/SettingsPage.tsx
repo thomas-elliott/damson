@@ -14,6 +14,7 @@ import {
   ErrorState,
   Input,
   KeyValueList,
+  LoadingState,
   Section,
   SegmentedControl,
   Toolbar,
@@ -52,9 +53,7 @@ export function SettingsPage() {
               description="You need to be in a library to configure its settings."
             />
           ) : loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading…
-            </div>
+            <LoadingState />
           ) : !settings ? (
             <ErrorState title="Couldn't load settings" onRetry={reload} />
           ) : (

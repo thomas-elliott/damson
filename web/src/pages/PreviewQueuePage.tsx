@@ -9,6 +9,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  LoadingState,
   QueueItem,
   Toolbar,
 } from "@/design-system";
@@ -37,9 +38,7 @@ export function PreviewQueuePage() {
             </Breadcrumb>
           </Toolbar>
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading queue…
-            </div>
+            <LoadingState />
           ) : failed ? (
             <ErrorState title="Couldn't load the processing queue" onRetry={reload} />
           ) : previews.length === 0 && finished.length === 0 ? (

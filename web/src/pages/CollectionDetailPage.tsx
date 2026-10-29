@@ -12,6 +12,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  LoadingState,
   Toolbar,
   ToolbarSpacer,
   useConfirm,
@@ -90,17 +91,13 @@ export function CollectionDetailPage() {
           {/* Only the grid waits for the settings, so it first draws at the
               library's density; if they fail it draws at medium. */}
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading…
-            </div>
+            <LoadingState />
           ) : failed && !isNotFound(error) ? (
             <ErrorState title="Couldn't load this collection" onRetry={reload} />
           ) : !collection ? (
             <EmptyState title="Collection not found" />
           ) : assetsLoading || (settingsLoading && !assetsFailed && total > 0) ? (
-            <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-              Loading…
-            </div>
+            <LoadingState />
           ) : assetsFailed ? (
             <ErrorState title="Couldn't load this collection's assets" onRetry={reloadAssets} />
           ) : total === 0 ? (

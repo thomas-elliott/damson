@@ -19,25 +19,26 @@ import {
 import { isNotFound } from "@/api";
 import {
   Button,
+  cn,
   DetailPanel,
   EmptyState,
   ErrorState,
   FieldRow,
+  formatBytes,
   IconButton,
   Input,
+  isBrowsable,
   KeyValueList,
   LicencePill,
+  LoadingState,
   Markdown,
   MarkdownEditor,
   Pill,
   Section,
   StatusDot,
   Tag,
-  VersionItem,
-  cn,
-  formatBytes,
-  isBrowsable,
   useConfirm,
+  VersionItem,
 } from "@/design-system";
 import { AuditList } from "@/components/AuditList";
 import {
@@ -1075,7 +1076,7 @@ function VersionRow({ assetId, version }: { assetId: number; version: AssetVersi
 function AssetAuditSection({ assetId }: { assetId: number }) {
   const { data: entries, loading, failed, reload } = useAssetAudit(assetId);
   if (loading) {
-    return <div className="text-label text-faint-foreground">Loading…</div>;
+    return <LoadingState variant="inline" />;
   }
   if (failed) {
     return <ErrorState title="Couldn't load recent activity" onRetry={reload} />;

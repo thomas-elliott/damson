@@ -17,10 +17,11 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  isBrowsable,
+  LoadingState,
   SearchInput,
   Toolbar,
   ToolbarSpacer,
-  isBrowsable,
 } from "@/design-system";
 import { FolderOpen, Library as LibraryIcon } from "lucide-react";
 import { AssetSortMenu, DEFAULT_ASSET_SORT } from "@/components/AssetSortMenu";
@@ -288,9 +289,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 library's density; if the settings fail it draws at medium. The
                 error and the empty library need no density, so they do not wait. */}
             {loading || (settingsLoading && !failed && assets.length > 0) ? (
-              <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-                Loading assets…
-              </div>
+              <LoadingState />
             ) : failed ? (
               <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
             ) : (

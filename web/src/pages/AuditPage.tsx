@@ -3,7 +3,14 @@ import { useSearchParams } from "react-router";
 import { AuditList } from "@/components/AuditList";
 import { Shell } from "@/components/Shell";
 import { UrlPager } from "@/components/UrlPager";
-import { Breadcrumb, BreadcrumbItem, ErrorState, SearchInput, Toolbar } from "@/design-system";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  ErrorState,
+  LoadingState,
+  SearchInput,
+  Toolbar,
+} from "@/design-system";
 import { cn } from "@/design-system/utils";
 import { useLibraryAudit } from "@/hooks/useDataQueries";
 import { ACTION_FILTERS } from "@/lib/auditFilters";
@@ -78,9 +85,7 @@ export function AuditPage() {
           </div>
           <div className="mx-auto w-full max-w-[960px] p-3">
             {loading ? (
-              <div className="flex flex-1 items-center justify-center text-ui text-subtle-foreground">
-                Loading…
-              </div>
+              <LoadingState />
             ) : failed ? (
               <ErrorState title="Couldn't load the audit log" onRetry={reload} />
             ) : (
