@@ -17,9 +17,10 @@ function mount(sidebar?: string) {
   );
 }
 
+// The sidebar column's width; the grid template reads it as --sidebar-col.
 function columns(): string {
-  return (screen.getByText("rail").parentElement!.parentElement as HTMLElement).style
-    .gridTemplateColumns;
+  const shell = screen.getByText("rail").parentElement!.parentElement as HTMLElement;
+  return `var(--rail-w) ${shell.style.getPropertyValue("--sidebar-col")} 1fr`;
 }
 
 describe("AppShell sidebar column", () => {

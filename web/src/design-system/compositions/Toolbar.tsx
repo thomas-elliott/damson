@@ -15,7 +15,9 @@ export function Toolbar({ className, children, ...props }: ToolbarProps) {
     <div
       role="toolbar"
       className={cn(
-        "flex min-h-[42px] shrink-0 items-center gap-2.5 border-b border-border bg-background px-3.5",
+        // Wraps rather than overflowing, so every action stays reachable on
+        // a narrow screen.
+        "flex min-h-[42px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-background px-3.5 py-1",
         className,
       )}
       {...props}
