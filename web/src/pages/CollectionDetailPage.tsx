@@ -116,7 +116,6 @@ export function CollectionDetailPage() {
               />
               <UrlPager
                 aria-label="Collection pages"
-                className="shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5"
                 total={total}
                 query={{ loading: assetsLoading, placeholder, error: assetsError }}
               />

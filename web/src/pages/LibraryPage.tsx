@@ -308,7 +308,6 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
             {!loading && (
               <UrlPager
                 aria-label="Library pages"
-                className="shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5"
                 total={pagerTotal}
                 query={{ loading, placeholder, error }}
               />
