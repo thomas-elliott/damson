@@ -92,13 +92,12 @@ export function AuditPage() {
             ) : (
               <AuditList entries={entries} linkTargets />
             )}
-            <UrlPager
-              aria-label="Audit log pages"
-              className="mt-2 justify-end"
-              total={total}
-              query={{ loading, placeholder, error }}
-            />
           </PageContent>
+          <UrlPager
+            aria-label="Audit log pages"
+            total={total}
+            query={{ loading, placeholder, error }}
+          />
         </>
       }
     />
