@@ -51,7 +51,7 @@ export function UrlPager({
     <Pager
       aria-label={ariaLabel}
       className={cn(
-        "shrink-0 justify-end border-t border-border bg-background px-3.5 py-1.5",
+        "shrink-0 flex-wrap justify-end gap-y-1 border-t border-border bg-background px-3.5 py-1.5",
         className,
       )}
       page={Math.min(page, pageCount)}
