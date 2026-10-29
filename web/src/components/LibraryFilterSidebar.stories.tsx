@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router";
 import { expect, within } from "storybook/test";
 
 import type { AssetFacetsView, AssetFilters, ProjectView, TagView } from "@/hooks/useDataQueries";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { LibraryFilterSidebar } from "./LibraryFilterSidebar";
 
@@ -138,9 +139,8 @@ export const ActiveFilters: Story = {
 /** A fresh library: every list says how it gets filled. */
 export const Empty: Story = {
   parameters: {
-    // Contrast gate: the empty-list hints are faint-foreground on card, 4.34:1, under 4.5:1
-    // (audit finding 5, still on the backlog). Drop this when it lands.
-    a11y: { test: "todo" },
+    // Known contrast debt: faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
     mode = "empty";
@@ -155,8 +155,8 @@ export const Empty: Story = {
 /** The lists are still loading. The sidebar has no loading state of its own yet. */
 export const Loading: Story = {
   parameters: {
-    // Contrast gate: as Empty, faint-foreground on card is 4.34:1 (audit finding 5).
-    a11y: { test: "todo" },
+    // Known contrast debt: faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
     mode = "loading";
@@ -167,8 +167,8 @@ export const Loading: Story = {
 /** The lists failed to load. The sidebar has no error state of its own yet. */
 export const Failed: Story = {
   parameters: {
-    // Contrast gate: as Empty, faint-foreground on card is 4.34:1 (audit finding 5).
-    a11y: { test: "todo" },
+    // Known contrast debt: faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
     mode = "failed";

@@ -22,6 +22,7 @@ import { Separator } from "@/design-system/primitives/Separator";
 import { StatusDot } from "@/design-system/primitives/StatusDot";
 import { Chip } from "@/design-system/primitives/Chip";
 import { Tag } from "@/design-system/primitives/Tag";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from "./Breadcrumb";
 import { useConfirm } from "./ConfirmDialog";
@@ -364,9 +365,8 @@ export const ConfirmDialogExample: Story = {
 export const ConfirmDialogDestructive: Story = {
   parameters: {
     layout: "centered",
-    // Contrast gate: destructive on destructive-soft is 4.42:1, under 4.5:1; the token
-    // is at fault, not the call site. Drop this when the token is fixed.
-    a11y: { test: "todo" },
+    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    a11y: contrastDebt("destructive-soft"),
   },
   render: () => <ConfirmDemo tone="destructive" />,
   play: async ({ canvasElement }) => {

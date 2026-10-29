@@ -5,6 +5,7 @@ import { expect, userEvent, within } from "storybook/test";
 
 import { TooltipProvider } from "@/design-system";
 import type { MemberView } from "@/hooks/useDataQueries";
+import { contrastDebt } from "@/design-system/_a11yDebt";
 
 import { LibraryMembersSection } from "./LibraryMembersSection";
 
@@ -106,9 +107,8 @@ export const Empty: Story = {
 /** Local mode: inviting an unknown email can set the new user's password. */
 export const Inviting: Story = {
   parameters: {
-    // Contrast gate: FieldRow hints are faint-foreground on card, 4.34:1 under 4.5:1 (audit
-    // finding 5, still on the backlog); drop this when it lands.
-    a11y: { test: "todo" },
+    // Known contrast debt: FieldRow hints, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    a11y: contrastDebt("faint-foreground"),
   },
   render: () => <Harness libraryId={LIBRARY} isAdmin />,
   play: async ({ canvasElement }) => {
