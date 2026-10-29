@@ -46,10 +46,12 @@ const MEMBERS: MemberView[] = [
 // Library ids pick the fixture, so stories don't depend on render order.
 const LIBRARY = 7;
 const EMPTY_LIBRARY = 8;
+const LOADING_LIBRARY = 9;
+const FAILED_LIBRARY = 10;
 
-function json(body: unknown): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -61,7 +63,12 @@ const fakeApi =
     const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
     if (path === "/api/auth/mode") return json({ mode: "local", needs_bootstrap: false });
     const members = /^\/api\/libraries\/(\d+)\/members$/.exec(path);
-    if (members) return json({ members: Number(members[1]) === LIBRARY ? MEMBERS : [] });
+    if (members) {
+      const id = Number(members[1]);
+      if (id === LOADING_LIBRARY) return new Promise<Response>(() => {});
+      if (id === FAILED_LIBRARY) return json({ error: "internal error" }, 500);
+      return json({ members: id === LIBRARY ? MEMBERS : [] });
+    }
     return realFetch(input, init);
   };
 
@@ -104,6 +111,28 @@ export const Empty: Story = {
   render: () => <Harness libraryId={EMPTY_LIBRARY} isAdmin />,
   play: async ({ canvasElement }) => {
     await expect(await within(canvasElement).findByText("No members yet")).toBeVisible();
+  },
+};
+
+/** Still loading: the list says so rather than "No members yet", and the heading leaves out a count. */
+export const Loading: Story = {
+  render: () => <Harness libraryId={LOADING_LIBRARY} isAdmin />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Loading…")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Members" })).toBeVisible();
+    await expect(canvas.queryByText("No members yet")).not.toBeInTheDocument();
+  },
+};
+
+/** The members failed to load: a Retry instead of "No members yet". */
+export const Failed: Story = {
+  render: () => <Harness libraryId={FAILED_LIBRARY} isAdmin />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Couldn't load members")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(canvas.queryByText("No members yet")).not.toBeInTheDocument();
   },
 };
 

@@ -11,8 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ErrorState,
   FieldRow,
   Input,
+  LoadingState,
   Section,
   Select,
   SelectContent,
@@ -39,7 +41,7 @@ export function LibraryMembersSection({
   libraryId: number;
   isAdmin: boolean;
 }) {
-  const { data: members } = useLibraryMembers(libraryId);
+  const { data: members, loading, failed, reload } = useLibraryMembers(libraryId);
   const [inviteOpen, setInviteOpen] = useState(false);
   const patch = usePatchMember();
   const remove = useRemoveMember();
@@ -51,7 +53,7 @@ export function LibraryMembersSection({
 
   return (
     <Section
-      title={`Members (${members.length})`}
+      title={loading || failed ? "Members" : `Members (${members.length})`}
       defaultOpen
       accessory={
         isAdmin ? (
@@ -66,7 +68,11 @@ export function LibraryMembersSection({
         ) : null
       }
     >
-      {members.length === 0 ? (
+      {loading ? (
+        <LoadingState variant="inline" />
+      ) : failed ? (
+        <ErrorState title="Couldn't load members" onRetry={reload} />
+      ) : members.length === 0 ? (
         <EmptyState title="No members yet" description="Library memberships will appear here." />
       ) : (
         <div className="flex flex-col">
