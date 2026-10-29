@@ -2,6 +2,9 @@
 // dotted strings like "asset.update" or "library.member.add"; this module
 // keeps the verb mapping in one place so new entries don't need bespoke
 // rendering at every call site.
+//
+// A verb never names its target: formatAuditTarget supplies the noun, so
+// "created project" would render as "created project project #1".
 
 export const VERBS: Record<string, string> = {
   "asset.create": "imported",
@@ -25,31 +28,31 @@ export const VERBS: Record<string, string> = {
   "asset.version.subset": "created a subset version of",
   "asset.version.reextract": "re-extracted a version of",
   "asset.import.retry": "retried the import of",
-  "tag.create": "created tag",
-  "tag.delete": "deleted tag",
-  "project.create": "created project",
-  "project.update": "updated project",
-  "project.delete": "deleted project",
-  "project.pin": "pinned to project",
-  "project.pin.change": "changed pinned version in project",
-  "project.unpin": "unpinned from project",
-  "collection.create": "created collection",
-  "collection.update": "updated collection",
-  "collection.delete": "deleted collection",
-  "collection.add": "added to collection",
-  "collection.remove": "removed from collection",
-  "token.create": "created token",
-  "token.revoke": "revoked token",
-  "library.create": "created library",
-  "library.update": "updated library",
-  "library.delete": "deleted library",
-  "library.settings.update": "updated library settings",
+  "tag.create": "created",
+  "tag.delete": "deleted",
+  "project.create": "created",
+  "project.update": "updated",
+  "project.delete": "deleted",
+  "project.pin": "pinned to",
+  "project.pin.change": "changed the pinned version in",
+  "project.unpin": "unpinned from",
+  "collection.create": "created",
+  "collection.update": "updated",
+  "collection.delete": "deleted",
+  "collection.add": "added to",
+  "collection.remove": "removed from",
+  "token.create": "created",
+  "token.revoke": "revoked",
+  "library.create": "created",
+  "library.update": "updated",
+  "library.delete": "deleted",
+  "library.settings.update": "updated settings of",
   "library.member.add": "added member",
   "library.member.role.update": "changed member role",
   "library.member.remove": "removed member",
-  "admin.user.update": "updated user",
-  "admin.server_settings.update": "updated server settings",
-  "admin.storage.orphan_delete": "deleted orphaned object",
+  "admin.user.update": "updated",
+  "admin.server_settings.update": "updated settings of",
+  "admin.storage.orphan_delete": "deleted orphaned",
 };
 
 export function formatAuditAction(actionType: string): string {
