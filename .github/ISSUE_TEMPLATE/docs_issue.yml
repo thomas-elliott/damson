@@ -5,9 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        A command that does not work, a config key that does not exist, a step
-        that assumes something it never told you — all worth reporting. So is
-        a page that is correct but left you stuck.
+        Report a command that does not work, a config key that does not exist, a
+        step that assumes something the page never said, or a correct page that
+        left you stuck.
 
   - type: input
     id: page
@@ -33,5 +33,5 @@ body:
     attributes:
       label: What were you trying to do?
       description: >-
-        Optional, but it is how a missing page gets written rather than an
-        existing one patched.
+        Optional. This is how a missing page gets written instead of an existing
+        one patched.
