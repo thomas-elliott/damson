@@ -29,8 +29,9 @@ type auditEntryView struct {
 	ActionType      string `json:"action_type"`
 	TargetType      string `json:"target_type"`
 	TargetID        *uint  `json:"target_id,omitempty"`
-	// TargetName is the target's current name, empty when the row is gone
-	// or the target type has none, so the SPA can fall back to the id.
+	// TargetName is the target's current name, empty when the row has been
+	// hard-deleted or the target type has none, so the SPA can fall back to
+	// the id. A soft-deleted target keeps its name.
 	TargetName string          `json:"target_name,omitempty"`
 	Diff       json.RawMessage `json:"diff,omitempty"`
 	CreatedAt  time.Time       `json:"created_at"`
