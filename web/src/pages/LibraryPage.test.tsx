@@ -72,7 +72,10 @@ vi.mock("@/components/DropZone", () => ({
   DropZone: ({ children }: { children: ReactNode }) => <>{children}</>,
   useDropZoneOpen: () => () => {},
 }));
-vi.mock("@/components/detail/AssetDetailPanel", () => ({ AssetDetailPanel: () => null }));
+vi.mock("@/components/detail/AssetDetailPanel", () => ({
+  AssetDetailPanel: ({ assetId }: { assetId: number | null }) =>
+    assetId == null ? null : <aside aria-label="Details">panel</aside>,
+}));
 vi.mock("@/components/LibraryFilterSidebar", () => ({ LibraryFilterSidebar: () => null }));
 vi.mock("@/components/LibraryPicker", () => ({ LibraryPicker: () => null }));
 vi.mock("@/components/AddByLocationDialog", () => ({ AddByLocationButton: () => null }));
@@ -247,6 +250,17 @@ describe("LibraryPage selection bar", () => {
     const box = screen.getByText("bulk bar").parentElement!;
     expect(box).toContainElement(screen.getByText("grid"));
     expect(box).not.toContainElement(pager());
+  });
+});
+
+// The detail panel overlays the grid, never the toolbar, so Upload and Add
+// by location stay reachable with an asset open.
+describe("LibraryPage detail panel", () => {
+  it("sits in the grid's box, apart from the toolbar", () => {
+    mount("/library/3");
+    const box = screen.getByRole("complementary", { name: "Details" }).parentElement!;
+    expect(box).toContainElement(screen.getByText("grid"));
+    expect(box).not.toContainElement(screen.getByRole("toolbar"));
   });
 });
 
