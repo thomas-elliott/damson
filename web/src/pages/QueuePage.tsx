@@ -74,7 +74,9 @@ export function QueuePage() {
         <>
           <Toolbar>
             <Breadcrumb count={`${imports.length}`}>
-              <BreadcrumbItem current>Import queue</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Import queue
+              </BreadcrumbItem>
             </Breadcrumb>
           </Toolbar>
           {loading ? (

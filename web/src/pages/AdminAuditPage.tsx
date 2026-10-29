@@ -68,7 +68,7 @@ export function AdminAuditPage() {
                   Audit log
                 </Link>
               </BreadcrumbItem>
-              <BreadcrumbItem current>
+              <BreadcrumbItem current heading>
                 {scope === "all" ? "All libraries" : "Server"}
               </BreadcrumbItem>
             </Breadcrumb>

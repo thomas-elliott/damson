@@ -23,20 +23,32 @@ export function Breadcrumb({ className, count, children, ...props }: BreadcrumbP
   );
 }
 
-export interface BreadcrumbItemProps extends HTMLAttributes<HTMLSpanElement> {
+export interface BreadcrumbItemProps extends HTMLAttributes<HTMLElement> {
   current?: boolean;
+  /**
+   * Render the crumb as the page's `h1`. Set it on the current crumb of a
+   * page whose body has no `h1` of its own; it looks the same either way.
+   */
+  heading?: boolean;
 }
 
 /** Single crumb — display-only, no link semantics built in. */
-export function BreadcrumbItem({ className, current, children, ...props }: BreadcrumbItemProps) {
+export function BreadcrumbItem({
+  className,
+  current,
+  heading,
+  children,
+  ...props
+}: BreadcrumbItemProps) {
+  const Tag = heading ? "h1" : "span";
   return (
-    <span
+    <Tag
       aria-current={current ? "page" : undefined}
       className={cn("text-muted-foreground aria-[current=page]:text-foreground", className)}
       {...props}
     >
       {children}
-    </span>
+    </Tag>
   );
 }
 

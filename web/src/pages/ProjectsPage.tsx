@@ -46,7 +46,9 @@ export function ProjectsPage() {
         <>
           <Toolbar>
             <Breadcrumb count={`${projects.length}`}>
-              <BreadcrumbItem current>Projects</BreadcrumbItem>
+              <BreadcrumbItem current heading>
+                Projects
+              </BreadcrumbItem>
             </Breadcrumb>
             <ToolbarSpacer />
             <Button
