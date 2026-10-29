@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Check, FileAudio2, Image, Package, X } from "lucide-react";
+import { Check, FileAudio2, Image, Package, Search, X } from "lucide-react";
 
 import { Button } from "@/design-system/primitives/Button";
 import { IconButton } from "@/design-system/primitives/IconButton";
@@ -207,6 +207,37 @@ export const ActivityAuditTimestamps: Story = {
         target="asset #297"
       />
     </div>
+  ),
+};
+
+// The import queue's review row: peer actions share one weight in one row.
+export const QueueReviewActions: Story = {
+  parameters: { layout: "padded" },
+  render: () => (
+    <QueueItem
+      thumb={<Package size={20} />}
+      name="POLYGON - Fantasy Kingdom"
+      sub={
+        <>
+          <span>652 MB</span>
+          <span>·</span>
+          <span>needs review</span>
+        </>
+      }
+      actions={
+        <>
+          <Button variant="secondary" size="sm">
+            Review
+          </Button>
+          <Button variant="secondary" size="sm" leadingIcon={<Search size={12} />}>
+            Re-match
+          </Button>
+          <Button variant="secondary" size="sm" leadingIcon={<Check size={12} />}>
+            Mark reviewed
+          </Button>
+        </>
+      }
+    />
   ),
 };
 
