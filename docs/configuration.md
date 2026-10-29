@@ -217,12 +217,32 @@ from the browser's own origin rather than from any Damson setting, so register
 https://damson.example.com/auth/callback
 ```
 
-— substituting the origin your users actually type — as the redirect URI. The
-same URI is also the silent-renew target, loaded in a hidden iframe, so your
-IdP has to permit `prompt=none` renewal and allow that page to be framed. You
+— substituting the origin your users actually type — as the redirect URI. You
 do **not** need a post-logout redirect URI: signing out of Damson clears the
 browser's stored session locally and never calls the IdP's `end_session`
 endpoint, so you stay signed in at the IdP.
+
+**Silent renewal does not currently work, and no IdP setting will fix it.**
+The SPA is built to renew tokens in the background: it registers the same
+`/auth/callback` URI as its silent-renew target and loads it in a hidden
+iframe. That last hop is blocked by Damson itself. Every response carries
+`X-Frame-Options: DENY` and a CSP containing `frame-ancestors 'none'` (the
+`securityHeaders` middleware in `cmd/server/main.go`), and `/auth/callback` is
+served by the SPA fallback behind that same middleware, so the browser refuses
+to render it in the iframe. Both headers block framing unconditionally,
+including same-origin, so there is nothing to configure at the IdP or in
+Damson that changes the outcome.
+
+The practical effect is that sessions are **not** extended in the background.
+When the id_token expires, the next API call fails to renew and the user is
+sent back through the IdP for a fresh interactive sign-in. For most IdPs that
+is a redirect the user barely notices, because their IdP session is still
+live — but it is a page navigation, and any unsaved state in the tab is lost.
+Set your token lifetime with that in mind rather than relying on renewal.
+
+Registering the redirect URI above is still correct and still required: it is
+the interactive sign-in target. If you are hardening your IdP, there is no
+need to permit `prompt=none` for Damson today.
 
 The client requests the scopes `openid profile email`. Damson verifies the
 **id_token** (not the access token) and reads the `email`, `email_verified`
@@ -242,15 +262,32 @@ keyed on the old issuer string, so moving IdPs (or changing a realm path)
 orphans every account. Plan it as a migration, not a config edit.
 
 The issuer's `scheme://host` is automatically added to the Content-Security
--Policy so the browser can reach your IdP for discovery, token exchange and
-the hidden silent-renew iframe. You do not configure the CSP yourself.
+-Policy (to `connect-src` and `frame-src`) so the browser can reach your IdP
+for discovery and token exchange. You do not configure the CSP yourself, and
+there is no setting that relaxes `frame-ancestors` — see the silent-renewal
+note above.
 
 ## Storage
 
 `DAMSON_STORAGE_MODE` picks the blob backend. Both backends use the same key
 layout (`blobs/`, `originals/` and `thumbs/`, each addressed by the SHA-256 of
-its contents), so moving between them is a plain recursive copy plus a config
-change — no re-import, no database migration.
+its contents and sharded as `<prefix>/<first-two-hex>/<hash>`), so moving
+between them is a recursive copy plus a config change — no re-import, no
+database migration.
+
+One wrinkle in either direction. Local mode stores each object's metadata in a
+`<hash>.meta.json` sidecar next to the blob, where S3 uses native object
+metadata; neither is translated by a copy. Nothing breaks — that metadata only
+labels rows in the storage-cleanup report — but if you copy **local → S3**,
+exclude the sidecars. S3 mode does not filter them out the way local mode
+does, so any that come along will show up as orphan candidates in the next
+cleanup scan:
+
+```sh
+# source is DAMSON_STORAGE_LOCAL_PATH (/data/blobs in the container image);
+# the prefix directories inside it map to keys at the bucket root
+aws s3 sync /data/blobs s3://your-bucket/ --exclude "*.meta.json"
+```
 
 | Variable | Default | Required | What it does |
 |---|---|---|---|
@@ -380,15 +417,34 @@ password resets) and **Storage cleanup**.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Default grid density | `medium` | Starting density of the asset grid. |
+| Grid density default | `medium` | Starting density of the asset grid. |
 | Retain original packages | on | Keep the uploaded archive after extraction. Turning it off reclaims a lot of space but makes re-extraction impossible. |
 | Dedupe enabled | on | Store identical content once. |
 | Raster / audio / font thumbnails | all on | Per-kind thumbnail generation for loose files. |
-| Unity preview thumbnails | on | Use the preview image inside a `.unitypackage` as the asset's cover. |
-| Previews enabled | on | Render the larger browser-safe preview derivatives. |
+| Unity preview harvest | on | Use the preview image inside a `.unitypackage` as the asset's cover. |
 | Auto-enrich | on | Fetch storefront metadata during import. |
 | Preferred store | `unity` | Which storefront to try first when enriching. |
 | Audit retention days | unset (keep forever) | Age at which audit rows are purged. |
+
+### One per-library setting with no control surface
+
+`library_settings.previews_enabled` (default `true`) is a real switch: when it
+is off, Damson refuses to queue preview jobs for that library's assets and
+skips them in the backfill sweep. Unlike the inert licence-KB toggle above, it
+does exactly what its name says.
+
+It is simply not reachable. It appears in neither the settings API response
+nor its PATCH payload, and there is no control for it on the **Settings**
+screen. The only way to change it today is to write to the `library_settings`
+row directly:
+
+```sql
+UPDATE library_settings SET previews_enabled = false WHERE library_id = 1;
+```
+
+Do that only if you have a reason to — it is listed here so that an operator
+who finds the column, or who wonders why previews stopped, knows what it is
+and that the UI will not show them its state.
 
 ## Variables Damson does not read
 
