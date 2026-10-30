@@ -662,7 +662,7 @@ function OverviewRead({ asset }: { asset: AssetDetailView }) {
             target="_blank"
             rel="noreferrer noopener"
             title={source}
-            className="inline-flex min-w-0 items-center gap-1 pt-1 text-label text-primary hover:underline"
+            className="inline-flex min-w-0 items-center gap-1 pt-1 text-label text-primary-text hover:underline"
           >
             <span className="truncate">{sourceLabel(source)}</span>
             <ExternalLink size={11} className="shrink-0" />
@@ -718,7 +718,7 @@ function ClampedDescription({ children }: { children: string }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="self-start text-label text-primary hover:underline"
+          className="self-start text-label text-primary-text hover:underline"
         >
           {expanded ? "Show less" : "Read more"}
         </button>

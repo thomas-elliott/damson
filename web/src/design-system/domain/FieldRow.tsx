@@ -54,7 +54,7 @@ export function FieldRow({
         "aria-invalid": error ? true : undefined,
       })}
       {hint && (
-        <p id={hintId} className="text-label text-faint-foreground">
+        <p id={hintId} className="text-label text-subtle-foreground">
           {hint}
         </p>
       )}
