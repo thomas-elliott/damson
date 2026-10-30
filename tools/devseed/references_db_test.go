@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -162,6 +163,30 @@ func TestWriteReferences_FiltersAndSearch(t *testing.T) {
 	for _, v := range []string{"v1.2", "v1.3"} {
 		if !names[nearDuplicateStem+" "+v] {
 			t.Errorf("searching %q did not find its %s", nearDuplicateStem, v)
+		}
+	}
+}
+
+// A tag filter takes the tag and its descendants, never a sibling whose
+// name starts with the same letters.
+func TestWriteReferences_TagFilterKeepsToItsBranch(t *testing.T) {
+	db, libID, r := seededLibrary(t)
+	if _, _, err := writeReferences(db, libID); err != nil {
+		t.Fatal(err)
+	}
+	// Siblings like Humans and Humanoids, or Textures and Textures
+	// Materials, sit in the seed, so a prefix match would overcount.
+	for _, tag := range []string{"2D/Textures", "3D/Characters/Humans", "Audio/Sound FX", "3D/Characters"} {
+		want := 0
+		for _, ref := range references() {
+			if ref.Category == tag || strings.HasPrefix(ref.Category, tag+"/") {
+				want++
+			}
+		}
+		var got listing
+		getJSON(t, r, "/api/assets?limit=1&tag_path="+url.QueryEscape(tag), &got)
+		if got.Total != want {
+			t.Errorf("tag %s matches %d assets, want %d", tag, got.Total, want)
 		}
 	}
 }

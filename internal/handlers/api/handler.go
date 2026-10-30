@@ -242,6 +242,7 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 
 	// Tags
 	scoped.GET("/tags", h.getTags)
+	scoped.GET("/tags/index", h.getTagIndex)
 	scoped.POST("/tags", h.postTag)
 	scoped.DELETE("/tags/:id", h.deleteTag)
 	scoped.POST("/assets/:id/tags", h.postAssetTag)

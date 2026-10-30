@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -55,16 +57,16 @@ const (
 // assetListFilters carries the decoded query params for getAssets. Empty
 // zero values mean "no filter for this dimension".
 type assetListFilters struct {
-	Query           string // full-text / LIKE fallback
-	TagID           *uint  // matches asset via asset_tags OR descendants by path
-	TagPath         string // alternative to TagID — match by `path LIKE '<p>%'`
-	LicenceStatus   string // ok|warn|err|unk
-	LicenceSPDX     string // exact SPDX id
-	ProjectID       *uint  // asset is pinned in this project
-	CollectionID    *uint  // asset is a member of this collection
-	SourceHost      string // exact-match host portion of source_url
-	NeedsReview     *bool  // unreviewed-only when true
-	StoreDeprecated *bool  // store_deprecated matches this when set
+	Query           string   // full-text / LIKE fallback
+	TagID           *uint    // matches asset via asset_tags OR descendants by path
+	TagPaths        []string // alternative to TagID — any of these tags or their descendants
+	LicenceStatus   string   // ok|warn|err|unk
+	LicenceSPDX     string   // exact SPDX id
+	ProjectID       *uint    // asset is pinned in this project
+	CollectionID    *uint    // asset is a member of this collection
+	SourceHost      string   // exact-match host portion of source_url
+	NeedsReview     *bool    // unreviewed-only when true
+	StoreDeprecated *bool    // store_deprecated matches this when set
 	PackageKind     string
 	Publisher       string     // exact publisher match
 	Store           string     // exact store match
@@ -73,6 +75,9 @@ type assetListFilters struct {
 	NotDownloaded   bool       // Purchased, not downloaded: a reference asset with no path
 	Sort            string     // created_desc (default) | released_desc | released_asc | name_asc | relevance
 }
+
+// isEmpty reports whether no filter or sort is set.
+func (f assetListFilters) isEmpty() bool { return reflect.ValueOf(f).IsZero() }
 
 // storeVersionArraySQL renders a dotted-numeric store version as an int[] for
 // semantic ordering, or NULL when it isn't orderable. The CASE guards the cast:
@@ -135,7 +140,7 @@ func assetOrder(f assetListFilters) clause.OrderBy {
 func parseAssetFilters(c *gin.Context) assetListFilters {
 	f := assetListFilters{
 		Query:         strings.TrimSpace(c.Query("q")),
-		TagPath:       strings.TrimSpace(c.Query("tag_path")),
+		TagPaths:      parseTagPaths(c.QueryArray("tag_path")),
 		LicenceStatus: strings.TrimSpace(c.Query("licence_status")),
 		LicenceSPDX:   strings.TrimSpace(c.Query("licence_spdx")),
 		SourceHost:    strings.TrimSpace(c.Query("source_host")),
@@ -180,6 +185,19 @@ func parseAssetFilters(c *gin.Context) assetListFilters {
 	f.NeedsReview = optionalBool(c.Query("needs_review"))
 	f.StoreDeprecated = optionalBool(c.Query("store_deprecated"))
 	return f
+}
+
+// parseTagPaths normalises the repeated tag_path values, dropping empties and
+// repeats.
+func parseTagPaths(raw []string) []string {
+	var out []string
+	for _, r := range raw {
+		p := tags.NormalisePath(r)
+		if p != "" && !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // optionalBool reads a true/false query value; anything else reads as unset.
@@ -254,12 +272,18 @@ func (h *Handler) applyAssetFilters(db *gorm.DB, libID uint, f assetListFilters)
 	if f.TagID != nil {
 		q = q.Joins("JOIN asset_tags atf ON atf.asset_id = a.id").
 			Where("atf.tag_id = ?", *f.TagID)
-	} else if f.TagPath != "" {
-		// Match tag + descendants.
-		path := tags.NormalisePath(f.TagPath)
-		q = q.Joins("JOIN asset_tags atf ON atf.asset_id = a.id").
-			Joins("JOIN tags tf ON tf.id = atf.tag_id").
-			Where("tf.library_id = ? AND (tf.path = ? OR tf.path LIKE ?)", libID, path, path+"/%")
+	} else if len(f.TagPaths) > 0 {
+		// Any of the tags, or anything under one. The prefix carries its
+		// slash, so `a/b` never reaches `a/bc`. EXISTS rather than a join,
+		// so an asset under two of the tags is listed once.
+		match := make([]string, len(f.TagPaths))
+		vars := []any{libID}
+		for i, p := range f.TagPaths {
+			match[i] = `tf.path = ? OR tf.path LIKE ? ESCAPE '\'`
+			vars = append(vars, p, escapeLikePattern(p)+"/%")
+		}
+		q = q.Where(`EXISTS (SELECT 1 FROM asset_tags atf JOIN tags tf ON tf.id = atf.tag_id
+			WHERE atf.asset_id = a.id AND tf.library_id = ? AND (`+strings.Join(match, " OR ")+`))`, vars...)
 	}
 	if f.ProjectID != nil {
 		q = q.Joins("JOIN project_asset_pins pf ON pf.asset_id = a.id").

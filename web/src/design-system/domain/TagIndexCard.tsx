@@ -55,6 +55,8 @@ export function TagIndexCard({
       type="button"
       onClick={onOpen}
       aria-pressed={selected}
+      // The visible parts run together when read out, so name it in words.
+      aria-label={`${path.split("/").join(" / ")}, ${count} ${count === 1 ? "asset" : "assets"}`}
       className={cn(
         "flex w-full min-w-0 flex-col gap-2 rounded-md text-left",
         "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -74,7 +76,7 @@ export function TagIndexCard({
       </div>
       <div className="flex min-w-0 items-baseline gap-2">
         {parent && (
-          <span className="text-overline text-subtle-foreground">
+          <span className="shrink-0 whitespace-nowrap text-overline text-subtle-foreground">
             {parent.replaceAll("/", " / ")} /
           </span>
         )}

@@ -122,7 +122,8 @@ interface AssetListResponse {
 export interface AssetFilters {
   q?: string;
   tag_id?: number;
-  tag_path?: string;
+  /** Any of these tags, or anything under one. */
+  tag_path?: string[];
   licence_status?: LicenceStatus;
   licence_spdx?: string;
   project_id?: number;
@@ -164,7 +165,8 @@ function filtersToQuery(f: AssetFilters | undefined): string {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(f)) {
     if (v === undefined || v === "" || v === null) continue;
-    params.set(k, String(v));
+    if (Array.isArray(v)) for (const item of v) params.append(k, String(item));
+    else params.set(k, String(v));
   }
   const s = params.toString();
   return s ? `?${s}` : "";
@@ -184,7 +186,7 @@ export function useAssets(filters?: AssetFilters, enabled: boolean = true, page?
     params && Object.keys(params).length > 0
       ? (Object.fromEntries(
           Object.entries(params).filter(([, v]) => v !== undefined && v !== ""),
-        ) as Record<string, string | number | boolean>)
+        ) as Record<string, string | number | boolean | string[]>)
       : undefined;
   const q = useQuery({
     queryKey: queryKeys.assets(keyed),
@@ -414,7 +416,10 @@ export interface TagView {
   id: number;
   path: string;
   parent_id?: number;
+  /** Assets carrying this tag itself. */
   asset_count: number;
+  /** Assets under the tag or any tag below it, once each: what filtering by it matches. */
+  subtree_count: number;
 }
 
 export function useAssetFacets(enabled: boolean = true) {
@@ -438,6 +443,38 @@ export function useTags(enabled: boolean = true) {
   const q = useQuery({
     queryKey: queryKeys.tags,
     queryFn: () => fetchJson<{ tags: TagView[] }>("/api/tags"),
+    staleTime: 5 * MINUTE,
+    gcTime: 1 * HOUR,
+    enabled,
+  });
+  return {
+    data: q.data?.tags ?? [],
+    loading: q.isPending,
+    error: q.error,
+    failed: failedToLoad(q),
+    reload: q.refetch,
+  };
+}
+
+export interface TagIndexCoverView {
+  id: number;
+  name: string;
+  publisher?: string;
+  thumbnail_object_key?: string;
+}
+
+export interface TagIndexEntryView {
+  /** A second-level tag, or a top-level one with nothing under it. */
+  path: string;
+  count: number;
+  top_children: { name: string; count: number }[];
+  covers: TagIndexCoverView[];
+}
+
+export function useTagIndex(enabled: boolean = true) {
+  const q = useQuery({
+    queryKey: queryKeys.tagIndex,
+    queryFn: () => fetchJson<{ tags: TagIndexEntryView[] }>("/api/tags/index"),
     staleTime: 5 * MINUTE,
     gcTime: 1 * HOUR,
     enabled,
@@ -649,7 +686,8 @@ function auditQuery(f?: object): string {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(f)) {
     if (v === undefined || v === "" || v === null) continue;
-    params.set(k, String(v));
+    if (Array.isArray(v)) for (const item of v) params.append(k, String(item));
+    else params.set(k, String(v));
   }
   const s = params.toString();
   return s ? `?${s}` : "";

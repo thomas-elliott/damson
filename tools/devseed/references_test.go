@@ -166,3 +166,36 @@ func TestReferences_FiltersSplitTheSet(t *testing.T) {
 
 // releasedAfterProbe sits inside the generated release dates.
 var releasedAfterProbe = time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// Tags look like store categories: paths 2 to 4 levels deep, each used by
+// enough assets to filter on, with siblings that start with the same letters.
+func TestReferences_TagsAreStoreCategories(t *testing.T) {
+	uses := map[string]int{}
+	for _, r := range references() {
+		uses[r.Category]++
+	}
+	depths := map[int]bool{}
+	for _, c := range categories {
+		depth := strings.Count(c, "/") + 1
+		if depth < 2 || depth > 4 {
+			t.Errorf("%s is %d levels deep, want 2 to 4", c, depth)
+		}
+		depths[depth] = true
+		if uses[c] < 5 {
+			t.Errorf("%s tags %d assets, want at least 5", c, uses[c])
+		}
+	}
+	for _, d := range []int{2, 3, 4} {
+		if !depths[d] {
+			t.Errorf("no category is %d levels deep", d)
+		}
+	}
+	for _, pair := range [][2]string{
+		{"2D/Textures", "2D/Textures Materials"},
+		{"3D/Characters/Humans", "3D/Characters/Humanoids/Fantasy"},
+	} {
+		if uses[pair[0]] == 0 || uses[pair[1]] == 0 {
+			t.Errorf("want assets under both %s and %s", pair[0], pair[1])
+		}
+	}
+}

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { AssetCard, Checkbox, EmptyState, cn, formatBytes } from "@/design-system";
+import { AssetCard, Checkbox, EmptyState, cn, formatBytes, tidyAssetName } from "@/design-system";
 import type { AssetRow, LibrarySettings } from "@/hooks/useDataQueries";
 import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
 
@@ -13,8 +13,12 @@ type GridDensity = LibrarySettings["grid_density_default"];
 // (measureElement) since the 3:4 cover makes it track the responsive cell
 // width; the constants below only seed the pre-measurement estimate.
 const MIN_CELL_WIDTH: Record<GridDensity, number> = { small: 140, medium: 180, large: 240 };
+// Below this content width (a phone) every density shows two columns at the
+// small density's width, rather than one card the height of the screen.
+const NARROW_WIDTH = 480;
 const COVER_ASPECT = 4 / 3; // height over width.
 const GAP = 12;
+const PADDING = 14; // p-3.5
 
 /**
  * Library grid — virtualised with @tanstack/react-virtual so multi-thousand
@@ -30,6 +34,7 @@ export function AssetGrid({
   onToggleSelect,
   onColumnsChange,
   density = "medium",
+  reservedRight = 0,
 }: {
   assets: AssetRow[];
   onOpen?: (id: number) => void;
@@ -40,6 +45,8 @@ export function AssetGrid({
   onColumnsChange?: (columns: number) => void;
   /** The library's grid density; sets the minimum card width. */
   density?: GridDensity;
+  /** Width of a panel floating over the grid's right edge; the cards reflow beside it. */
+  reservedRight?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const minCellWidth = MIN_CELL_WIDTH[density] ?? MIN_CELL_WIDTH.medium;
@@ -77,7 +84,11 @@ export function AssetGrid({
   }, [selectedId, assets, columns, virtualizer]);
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto p-3.5">
+    <div
+      ref={scrollRef}
+      className="flex-1 overflow-auto p-3.5"
+      style={reservedRight > 0 ? { paddingRight: reservedRight + PADDING } : undefined}
+    >
       {assets.length === 0 ? (
         <EmptyState
           className="h-full"
@@ -145,6 +156,7 @@ function GridCard({
   checked?: boolean;
   onToggleSelect?: (id: number) => void;
 }) {
+  const name = tidyAssetName(a.name);
   const imageUrl = useBlobUrl(
     a.thumbnail_object_key ? `/api/thumbs/${a.thumbnail_object_key}` : undefined,
   );
@@ -160,22 +172,20 @@ function GridCard({
           <Checkbox
             checked={checked}
             onCheckedChange={() => onToggleSelect(a.id)}
-            aria-label={`Select ${a.name}`}
+            aria-label={`Select ${name}`}
           />
         </div>
       )}
       <AssetCard
-        name={a.name}
+        name={name}
         publisher={a.publisher}
         data-asset-id={a.id}
         imageUrl={imageUrl}
         selected={selected || checked}
         onSelect={() => onOpen?.(a.id)}
         sub={
-          a.is_reference ? (
-            // A reference asset holds no files, so a size would read "0 B".
-            <span className="font-mono">Reference</span>
-          ) : (
+          // A reference asset holds no files, so a size would read "0 B".
+          a.is_reference ? undefined : (
             <>
               <span className="font-mono">{formatBytes(a.size_bytes)}</span>
               {a.file_count > 1 && (
@@ -211,8 +221,12 @@ function useGridMetrics(
     if (!el) return;
     const compute = () => {
       if (!el.isConnected) return;
-      const w = el.clientWidth - 28; // subtract the p-3.5 (14px each side).
-      const columns = Math.max(1, Math.floor((w + GAP) / (minCellWidth + GAP)));
+      // The content width: a panel over the grid widens the right padding.
+      const style = getComputedStyle(el);
+      const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      const w = el.clientWidth - padding;
+      const min = w < NARROW_WIDTH ? Math.min(minCellWidth, MIN_CELL_WIDTH.small) : minCellWidth;
+      const columns = Math.max(1, Math.floor((w + GAP) / (min + GAP)));
       const cellWidth = (w - (columns - 1) * GAP) / columns;
       setMetrics((prev) =>
         prev.columns === columns && prev.cellWidth === cellWidth ? prev : { columns, cellWidth },

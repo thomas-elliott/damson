@@ -3,13 +3,14 @@
 export const queryKeys = {
   authMode: ["authMode"] as const,
   me: ["me"] as const,
-  assets: (filters?: Record<string, string | number | boolean>) =>
+  assets: (filters?: Record<string, string | number | boolean | string[]>) =>
     filters ? (["assets", filters] as const) : (["assets"] as const),
   asset: (id: number) => ["asset", id] as const,
   assetLicence: (id: number) => ["asset", id, "licence"] as const,
   assetAudit: (id: number) => ["asset", id, "audit"] as const,
   assetFacets: ["assetFacets"] as const,
   tags: ["tags"] as const,
+  tagIndex: ["tags", "index"] as const,
   projects: ["projects"] as const,
   project: (id: number) => ["project", id] as const,
   projectAudit: (id: number) => ["project", id, "audit"] as const,

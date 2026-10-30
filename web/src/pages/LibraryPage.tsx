@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { SlidersHorizontal, UploadCloud } from "lucide-react";
+import { SearchX, UploadCloud } from "lucide-react";
 
+import { ActiveFilterChips } from "@/components/ActiveFilterChips";
 import { AddByLocationButton } from "@/components/AddByLocationDialog";
 import { AssetGrid } from "@/components/AssetGrid";
 import { BulkAssetBar } from "@/components/BulkAssetBar";
 import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
 import { DropZone, useDropZoneOpen } from "@/components/DropZone";
 import { FileBrowser } from "@/components/filebrowser/FileBrowser";
-import { LibraryFilterSidebar } from "@/components/LibraryFilterSidebar";
+import { LibraryFiltersButton } from "@/components/LibraryFilters";
 import { LibraryPicker } from "@/components/LibraryPicker";
+import { LibraryTagsButton } from "@/components/LibraryTagsButton";
 import { Shell } from "@/components/Shell";
 import { UrlPager } from "@/components/UrlPager";
 import {
-  Badge,
   Button,
   EmptyState,
   ErrorState,
@@ -37,10 +38,9 @@ import {
   activeFilterCount,
   parseAssetFilters,
   parsePaging,
-  readFiltersOpen,
   withPage,
+  withoutFilters,
   withoutPaging,
-  writeFiltersOpen,
 } from "@/lib/libraryFilters";
 
 export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
@@ -55,14 +55,14 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const browsing = browse && assetId != null;
 
   const filters: AssetFilters = useMemo(() => parseAssetFilters(search), [search]);
-  const filterCount = activeFilterCount(filters);
-
-  const [filtersOpen, setFiltersOpen] = useState(readFiltersOpen);
-  const toggleFilters = () => {
-    const next = !filtersOpen;
-    setFiltersOpen(next);
-    writeFiltersOpen(next);
-  };
+  const tagPaths = useMemo(() => filters.tag_path ?? [], [filters.tag_path]);
+  // Filtered at all, search included: an empty result is then "no match",
+  // not an empty library.
+  const narrowed = activeFilterCount(filters) > 0 || tagPaths.length > 0 || !!filters.q;
+  const [tagsOpen, setTagsOpen] = useState(false);
+  // The detail panel floats over the grid; the grid pads itself out from under
+  // it so its cards reflow beside the panel.
+  const [panelWidth, setPanelWidth] = useState(0);
 
   const { page, pageSize } = useMemo(() => parsePaging(search), [search]);
   const {
@@ -149,16 +149,20 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
 
   // In browse mode the FileBrowser owns the keyboard (Esc/arrows); the grid's
   // shortcuts must stand down so they don't fight over Escape/arrow keys or
-  // swallow `/` from the file search.
+  // swallow `/` from the file search. So must they for a key that went to a
+  // popover or dialog (the tag picker, a menu): its Enter, Escape and arrows
+  // are its own.
+  const standDown = (e: KeyboardEvent) => stateRef.current.browsing || inOverlay(e);
   const focusSearch = (e: KeyboardEvent) => {
-    if (stateRef.current.browsing) return;
+    if (standDown(e)) return;
     e.preventDefault();
     searchInputRef.current?.focus();
   };
-  const moveSelection = (delta: number) => {
+  const moveSelection = (e: KeyboardEvent, delta: () => number) => {
+    if (standDown(e)) return;
+    e.preventDefault();
     const s = stateRef.current;
-    if (s.browsing) return;
-    moveByOffset(s.assets, s.assetId, delta, s.onOpenAsset);
+    moveByOffset(s.assets, s.assetId, delta(), s.onOpenAsset);
   };
   useKeyboardShortcuts(
     useMemo(
@@ -167,45 +171,30 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
         { key: "k", meta: true, handler: focusSearch },
         { key: "k", ctrl: true, handler: focusSearch },
         {
+          key: "t",
+          handler: (e) => {
+            if (standDown(e)) return;
+            e.preventDefault();
+            setTagsOpen(true);
+          },
+        },
+        {
           key: "Escape",
-          handler: () => {
+          handler: (e) => {
             const s = stateRef.current;
-            if (s.browsing) return;
+            if (standDown(e)) return;
             if (s.assetId != null) s.onCloseDetail();
           },
         },
-        {
-          key: "ArrowRight",
-          handler: (e) => {
-            e.preventDefault();
-            moveSelection(1);
-          },
-        },
-        {
-          key: "ArrowLeft",
-          handler: (e) => {
-            e.preventDefault();
-            moveSelection(-1);
-          },
-        },
-        {
-          key: "ArrowDown",
-          handler: (e) => {
-            e.preventDefault();
-            moveSelection(columnsRef.current);
-          },
-        },
-        {
-          key: "ArrowUp",
-          handler: (e) => {
-            e.preventDefault();
-            moveSelection(-columnsRef.current);
-          },
-        },
+        { key: "ArrowRight", handler: (e) => moveSelection(e, () => 1) },
+        { key: "ArrowLeft", handler: (e) => moveSelection(e, () => -1) },
+        { key: "ArrowDown", handler: (e) => moveSelection(e, () => columnsRef.current) },
+        { key: "ArrowUp", handler: (e) => moveSelection(e, () => -columnsRef.current) },
         {
           key: "Enter",
-          handler: () => {
+          handler: (e) => {
             const s = stateRef.current;
+            if (standDown(e)) return;
             if (s.assetId == null && s.assets[0]) s.onOpenAsset(s.assets[0].id);
           },
         },
@@ -227,7 +216,6 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
 
   return (
     <Shell
-      sidebar={lib && filtersOpen ? <LibraryFilterSidebar filters={filters} /> : undefined}
       main={
         lib ? (
           <DropZone>
@@ -241,22 +229,11 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <span className="shrink-0 text-label tabular-nums text-subtle-foreground">
                 {loading ? "…" : pagerTotal} assets
               </span>
-              <Button
-                variant="secondary"
-                pressed={filtersOpen}
-                aria-expanded={filtersOpen}
-                leadingIcon={<SlidersHorizontal size={12} />}
-                onClick={toggleFilters}
-                className={filterCount > 0 ? "border-primary/50 text-foreground" : undefined}
-              >
-                Filter
-                {filterCount > 0 && (
-                  <Badge tone="accent" shape="pill">
-                    {filterCount}
-                  </Badge>
-                )}
-              </Button>
-              <div className="min-w-[220px] max-w-[360px] flex-1">
+              <LibraryTagsButton selected={tagPaths} open={tagsOpen} onOpenChange={setTagsOpen} />
+              <LibraryFiltersButton filters={filters} />
+              {/* On a narrow screen the search takes a row of its own, under the
+                  buttons, rather than pushing them onto rows of their own. */}
+              <div className="min-w-[220px] max-w-[360px] flex-1 max-sm:order-last max-sm:max-w-none max-sm:basis-full">
                 <SearchInput
                   ref={searchInputRef}
                   value={search.get("q") ?? ""}
@@ -287,6 +264,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
+            <ActiveFilterChips filters={filters} />
             {/* The selection bar and the detail panel float over the grid's
                 area, not the whole column, so the bar clears the pager and the
                 panel leaves the toolbar's actions uncovered. */}
@@ -298,10 +276,30 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 <LoadingState />
               ) : failed ? (
                 <ErrorState className="flex-1" title="Couldn't load assets" onRetry={reload} />
+              ) : assets.length === 0 && narrowed ? (
+                <EmptyState
+                  className="flex-1"
+                  icon={<SearchX size={28} />}
+                  title="No assets match"
+                  description="Nothing in this library matches the search, tags and filters together. Loosen one, or clear them."
+                  action={
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const next = withoutFilters(search);
+                        next.delete("q");
+                        setSearch(next, { replace: true });
+                      }}
+                    >
+                      Clear search and filters
+                    </Button>
+                  }
+                />
               ) : (
                 <AssetGrid
                   // A new page starts scrolled to the top.
                   key={`${page}/${pageSize}`}
+                  reservedRight={panelWidth}
                   assets={assets}
                   onOpen={onOpenAsset}
                   selectedId={assetId}
@@ -314,7 +312,12 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               {selectedList.length > 0 && (
                 <BulkAssetBar assetIds={selectedList} onClear={clearSelection} />
               )}
-              <AssetDetailPanel assetId={assetId} onClose={onCloseDetail} onBrowse={onBrowse} />
+              <AssetDetailPanel
+                assetId={assetId}
+                onClose={onCloseDetail}
+                onBrowse={onBrowse}
+                onReservedWidthChange={setPanelWidth}
+              />
             </div>
             {!loading && (
               <UrlPager
@@ -340,6 +343,12 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
       }
     />
   );
+}
+
+// inOverlay reports whether a key went to something layered over the page.
+function inOverlay(e: KeyboardEvent) {
+  const target = e.target as Element | null;
+  return !!target?.closest?.('[role="dialog"], [role="menu"], [role="listbox"]');
 }
 
 // moveByOffset shifts the highlighted asset by `delta` and pushes the new id
@@ -370,7 +379,7 @@ function UploadButton() {
       onClick={() => dz?.open()}
       disabled={!dz}
     >
-      Upload
+      <span className="max-sm:sr-only">Upload</span>
     </Button>
   );
 }

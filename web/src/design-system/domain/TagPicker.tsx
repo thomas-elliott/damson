@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/design-system/primitives/Button";
 import { Checkbox } from "@/design-system/primitives/Checkbox";
@@ -32,7 +32,8 @@ const MAX_RESULTS = 50;
  * Picks tags from a tree of store categories, shown as columns that step
  * through a path like a file browser's column view. The first level is too
  * broad to filter by, so only deeper levels can be ticked. Typing in the
- * filter swaps the columns for a flat list of matching paths.
+ * filter swaps the columns for a flat list of matching paths. Below 600px it
+ * shows two columns, and a column's heading steps back up a level.
  */
 export function TagPicker({
   tags,
@@ -135,7 +136,7 @@ export function TagPicker({
   };
 
   return (
-    <div className={cn("flex w-[760px] max-w-full flex-col text-ui", className)}>
+    <div className={cn("@container flex w-[760px] max-w-full flex-col text-ui", className)}>
       <div className="border-b border-border p-2">
         <SearchInput
           kbd="T"
@@ -169,15 +170,34 @@ export function TagPicker({
           )}
         </ul>
       ) : (
-        <div className="grid h-64 grid-cols-4">
-          {visibleParents.map((parent) => (
+        // A narrow picker shows the last two columns; each heading steps up a
+        // level, so a column out of view is one click away.
+        <div className="grid h-64 grid-cols-2 @[600px]:grid-cols-4">
+          {visibleParents.map((parent, i) => (
             <div
               key={parent ?? ""}
-              className="flex min-w-0 flex-col border-r border-border p-1.5 last:border-r-0"
+              className={cn(
+                "flex min-w-0 flex-col border-r border-border p-1.5 last:border-r-0",
+                i < visibleParents.length - 2 && "hidden @[600px]:flex",
+              )}
             >
-              <span className="px-2 pb-1.5 pt-1 text-overline text-subtle-foreground">
-                {parent ? `${leafOf(parent)} /` : "Top level"}
-              </span>
+              {parent ? (
+                <button
+                  type="button"
+                  onClick={() => setOpenPath(parentOf(parent))}
+                  className="flex items-center gap-0.5 rounded-sm px-2 pb-1.5 pt-1 text-left text-overline text-subtle-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ChevronLeft size={12} aria-hidden className="shrink-0" />
+                  <span className="truncate">
+                    <span className="sr-only">Up a level from </span>
+                    {leafOf(parent)} /
+                  </span>
+                </button>
+              ) : (
+                <span className="px-2 pb-1.5 pt-1 text-overline text-subtle-foreground">
+                  Top level
+                </span>
+              )}
               <ul
                 aria-label={parent ? `Tags in ${parent}` : "Top-level tags"}
                 className="flex flex-col gap-px overflow-y-auto"
