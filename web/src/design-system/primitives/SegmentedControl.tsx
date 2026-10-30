@@ -28,7 +28,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn("inline-flex rounded-sm border border-border bg-card p-px", className)}
+      className={cn("inline-flex rounded-full bg-control p-0.5", className)}
     >
       {options.map((opt) => {
         const selected = opt.value === value;
@@ -42,9 +42,9 @@ export function SegmentedControl<T extends string>({
             aria-label={opt["aria-label"]}
             onClick={() => onValueChange(opt.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-xs text-label text-subtle-foreground transition-colors duration-fast ease-standard hover:text-foreground",
-              onlyIcon ? "h-5 w-6 justify-center" : "h-5 px-1.5",
-              selected && "bg-accent text-foreground",
+              "inline-flex items-center gap-1.5 rounded-full font-display text-label font-semibold uppercase tracking-wider text-subtle-foreground transition-colors duration-fast ease-standard hover:text-foreground",
+              onlyIcon ? "h-6 w-7 justify-center" : "h-6 px-2.5",
+              selected && "bg-foreground text-background hover:text-background",
             )}
           >
             {opt.icon}

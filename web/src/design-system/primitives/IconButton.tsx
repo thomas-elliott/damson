@@ -8,12 +8,12 @@ const iconButtonVariants = cva(
     "inline-flex shrink-0 items-center justify-center",
     "rounded-md transition-colors",
     "outline-none focus-visible:ring-2 focus-visible:ring-ring",
-    "focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+    "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none",
     "bg-transparent text-muted-foreground border border-transparent",
-    "hover:bg-accent hover:text-foreground",
-    "active:bg-background-active data-[pressed=true]:bg-accent data-[pressed=true]:text-foreground",
+    "hover:bg-control hover:text-foreground",
+    "active:bg-control-hover data-[pressed=true]:bg-control data-[pressed=true]:text-foreground",
   ],
   {
     variants: {

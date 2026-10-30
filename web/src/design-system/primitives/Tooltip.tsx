@@ -26,7 +26,7 @@ export const TooltipContent = forwardRef<
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          "z-tooltip rounded-sm border border-border bg-popover px-2 py-1 text-mono text-foreground",
+          "z-tooltip rounded-md bg-foreground px-2 py-1 text-label font-medium text-background",
           "animate-fade-in data-[state=closed]:animate-none",
           className,
         )}

@@ -22,16 +22,6 @@ export const Pills: Story = {
   ),
 };
 
-export const PillsNoDot: Story = {
-  render: () => (
-    <div className="flex items-center gap-2">
-      <LicencePill status="ok" spdx="MIT" noDot />
-      <LicencePill status="warn" spdx="Unity-EULA" noDot />
-      <LicencePill status="err" spdx="CC-BY-NC-4.0" noDot />
-    </div>
-  ),
-};
-
 export const Bar: Story = {
   render: () => (
     <div className="flex min-w-[360px] flex-col gap-4">

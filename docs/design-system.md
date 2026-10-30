@@ -34,8 +34,17 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
   error message is never shown. Retry stays disabled until the retry it started settles.
 - **`LoadingState` is the loading counterpart.** It sets `role="status"` and says "Loading…"
   unless the caller passes a label; `variant="inline"` is the one-line form inside a section.
-- **`Input` is a wrapping `<div>`** that carries the border and background, with icon and
-  keyboard-hint slots; it takes the `--text-field` token and the 16px floor from the contract.
+- **`Input` is a wrapping `<div>`** that carries the fill, with icon and keyboard-hint slots; it
+  takes the `--text-field` token and the 16px floor from the contract.
+- **Controls carry no outline.** Buttons, fields, chips, tabs and segmented controls are tinted
+  `--control` fills, and focus is a solid `--ring` with a 2px gap. A pressed `secondary` button
+  inverts, so an open picker's trigger reads as on.
+- **`Badge` is a status: a lit dot in a sunken pill.** The tone colours the dot and the text stays
+  `foreground`, so never nest a `StatusDot` inside one. `neutral` has no dot and is for plain
+  labels; `accent` is a solid yellow fill for counts and labels, not a status.
+- **`Tag` reads a string child as a path** (`3d/character/humanoid`), shows it step by step and
+  takes its colour from the first step. The luggage-tag shape is on an inner span because
+  `clip-path` on the button would clip its focus outline.
 
 ### Tokens and Tailwind
 
