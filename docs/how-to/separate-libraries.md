@@ -47,8 +47,8 @@ TOKEN=$(curl -sS -X POST localhost:8080/api/auth/login \
 curl -sS -X POST localhost:8080/api/libraries \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Hollow Client Work","description":"Licensed material, do not reuse"}'
-# {"id":2,"name":"Hollow Client Work","description":"Licensed material, do not reuse"}
+  -d '{"name":"Client Work","description":"Licensed material, do not reuse"}'
+# {"id":2,"name":"Client Work","description":"Licensed material, do not reuse"}
 ```
 
 The creator becomes its admin. It does not become your current library; switching is a separate step.
@@ -59,7 +59,7 @@ No instance-wide setting restricts creation, so any authenticated user can creat
 
 The **Switch library** button in the header lists every library you belong to, with your role in each. Picking one changes your current library for every screen and API call.
 
-> _[Screenshot: the Switch library dropdown open, showing two libraries with their role badges and the current one marked.]_
+![The Switch library menu open, listing Personal and Sample Library with their role badges and a tick on the current library](../images/library-switcher.png)
 
 Over the API:
 
@@ -80,7 +80,7 @@ A personal access token is pinned permanently to the library that was current wh
 
 Go to **Settings → Members**, then **Invite**. You must be a library admin or a sysadmin. The dialog takes an email, an optional display name, a role and, in local auth mode, an **Initial password**.
 
-> _[Screenshot: the Invite a member dialog with email, display name, role and initial password fields.]_
+![The Invite a member dialog with email, display name, role and initial password filled in](../images/settings-invite-member.png)
 
 The result depends on whether the person has an account:
 
@@ -108,7 +108,7 @@ Their next request fails and the SPA sends them to sign in. Removing someone fro
 
 The sections are **Appearance** (grid density default), **Storage** (retain original packages, dedupe), **Thumbnails** (raster, audio waveform, font sample, Unity preview harvest), **Metadata** (auto-enrich on import, preferred store) and **Audit** (retention in days).
 
-> _[Screenshot: the Settings page for a library, showing the Appearance, Storage and Thumbnails sections with their toggles.]_
+![The library Settings page showing the Appearance, Storage, Thumbnails and Metadata sections](../images/settings-page.png)
 
 Every change is audited. [`docs/configuration.md`](../configuration.md) has the full table of settings and the one per-library setting with no control surface.
 
