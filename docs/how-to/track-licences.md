@@ -29,16 +29,16 @@ Every screen that summarises licences uses the same four:
 
 "Permissive" is a fixed list in the code: `MIT`, `BSD-2-Clause`, `BSD-3-Clause`, `Apache-2.0`, `Zlib`, `ISC`, `CC-BY-4.0`, `CC-BY-3.0`, `CC0-1.0`, `OFL-1.1`, `Unlicense`. Every other licensed asset is **Review**, including `unity-eula` and the GPL family. A Unity Asset Store pack is usually fine to ship inside a game and never fine to redistribute on its own, and Damson does not collapse that into a green tick.
 
-A freshly imported library of Asset Store packs therefore reads as a wall of amber. That is correct. Your job is to turn it into reviewed amber.
+A freshly imported library of Asset Store packs is therefore almost all **Review**. That is correct. Your job is to turn it into reviewed **Review**. On an asset's panel and package page, a **Review** licence is a plain label with no dot, because there orange means the asset needs review, and a licence with terms to read is not a fault.
 
 ## Where a licence comes from
 
 Four writers, with unequal authority:
 
 1. Import enrichment. When the storefront listing states a licence, the `enriching` stage writes it. A Unity Asset Store listing yields `unity-eula` with its published terms: commercial use yes, modification yes, redistribution no.
-2. A rescan. **Rescan package** on the asset panel looks in the current version's files for one named `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING`, `COPYING.LESSER` or `UNLICENSE`, matched case-insensitively anywhere in the tree and preferring the shallowest. It reads the first 128 KiB and runs the detector over it.
+2. A rescan. **Rescan package**, in the **Maintenance** menu on the asset's package page, looks in the current version's files for one named `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING`, `COPYING.LESSER` or `UNLICENSE`, matched case-insensitively anywhere in the tree and preferring the shallowest. It reads the first 128 KiB and runs the detector over it.
 3. A store lookup. `dmsn asset refresh` and `dmsn bulk refresh` re-read the listing and apply it.
-4. A person, from the asset panel or the bulk bar.
+4. A person, from the asset's package page or the bulk bar.
 
 The first three are automatic writers. An automatic writer never replaces a licence someone has marked reviewed, so a later rescan cannot undo your answer.
 
@@ -48,7 +48,7 @@ A person's write always replaces what was there and clears the review mark, beca
 
 ## Set a licence by hand
 
-Open the asset and expand **Licence**.
+Open the asset, press **Open package page**, and expand **Licence**. The quick look shows the licence on one line; editing it is on the package page.
 
 If the asset has no licence, you get a textarea:
 
@@ -90,7 +90,7 @@ Open **Filters** on the library toolbar. Its **Licence** section has one row per
 
 ![The Filters popover with Unknown active under Licence, its chip under the toolbar, and the matching assets in the grid](../images/library-filter-licence-unknown.png)
 
-Start with **Unknown**. Damson knows nothing about those assets, whereas the answer for an amber one is merely unreviewed.
+Start with **Unknown**. Damson knows nothing about those assets, whereas the answer for a **Review** one is merely unreviewed.
 
 To filter by one exact licence type, add `spdx=` to the library URL by hand. The page reads the parameter and shows it as a chip, but nothing in **Filters** sets it.
 

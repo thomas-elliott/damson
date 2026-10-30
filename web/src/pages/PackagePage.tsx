@@ -127,7 +127,13 @@ function PackageHeader({
 }) {
   return (
     <Toolbar>
-      <Button variant="ghost" size="sm" leadingIcon={<ChevronLeft size={12} />} onClick={onBack}>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Back to library"
+        leadingIcon={<ChevronLeft size={12} />}
+        onClick={onBack}
+      >
         Library
       </Button>
       <h1 className="min-w-0 flex-1 truncate text-subhead-semibold text-foreground">{name}</h1>
