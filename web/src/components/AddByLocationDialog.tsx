@@ -49,7 +49,8 @@ export function AddByLocationButton({ onOpenAsset }: { onOpenAsset: (id: number)
   return (
     <>
       <Button variant="secondary" leadingIcon={<MapPin size={12} />} onClick={() => setOpen(true)}>
-        Add by location
+        {/* Icon only on a narrow screen, so the library toolbar keeps to two rows. */}
+        <span className="max-sm:sr-only">Add by location</span>
       </Button>
       {open && (
         <AddByLocationDialog

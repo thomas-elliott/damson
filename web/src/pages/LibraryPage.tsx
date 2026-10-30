@@ -231,7 +231,9 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               </span>
               <LibraryTagsButton selected={tagPaths} open={tagsOpen} onOpenChange={setTagsOpen} />
               <LibraryFiltersButton filters={filters} />
-              <div className="min-w-[220px] max-w-[360px] flex-1">
+              {/* On a narrow screen the search takes a row of its own, under the
+                  buttons, rather than pushing them onto rows of their own. */}
+              <div className="min-w-[220px] max-w-[360px] flex-1 max-sm:order-last max-sm:max-w-none max-sm:basis-full">
                 <SearchInput
                   ref={searchInputRef}
                   value={search.get("q") ?? ""}
@@ -377,7 +379,7 @@ function UploadButton() {
       onClick={() => dz?.open()}
       disabled={!dz}
     >
-      Upload
+      <span className="max-sm:sr-only">Upload</span>
     </Button>
   );
 }

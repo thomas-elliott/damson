@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { Tags } from "lucide-react";
 
@@ -79,6 +80,13 @@ function TagPickerBody({
   onApply: () => void;
 }) {
   const { data: tags, loading, failed, reload } = useTags();
+  // The URL catches up in a transition, so a second tick straight after the
+  // first would work from a list without it. The open picker keeps its own.
+  const [draft, setDraft] = useState(selected);
+  const change = (paths: string[]) => {
+    setDraft(paths);
+    onSelectedChange(paths);
+  };
   if (loading) return <LoadingState className="h-40" />;
   if (failed) return <ErrorState title="Couldn't load tags" onRetry={reload} />;
   if (tags.length === 0) {
@@ -91,9 +99,10 @@ function TagPickerBody({
   }
   return (
     <TagPicker
-      tags={tags.map((t) => ({ path: t.path, count: t.asset_count }))}
-      selected={selected}
-      onSelectedChange={onSelectedChange}
+      // A tag matches everything under it, so it counts everything under it.
+      tags={tags.map((t) => ({ path: t.path, count: t.subtree_count }))}
+      selected={draft}
+      onSelectedChange={change}
       onApply={onApply}
     />
   );

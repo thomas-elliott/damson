@@ -13,6 +13,9 @@ type GridDensity = LibrarySettings["grid_density_default"];
 // (measureElement) since the 3:4 cover makes it track the responsive cell
 // width; the constants below only seed the pre-measurement estimate.
 const MIN_CELL_WIDTH: Record<GridDensity, number> = { small: 140, medium: 180, large: 240 };
+// Below this content width (a phone) every density shows two columns at the
+// small density's width, rather than one card the height of the screen.
+const NARROW_WIDTH = 480;
 const COVER_ASPECT = 4 / 3; // height over width.
 const GAP = 12;
 const PADDING = 14; // p-3.5
@@ -222,7 +225,8 @@ function useGridMetrics(
       const style = getComputedStyle(el);
       const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
       const w = el.clientWidth - padding;
-      const columns = Math.max(1, Math.floor((w + GAP) / (minCellWidth + GAP)));
+      const min = w < NARROW_WIDTH ? Math.min(minCellWidth, MIN_CELL_WIDTH.small) : minCellWidth;
+      const columns = Math.max(1, Math.floor((w + GAP) / (min + GAP)));
       const cellWidth = (w - (columns - 1) * GAP) / columns;
       setMetrics((prev) =>
         prev.columns === columns && prev.cellWidth === cellWidth ? prev : { columns, cellWidth },

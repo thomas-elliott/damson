@@ -71,7 +71,7 @@ function DamsonRail({ displayName, email }: { displayName: string; email: string
       <RailLink
         to="/tags"
         icon={<Tags size={16} />}
-        label="Tags"
+        label="Tag index"
         active={pathname.startsWith("/tags")}
       />
       <RailLink

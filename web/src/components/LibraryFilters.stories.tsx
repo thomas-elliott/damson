@@ -52,7 +52,15 @@ const TAGS: TagView[] = [
   ["2d/textures", 25],
   ["audio", 0],
   ["audio/sound-fx", 19],
-].map(([path, count], i) => ({ id: i + 1, path: path as string, asset_count: count as number }));
+]
+  .map(([path, count], i) => ({ id: i + 1, path: path as string, asset_count: count as number }))
+  // Each asset carries one tag here, so a subtree's count is the sum below it.
+  .map((t, _, all) => ({
+    ...t,
+    subtree_count: all
+      .filter((d) => d.path === t.path || d.path.startsWith(`${t.path}/`))
+      .reduce((n, d) => n + d.asset_count, 0),
+  }));
 
 const PROJECTS = [project(1, "Ashfall", 64), project(2, "Tidebreak", 12)];
 
