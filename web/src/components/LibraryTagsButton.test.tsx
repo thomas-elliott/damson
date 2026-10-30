@@ -14,9 +14,9 @@ vi.mock("@/api", async (importOriginal) => {
 });
 
 const TAGS = [
-  { id: 1, path: "3d", asset_count: 0 },
-  { id: 2, path: "3d/props", parent_id: 1, asset_count: 4 },
-  { id: 3, path: "3d/vegetation", parent_id: 1, asset_count: 2 },
+  { id: 1, path: "3d", asset_count: 0, subtree_count: 6 },
+  { id: 2, path: "3d/props", parent_id: 1, asset_count: 4, subtree_count: 4 },
+  { id: 3, path: "3d/vegetation", parent_id: 1, asset_count: 2, subtree_count: 2 },
 ];
 
 let tags: "ok" | "empty" | "pending" | "failed";
@@ -78,6 +78,12 @@ describe("LibraryTagsButton", () => {
     expect(query()).toBe("?q=rock&tag=3d%2Fprops&tag=3d%2Fvegetation");
     await user.click(screen.getByRole("checkbox", { name: "Select 3d/props" }));
     expect(query()).toBe("?q=rock&tag=3d%2Fvegetation");
+  });
+
+  it("counts everything under a tag, not only what carries it", async () => {
+    mount();
+    await openPicker();
+    expect(await screen.findByRole("button", { name: /^3d/ })).toHaveTextContent("3d6");
   });
 
   it("closes on Show results", async () => {

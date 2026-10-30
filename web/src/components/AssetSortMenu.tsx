@@ -37,7 +37,7 @@ export function AssetSortMenu({
           leadingIcon={<ArrowUpDown size={12} />}
           aria-label={`Sort: ${label}`}
         >
-          {label}
+          <span className="max-sm:sr-only">{label}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

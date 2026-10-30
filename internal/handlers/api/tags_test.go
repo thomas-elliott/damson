@@ -75,6 +75,41 @@ func TestGetTags_ReturnsCounts(t *testing.T) {
 	}
 }
 
+func TestGetTags_CountsTheSubtreeOnce(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "t@example.com")
+	lib := seedLibraryForUser(t, db, u, "Personal")
+	seedTaggedAsset(t, db, lib.ID, "knight", "3d/characters/humanoid")
+	seedTaggedAsset(t, db, lib.ID, "orc", "3d/characters/humanoid", "3d/characters")
+	seedTaggedAsset(t, db, lib.ID, "set", "3d/charactersets")
+	seedTaggedAsset(t, db, lib.ID, "kit", "2d/ui_kit")
+	seedTaggedAsset(t, db, lib.ID, "wild", "2d/uiXkit/icons")
+	if err := db.Create(&models.Tag{LibraryID: lib.ID, Path: "3d"}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	r := setupRouter(h, u)
+	w := performGET(r, "/api/tags")
+	requireStatus(t, w, http.StatusOK)
+	body := jsonResponse[struct {
+		Tags []tagView `json:"tags"`
+	}](t, w)
+	got := map[string][2]int{}
+	for _, tag := range body.Tags {
+		got[tag.Path] = [2]int{tag.AssetCount, tag.SubtreeCount}
+	}
+	for path, want := range map[string][2]int{
+		"3d":                     {0, 3},
+		"3d/characters":          {1, 2}, // the orc once; not the sibling `charactersets`
+		"3d/characters/humanoid": {2, 2},
+		"2d/ui_kit":              {1, 1}, // the underscore is literal
+	} {
+		if got[path] != want {
+			t.Errorf("%s: [asset_count subtree_count] = %v, want %v", path, got[path], want)
+		}
+	}
+}
+
 func TestDeleteTag_RemovesDescendants(t *testing.T) {
 	h, db := newTestHandler(t)
 	u := seedUser(t, db, "t@example.com")

@@ -47,7 +47,9 @@ export function TypesetCover({ name, publisher, compact, className }: TypesetCov
         )}
         <span
           className="line-clamp-4 font-display font-bold uppercase leading-none break-words"
-          style={{ fontSize: "clamp(14px, 13cqw, 26px)" }}
+          // A mosaic tile can be a few dozen pixels wide on a phone; a floor
+          // that suits a card would break its words mid-way.
+          style={{ fontSize: compact ? "clamp(9px, 13cqw, 22px)" : "clamp(14px, 13cqw, 26px)" }}
         >
           {/* Let snake_case names break after an underscore, not mid-word. */}
           {name.replaceAll("_", "_\u200b")}

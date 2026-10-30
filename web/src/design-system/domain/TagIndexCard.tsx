@@ -76,7 +76,7 @@ export function TagIndexCard({
       </div>
       <div className="flex min-w-0 items-baseline gap-2">
         {parent && (
-          <span className="text-overline text-subtle-foreground">
+          <span className="shrink-0 whitespace-nowrap text-overline text-subtle-foreground">
             {parent.replaceAll("/", " / ")} /
           </span>
         )}
