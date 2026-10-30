@@ -193,8 +193,8 @@ TOKEN=$(curl -sS -X POST localhost:8080/api/auth/login \
 curl -sS -X POST localhost:8080/api/libraries \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Project Hollow","description":"Assets for the Hollow build"}'
-# {"id":2,"name":"Project Hollow","description":"Assets for the Hollow build"}
+  -d '{"name":"Sample Library","description":"Assets for the sample build"}'
+# {"id":2,"name":"Sample Library","description":"Assets for the sample build"}
 ```
 
 Whoever creates a library becomes its admin. The new library does not become
@@ -202,7 +202,7 @@ your current one. Switch to it from the library picker in the header (the
 **Switch library** button, which lists every library you belong to), or post the
 id to `/api/me/current-library`.
 
-![The Switch library menu open, listing Personal and Project Hollow with their role badges and a tick on the current library](images/library-switcher.png)
+![The Switch library menu open, listing Personal and Sample Library with their role badges and a tick on the current library](images/library-switcher.png)
 
 Local-mode login tokens last one hour, so log in again when you return to a
 shell the next day.
