@@ -57,6 +57,9 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
   `aria-label` in words, because its visible parts run together when read out.
 - **`Chip` truncates its value**, never its label or remove button, so a long tag path fits a
   narrow row.
+- **`LicencePill` shows `warn` as a plain label.** `warn` is a licence with terms to read, such as
+  a store EULA, not a fault, and orange is needs review, so the pill drops its dot. `ok`, `err`
+  and `unk` keep theirs. `LicenceBar` still colours `warn` segments orange.
 - **`Tag` reads a string child as a path** (`3d/character/humanoid`), shows it step by step and
   takes its colour from the first step. The luggage-tag shape is on an inner span because
   `clip-path` on the button would clip its focus outline.
