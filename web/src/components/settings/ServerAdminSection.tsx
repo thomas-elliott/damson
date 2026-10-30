@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ErrorState,
   FieldRow,
   Input,
   LoadingState,
@@ -56,7 +57,14 @@ export function ServerAdminSection() {
 }
 
 function ServerSettingsForm() {
-  const { data: settings, loading } = useServerSettings();
+  const { data: settings, loading, failed, reload } = useServerSettings();
+  if (failed) {
+    return (
+      <Section title="Server settings" defaultOpen>
+        <ErrorState title="Couldn't load server settings" onRetry={reload} />
+      </Section>
+    );
+  }
   if (loading || !settings) {
     return (
       <Section title="Server settings" defaultOpen>
@@ -126,7 +134,7 @@ function ServerSettingsFormBody({ settings }: { settings: ServerSettings }) {
 }
 
 function UsersSection() {
-  const { data: users, loading } = useAdminUsers();
+  const { data: users, loading, failed, reload } = useAdminUsers();
   const { mode: authMode } = useAuthMode();
   const patchRole = usePatchUserRole();
   const reset = useResetUserPassword();
@@ -137,9 +145,11 @@ function UsersSection() {
   const sysadminCount = useMemo(() => users.filter((u) => u.role === "sysadmin").length, [users]);
 
   return (
-    <Section title={`Users (${users.length})`} defaultOpen>
+    <Section title={loading || failed ? "Users" : `Users (${users.length})`} defaultOpen>
       {loading ? (
         <LoadingState variant="inline" />
+      ) : failed ? (
+        <ErrorState title="Couldn't load users" onRetry={reload} />
       ) : users.length === 0 ? (
         <EmptyState title="No users yet" />
       ) : (
