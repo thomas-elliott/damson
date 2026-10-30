@@ -74,10 +74,10 @@ You can also type the number yourself. The asset panel's **Edit details** form h
 
 Then find the assets:
 
-- **Library → filter sidebar → Updates → Updates available**, or
+- **Library → Filters → Status → Updates available**, or
 - `dmsn assets --updates-available`.
 
-![The filter sidebar with Updates available selected and three flagged assets in the grid](../images/library-filter-updates.png)
+![The Filters popover with Updates available selected, its chip under the toolbar, and the flagged assets in the grid](../images/library-filter-updates.png)
 
 ## Set up a project and pin to it
 

@@ -120,7 +120,7 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 			respond404(c, "asset not found")
 			return
 		}
-	case filters != (assetListFilters{}):
+	case !filters.isEmpty():
 		q := h.applyAssetFilters(db, lib.ID, filters)
 		if err := q.Select("a.id, a.source_url").Order("a.id").Scan(&found).Error; err != nil {
 			respond500(c, err)

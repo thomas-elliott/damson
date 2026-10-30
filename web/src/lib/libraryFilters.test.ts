@@ -1,30 +1,32 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  FILTERS_OPEN_KEY,
   DEFAULT_PAGE_SIZE,
   activeFilterCount,
   parseAssetFilters,
   parsePaging,
-  readFiltersOpen,
   withPage,
-  writeFiltersOpen,
+  withoutFilters,
 } from "./libraryFilters";
 
 const parse = (qs: string) => parseAssetFilters(new URLSearchParams(qs));
 
 describe("parseAssetFilters", () => {
-  it("reads every sidebar filter out of the query string", () => {
+  it("reads every filter out of the query string", () => {
     expect(
       parse("q=castle&tag=env/props&licence=warn&spdx=MIT&kind=zip&needs_review=true"),
     ).toEqual({
       q: "castle",
-      tag_path: "env/props",
+      tag_path: ["env/props"],
       licence_status: "warn",
       licence_spdx: "MIT",
       package_kind: "zip",
       needs_review: true,
     });
+  });
+
+  it("reads every ticked tag, once each", () => {
+    expect(parse("tag=3d/props&tag=2d/ui&tag=3d/props").tag_path).toEqual(["3d/props", "2d/ui"]);
   });
 
   it("carries project_id through as a number", () => {
@@ -48,13 +50,14 @@ describe("parseAssetFilters", () => {
 });
 
 describe("activeFilterCount", () => {
-  it("counts the sidebar filters", () => {
-    expect(activeFilterCount(parse("tag=env&licence=err&project_id=7"))).toBe(3);
+  it("counts the Filters popover's filters", () => {
+    expect(activeFilterCount(parse("licence=err&project_id=7"))).toBe(2);
   });
 
-  it("excludes the search term, which has its own visible input", () => {
+  it("excludes the search term and the tags, which have their own controls", () => {
     expect(activeFilterCount(parse("q=castle"))).toBe(0);
-    expect(activeFilterCount(parse("q=castle&kind=zip"))).toBe(1);
+    expect(activeFilterCount(parse("tag=3d/props&tag=2d/ui"))).toBe(0);
+    expect(activeFilterCount(parse("q=castle&tag=3d/props&kind=zip"))).toBe(1);
   });
 
   it("is zero for an unfiltered library", () => {
@@ -62,24 +65,14 @@ describe("activeFilterCount", () => {
   });
 });
 
-describe("filter panel persistence", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("defaults to closed when nothing is stored", () => {
-    expect(readFiltersOpen()).toBe(false);
-  });
-
-  it("round-trips the open state", () => {
-    writeFiltersOpen(true);
-    expect(localStorage.getItem(FILTERS_OPEN_KEY)).toBe("true");
-    expect(readFiltersOpen()).toBe(true);
-    writeFiltersOpen(false);
-    expect(readFiltersOpen()).toBe(false);
-  });
-
-  it("treats an unrecognised stored value as closed", () => {
-    localStorage.setItem(FILTERS_OPEN_KEY, "1");
-    expect(readFiltersOpen()).toBe(false);
+describe("withoutFilters", () => {
+  it("drops the filters and tags and goes back to the first page", () => {
+    const next = withoutFilters(
+      new URLSearchParams(
+        "q=castle&tag=3d/props&tag=2d/ui&licence=err&sort=name_asc&page=3&page_size=100",
+      ),
+    );
+    expect(next.toString()).toBe("q=castle&sort=name_asc&page_size=100");
   });
 });
 
