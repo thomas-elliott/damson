@@ -10,10 +10,10 @@ type GridDensity = LibrarySettings["grid_density_default"];
 
 // The grid auto-fills as many cells as fit (at least the density's minimum
 // width), recomputed on resize. Row height is measured per row
-// (measureElement) since the square thumbnail makes it track the responsive
-// cell width; the constants below only seed the pre-measurement estimate.
+// (measureElement) since the 3:4 cover makes it track the responsive cell
+// width; the constants below only seed the pre-measurement estimate.
 const MIN_CELL_WIDTH: Record<GridDensity, number> = { small: 140, medium: 180, large: 240 };
-const FOOTER_HEIGHT = 44; // name + meta line under the square thumbnail.
+const COVER_ASPECT = 4 / 3; // height over width.
 const GAP = 12;
 
 /**
@@ -56,8 +56,8 @@ export function AssetGrid({
     return out;
   }, [assets, columns]);
 
-  const estimateRef = useRef(minCellWidth + FOOTER_HEIGHT + GAP);
-  estimateRef.current = (cellWidth || minCellWidth) + FOOTER_HEIGHT + GAP;
+  const estimateRef = useRef(minCellWidth * COVER_ASPECT + GAP);
+  estimateRef.current = (cellWidth || minCellWidth) * COVER_ASPECT + GAP;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -166,6 +166,7 @@ function GridCard({
       )}
       <AssetCard
         name={a.name}
+        publisher={a.publisher}
         data-asset-id={a.id}
         imageUrl={imageUrl}
         selected={selected || checked}
@@ -173,13 +174,13 @@ function GridCard({
         sub={
           a.is_reference ? (
             // A reference asset holds no files, so a size would read "0 B".
-            <span className="font-mono text-subtle-foreground">Reference</span>
+            <span className="font-mono">Reference</span>
           ) : (
             <>
               <span className="font-mono">{formatBytes(a.size_bytes)}</span>
               {a.file_count > 1 && (
                 <>
-                  <span className="text-faint-foreground">·</span>
+                  <span className="opacity-60">·</span>
                   <span className="font-mono">{a.file_count} files</span>
                 </>
               )}
@@ -196,7 +197,7 @@ function GridCard({
 // useGridMetrics tracks the number of cards per row and the resulting cell
 // width based on the scroll container's measured width. Recomputes on resize so
 // density toggles and window resizes both work. The cell width lets the caller
-// estimate row height (thumbnails are square) before the row is measured.
+// estimate row height (covers are 3:4) before the row is measured.
 function useGridMetrics(
   ref: React.RefObject<HTMLDivElement | null>,
   minCellWidth: number,

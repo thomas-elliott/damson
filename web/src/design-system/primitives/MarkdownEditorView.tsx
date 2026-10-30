@@ -18,11 +18,11 @@ const highlight = HighlightStyle.define([
   { tag: tags.strong, color: "var(--foreground)", fontWeight: "600" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--subtle-foreground)" },
-  { tag: tags.link, color: "var(--primary)" },
-  { tag: tags.url, color: "var(--primary)" },
+  { tag: tags.link, color: "var(--primary-text)" },
+  { tag: tags.url, color: "var(--primary-text)" },
   { tag: tags.monospace, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" },
   { tag: tags.quote, color: "var(--muted-foreground)", fontStyle: "italic" },
-  { tag: [tags.processingInstruction, tags.meta, tags.atom], color: "var(--faint-foreground)" },
+  { tag: [tags.processingInstruction, tags.meta, tags.atom], color: "var(--subtle-foreground)" },
 ]);
 
 const theme = EditorView.theme({
@@ -45,7 +45,7 @@ const theme = EditorView.theme({
   ".cm-content": { padding: "8px", caretColor: "var(--foreground)" },
   ".cm-line": { padding: "0" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--foreground)" },
-  ".cm-placeholder": { color: "var(--faint-foreground)" },
+  ".cm-placeholder": { color: "var(--subtle-foreground)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
     backgroundColor: "var(--primary-soft)",
   },

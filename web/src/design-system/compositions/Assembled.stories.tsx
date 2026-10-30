@@ -27,6 +27,7 @@ import { Chip } from "@/design-system/primitives/Chip";
 import { TooltipProvider } from "@/design-system/primitives/Tooltip";
 
 import { AppShell } from "./AppShell";
+import { BrandMark } from "./BrandMark";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from "./Breadcrumb";
 import { DetailPanel } from "./DetailPanel";
 import { FilterRow, FilterSidebar } from "./FilterSidebar";
@@ -49,14 +50,6 @@ const meta: Meta = {
 };
 export default meta;
 type Story = StoryObj;
-
-function DamsonBrand() {
-  return (
-    <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-primary to-primary-hover font-mono text-ui font-bold text-primary-foreground">
-      D
-    </div>
-  );
-}
 
 function PlaceholderCard() {
   return (
@@ -83,7 +76,7 @@ export const LibraryView: Story = {
       <AppShell
         sidebarWidth={sidebarW}
         rail={
-          <NavRail brand={<DamsonBrand />}>
+          <NavRail brand={<BrandMark />}>
             <NavRailItem
               label="Library"
               icon={<Library size={16} />}
@@ -234,7 +227,7 @@ export const LibraryView: Story = {
                     <div className="aspect-video rounded-md border border-border bg-muted" />
                     <div className="flex flex-wrap items-center gap-2">
                       <Pill mono tone="ok">
-                        <StatusDot tone="ok" /> CC-BY-4.0
+                        CC-BY-4.0
                       </Pill>
                       <Tag>sprites</Tag>
                       <Tag>ui/icons</Tag>

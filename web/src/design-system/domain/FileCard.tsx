@@ -103,7 +103,8 @@ export const FileCard = forwardRef<HTMLButtonElement, FileCardProps>(function Fi
           "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-fast ease-standard",
           "group-hover/file:border-border-strong",
           open && "border-border-strong",
-          selected && "border-primary ring-2 ring-ring",
+          selected &&
+            "border-transparent ring-2 ring-primary ring-offset-[3px] ring-offset-background",
         )}
       >
         <FileThumb node={node} imageUrl={imageUrl} imageSrc={imageSrc} />

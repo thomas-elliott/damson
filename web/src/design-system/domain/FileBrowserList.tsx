@@ -95,7 +95,7 @@ export function FileBrowserList({
               </td>
               <td className="px-2.5 py-1.5">{fileTypeMeta(file.ftype).label}</td>
               {showPath && (
-                <td className="px-2.5 py-1.5 font-mono text-label text-faint-foreground">
+                <td className="px-2.5 py-1.5 font-mono text-label text-subtle-foreground">
                   {file.dir.join("/") || "—"}
                 </td>
               )}
