@@ -17,6 +17,7 @@ import {
   LoadingState,
 } from "@/design-system";
 import { useBlobUrl } from "@/components/filebrowser/useFileObjectUrl";
+import { relevantListings } from "@/lib/listingRelevance";
 import type { AssetDetailView, MetadataCandidate, MetadataConflict } from "@/hooks/useDataQueries";
 import {
   useApplyMetadata,
@@ -277,52 +278,32 @@ export function MetadataActions({ asset }: { asset: AssetDetailView }) {
   );
 }
 
-// EnrichmentReview surfaces the persisted enrichment provenance (which store,
-// when, matched vs abstained) and any stored candidates for one-click
-// correction when auto-enrich picked wrong or abstained. Provenance is
-// housekeeping rather than content, so the panel only shows it in edit mode.
-export function EnrichmentReview({ asset }: { asset: AssetDetailView }) {
+// StoreSuggestions shows the listings auto-enrich considered for an asset it
+// couldn't match, filtered to the ones that share most of the asset's name.
+// A matched asset shows nothing: its listing is already the source link. An
+// unmatched one with no plausible listing shows nothing either, rather than
+// the store's top sellers; Find listing is still there to search by hand.
+export function StoreSuggestions({ asset }: { asset: AssetDetailView }) {
   const meta = useMetadataFetch(asset.id);
   const sm = asset.source_metadata;
-  if (!sm) return null;
-
-  const when = sm.fetched_at ? new Date(sm.fetched_at) : null;
-  const whenLabel = when && !Number.isNaN(when.getTime()) ? when.toLocaleDateString() : null;
-  const candidates = sm.candidates ?? [];
+  if (!sm || sm.matched) return null;
+  const candidates = relevantListings(asset.name, sm.candidates ?? []);
+  if (candidates.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-1.5 rounded-md border border-border bg-muted p-2">
-      <div className="flex flex-wrap items-center gap-x-1.5 text-mono text-subtle-foreground">
-        <span>{sm.matched ? `Metadata from ${sm.store || "source"}` : "No confident match"}</span>
-        {whenLabel && <span>· {whenLabel}</span>}
-        {sm.matched && sm.listing_url && (
-          <>
-            <span>·</span>
-            <a
-              href={sm.listing_url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary-text hover:underline"
-            >
-              listing
-            </a>
-          </>
-        )}
+      <div className="text-label text-subtle-foreground">
+        {candidates.length === 1
+          ? "This store listing looks like a match. Use it to fill in the details."
+          : `${candidates.length} store listings look like a match. Pick the right one to fill in the details.`}
       </div>
-      {candidates.length > 0 && (
-        <div className="flex flex-col gap-1">
-          <div className="text-mono text-subtle-foreground">
-            {sm.matched ? "Other candidates" : "Suggested listings — pick the match:"}
-          </div>
-          <ul className="flex flex-col gap-1">
-            {candidates.map((c, i) => (
-              <li key={`${c.listing_url}-${i}`}>
-                <CandidateRow c={c} onPick={() => meta.runFetch(c.listing_url)} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ul className="flex flex-col gap-1">
+        {candidates.map((c, i) => (
+          <li key={`${c.listing_url}-${i}`}>
+            <CandidateRow c={c} onPick={() => meta.runFetch(c.listing_url)} />
+          </li>
+        ))}
+      </ul>
       {meta.failed && <span className="text-mono text-destructive">Fetch failed</span>}
       {meta.note && <span className="text-mono text-subtle-foreground">{meta.note}</span>}
       {meta.dialog}

@@ -9,6 +9,11 @@ export interface LicencePillProps extends Omit<BadgeProps, "tone" | "shape" | "m
   spdx: string;
 }
 
+// `warn` is a licence with terms of its own to read (a store EULA, say), not
+// a problem: orange means needs review, so it shows as a plain label. Green
+// and red keep their dots, and unknown keeps its grey one.
+const TONE = { ok: "ok", warn: "neutral", err: "err", unk: "unk" } as const;
+
 /**
  * Canonical licence badge — tone derived from status, always mono (SPDX
  * identifiers read cleaner as mono).
@@ -18,7 +23,7 @@ export const LicencePill = forwardRef<HTMLSpanElement, LicencePillProps>(functio
   ref,
 ) {
   return (
-    <Pill ref={ref} tone={status} mono {...props}>
+    <Pill ref={ref} tone={TONE[status]} mono {...props}>
       {spdx}
       {children}
     </Pill>

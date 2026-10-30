@@ -111,7 +111,7 @@ Damson does not parse a version from the filename. The cache holds one file per 
 
 ## Look inside a pack
 
-Open the asset and expand **Files**. A pack with more than one file has a **Browse all N files** button, which opens a full-pane file browser: folder tree on the left, listing in the middle, preview on the right. You can search and filter by file type. `Esc` steps up a level and then leaves the browser.
+Open the asset and press **Open package page**. The right side of the page is a file browser: folder tree, listing, and a preview of the file you open. A pack that wraps everything in one folder, such as `Assets/`, opens inside it. You can search and filter by file type. `Esc` steps up a level and then returns to the library. With no file open, the arrow keys step to the previous or next package in the library results. On a narrow screen the page stacks, the files follow the details, and the folder tree and search open from the tree button in the file toolbar.
 
 ![The file browser open on Mossy Forest Environment with the Textures folder selected and a moss texture previewing on the right](../images/browse-files.png)
 
@@ -121,21 +121,21 @@ The UI and API do not expose the GUID Damson recorded for each file. It is in `a
 
 To track part of a pack separately, cut a subset version: a new version of the same asset holding only the files you pick.
 
-1. Open the file browser.
+1. Open the asset's package page.
 2. Tick the files you want.
 3. Press **Create subset** in the selection bar at the bottom.
 
 The new version points at the same stored objects, so no bytes are copied, and its notes record the version it was cut from. It has no archive of its own. **Download original** and **Re-extract files** keep working because they target the newest version that still has an archive, not the current one.
 
-A subset is a version, so it competes to be the asset's current version, and the **Files** section shows the current version's files. A version with a dotted store version always outranks one without. A subset cut from a pack that has a store version does not become current. Cut one from an asset where no version has a store version and it does, by import date. Check **Versions** to see which is marked current.
+A subset is a version, so it competes to be the asset's current version, and the file browser shows the current version's files. A version with a dotted store version always outranks one without. A subset cut from a pack that has a store version does not become current. Cut one from an asset where no version has a store version and it does, by import date. Check **Versions** to see which is marked current.
 
 ## Get the original archive back
 
-If the library keeps originals (**Settings → Storage → Retain original packages**, on by default), the asset panel shows **Download original**. It returns the newest version that still has its archive, named after the asset.
+If the library keeps originals (**Settings → Storage → Retain original packages**, on by default), the asset's quick look and package page show **Download original**. It returns the newest version that still has its archive, named after the asset.
 
-**Re-extract files** rebuilds the file manifest from the retained archive without creating a version. Use it when extraction was wrong or incomplete and a fix has shipped. It works on Unity packages only, not zips, and the SPA follows it with a preview requeue so previews return too.
+**Re-extract files**, in the package page's **Maintenance** menu, rebuilds the file manifest from the retained archive without creating a version. Use it when extraction was wrong or incomplete and a fix has shipped. It works on Unity packages only, not zips, and the SPA follows it with a preview requeue so previews return too.
 
-Both buttons disappear once the archive is gone.
+Both disappear once the archive is gone.
 
 ### Turning off retention
 

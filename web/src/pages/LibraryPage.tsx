@@ -8,7 +8,6 @@ import { AssetGrid } from "@/components/AssetGrid";
 import { BulkAssetBar } from "@/components/BulkAssetBar";
 import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
 import { DropZone, useDropZoneOpen } from "@/components/DropZone";
-import { FileBrowser } from "@/components/filebrowser/FileBrowser";
 import { LibraryFiltersButton } from "@/components/LibraryFilters";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { LibraryTagsButton } from "@/components/LibraryTagsButton";
@@ -18,13 +17,12 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  isBrowsable,
   LoadingState,
   SearchInput,
   Toolbar,
   ToolbarSpacer,
 } from "@/design-system";
-import { FolderOpen, Library as LibraryIcon } from "lucide-react";
+import { Library as LibraryIcon } from "lucide-react";
 import { AssetSortMenu, DEFAULT_ASSET_SORT } from "@/components/AssetSortMenu";
 import {
   useAssets,
@@ -43,7 +41,7 @@ import {
   withoutPaging,
 } from "@/lib/libraryFilters";
 
-export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
+export function LibraryPage() {
   const { data: me } = useMe();
   const { data: settings, loading: settingsLoading } = useLibrarySettings(me?.current_library?.id);
   const params = useParams();
@@ -52,7 +50,6 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const hasLibrary = !!me?.current_library;
 
   const assetId = params.assetId ? Number(params.assetId) : null;
-  const browsing = browse && assetId != null;
 
   const filters: AssetFilters = useMemo(() => parseAssetFilters(search), [search]);
   const tagPaths = useMemo(() => filters.tag_path ?? [], [filters.tag_path]);
@@ -125,8 +122,10 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   const onCloseDetail = () => {
     navigate(`/library${suffix}`);
   };
-  const onBrowse = (id: number) => {
-    navigate(`/library/${id}/browse${suffix}`);
+  // The package page carries the library query, so its next and previous walk
+  // these results and its Back returns to them.
+  const onOpenPackage = (id: number) => {
+    navigate(`/library/${id}/package${suffix}`);
   };
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -137,29 +136,25 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   // current state through refs inside the handlers — re-creating the array
   // every time `assets` refetches caused useKeyboardShortcuts to rebind on
   // every paint.
-  const stateRef = useRef({ assets, assetId, onOpenAsset, onCloseDetail, browsing });
+  const stateRef = useRef({ assets, assetId, onOpenAsset, onCloseDetail });
   // The grid reports how many cards a row shows; Arrow Up/Down move by it.
   const columnsRef = useRef(1);
   const onColumnsChange = useCallback((columns: number) => {
     columnsRef.current = columns;
   }, []);
   useEffect(() => {
-    stateRef.current = { assets, assetId, onOpenAsset, onCloseDetail, browsing };
+    stateRef.current = { assets, assetId, onOpenAsset, onCloseDetail };
   });
 
-  // In browse mode the FileBrowser owns the keyboard (Esc/arrows); the grid's
-  // shortcuts must stand down so they don't fight over Escape/arrow keys or
-  // swallow `/` from the file search. So must they for a key that went to a
-  // popover or dialog (the tag picker, a menu): its Enter, Escape and arrows
-  // are its own.
-  const standDown = (e: KeyboardEvent) => stateRef.current.browsing || inOverlay(e);
+  // The grid's shortcuts stand down for a key that went to a popover or dialog
+  // (the tag picker, a menu): its Enter, Escape and arrows are its own.
   const focusSearch = (e: KeyboardEvent) => {
-    if (standDown(e)) return;
+    if (inOverlay(e)) return;
     e.preventDefault();
     searchInputRef.current?.focus();
   };
   const moveSelection = (e: KeyboardEvent, delta: () => number) => {
-    if (standDown(e)) return;
+    if (inOverlay(e)) return;
     e.preventDefault();
     const s = stateRef.current;
     moveByOffset(s.assets, s.assetId, delta(), s.onOpenAsset);
@@ -173,7 +168,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
         {
           key: "t",
           handler: (e) => {
-            if (standDown(e)) return;
+            if (inOverlay(e)) return;
             e.preventDefault();
             setTagsOpen(true);
           },
@@ -182,7 +177,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
           key: "Escape",
           handler: (e) => {
             const s = stateRef.current;
-            if (standDown(e)) return;
+            if (inOverlay(e)) return;
             if (s.assetId != null) s.onCloseDetail();
           },
         },
@@ -194,7 +189,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
           key: "Enter",
           handler: (e) => {
             const s = stateRef.current;
-            if (standDown(e)) return;
+            if (inOverlay(e)) return;
             if (s.assetId == null && s.assets[0]) s.onOpenAsset(s.assets[0].id);
           },
         },
@@ -204,13 +199,6 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
   );
 
   if (!me) return null;
-
-  if (browse && assetId != null) {
-    return <Shell main={<FileBrowser assetId={assetId} onExit={onCloseDetail} />} />;
-  }
-
-  const selectedAsset = assetId != null ? assets.find((a) => a.id === assetId) : undefined;
-  const canBrowseSelected = !!selectedAsset && isBrowsable(selectedAsset.file_count);
 
   const lib = me.current_library;
 
@@ -252,15 +240,6 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
                 }}
               />
               <ToolbarSpacer />
-              {canBrowseSelected && assetId != null && (
-                <Button
-                  variant="secondary"
-                  leadingIcon={<FolderOpen size={12} />}
-                  onClick={() => onBrowse(assetId)}
-                >
-                  Browse files
-                </Button>
-              )}
               <AddByLocationButton onOpenAsset={onOpenAsset} />
               <UploadButton />
             </Toolbar>
@@ -315,7 +294,7 @@ export function LibraryPage({ browse = false }: { browse?: boolean } = {}) {
               <AssetDetailPanel
                 assetId={assetId}
                 onClose={onCloseDetail}
-                onBrowse={onBrowse}
+                onOpenPackage={onOpenPackage}
                 onReservedWidthChange={setPanelWidth}
               />
             </div>

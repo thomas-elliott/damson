@@ -269,10 +269,13 @@ neither failing fails the import.
 
 ![The Import queue with one pack in the extracting stage and finished imports below it](images/import-queue.png)
 
-Click the finished asset to open its panel: files, versions, tags, licence, and
-the storefront listing if enrichment found one. Tags are paths
-(`environment/trees/deciduous`), and search covers names, descriptions,
-publishers, tags and locations.
+Click the finished asset for a quick look: how to get it (its original
+archive, or a reference asset's path and store link), its pictures,
+description, tags and licence. **Open package page** shows everything else:
+versions, licence editing, projects and collections, and the pack's files. Its
+arrows, and the arrow keys, step through the library results you opened it
+from. Tags are paths (`3d/environment/trees`), and search covers names,
+descriptions, publishers, tags and locations.
 
 ## Where to go next
 

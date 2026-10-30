@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/design-system/primitives/Tooltip";
+import { buildFileTree, loneRootPath } from "@/design-system";
 import { FileBrowser } from "./FileBrowser";
 
 const FILES = [
@@ -125,5 +126,26 @@ describe("FileBrowser root listing", () => {
     const names = listing();
     expect(names).toContain("Castle.fbx");
     expect(names).not.toContain("Assets");
+  });
+});
+
+describe("loneRootPath", () => {
+  const tree = (paths: string[]) =>
+    buildFileTree(paths.map((relative_path, i) => ({ id: i, relative_path, size_bytes: 1 })));
+
+  it("opens inside a folder that wraps the whole pack, as deep as it goes", () => {
+    expect(loneRootPath(tree(["Pack/Assets/a.png", "Pack/Assets/b.png"]))).toEqual([
+      "Pack",
+      "Assets",
+    ]);
+  });
+
+  it("stays at the root when it holds more than one thing", () => {
+    expect(loneRootPath(tree(["Assets/a.png", "Readme.txt"]))).toEqual([]);
+    expect(loneRootPath(tree(["Assets/a.png", "Docs/b.txt"]))).toEqual([]);
+  });
+
+  it("stops above a folder that holds files and folders", () => {
+    expect(loneRootPath(tree(["Pack/a.png", "Pack/Sub/b.png"]))).toEqual(["Pack"]);
   });
 });

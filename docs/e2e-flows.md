@@ -35,13 +35,16 @@ asset, paging through the library with the page in the URL (reload, back/forward
 clamping, reset on search), ticking two tags in the Tags picker to filter the library to either (a
 sibling tag left out, the chips, a reload, removing one chip, Clear all) and the picker at a 400px
 viewport, a tag index card opening the library filtered to its tag, a UI upload accepted and shown
-as a placeholder, library switching without leaking the other library's assets, tag and licence
-edits surviving a reload (a licence edit also clearing its review), the OIDC callback and sign-out,
-project pins (finding an asset past the first page or by its exact name behind newer matches,
-choosing a version, changing a pinned version and its audit row, the unpin confirm, the asset link),
-collection add/remove and paging, search, sysadmin gating of the audit page, paging both audit pages
-(reload, back/forward, reset on search and scope, a search reaching a later page), and library
-settings surviving a reload.
+as a placeholder, library switching without leaking the other library's assets, the package page
+(opened from the quick look onto a pack's files inside its lone root folder, Back to the results,
+the old `/browse` address, next and previous across a library page boundary by button and arrow
+key, a reference asset's page, and the stacked layout at 400px), tag and licence edits surviving a
+reload (a licence edit, made on the package page, also clearing its review), the OIDC callback and
+sign-out, project pins (finding an asset past the first page or by its exact name behind newer
+matches, choosing a version, changing a pinned version and its audit row, the unpin confirm, the
+asset link), collection add/remove and paging, search, sysadmin gating of the audit page, paging
+both audit pages (reload, back/forward, reset on search and scope, a search reaching a later page),
+and library settings surviving a reload.
 
 Not covered:
 
