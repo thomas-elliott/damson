@@ -61,7 +61,7 @@ dmsn collection add 3 --assets 42,43,44
 
 ## Take assets out again
 
-In the web UI, open the asset, expand **Collections** in its panel and press **Remove** beside the collection's name. There is no confirmation, because the asset is unchanged and you can add it back. From the CLI or API:
+In the web UI, open the asset's package page, expand **Collections** and press **Remove** beside the collection's name. There is no confirmation, because the asset is unchanged and you can add it back. From the CLI or API:
 
 ```sh
 dmsn collection remove 3 --assets 42,43
@@ -118,7 +118,7 @@ Collections are cheap. Counts show on the Collections page and in `dmsn`'s home 
 
 ## Limits
 
-- Once a collection has assets, adding is reachable only through the bulk bar. An asset's own panel has no "add to collection" button.
+- Once a collection has assets, adding is reachable only through the bulk bar. An asset's own quick look and package page have no "add to collection" button.
 - The collection page has no per-asset remove, so unlinking many assets at once means the CLI or API. Check the selection before you add 900 assets to the wrong collection.
 - There is no ordering. The grid sorts by the library's rules, not the order you added things.
 - Collections are flat. For a hierarchy, use tags.
