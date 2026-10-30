@@ -55,8 +55,31 @@ var publishers = []publisher{
 	{"Brightwater Studio", "generic", ""},
 }
 
+// categories are store-style category paths, 2 to 4 levels deep. Some
+// siblings start with the same letters (Humans and Humanoids, Textures and
+// Textures Materials) so a tag filter can be checked not to match a sibling
+// by prefix, and Sound FX holds assets as well as a child category.
 var categories = []string{
-	"Environments", "Characters", "Props", "Audio", "VFX", "UI", "Textures", "Animations",
+	"2D/GUI",
+	"2D/Textures",
+	"2D/Textures Materials",
+	"Audio/Music",
+	"Audio/Sound FX",
+	"Audio/Sound FX/Footsteps",
+	"Audio/Sound FX/Weapons",
+	"VFX/Particles",
+	"3D/Props/Furniture",
+	"3D/Props/Weapons",
+	"3D/Vegetation/Trees",
+	"3D/Animations/Combat",
+	"3D/Characters/Humans",
+	"3D/Characters/Humanoids/Fantasy",
+	"3D/Characters/Humanoids/Sci-Fi",
+	"3D/Characters/Creatures/Animals",
+	"3D/Environments/Dungeons",
+	"3D/Environments/Fantasy/Villages",
+	"3D/Environments/Urban/Buildings",
+	"3D/Environments/Landscapes",
 }
 
 var adjectives = []string{
@@ -143,7 +166,11 @@ func storeLink(pub publisher, category, slug string, id int) (link, publisherURL
 	pubSlug := slugify(pub.name)
 	switch pub.store {
 	case "unity":
-		return fmt.Sprintf("https://assetstore.unity.com/packages/%s/%s-%d", strings.ToLower(category), slug, id),
+		segs := strings.Split(category, "/")
+		for i, seg := range segs {
+			segs[i] = slugify(seg)
+		}
+		return fmt.Sprintf("https://assetstore.unity.com/packages/%s/%s-%d", strings.Join(segs, "/"), slug, id),
 			fmt.Sprintf("https://assetstore.unity.com/publishers/%d", 1000+len(pub.name))
 	case "itch":
 		return fmt.Sprintf("https://%s.itch.io/%s-%d", pub.creator, slug, id), fmt.Sprintf("https://%s.itch.io", pub.creator)
@@ -270,8 +297,8 @@ func writeReference(tx *gorm.DB, libraryID uint, r reference) error {
 		return err
 	}
 
-	// The folder below the publisher is the asset's one tag, as `dmsn scan`
-	// gives it. The link is made directly: tags.Attach would audit it.
+	// The store category is the asset's one tag, and the folders below the
+	// publisher. The link is made directly: tags.Attach would audit it.
 	tagID, err := tags.CreateOrReusePath(tx, libraryID, r.Category)
 	if err != nil {
 		return err
