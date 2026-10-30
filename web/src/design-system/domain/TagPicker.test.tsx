@@ -68,4 +68,11 @@ describe("TagPicker", () => {
         .map((li) => li.textContent),
     ).toEqual(["3d / character / humanoid", "3d / character / humanoid / human4"]);
   });
+
+  it("says when the matches are cut short", async () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ path: `3d/props/item-${i}`, count: 1 }));
+    render(<TagPicker tags={many} selected={[]} onSelectedChange={() => {}} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: "Filter tags" }), "item");
+    expect(screen.getByText(/Showing 50 of 60 matches/)).toBeInTheDocument();
+  });
 });

@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { Button } from "@/design-system/primitives/Button";
 import { Checkbox } from "@/design-system/primitives/Checkbox";
-import { Input } from "@/design-system/primitives/Input";
-import { Kbd } from "@/design-system/primitives/Kbd";
+import { SearchInput } from "@/design-system/primitives/SearchInput";
 import { Tag } from "@/design-system/primitives/Tag";
 import { cn } from "@/design-system/utils";
+
+import { leafOf, parentOf } from "./tagPath";
 
 export interface TagPickerTag {
   path: string;
@@ -26,15 +27,6 @@ export interface TagPickerProps {
 
 const MAX_COLUMNS = 4;
 const MAX_RESULTS = 50;
-
-function parentOf(path: string) {
-  const i = path.lastIndexOf("/");
-  return i < 0 ? null : path.slice(0, i);
-}
-
-function leafOf(path: string) {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
 
 /**
  * Picks tags from a tree of store categories, shown as columns that step
@@ -94,11 +86,10 @@ export function TagPicker({
   const visibleParents = parents.slice(-MAX_COLUMNS);
 
   const q = query.trim().toLowerCase();
-  const results = q
-    ? [...counts.keys()]
-        .filter((p) => p.includes("/") && p.toLowerCase().includes(q))
-        .slice(0, MAX_RESULTS)
+  const matches = q
+    ? [...counts.keys()].filter((p) => p.includes("/") && p.toLowerCase().includes(q))
     : [];
+  const results = matches.slice(0, MAX_RESULTS);
 
   const row = (path: string, opts: { tickable: boolean; showPath?: boolean }) => {
     const isTicked = ticked.has(path);
@@ -131,7 +122,7 @@ export function TagPicker({
             setOpenPath(hasChildren ? path : parentOf(path));
             setQuery("");
           }}
-          className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left outline-none focus-visible:underline"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-sm py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <span className="truncate">
             {opts.showPath ? path.split("/").join(" / ") : leafOf(path)}
@@ -146,12 +137,10 @@ export function TagPicker({
   return (
     <div className={cn("flex w-[760px] max-w-full flex-col text-ui", className)}>
       <div className="border-b border-border p-2">
-        <Input
-          type="search"
+        <SearchInput
+          kbd="T"
           aria-label="Filter tags"
           placeholder="Filter tags…"
-          leadingIcon={<Search size={13} />}
-          trailingSlot={<Kbd>T</Kbd>}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -172,6 +161,11 @@ export function TagPicker({
             <li className="px-2 py-1.5 text-subtle-foreground">No tags match “{query.trim()}”.</li>
           ) : (
             results.map((path) => row(path, { tickable: true, showPath: true }))
+          )}
+          {matches.length > results.length && (
+            <li className="px-2 py-1.5 text-subtle-foreground">
+              Showing {results.length} of {matches.length} matches. Type more to narrow them down.
+            </li>
           )}
         </ul>
       ) : (
