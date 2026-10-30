@@ -32,8 +32,10 @@ function json(body: unknown, status = 200): Response {
 }
 
 // Serves the two endpoints the dialog touches: the store lookup and the record.
+// With slowLookup the store lookup never answers, as a slow store's doesn't for
+// seconds.
 const fakeApi =
-  (realFetch: typeof window.fetch) =>
+  (realFetch: typeof window.fetch, slowLookup = false) =>
   async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const path = raw.startsWith("http") ? new URL(raw).pathname : raw.split("?")[0]!;
@@ -41,6 +43,7 @@ const fakeApi =
       return new Response(PNG_BYTES, { status: 200, headers: { "Content-Type": "image/png" } });
     }
     if (path === "/api/metadata/preview") {
+      if (slowLookup) return new Promise<Response>(() => {});
       return json({
         title: "POLYGON Fantasy Kingdom",
         publisher: "Synty Studios",
@@ -48,7 +51,10 @@ const fakeApi =
       });
     }
     if (path === "/api/assets/references" && init?.method === "POST") {
-      return json({ outcome: "created", asset_id: 41, name: "POLYGON Fantasy Kingdom" }, 201);
+      return json(
+        { outcome: "created", asset_id: 41, name: "POLYGON Fantasy Kingdom", lookup_batch_id: 7 },
+        201,
+      );
     }
     return realFetch(input, init);
   };
@@ -79,5 +85,22 @@ export const StoreMatch: Story = {
     await expect(await body.findByText("Synty Studios")).toBeVisible();
     await userEvent.click(body.getByRole("button", { name: "Add" }));
     await expect(await body.findByText("Added to your library")).toBeVisible();
+  },
+};
+
+/** Adding doesn't wait on a slow store: the details fill in after the dialog. */
+export const LookupStillRunning: Story = {
+  beforeEach: () => stubFetch((realFetch) => fakeApi(realFetch, true)),
+  render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.type(
+      await body.findByLabelText("Store link"),
+      "https://assetstore.unity.com/packages/k-1",
+    );
+    await expect(await body.findByText(/You can add it now/)).toBeVisible();
+    await userEvent.click(body.getByRole("button", { name: "Add" }));
+    await expect(await body.findByText("Added to your library")).toBeVisible();
+    await expect(body.getByText(/The store details fill in/)).toBeVisible();
   },
 };

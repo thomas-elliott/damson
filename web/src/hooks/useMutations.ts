@@ -77,11 +77,15 @@ export interface ReferenceRecordResult {
   name: string;
   location_path?: string;
   source_url?: string;
+  /** The batch the store lookup was queued in, when it was queued. */
+  lookup_batch_id?: number;
 }
 
 // useRecordReference records an asset by its location: a path, a store link,
 // or both. A known path updates its asset; a link already in the library comes
 // back as "exists" with that asset. A 422 means no name could be derived.
+// With queue_lookup the store lookup runs in the background in a new batch;
+// follow it with useStoreLookupBatch.
 export function useRecordReference() {
   const qc = useQueryClient();
   return useMutation({
@@ -90,6 +94,7 @@ export function useRecordReference() {
       source_url?: string;
       name?: string;
       needs_review?: boolean;
+      queue_lookup?: boolean;
     }) =>
       fetchJson<ReferenceRecordResult>("/api/assets/references", {
         method: "POST",
