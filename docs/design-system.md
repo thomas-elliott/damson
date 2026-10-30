@@ -7,7 +7,14 @@ code in `web/src/pages/` and `web/src/components/` composes the system rather th
 and design-system components do no data fetching: a caller passes data in.
 
 The token vocabulary is shadcn's, extended; the values are Damson's, and every colour value lives in `web/src/design-system/tokens/tokens.css`. Light is the
-base (`:root`); dark opts in through the `.dark` class.
+CSS base (`:root`) and dark opts in through the `.dark` class, but dark is the product default:
+`index.html` and `lib/theme.ts` add `.dark` unless the user has chosen light. The OS setting is
+not consulted.
+
+Colour has fixed jobs. Yellow `--primary` is for actions and selection only. Orange `--warning`
+means needs review, blue `--info` means new or unread, and neither is ever yellow. Tags take a
+background from `--category-*`, picked by the tag's top-level store category (3d, 2d, audio, vfx,
+tools; anything else is `other`).
 
 ---
 
@@ -40,7 +47,8 @@ overrides the first.
 
 Colour tokens map `--color-x: var(--x)`, two different names, so their values live in
 `tokens.css`. The scales (radius, type, duration) are literals in Damson's block. The font stacks
-(`--sans-stack`, `--mono-stack`) and per-theme shadows (`--elevation-sm/md/lg`) are values in
+(`--sans-stack` for Barlow, `--display-stack` for Barlow Semi Condensed, `--mono-stack` for
+JetBrains Mono) and per-theme shadows (`--elevation-sm/md/lg`) are values in
 `tokens.css` mapped across in Damson's block. Prefer the utility over `var(--token)` — `bg-card`,
 `text-muted-foreground`, `border-border`, `rounded-md`.
 
@@ -48,6 +56,8 @@ Type is two-layered. The contract's role sizes (`text-display` … `text-label`)
 height only. Damson's composed `@utility` rules in `globals.css` add a weight, family or transform
 on top: weight variants such as `text-title-semibold`, and roles such as `text-mono`,
 `text-overline` and `text-num`. There is no bare alias: `text-title` is the contract's plain size.
+`font-display` is the condensed face for titles and labels set in capitals, and `text-overline`
+uses it. It is a family, unrelated to `text-display`, which is a size.
 
 Surfaces: an element that positions itself (popover, dropdown, dialog, tooltip, context menu,
 selection bar) takes `--popover`; everything else takes `--card`. The two are equal in both themes
@@ -99,9 +109,9 @@ Then run `just test stories` yourself — nothing else will.
   palette to the end of `globals.css` as an unlayered `:root` / `.dark`, which beats `tokens.css`
   in the cascade and silently repaints the app. `just lint frontend` and CI catch it.
 - **Never give a `tokens.css` value the contract's own name, and never rename `--sans-stack`,
-  `--mono-stack` or `--elevation-*` to the contract's spelling.** The contract block maps
+  `--display-stack`, `--mono-stack` or `--elevation-*` to the contract's spelling.** The contract block maps
   `--radius-md: var(--radius-md)` — a self-reference, invalid at computed-value time, which
-  invalidates every declaration of that name whatever the cascade layer says. Inter stops loading
+  invalidates every declaration of that name whatever the cascade layer says. Barlow stops loading
   and every shadow disappears, with no error anywhere.
 - **Register every new composed `text-*` utility with tailwind-merge in
   `design-system/utils/cn.ts`.** A role name fails tailwind-merge's t-shirt-size test, falls
