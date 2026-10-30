@@ -42,6 +42,10 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
 - **`Badge` is a status: a lit dot in a sunken pill.** The tone colours the dot and the text stays
   `foreground`, so never nest a `StatusDot` inside one. `neutral` has no dot and is for plain
   labels; `accent` is a solid yellow fill for counts and labels, not a status.
+- **`AssetCard` is a 3:4 cover with the name over the art.** With no image and no `thumb` it
+  shows a `TypesetCover`: the name set large on a colour picked from the publisher. Those colours
+  are generated, so they live in the component rather than `tokens.css`, and the hue list leaves
+  out yellow and orange so a cover never reads as the brand or as needs review.
 - **`Tag` reads a string child as a path** (`3d/character/humanoid`), shows it step by step and
   takes its colour from the first step. The luggage-tag shape is on an inner span because
   `clip-path` on the button would clip its focus outline.

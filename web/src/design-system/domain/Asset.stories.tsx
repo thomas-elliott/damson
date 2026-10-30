@@ -28,7 +28,7 @@ export const Grid: Story = {
                 <span className="font-mono">{formatBytes(a.size)}</span>
                 {a.files > 1 && (
                   <>
-                    <span className="text-faint-foreground">·</span>
+                    <span className="opacity-60">·</span>
                     <span className="font-mono">{a.files} files</span>
                   </>
                 )}
@@ -72,6 +72,33 @@ export const WithReview: Story = {
         sub={<span className="font-mono">142 MB · 412 files</span>}
         trailing={<LicencePill status="warn" spdx="Unity-EULA" />}
       />
+    </div>
+  ),
+};
+
+// Packs with no preview: the name is set on a colour taken from the publisher.
+export const TypesetCovers: Story = {
+  parameters: { layout: "padded" },
+  render: () => (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+      <AssetCard
+        name="Modular Dungeon Kit"
+        publisher="Polyforge"
+        sub={<span className="font-mono">Reference</span>}
+      />
+      <AssetCard
+        name="POLYGON_Fantasy_Village_URP"
+        publisher="Synty Studios"
+        needsReview
+        sub={<span className="font-mono">Reference</span>}
+      />
+      <AssetCard
+        name="Ambient Caves Loop Pack"
+        publisher="Northwind Audio"
+        selected
+        sub={<span className="font-mono">86 MB · 41 files</span>}
+      />
+      <AssetCard name="Untitled import" sub={<span className="font-mono">2 MB</span>} />
     </div>
   ),
 };

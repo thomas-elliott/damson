@@ -1,6 +1,7 @@
 export * from "./ActivityRow";
 export * from "./AssetCard";
 export * from "./AssetThumb";
+export * from "./TypesetCover";
 export * from "./CollectionCard";
 export * from "./FieldRow";
 export * from "./FileBrowserList";

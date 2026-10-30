@@ -292,7 +292,7 @@ function AssetDetailBody({
             <button
               type="button"
               onClick={() => review.mutate(asset.id)}
-              className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-soft px-2 py-0.5 text-mono text-warning"
+              className="inline-flex h-6 items-center gap-1.5 rounded-full bg-background-inset px-2.5 text-label font-medium text-foreground inset-shadow-well transition-colors duration-fast ease-standard hover:bg-control"
             >
               <StatusDot tone="warn" /> Needs review
               <Check size={11} />

@@ -1,25 +1,29 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import { Check } from "lucide-react";
 
+import { Badge } from "@/design-system/primitives/Badge";
 import { cn } from "@/design-system/utils";
 
 import { AssetThumb, type ThumbDescriptor } from "./AssetThumb";
+import { TypesetCover } from "./TypesetCover";
 
 export interface AssetCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect"> {
   name: string;
+  /** Colours the typeset cover shown when there is no image or `thumb`. */
+  publisher?: string;
   thumb?: ThumbDescriptor;
   /**
    * Real thumbnail image URL (e.g. an object URL for a server-generated
    * thumbnail). When set it renders over the procedural `thumb`; while it's
-   * loading or absent, `thumb` is the fallback.
+   * loading or absent, `thumb` or the typeset cover is the fallback.
    */
   imageUrl?: string;
-  /** Short type label shown as an overlay badge on the thumbnail. */
+  /** Short type label shown as an overlay badge on the cover. */
   typeBadge?: ReactNode;
-  /** Meta line under the name (file size, file count, etc.). */
+  /** Meta line in the caption (file size, file count, etc.). */
   sub?: ReactNode;
-  /** Licence/state pills pinned to the name row. */
+  /** Licence/state pills at the end of the caption. */
   trailing?: ReactNode;
-  /** Flag for the review dot in the thumb's top-right corner. */
   needsReview?: boolean;
   updateAvailable?: boolean;
   selected?: boolean;
@@ -27,14 +31,15 @@ export interface AssetCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, 
 }
 
 /**
- * Asset grid tile — square thumbnail above name/meta. Selection state gives
- * it an accent border + ring. Keep the API generic (name, sub, trailing) so
- * feature-level cards can compose without extending domain types.
+ * Asset grid tile — a 3:4 cover with the name over the art. An asset with no
+ * preview gets a typeset cover, which already prints the name, so its caption
+ * carries only the meta line. Selection is a brand ring and a tick.
  */
 export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function AssetCard(
   {
     className,
     name,
+    publisher,
     thumb,
     imageUrl,
     typeBadge,
@@ -49,6 +54,7 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
   },
   ref,
 ) {
+  const typeset = !imageUrl && !thumb;
   return (
     <button
       ref={ref}
@@ -59,22 +65,22 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
         onClick?.(e);
       }}
       className={cn(
-        "flex w-full min-w-0 flex-col gap-2 rounded-md text-left",
-        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+        "relative block w-full min-w-0 rounded-md text-left",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
       {...props}
     >
       <div
         className={cn(
-          "relative aspect-square overflow-hidden rounded-md border border-border bg-card transition-colors duration-fast ease-standard",
-          "group-hover:border-border-strong",
-          "aria-[pressed=true]:border-primary aria-[pressed=true]:ring-2 aria-[pressed=true]:ring-ring",
-          selected && "border-primary ring-2 ring-ring",
+          "relative aspect-[3/4] overflow-hidden rounded-md bg-card transition-shadow duration-fast ease-standard",
+          selected && "ring-2 ring-primary ring-offset-[3px] ring-offset-background",
         )}
       >
         {imageUrl ? (
           <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        ) : typeset ? (
+          <TypesetCover name={name} publisher={publisher} />
         ) : (
           <AssetThumb thumb={thumb} />
         )}
@@ -83,35 +89,48 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
             {typeBadge}
           </span>
         )}
-        {needsReview && (
-          <span
-            aria-label="Needs review"
-            className="absolute right-1.5 top-1.5 block h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-card"
-          />
-        )}
-        {updateAvailable && (
-          <span
-            aria-label="Update available"
-            title="A newer version is available from the store"
-            className="absolute bottom-1.5 right-1.5 inline-flex items-center rounded-xs bg-primary px-1.5 py-0.5 font-mono text-label uppercase tracking-wide text-primary-foreground"
-          >
-            Update
-          </span>
-        )}
-      </div>
-      <div className="min-w-0 px-0.5">
-        <div className="truncate text-ui font-medium text-foreground">{name}</div>
-        {(sub || trailing) && (
-          <div className="mt-0.5 flex items-center justify-between gap-1.5">
-            {sub && (
-              <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-caption">
-                {sub}
-              </div>
+        {(needsReview || updateAvailable) && (
+          <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
+            {needsReview && <Badge tone="warn">Review</Badge>}
+            {updateAvailable && (
+              <Badge tone="accent" title="A newer version is available from the store">
+                Update
+              </Badge>
             )}
-            {trailing && <div className="shrink-0">{trailing}</div>}
           </div>
         )}
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 flex flex-col gap-0.5 px-2 pb-1.5 text-white",
+            typeset ? "pt-2" : "bg-linear-to-t from-black/85 to-transparent pt-6",
+          )}
+        >
+          {/* The typeset cover prints the name; screen readers still need it. */}
+          <span
+            className={cn("line-clamp-2 text-ui font-semibold leading-tight", typeset && "sr-only")}
+          >
+            {name}
+          </span>
+          {(sub || trailing) && (
+            <div className="flex items-center justify-between gap-1.5">
+              {sub && (
+                <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-label text-white/80">
+                  {sub}
+                </div>
+              )}
+              {trailing && <div className="shrink-0">{trailing}</div>}
+            </div>
+          )}
+        </div>
       </div>
+      {selected && (
+        <span
+          aria-hidden
+          className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-background"
+        >
+          <Check size={12} strokeWidth={3} />
+        </span>
+      )}
     </button>
   );
 });

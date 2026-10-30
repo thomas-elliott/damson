@@ -35,8 +35,8 @@ export interface NavRailItemProps extends ComponentPropsWithoutRef<"button"> {
 }
 
 /**
- * One rail destination: 34×34 icon button with tooltip label on hover, optional
- * count badge, and a left accent bar when active.
+ * One rail destination: 34×34 icon button with tooltip label on hover and an
+ * optional count badge. The active item takes a soft brand tint.
  */
 export const NavRailItem = forwardRef<HTMLButtonElement, NavRailItemProps>(function NavRailItem(
   { className, label, icon, active, badge, onSelect, onClick, ...props },
@@ -54,23 +54,17 @@ export const NavRailItem = forwardRef<HTMLButtonElement, NavRailItemProps>(funct
           onClick?.(e);
         }}
         className={cn(
-          "relative grid h-[34px] w-[34px] place-items-center rounded-sm text-subtle-foreground transition-colors duration-fast ease-standard",
-          "hover:bg-muted hover:text-foreground",
+          "relative grid h-[34px] w-[34px] place-items-center rounded-md text-subtle-foreground transition-colors duration-fast ease-standard",
+          "hover:bg-control hover:text-foreground",
           "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
-          "aria-[current=page]:bg-muted aria-[current=page]:text-foreground",
+          "aria-[current=page]:bg-primary-soft aria-[current=page]:text-foreground",
           className,
         )}
         {...props}
       >
-        {active && (
-          <span
-            aria-hidden
-            className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-sm bg-primary"
-          />
-        )}
         {icon}
         {badge !== undefined && (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-mono font-semibold text-primary-foreground">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-info px-1 text-mono font-semibold text-info-foreground">
             {badge}
           </span>
         )}
