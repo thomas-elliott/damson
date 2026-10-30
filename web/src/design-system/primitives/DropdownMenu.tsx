@@ -22,7 +22,7 @@ export const DropdownMenuContent = forwardRef<
         sideOffset={sideOffset}
         style={{ zIndex: 600, ...style }}
         className={cn(
-          "z-popover min-w-[10rem] rounded-md border border-border bg-popover p-1 text-ui text-muted-foreground shadow-lg",
+          "z-popover min-w-[10rem] rounded-lg border border-border bg-popover p-1 text-ui text-muted-foreground shadow-lg",
           "data-[state=open]:animate-fade-in",
           className,
         )}
@@ -33,7 +33,11 @@ export const DropdownMenuContent = forwardRef<
 });
 
 const itemClasses =
-  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-ui outline-hidden transition-colors duration-fast ease-standard data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-muted data-[highlighted]:text-foreground";
+  "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-ui outline-hidden transition-colors duration-fast ease-standard data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-control data-[highlighted]:text-foreground";
+
+// A chosen row fills with the brand, like a ticked row in the tag picker.
+const checkedClasses =
+  "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground";
 
 export const DropdownMenuItem = forwardRef<
   React.ElementRef<typeof RadixDropdown.Item>,
@@ -50,10 +54,10 @@ export const DropdownMenuCheckboxItem = forwardRef<
     <RadixDropdown.CheckboxItem
       ref={ref}
       checked={checked}
-      className={cn(itemClasses, "pl-7", className)}
+      className={cn(itemClasses, checkedClasses, "pl-7", className)}
       {...props}
     >
-      <span className="absolute left-2 grid h-4 w-4 place-items-center text-primary">
+      <span className="absolute left-2 grid h-4 w-4 place-items-center">
         <RadixDropdown.ItemIndicator>
           <Check size={12} strokeWidth={3} />
         </RadixDropdown.ItemIndicator>
@@ -68,10 +72,14 @@ export const DropdownMenuRadioItem = forwardRef<
   ComponentPropsWithoutRef<typeof RadixDropdown.RadioItem>
 >(function DropdownMenuRadioItem({ className, children, ...props }, ref) {
   return (
-    <RadixDropdown.RadioItem ref={ref} className={cn(itemClasses, "pl-7", className)} {...props}>
-      <span className="absolute left-2 grid h-4 w-4 place-items-center text-primary">
+    <RadixDropdown.RadioItem
+      ref={ref}
+      className={cn(itemClasses, checkedClasses, "pl-7", className)}
+      {...props}
+    >
+      <span className="absolute left-2 grid h-4 w-4 place-items-center">
         <RadixDropdown.ItemIndicator>
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
         </RadixDropdown.ItemIndicator>
       </span>
       {children}

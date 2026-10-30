@@ -108,6 +108,8 @@
   --color-unknown-soft: var(--unknown-soft);
   --color-primary-hover: var(--primary-hover);
   --color-swatch-foreground: var(--swatch-foreground);
+  --color-control: var(--control);
+  --color-control-hover: var(--control-hover);
   --color-category-3d: var(--category-3d);
   --color-category-2d: var(--category-2d);
   --color-category-audio: var(--category-audio);
@@ -154,6 +156,7 @@
   --shadow-sm: var(--elevation-sm);
   --shadow-md: var(--elevation-md);
   --shadow-lg: var(--elevation-lg);
+  --inset-shadow-well: var(--elevation-inset);
 
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);

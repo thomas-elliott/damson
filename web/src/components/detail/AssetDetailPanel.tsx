@@ -640,8 +640,8 @@ function OverviewSection({ asset }: { asset: AssetDetailView }) {
 // scan for doesn't need the section opened. Expanded, LicenceEditor shows the
 // same pill, so the accessory drops away.
 function LicenceSummary({ licence }: { licence: LicenceView | null }) {
-  if (!licence) return <span className="text-label text-faint-foreground">Not set</span>;
-  return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} noDot />;
+  if (!licence) return <span className="text-label text-subtle-foreground">Not set</span>;
+  return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} />;
 }
 
 function OverviewRead({ asset }: { asset: AssetDetailView }) {

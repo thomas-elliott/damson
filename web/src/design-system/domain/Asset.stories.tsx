@@ -34,7 +34,7 @@ export const Grid: Story = {
                 )}
               </>
             }
-            trailing={<LicencePill status={a.licenceStatus} spdx={a.spdx} noDot />}
+            trailing={<LicencePill status={a.licenceStatus} spdx={a.spdx} />}
             needsReview={a.needsReview}
             selected={selected === a.id}
             onSelect={() => setSelected((prev) => (prev === a.id ? null : a.id))}
@@ -54,7 +54,7 @@ export const SingleCard: Story = {
         thumb={ASSET_FIXTURES[1]!.thumb}
         typeBadge="sprite"
         sub={<span className="font-mono">48 KB</span>}
-        trailing={<LicencePill status="ok" spdx="CC-BY-4.0" noDot />}
+        trailing={<LicencePill status="ok" spdx="CC-BY-4.0" />}
       />
     </div>
   ),
@@ -70,7 +70,7 @@ export const WithReview: Story = {
         typeBadge="unitypkg"
         needsReview
         sub={<span className="font-mono">142 MB · 412 files</span>}
-        trailing={<LicencePill status="warn" spdx="Unity-EULA" noDot />}
+        trailing={<LicencePill status="warn" spdx="Unity-EULA" />}
       />
     </div>
   ),
