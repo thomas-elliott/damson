@@ -18,7 +18,7 @@ If the grouping should be searchable and nest, use a tag. If it names the versio
 
 Go to **Collections** in the left rail, then **New collection**. Name is required; description is optional. Damson opens the new collection.
 
-> _[Screenshot: the Collections page with several collection cards showing their asset counts, and the New collection button in the toolbar.]_
+![The Collections page with five collection cards and the New collection button](../images/collections-page.png)
 
 Names are unique per library, case-insensitively. A duplicate name is refused with a 409.
 
@@ -40,7 +40,7 @@ For more than one asset, or a collection that already has some, use the bulk bar
 3. Press **Collection** on the bulk bar at the bottom.
 4. Choose the collection from the dropdown and press **Add to collection**.
 
-> _[Screenshot: the Library grid with assets selected, the bulk bar visible, and the "Add N assets to a collection" dialog open with its dropdown.]_
+![The Add 2 assets to a collection dialog with its collection dropdown open](../images/library-add-to-collection.png)
 
 The dialog lists only existing collections, so make the collection first. Up to 1000 assets go in per request, in one transaction. Adding an asset that is already in the collection is a no-op, not an error.
 
@@ -80,7 +80,7 @@ Removing an asset that is not in the collection is a no-op. The asset itself is 
 
 Click a collection card to see the library's asset grid filtered to that collection, paged, at the library's default grid density.
 
-> _[Screenshot: a collection's page showing its asset grid and the pager at the bottom.]_
+![A collection's page with its asset grid and the pager at the bottom](../images/collection-detail.png)
 
 The collection page has no filter sidebar, so you cannot narrow it by tag or licence status there. The API and CLI take `collection_id` alongside every other asset filter:
 
