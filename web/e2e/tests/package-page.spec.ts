@@ -135,5 +135,8 @@ test.describe("Package page", () => {
     await expect(search).toBeHidden();
     await files.getByRole("button", { name: "Folders and search" }).click();
     await expect(search).toBeVisible();
+    // It covers its own toggle, so Escape closes it.
+    await page.keyboard.press("Escape");
+    await expect(search).toBeHidden();
   });
 });

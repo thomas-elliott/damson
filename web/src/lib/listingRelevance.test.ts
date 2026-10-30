@@ -19,6 +19,13 @@ describe("isRelevantListing", () => {
     expect(isRelevantListing("Terrain Textures v2", "Terrain Textures Pack")).toBe(true);
   });
 
+  it("drops a listing that is mostly other words", () => {
+    expect(isRelevantListing("Sample Props", "Tavern and Inn Props 16px: FREE Sample")).toBe(false);
+    expect(isRelevantListing("Fantasy Kingdom", "Fantasy Kingdom Castle Siege Battle Pack")).toBe(
+      false,
+    );
+  });
+
   it("ignores filler words and version numbers", () => {
     expect(isRelevantListing("The Sample Pack 2", "Sample Pack")).toBe(false);
   });
