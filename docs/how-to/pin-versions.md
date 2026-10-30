@@ -77,7 +77,7 @@ Then find the assets:
 - **Library → filter sidebar → Updates → Updates available**, or
 - `dmsn assets --updates-available`.
 
-![The filter sidebar with Updates available ticked and three flagged assets in the grid](../images/library-filter-updates.png)
+![The filter sidebar with Updates available selected and three flagged assets in the grid](../images/library-filter-updates.png)
 
 ## Set up a project and pin to it
 
