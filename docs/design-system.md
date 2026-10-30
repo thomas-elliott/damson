@@ -45,11 +45,18 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
 - **`AssetCard` is a 3:4 cover with the name over the art.** With no image and no `thumb` it
   shows a `TypesetCover`: the name set large on a colour picked from the publisher. Those colours
   are generated, so they live in the component rather than `tokens.css`, and the hue list leaves
-  out yellow and orange so a cover never reads as the brand or as needs review.
-- **`TagPicker` and `TagIndexCard` are built but not yet on a page.** The picker takes tag paths
-  with counts and fills in any level that exists only as part of a deeper path; the first level
-  is too broad to filter by, so it can be opened but not ticked. A page wraps the picker in a
-  `Popover`.
+  out yellow and orange so a cover never reads as the brand or as needs review. The Review and
+  Update badges sit at the foot on a row of their own, clear of the cover's publisher line and
+  of the meta line. The card shows the name it is given; the grid passes it through
+  `tidyAssetName`, which reads underscores as spaces, for display only.
+- **`TagPicker` sits in the library's Tags popover; `TagIndexCard` makes up the tag index.** The
+  picker takes tag paths with counts and fills in any level that exists only as part of a deeper
+  path; the first level is too broad to filter by, so it can be opened but not ticked. A page
+  wraps the picker in a `Popover`. It is a container query: below 600px of its own width it
+  shows the last two columns, and each column's heading steps up a level. The card's name is an
+  `aria-label` in words, because its visible parts run together when read out.
+- **`Chip` truncates its value**, never its label or remove button, so a long tag path fits a
+  narrow row.
 - **`Tag` reads a string child as a path** (`3d/character/humanoid`), shows it step by step and
   takes its colour from the first step. The luggage-tag shape is on an inner span because
   `clip-path` on the button would clip its focus outline.
