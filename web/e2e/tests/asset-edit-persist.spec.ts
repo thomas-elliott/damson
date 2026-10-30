@@ -59,6 +59,10 @@ test.describe("Asset edits persist across reload", () => {
     ]);
     await expect(page.getByLabel(`Remove ${TAG_PATH}`)).toBeVisible();
 
+    // Licence editing lives on the package page, one click from the panel.
+    await page.getByRole("button", { name: "Open package page" }).click();
+    await expect(page).toHaveURL(/\/library\/\d+\/package$/);
+
     // Save the licence — paste, detect, save-detected. The detect call is
     // a server round-trip but the save is what we care about; await both
     // so an unsaved licence can't sneak past the reload. The Licence section
@@ -123,7 +127,7 @@ test.describe("Asset edits persist across reload", () => {
     expect(review.ok(), "seeding the review").toBe(true);
 
     await installSession(page, session);
-    await page.goto(`/library/${asset_id}`);
+    await page.goto(`/library/${asset_id}/package`);
     await page.getByRole("button", { name: "Licence", exact: true }).click();
     await expect(page.getByText("reviewed", { exact: true })).toBeVisible();
 

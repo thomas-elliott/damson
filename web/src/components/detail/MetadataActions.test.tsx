@@ -60,7 +60,7 @@ vi.mock("@/components/filebrowser/useFileObjectUrl", () => ({
   useBlobUrl: (url?: string) => blobUrlMock(url),
 }));
 
-import { EnrichmentReview, MetadataActions } from "./MetadataActions";
+import { StoreSuggestions, MetadataActions } from "./MetadataActions";
 
 const asset = {
   id: 7,
@@ -87,7 +87,7 @@ describe("MetadataActions", () => {
         store: "",
         candidates: [
           {
-            title: "The Right One",
+            title: "Fantasy Pack Deluxe",
             listing_url: "https://x/right",
             store: "unity",
             cover_url: "https://cdn.unity.com/a b.png?v=1",
@@ -96,7 +96,7 @@ describe("MetadataActions", () => {
       },
     } as AssetDetailView;
 
-    const { container } = render(<EnrichmentReview asset={withCover} />);
+    const { container } = render(<StoreSuggestions asset={withCover} />);
 
     // A bare <img src={cover_url}> would be blocked by the CSP; the cover must
     // go through the proxy endpoint with the external URL encoded.
@@ -152,15 +152,46 @@ describe("MetadataActions", () => {
       source_metadata: {
         matched: false,
         store: "",
-        candidates: [{ title: "The Right One", listing_url: "https://x/right", store: "unity" }],
+        candidates: [
+          { title: "Fantasy Pack Deluxe", listing_url: "https://x/right", store: "unity" },
+        ],
       },
     } as AssetDetailView;
 
-    render(<EnrichmentReview asset={withMeta} />);
-    // Abstain provenance must render, and the stored candidate must be pickable.
-    expect(screen.getByText(/No confident match/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /The Right One/i }));
+    render(<StoreSuggestions asset={withMeta} />);
+    // The stored candidate must be pickable.
+    expect(screen.getByText(/looks like a match/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Fantasy Pack Deluxe/i }));
     expect(fetchMutate).toHaveBeenCalledWith({ id: 7, url: "https://x/right" });
+  });
+
+  it("hides candidates that share nothing with the asset's name", () => {
+    const unrelated = {
+      ...asset,
+      source_metadata: {
+        matched: false,
+        store: "",
+        candidates: [
+          { title: "Gaia Pro 2023", listing_url: "https://x/gaia", store: "unity" },
+          { title: "Behavior Designer", listing_url: "https://x/bd", store: "unity" },
+        ],
+      },
+    } as AssetDetailView;
+    const { container } = render(<StoreSuggestions asset={unrelated} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows nothing for an asset that already has its listing", () => {
+    const matched = {
+      ...asset,
+      source_metadata: {
+        matched: true,
+        store: "unity",
+        candidates: [{ title: "Fantasy Pack Deluxe", listing_url: "https://x/d", store: "unity" }],
+      },
+    } as AssetDetailView;
+    const { container } = render(<StoreSuggestions asset={matched} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   const withCandidate = {
@@ -168,13 +199,15 @@ describe("MetadataActions", () => {
     source_metadata: {
       matched: false,
       store: "",
-      candidates: [{ title: "The Right One", listing_url: "https://x/right", store: "unity" }],
+      candidates: [
+        { title: "Fantasy Pack Deluxe", listing_url: "https://x/right", store: "unity" },
+      ],
     },
   } as AssetDetailView;
 
   it("fetches a candidate's details only when expanded", () => {
     previewData = undefined;
-    render(<EnrichmentReview asset={withCandidate} />);
+    render(<StoreSuggestions asset={withCandidate} />);
     // Not fetched until expanded — the eager version would fail this guard.
     expect(previewMutate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Expand details/i }));
@@ -183,7 +216,7 @@ describe("MetadataActions", () => {
 
   it("shows the fetched description only once expanded", () => {
     previewData = { description: "A big pack of dungeon tiles." };
-    render(<EnrichmentReview asset={withCandidate} />);
+    render(<StoreSuggestions asset={withCandidate} />);
     // Collapsed by default — details stay hidden until the row is expanded.
     expect(screen.queryByText(/dungeon tiles/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Expand details/i }));
