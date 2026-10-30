@@ -261,6 +261,74 @@ func TestRecordReference_QueuedLookup(t *testing.T) {
 	}
 }
 
+// A queued record the caller didn't name is named from its path, else its
+// link, and the lookup then gives it the store's title, as an immediate lookup
+// would have. A name someone set meanwhile, or a page title, doesn't replace it.
+func TestRecordReference_QueuedLookupNamesFromStore(t *testing.T) {
+	h, db := newTestHandler(t)
+	q := &heldLookups{}
+	fake := &fakeMetadata{meta: &metadata.Metadata{Store: metadata.StoreUnity, Title: "POLYGON Fantasy Kingdom"}}
+	h.metadata, h.storeLookups = fake, q
+	u := seedUser(t, db, "t@example.com")
+	seedLibraryForUser(t, db, u, "Personal")
+	r := setupRouter(h, u)
+	nameOf := func(id uint) string {
+		var a models.Asset
+		db.First(&a, id)
+		return a.Name
+	}
+
+	linkOnly := recordReference(t, r, map[string]any{
+		"source_url": "https://assetstore.unity.com/packages/3d/polygon-fantasy-kingdom-164532/", "queue_lookup": true,
+	}, http.StatusCreated)
+	if linkOnly.Name != "polygon-fantasy-kingdom-164532" {
+		t.Fatalf("link-only name = %q, want the link's last segment", linkOnly.Name)
+	}
+	numeric := recordReference(t, r, map[string]any{
+		"source_url": "https://assetstore.unity.com/packages/slug/11020", "queue_lookup": true,
+	}, http.StatusCreated)
+	if numeric.Name != "slug" {
+		t.Fatalf("numeric-id link name = %q, want the segment before the id", numeric.Name)
+	}
+	withPath := recordReference(t, r, map[string]any{
+		"location_path": "/mnt/nfs/Synty/Kingdom.unitypackage",
+		"source_url":    "https://assetstore.unity.com/packages/slug/11021", "queue_lookup": true,
+	}, http.StatusCreated)
+	if withPath.Name != "Kingdom" {
+		t.Fatalf("path name = %q, want the path's", withPath.Name)
+	}
+	renamed := recordReference(t, r, map[string]any{
+		"source_url": "https://assetstore.unity.com/packages/slug/11022", "queue_lookup": true,
+	}, http.StatusCreated)
+	db.Model(&models.Asset{}).Where("id = ?", renamed.AssetID).Update("name", "Mine")
+	given := recordReference(t, r, map[string]any{
+		"source_url": "https://assetstore.unity.com/packages/slug/11023", "name": "Given", "queue_lookup": true,
+	}, http.StatusCreated)
+
+	q.runAll(t, h)
+	for _, id := range []uint{linkOnly.AssetID, numeric.AssetID, withPath.AssetID} {
+		if got := nameOf(id); got != "POLYGON Fantasy Kingdom" {
+			t.Fatalf("asset %d named %q after its lookup, want the store's title", id, got)
+		}
+	}
+	if got := nameOf(renamed.AssetID); got != "Mine" {
+		t.Fatalf("renamed asset is %q after its lookup, want the name it was given meanwhile", got)
+	}
+	if got := nameOf(given.AssetID); got != "Given" {
+		t.Fatalf("named asset is %q after its lookup, want the caller's name", got)
+	}
+
+	// Only the generic scraper answered: its title is the page's, not a name.
+	fake.meta = &metadata.Metadata{Store: metadata.StoreGeneric, Title: "Some page", StoreLookupFailed: true}
+	generic := recordReference(t, r, map[string]any{
+		"source_url": "https://example.com/packs/toony-skies", "queue_lookup": true,
+	}, http.StatusCreated)
+	q.runAll(t, h)
+	if got := nameOf(generic.AssetID); got != "toony-skies" {
+		t.Fatalf("asset named %q after a generic lookup, want its provisional name", got)
+	}
+}
+
 // sourceRecordJSON is a stored source record holding last as the previous
 // lookup's answer.
 func sourceRecordJSON(t *testing.T, last *metadata.Metadata) []byte {

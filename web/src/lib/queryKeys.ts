@@ -6,6 +6,8 @@ export const queryKeys = {
   assets: (filters?: Record<string, string | number | boolean | string[]>) =>
     filters ? (["assets", filters] as const) : (["assets"] as const),
   asset: (id: number) => ["asset", id] as const,
+  /** Every asset's detail, licence and audit queries, for invalidating together. */
+  anyAsset: ["asset"] as const,
   assetLicence: (id: number) => ["asset", id, "licence"] as const,
   assetAudit: (id: number) => ["asset", id, "audit"] as const,
   assetFacets: ["assetFacets"] as const,
@@ -24,6 +26,7 @@ export const queryKeys = {
   adminAudit: (filters?: Record<string, string | number | boolean>) =>
     filters ? (["adminAudit", filters] as const) : (["adminAudit"] as const),
   imports: ["imports"] as const,
+  storeLookupBatch: (id: number) => ["storeLookupBatch", id] as const,
   previews: ["previews"] as const,
   libraries: ["libraries"] as const,
   libraryMembers: (libraryId: number) => ["libraries", libraryId, "members"] as const,
