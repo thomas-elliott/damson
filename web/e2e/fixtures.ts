@@ -224,6 +224,22 @@ export async function createReferenceAsset(
   return (await res.json()) as { asset_id: number };
 }
 
+// tagAsset tags an asset by path, creating the tag and any missing ancestors.
+export async function tagAsset(
+  request: APIRequestContext,
+  session: Session,
+  assetId: number,
+  path: string,
+): Promise<void> {
+  const res = await request.post(`/api/assets/${assetId}/tags`, {
+    headers: { Authorization: `Bearer ${session.token}` },
+    data: { path },
+  });
+  if (!res.ok()) {
+    throw new Error(`tag asset: ${res.status()} ${await res.text()}`);
+  }
+}
+
 // createTestUser hits the /api/test/users endpoint exposed by the e2e
 // binary. There's no public admin-invite flow yet, so multi-user specs
 // (e.g. PER-82's sysadmin-vs-member gating) need this lever.

@@ -82,7 +82,7 @@ Click a collection card to see the library's asset grid filtered to that collect
 
 ![A collection's page with its asset grid and the pager at the bottom](../images/collection-detail.png)
 
-The collection page has no filter sidebar, so you cannot narrow it by tag or licence status there. The API and CLI take `collection_id` alongside every other asset filter:
+The collection page has no Tags or Filters buttons, so you cannot narrow it by tag or licence status there. The API and CLI take `collection_id` alongside every other asset filter:
 
 ```sh
 dmsn assets --collection 3 --licence-status unk

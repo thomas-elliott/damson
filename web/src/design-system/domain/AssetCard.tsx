@@ -102,24 +102,27 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           >
             {name}
           </span>
-          {(sub || trailing || needsReview || updateAvailable) && (
+          {/* The states sit at the foot, clear of the cover's publisher line
+              and the art's subject, on a row of their own so the meta line
+              never loses its unit to them. */}
+          {(needsReview || updateAvailable) && (
+            <div className="flex flex-wrap items-center gap-1">
+              {needsReview && <Badge tone="warn">Review</Badge>}
+              {updateAvailable && (
+                <Badge tone="accent" title="A newer version is available from the store">
+                  Update
+                </Badge>
+              )}
+            </div>
+          )}
+          {(sub || trailing) && (
             <div className="flex items-center justify-between gap-1.5">
-              <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-label text-white/80">
-                {sub}
-              </div>
-              {/* The states sit at the foot, clear of the cover's publisher
-                  line and of the art's subject. */}
-              {(needsReview || updateAvailable || trailing) && (
-                <div className="flex shrink-0 items-center gap-1">
-                  {needsReview && <Badge tone="warn">Review</Badge>}
-                  {updateAvailable && (
-                    <Badge tone="accent" title="A newer version is available from the store">
-                      Update
-                    </Badge>
-                  )}
-                  {trailing}
+              {sub && (
+                <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-label text-white/80">
+                  {sub}
                 </div>
               )}
+              {trailing && <div className="shrink-0">{trailing}</div>}
             </div>
           )}
         </div>
