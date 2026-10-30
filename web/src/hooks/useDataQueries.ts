@@ -416,7 +416,10 @@ export interface TagView {
   id: number;
   path: string;
   parent_id?: number;
+  /** Assets carrying this tag itself. */
   asset_count: number;
+  /** Assets under the tag or any tag below it, once each: what filtering by it matches. */
+  subtree_count: number;
 }
 
 export function useAssetFacets(enabled: boolean = true) {

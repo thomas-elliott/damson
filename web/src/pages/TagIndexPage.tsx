@@ -42,7 +42,7 @@ export function TagIndexPage() {
           <Toolbar>
             <Breadcrumb count={loading ? undefined : `${entries.length}`}>
               <BreadcrumbItem current heading>
-                Tags
+                Tag index
               </BreadcrumbItem>
             </Breadcrumb>
           </Toolbar>
@@ -66,7 +66,7 @@ export function TagIndexPage() {
                   >
                     {group}
                   </h2>
-                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-x-3 gap-y-5">
+                  <ul className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
                     {items.map((entry) => (
                       <li key={entry.path}>
                         <TagIndexEntry

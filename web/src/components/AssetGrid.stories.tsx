@@ -99,7 +99,7 @@ export const BesidePanel: Story = {
   args: { assets: MANY, density: "medium", reservedRight: 440 },
   decorators: [FixedWidth],
   play: async ({ canvasElement }) => {
-    // 800px less the 440px panel leaves room for one 180px card, not four.
-    await waitFor(() => expect(firstRowCards(canvasElement)).toBe(1));
+    // 800px less the 440px panel is narrow: two cards at the small width, not four.
+    await waitFor(() => expect(firstRowCards(canvasElement)).toBe(2));
   },
 };

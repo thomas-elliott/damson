@@ -18,6 +18,9 @@ type tagView struct {
 	Path       string `json:"path"`
 	ParentID   *uint  `json:"parent_id,omitempty"`
 	AssetCount int    `json:"asset_count"`
+	// SubtreeCount counts the assets under the tag or any tag below it, once
+	// each: what filtering by the tag matches.
+	SubtreeCount int `json:"subtree_count"`
 }
 
 // getTags returns the library's tag tree with per-tag asset counts. The tree
@@ -26,18 +29,23 @@ type tagView struct {
 func (h *Handler) getTags(c *gin.Context) {
 	lib := getLibrary(c)
 	type row struct {
-		ID         uint
-		Path       string
-		ParentID   *uint
-		AssetCount int
+		ID           uint
+		Path         string
+		ParentID     *uint
+		AssetCount   int
+		SubtreeCount int
 	}
 	var rows []row
+	// A descendant's path starts with the tag's path and a slash; comparing a
+	// prefix with left() rather than LIKE leaves an underscore in a tag literal.
 	err := h.db.WithContext(c.Request.Context()).
 		Table("tags AS t").
-		Select("t.id, t.path, t.parent_id, COALESCE(COUNT(at.asset_id), 0) AS asset_count").
-		Joins("LEFT JOIN asset_tags at ON at.tag_id = t.id").
+		Select(`t.id, t.path, t.parent_id,
+			(SELECT COUNT(*) FROM asset_tags at WHERE at.tag_id = t.id) AS asset_count,
+			(SELECT COUNT(DISTINCT at.asset_id) FROM tags d JOIN asset_tags at ON at.tag_id = d.id
+				WHERE d.library_id = t.library_id
+					AND (d.id = t.id OR left(d.path, length(t.path) + 1) = t.path || '/')) AS subtree_count`).
 		Where("t.library_id = ?", lib.ID).
-		Group("t.id, t.path, t.parent_id").
 		Order("t.path").
 		Scan(&rows).Error
 	if err != nil {
@@ -46,7 +54,10 @@ func (h *Handler) getTags(c *gin.Context) {
 	}
 	out := make([]tagView, len(rows))
 	for i, r := range rows {
-		out[i] = tagView{ID: r.ID, Path: r.Path, ParentID: r.ParentID, AssetCount: r.AssetCount}
+		out[i] = tagView{
+			ID: r.ID, Path: r.Path, ParentID: r.ParentID,
+			AssetCount: r.AssetCount, SubtreeCount: r.SubtreeCount,
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"tags": out})
 }

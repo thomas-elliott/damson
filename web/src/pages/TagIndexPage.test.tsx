@@ -58,7 +58,7 @@ function mount() {
 describe("TagIndexPage", () => {
   it("groups the cards under their top-level tag, the library's own tags last", () => {
     mount();
-    expect(screen.getByRole("heading", { level: 1, name: "Tags" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Tag index" })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "3d",
       "audio",
