@@ -88,7 +88,7 @@ The bulk action always runs the detector over the pasted text and stores its ans
 
 The **Licence** section of the library filter sidebar has one chip per status: **Compliant**, **Review**, **Violation**, **Unknown**. Click one to filter the grid and click it again to clear.
 
-![The filter sidebar with the Licence section expanded and Unknown active, and three matching assets in the grid](../images/library-filter-licence-unknown.png)
+![The filter sidebar with the Licence section expanded and Unknown active, and four matching assets in the grid](../images/library-filter-licence-unknown.png)
 
 Start with **Unknown**. Damson knows nothing about those assets, whereas the answer for an amber one is merely unreviewed.
 
