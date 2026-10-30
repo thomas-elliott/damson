@@ -33,7 +33,8 @@ export interface AssetCardProps extends Omit<HTMLAttributes<HTMLButtonElement>, 
 /**
  * Asset grid tile — a 3:4 cover with the name over the art. An asset with no
  * preview gets a typeset cover, which already prints the name, so its caption
- * carries only the meta line. Selection is a brand ring and a tick.
+ * carries only the meta line. Needs review and update badges sit at the foot.
+ * Selection is a brand ring and a tick.
  */
 export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function AssetCard(
   {
@@ -89,16 +90,6 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
             {typeBadge}
           </span>
         )}
-        {(needsReview || updateAvailable) && (
-          <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
-            {needsReview && <Badge tone="warn">Review</Badge>}
-            {updateAvailable && (
-              <Badge tone="accent" title="A newer version is available from the store">
-                Update
-              </Badge>
-            )}
-          </div>
-        )}
         <div
           className={cn(
             "absolute inset-x-0 bottom-0 flex flex-col gap-0.5 px-2 pb-1.5 text-white",
@@ -111,6 +102,19 @@ export const AssetCard = forwardRef<HTMLButtonElement, AssetCardProps>(function 
           >
             {name}
           </span>
+          {/* The states sit at the foot, clear of the cover's publisher line
+              and the art's subject, on a row of their own so the meta line
+              never loses its unit to them. */}
+          {(needsReview || updateAvailable) && (
+            <div className="flex flex-wrap items-center gap-1">
+              {needsReview && <Badge tone="warn">Review</Badge>}
+              {updateAvailable && (
+                <Badge tone="accent" title="A newer version is available from the store">
+                  Update
+                </Badge>
+              )}
+            </div>
+          )}
           {(sub || trailing) && (
             <div className="flex items-center justify-between gap-1.5">
               {sub && (
