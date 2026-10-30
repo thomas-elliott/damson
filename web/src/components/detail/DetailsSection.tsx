@@ -151,7 +151,7 @@ function DefinitionList({ rows }: { rows: { label: string; value?: string; href?
                 href={r.href}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-primary-text hover:underline"
               >
                 <span className="min-w-0 truncate">{r.value}</span>
                 <ExternalLink size={10} className="shrink-0" />

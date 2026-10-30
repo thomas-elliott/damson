@@ -40,7 +40,7 @@
    * falls below WCAG AA in the light theme. See docs/design-system.md. */
   --foreground: oklch(0.2 0.01 80);
   --muted-foreground: oklch(0.38 0.01 80);
-  --subtle-foreground: oklch(0.52 0.01 80);
+  --subtle-foreground: oklch(0.48 0.01 80);
   --faint-foreground: oklch(0.65 0.01 80);
 
   --card-foreground: var(--foreground);
@@ -52,6 +52,8 @@
   --primary: oklch(0.82 0.15 86);
   --primary-foreground: oklch(0.18 0.02 86);
   --primary-soft: oklch(0.82 0.15 86 / 0.16);
+  /* The brand as text (links, "Current"): yellow fails as text on light. */
+  --primary-text: oklch(0.5 0.11 75);
   /* Solid, so a focus ring passes 3:1 against the page; a darker gold on light. */
   --ring: oklch(0.6 0.13 80);
 
@@ -64,9 +66,9 @@
   --warning: oklch(0.6 0.16 48);
   --warning-foreground: oklch(0.18 0.04 52);
   --warning-soft: oklch(0.6 0.16 48 / 0.14);
-  --destructive: oklch(0.68 0.17 28);
+  --destructive: oklch(0.5 0.19 28);
   --destructive-foreground: oklch(0.18 0.02 28);
-  --destructive-soft: oklch(0.68 0.17 28 / 0.16);
+  --destructive-soft: oklch(0.5 0.19 28 / 0.1);
   --info: oklch(0.55 0.13 250);
   --info-foreground: oklch(0.985 0 0);
   --info-soft: oklch(0.55 0.13 250 / 0.12);
@@ -140,6 +142,9 @@
 
   --warning: oklch(0.76 0.15 52);
   --warning-soft: oklch(0.76 0.15 52 / 0.16);
+  --destructive: oklch(0.68 0.17 28);
+  --destructive-soft: oklch(0.68 0.17 28 / 0.16);
+  --primary-text: oklch(0.82 0.15 86);
 
   --category-3d: oklch(0.33 0.06 150);
   --category-2d: oklch(0.33 0.06 340);

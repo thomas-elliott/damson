@@ -95,8 +95,8 @@ components rendered with their real hooks against a stubbed `window.fetch` — l
 
 There are two Vitest projects. `unit` (`just test frontend`) is jsdom. `storybook`
 (`just test stories`) runs every story in Playwright Chromium with axe-core, and
-`a11y.test = "error"` fails it on any violation; `STORYBOOK_THEME=light pnpm run test:stories`
-runs it in light. `just check` and CI both run the storybook project.
+`a11y.test = "error"` fails it on any violation. `just test stories`, `just check` and CI run
+it twice, in dark and then with `STORYBOOK_THEME=light`, so a colour has to pass in both themes.
 
 If axe flags contrast, fix the token or reach for a brighter tier before adding an exception. A
 legitimate decorative exception is `parameters.a11y.test = "todo"` on the story, with the reason in
@@ -144,5 +144,8 @@ Then run `just test stories` yourself — nothing else will.
 - **`--accent` is not the brand.** In the contract's vocabulary `--accent` is the hover / selected
   surface and `--primary` is the brand. Getting it backwards looks wrong rather than broken, which
   is much harder to spot.
+- **Brand as text is `text-primary-text`, not `text-primary`.** Yellow `--primary` is a fill; as
+  text it fails contrast on the light theme, so links and markers such as "Current" take the
+  darker `--primary-text`.
 - **Use `subtle-foreground` for anything informational.** `faint-foreground` is decorative only:
   it falls below WCAG AA in the light theme.
