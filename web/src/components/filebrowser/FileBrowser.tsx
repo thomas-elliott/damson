@@ -181,9 +181,27 @@ export function FileBrowser({
 
   // ---- Keyboard: Esc steps up the hierarchy; arrows step open files -----
 
-  const ctx = useRef({ openKey, resultsMode, path, step, clearResults, onExit, onStepPackage });
+  const ctx = useRef({
+    treeOpen,
+    openKey,
+    resultsMode,
+    path,
+    step,
+    clearResults,
+    onExit,
+    onStepPackage,
+  });
   useEffect(() => {
-    ctx.current = { openKey, resultsMode, path, step, clearResults, onExit, onStepPackage };
+    ctx.current = {
+      treeOpen,
+      openKey,
+      resultsMode,
+      path,
+      step,
+      clearResults,
+      onExit,
+      onStepPackage,
+    };
   });
   const bindings = useMemo<KeyBinding[]>(
     () => [
@@ -191,7 +209,8 @@ export function FileBrowser({
         key: "Escape",
         handler: () => {
           const c = ctx.current;
-          if (c.openKey) setOpenKey(undefined);
+          if (c.treeOpen) setTreeOpen(false);
+          else if (c.openKey) setOpenKey(undefined);
           else if (c.resultsMode) c.clearResults();
           else if (c.path.length > 0) setPath(c.path.slice(0, -1));
           else c.onExit?.();
@@ -258,7 +277,15 @@ export function FileBrowser({
   return (
     <div className="@container/files relative flex h-full min-h-0">
       {/* A column from 768px of container width; below it, a drawer over the
-          listing that the toolbar's tree button opens. */}
+          listing that the toolbar's tree button opens. The drawer covers that
+          button, so the backdrop and Escape close it. */}
+      {treeOpen && (
+        <div
+          aria-hidden
+          onClick={() => setTreeOpen(false)}
+          className="absolute inset-0 z-detail bg-black/40 @3xl/files:hidden"
+        />
+      )}
       <div
         className={cn(
           "w-[260px] shrink-0 border-r border-border bg-card",

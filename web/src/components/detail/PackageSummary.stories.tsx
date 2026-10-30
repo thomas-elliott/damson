@@ -154,7 +154,10 @@ export const Maintenance: Story = {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getByRole("button", { name: "Maintenance" }));
-    await expect(await body.findByRole("menuitem", { name: "Rescan package" })).toBeVisible();
+    // The menu animates open, so wait for it rather than catching it mid-way.
+    await waitFor(() =>
+      expect(body.getByRole("menuitem", { name: "Rescan package" })).toBeVisible(),
+    );
     await expect(body.getByRole("menuitem", { name: "Re-extract files" })).toBeVisible();
     await userEvent.click(body.getByRole("menuitem", { name: "Regenerate previews" }));
     await expect(await canvas.findByText("Previews queued.")).toBeVisible();
