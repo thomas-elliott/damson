@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-import { FilterSidebar, Section, StatusDot } from "@/design-system";
+import { ErrorState, FilterSidebar, LoadingState, Section, StatusDot } from "@/design-system";
 import {
   useAssetFacets,
   useProjects,
@@ -42,9 +42,12 @@ function yearsAgoISODate(years: number): string {
 
 export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
   const [search, setSearch] = useSearchParams();
-  const { data: tags } = useTags();
-  const { data: projects } = useProjects();
-  const { data: facets } = useAssetFacets();
+  const tagsQuery = useTags();
+  const projectsQuery = useProjects();
+  const facetsQuery = useAssetFacets();
+  const { data: tags } = tagsQuery;
+  const { data: projects } = projectsQuery;
+  const { data: facets } = facetsQuery;
 
   // A new filter starts again from the first page.
   const setParam = (key: string, value: string | null) => {
@@ -57,41 +60,43 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
   return (
     <FilterSidebar>
       <Section title="Projects" defaultOpen={false}>
-        {projects.length === 0 ? (
-          <div className="text-label text-faint-foreground">No projects yet</div>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {projects.map((p) => (
-              <li key={p.id}>
-                <FilterRow
-                  label={p.name}
-                  count={p.asset_count}
-                  active={search.get("project_id") === String(p.id)}
-                  onClick={() =>
-                    setParam(
-                      "project_id",
-                      search.get("project_id") === String(p.id) ? null : String(p.id),
-                    )
-                  }
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+        {loadStatus(projectsQuery, "Couldn't load projects") ??
+          (projects.length === 0 ? (
+            <div className="text-label text-faint-foreground">No projects yet</div>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {projects.map((p) => (
+                <li key={p.id}>
+                  <FilterRow
+                    label={p.name}
+                    count={p.asset_count}
+                    active={search.get("project_id") === String(p.id)}
+                    onClick={() =>
+                      setParam(
+                        "project_id",
+                        search.get("project_id") === String(p.id) ? null : String(p.id),
+                      )
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          ))}
       </Section>
 
       <Section title="Tags" defaultOpen>
-        {tags.length === 0 ? (
-          <div className="text-label text-faint-foreground">
-            No tags yet — add some from an asset detail panel
-          </div>
-        ) : (
-          <TagTree
-            tags={tags}
-            activePath={filters.tag_path}
-            onPick={(p) => setParam("tag", filters.tag_path === p ? null : p)}
-          />
-        )}
+        {loadStatus(tagsQuery, "Couldn't load tags") ??
+          (tags.length === 0 ? (
+            <div className="text-label text-faint-foreground">
+              No tags yet — add some from an asset detail panel
+            </div>
+          ) : (
+            <TagTree
+              tags={tags}
+              activePath={filters.tag_path}
+              onPick={(p) => setParam("tag", filters.tag_path === p ? null : p)}
+            />
+          ))}
       </Section>
 
       <Section title="File kind" defaultOpen={false}>
@@ -109,45 +114,47 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
       </Section>
 
       <Section title="Publisher" defaultOpen={false}>
-        {facets.publishers.length === 0 ? (
-          <div className="text-label text-faint-foreground">
-            No publishers yet — fetch storefront metadata for an asset
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {facets.publishers.map((p) => (
-              <li key={p.value}>
-                <FilterRow
-                  label={p.value}
-                  count={p.count}
-                  active={filters.publisher === p.value}
-                  onClick={() =>
-                    setParam("publisher", filters.publisher === p.value ? null : p.value)
-                  }
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+        {loadStatus(facetsQuery, "Couldn't load publishers") ??
+          (facets.publishers.length === 0 ? (
+            <div className="text-label text-faint-foreground">
+              No publishers yet — fetch storefront metadata for an asset
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {facets.publishers.map((p) => (
+                <li key={p.value}>
+                  <FilterRow
+                    label={p.value}
+                    count={p.count}
+                    active={filters.publisher === p.value}
+                    onClick={() =>
+                      setParam("publisher", filters.publisher === p.value ? null : p.value)
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          ))}
       </Section>
 
       <Section title="Store" defaultOpen={false}>
-        {facets.stores.length === 0 ? (
-          <div className="text-label text-faint-foreground">No stores yet</div>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {facets.stores.map((st) => (
-              <li key={st.value}>
-                <FilterRow
-                  label={storeLabel(st.value)}
-                  count={st.count}
-                  active={filters.store === st.value}
-                  onClick={() => setParam("store", filters.store === st.value ? null : st.value)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+        {loadStatus(facetsQuery, "Couldn't load stores") ??
+          (facets.stores.length === 0 ? (
+            <div className="text-label text-faint-foreground">No stores yet</div>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {facets.stores.map((st) => (
+                <li key={st.value}>
+                  <FilterRow
+                    label={storeLabel(st.value)}
+                    count={st.count}
+                    active={filters.store === st.value}
+                    onClick={() => setParam("store", filters.store === st.value ? null : st.value)}
+                  />
+                </li>
+              ))}
+            </ul>
+          ))}
       </Section>
 
       <Section title="Released" defaultOpen={false}>
@@ -214,6 +221,17 @@ export function LibraryFilterSidebar({ filters }: { filters: AssetFilters }) {
       </Section>
     </FilterSidebar>
   );
+}
+
+// A list's place while it loads or after it failed to load; null once there
+// is data, or an empty list, to show.
+function loadStatus(
+  query: { loading: boolean; failed: boolean; reload: () => unknown },
+  errorTitle: string,
+) {
+  if (query.loading) return <LoadingState variant="inline" />;
+  if (query.failed) return <ErrorState title={errorTitle} onRetry={query.reload} />;
+  return null;
 }
 
 function FilterRow({

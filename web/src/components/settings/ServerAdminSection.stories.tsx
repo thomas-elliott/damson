@@ -26,11 +26,11 @@ const USERS: AdminUser[] = [
 ];
 
 // Each story picks what the admin endpoints return in its beforeEach.
-let scenario: "populated" | "empty" | "loading" = "populated";
+let scenario: "populated" | "empty" | "loading" | "failed" = "populated";
 
-function json(body: unknown): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -45,6 +45,7 @@ const fakeApi =
       return realFetch(input, init);
     }
     if (scenario === "loading") return new Promise<Response>(() => {});
+    if (scenario === "failed") return json({ error: "internal error" }, 500);
     if (path === "/api/admin/settings") {
       return json({ max_upload_bytes: 68_719_476_736, licence_kb_auto_update: true });
     }
@@ -97,5 +98,21 @@ export const Loading: Story = {
   play: async ({ canvasElement }) => {
     const statuses = await within(canvasElement).findAllByRole("status");
     await expect(statuses).toHaveLength(2);
+  },
+};
+
+/** Both admin endpoints failed: each section offers a Retry, not a spinner or "No users yet". */
+export const Failed: Story = {
+  beforeEach: () => {
+    scenario = "failed";
+  },
+  render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Couldn't load server settings")).toBeVisible();
+    await expect(await canvas.findByText("Couldn't load users")).toBeVisible();
+    await expect(canvas.getAllByRole("button", { name: "Retry" })).toHaveLength(2);
+    await expect(canvas.queryByText("Loading…")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("No users yet")).not.toBeInTheDocument();
   },
 };

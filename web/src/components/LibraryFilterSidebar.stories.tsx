@@ -155,26 +155,29 @@ export const Empty: Story = {
   },
 };
 
-/** The lists are still loading. The sidebar has no loading state of its own yet. */
+/** The lists are still loading: each open list says so, and none claims to be empty. */
 export const Loading: Story = {
-  parameters: {
-    // Known contrast debt: faint-foreground on card, 4.34:1 (SMO-3 finding 5).
-    a11y: contrastDebt("faint-foreground"),
-  },
   beforeEach: () => {
     mode = "loading";
   },
   render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole("status")).toHaveTextContent("Loading…");
+    await expect(canvas.queryByText(/No tags yet/)).not.toBeInTheDocument();
+  },
 };
 
-/** The lists failed to load. The sidebar has no error state of its own yet. */
+/** The lists failed to load: each open list offers a Retry instead of an empty state. */
 export const Failed: Story = {
-  parameters: {
-    // Known contrast debt: faint-foreground on card, 4.34:1 (SMO-3 finding 5).
-    a11y: contrastDebt("faint-foreground"),
-  },
   beforeEach: () => {
     mode = "failed";
   },
   render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Couldn't load tags")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(canvas.queryByText(/No tags yet/)).not.toBeInTheDocument();
+  },
 };
