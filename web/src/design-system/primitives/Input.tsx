@@ -17,9 +17,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       data-invalid={invalid ? "true" : undefined}
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex items-center gap-1.5 rounded-sm border border-border bg-background px-2 py-1.5 text-field text-foreground transition-colors duration-fast ease-standard",
-        "focus-within:border-primary focus-within:bg-muted focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring",
-        "data-[invalid=true]:border-destructive/60 data-[invalid=true]:focus-within:ring-destructive/50",
+        "flex items-center gap-1.5 rounded-md bg-control px-2 py-1.5 text-field text-foreground transition-colors duration-fast ease-standard",
+        "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background",
+        "data-[invalid=true]:ring-2 data-[invalid=true]:ring-destructive",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50",
         className,
       )}

@@ -234,7 +234,7 @@ export const LibraryView: Story = {
                     <div className="aspect-video rounded-md border border-border bg-muted" />
                     <div className="flex flex-wrap items-center gap-2">
                       <Pill mono tone="ok">
-                        <StatusDot tone="ok" /> CC-BY-4.0
+                        CC-BY-4.0
                       </Pill>
                       <Tag>sprites</Tag>
                       <Tag>ui/icons</Tag>
