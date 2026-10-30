@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Package } from "lucide-react";
+import { Check, FolderTree, Package } from "lucide-react";
 
 import {
   buildFileTree,
+  cn,
   countFiles,
   FileBrowserList,
   FileBrowserToolbar,
@@ -12,7 +13,9 @@ import {
   FileTreeSidebar,
   flattenFiles,
   FolderCard,
+  IconButton,
   LoadingState,
+  loneRootPath,
   nodesAtPath,
   pathKey,
   type FileBrowserView,
@@ -23,12 +26,7 @@ import {
   typeCounts,
 } from "@/design-system";
 import { useAssetDetail } from "@/hooks/useDataQueries";
-import {
-  useCreateSubsetVersion,
-  useReExtractVersion,
-  useRequeueAssetPreviews,
-  useRequeueFilePreview,
-} from "@/hooks/useMutations";
+import { useCreateSubsetVersion, useRequeueFilePreview } from "@/hooks/useMutations";
 import { useKeyboardShortcuts, type KeyBinding } from "@/hooks/useKeyboardShortcuts";
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
@@ -40,10 +38,27 @@ import { downloadFile, useFileThumbUrl } from "./useFileObjectUrl";
 // tree, so only results mode needs the guard. The cap is surfaced in the UI.
 const RESULTS_CAP = 300;
 
-export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () => void }) {
+/**
+ * The files of one asset: folder tree, file grid or list, and file detail. It
+ * fills its container, and below 768px of container width the tree becomes a
+ * drawer and the file detail covers the listing.
+ */
+export function FileBrowser({
+  assetId,
+  onExit,
+  onStepPackage,
+}: {
+  assetId: number;
+  /** Escape at the top of the pack, with nothing open, leaves the browser. */
+  onExit?: () => void;
+  /** The arrow keys step to the previous or next package while no file is open. */
+  onStepPackage?: (delta: -1 | 1) => void;
+}) {
   const { data: asset, loading } = useAssetDetail(assetId);
 
-  const [path, setPath] = useState<string[]>([]);
+  // Null until the user navigates: the tree's lone-root path stands in.
+  const [chosenPath, setPath] = useState<string[] | null>(null);
+  const [treeOpen, setTreeOpen] = useState(false);
   const [view, setView] = useState<FileBrowserView>("grid");
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState<Set<FileType>>(() => new Set());
@@ -65,6 +80,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
       ),
     [asset?.files],
   );
+  const path = useMemo(() => chosenPath ?? loneRootPath(tree), [chosenPath, tree]);
   const allFiles = useMemo(() => flattenFiles(tree), [tree]);
   const counts = useMemo(() => typeCounts(tree), [tree]);
   const byKey = useMemo(() => {
@@ -106,8 +122,6 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
 
   const create = useCreateSubsetVersion();
   const requeueFile = useRequeueFilePreview();
-  const reextract = useReExtractVersion();
-  const requeuePreviews = useRequeueAssetPreviews();
   const { saved, flash } = useSavedFlash(2200);
 
   // ---- Handlers ---------------------------------------------------------
@@ -117,6 +131,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
     setQuery("");
     setTypes(new Set());
     setOpenKey(undefined);
+    setTreeOpen(false);
   };
   const toggleType = (ftype: FileType) => {
     setOpenKey(undefined);
@@ -166,9 +181,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
 
   // ---- Keyboard: Esc steps up the hierarchy; arrows step open files -----
 
-  const ctx = useRef({ openKey, resultsMode, path, step, clearResults, onExit });
+  const ctx = useRef({ openKey, resultsMode, path, step, clearResults, onExit, onStepPackage });
   useEffect(() => {
-    ctx.current = { openKey, resultsMode, path, step, clearResults, onExit };
+    ctx.current = { openKey, resultsMode, path, step, clearResults, onExit, onStepPackage };
   });
   const bindings = useMemo<KeyBinding[]>(
     () => [
@@ -179,7 +194,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           if (c.openKey) setOpenKey(undefined);
           else if (c.resultsMode) c.clearResults();
           else if (c.path.length > 0) setPath(c.path.slice(0, -1));
-          else c.onExit();
+          else c.onExit?.();
         },
       },
       {
@@ -206,6 +221,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           if (ctx.current.openKey) {
             e.preventDefault();
             ctx.current.step(1);
+          } else if (ctx.current.onStepPackage) {
+            e.preventDefault();
+            ctx.current.onStepPackage(1);
           }
         },
       },
@@ -215,6 +233,9 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           if (ctx.current.openKey) {
             e.preventDefault();
             ctx.current.step(-1);
+          } else if (ctx.current.onStepPackage) {
+            e.preventDefault();
+            ctx.current.onStepPackage(-1);
           }
         },
       },
@@ -234,45 +255,20 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
     );
   }
 
-  // Download/re-extract target the latest version (by import date) that still
-  // retains its original archive — the current version may be a subset or an
-  // earlier re-extract that no longer has one. Download works for any retained
-  // package (unitypackage or zip); re-extract is Unity-only.
-  const byNewestImport = (a: { import_date: string }, b: { import_date: string }) =>
-    b.import_date.localeCompare(a.import_date);
-  const downloadSource = [...asset.versions]
-    .filter((v) => v.has_original && v.original_package_object_key)
-    .sort(byNewestImport)[0];
-  const downloadKey = downloadSource?.original_package_object_key;
-  const downloadOriginal =
-    downloadSource && downloadKey
-      ? () => {
-          const ext = downloadSource.package_kind === "zip" ? "zip" : "unitypackage";
-          void downloadFile(downloadKey, `${asset.name}.${ext}`).catch(() => {});
-        }
-      : undefined;
-
-  // Re-extract rebuilds the file manifest from the retained original — only
-  // possible for Unity packages with a retained archive. It doesn't queue
-  // previews itself, so chain a requeue once the new version lands.
-  const reExtractSource = [...asset.versions]
-    .filter((v) => v.package_kind === "unitypackage" && v.has_original)
-    .sort(byNewestImport)[0];
-  const reExtract = reExtractSource
-    ? () =>
-        reextract.mutate(
-          { assetId, versionId: reExtractSource.id },
-          { onSuccess: () => requeuePreviews.mutate(assetId) },
-        )
-    : undefined;
-
   return (
-    <div className="flex h-full min-h-0">
-      <div className="w-[260px] shrink-0 border-r border-border bg-card">
+    <div className="@container/files relative flex h-full min-h-0">
+      {/* A column from 768px of container width; below it, a drawer over the
+          listing that the toolbar's tree button opens. */}
+      <div
+        className={cn(
+          "w-[260px] shrink-0 border-r border-border bg-card",
+          "@max-3xl/files:absolute @max-3xl/files:inset-y-0 @max-3xl/files:left-0 @max-3xl/files:z-detail @max-3xl/files:max-w-full @max-3xl/files:shadow-lg",
+          !treeOpen && "@max-3xl/files:hidden",
+        )}
+      >
         <FileTreeSidebar
           assetName={asset.name}
           assetIcon={<Package size={13} className="text-subtle-foreground" />}
-          onExit={onExit}
           query={query}
           onQueryChange={setQuery}
           tree={tree}
@@ -287,10 +283,20 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         <FileBrowserToolbar
+          leading={
+            <IconButton
+              aria-label="Folders and search"
+              aria-expanded={treeOpen}
+              size="sm"
+              className="@3xl/files:hidden"
+              onClick={() => setTreeOpen((v) => !v)}
+            >
+              <FolderTree />
+            </IconButton>
+          }
           assetName={asset.name}
           path={path}
           onNavigate={navigate}
-          onExit={onExit}
           count={resultsMode ? listingFiles.length : folders.length + listingFiles.length}
           resultsMode={resultsMode}
           query={query}
@@ -299,9 +305,6 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
           onViewChange={setView}
           activeTypes={[...types]}
           onToggleType={toggleType}
-          onDownloadOriginal={downloadOriginal}
-          onReExtract={reExtract}
-          reExtractPending={reextract.isPending || requeuePreviews.isPending}
         />
 
         <div className="min-h-0 flex-1 overflow-auto p-3.5">
@@ -381,7 +384,7 @@ export function FileBrowser({ assetId, onExit }: { assetId: number; onExit: () =
       </div>
 
       {openFile && (
-        <div className="w-[380px] shrink-0">
+        <div className="w-[380px] shrink-0 @max-3xl/files:absolute @max-3xl/files:inset-0 @max-3xl/files:z-detail @max-3xl/files:w-full">
           <FileDetailPanel
             assetName={asset.name}
             node={openFile}
