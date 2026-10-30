@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router";
 
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import { AdminAuditPage } from "@/pages/AdminAuditPage";
@@ -10,6 +10,7 @@ import { CollectionsPage } from "@/pages/CollectionsPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginCallbackPage } from "@/pages/LoginCallbackPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { PackagePage } from "@/pages/PackagePage";
 import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
 import { PreviewQueuePage } from "@/pages/PreviewQueuePage";
@@ -28,7 +29,8 @@ export default function App() {
           <Route path="/" element={<Navigate to="/library" replace />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/library/:assetId" element={<LibraryPage />} />
-          <Route path="/library/:assetId/browse" element={<LibraryPage browse />} />
+          <Route path="/library/:assetId/package" element={<PackagePage />} />
+          <Route path="/library/:assetId/browse" element={<BrowseRedirect />} />
           <Route path="/tags" element={<TagIndexPage />} />
           <Route path="/queue" element={<QueuePage />} />
           <Route path="/processing" element={<PreviewQueuePage />} />
@@ -43,4 +45,12 @@ export default function App() {
       </Routes>
     </NotificationProvider>
   );
+}
+
+// The file browser was its own page before the package page took it in; old
+// links land on the package page with their library query intact.
+function BrowseRedirect() {
+  const { assetId } = useParams();
+  const { search } = useLocation();
+  return <Navigate to={`/library/${assetId}/package${search}`} replace />;
 }
