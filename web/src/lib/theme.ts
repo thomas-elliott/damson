@@ -2,8 +2,6 @@ import { applyTheme, type ThemeMode } from "@/design-system/tokens";
 
 const STORAGE_KEY = "damson.theme";
 
-const DARK_QUERY = "(prefers-color-scheme: dark)";
-
 export function readStoredTheme(): ThemeMode | null {
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
@@ -26,31 +24,12 @@ export function writeStoredTheme(mode: ThemeMode | null) {
   }
 }
 
-export function systemTheme(): ThemeMode {
-  try {
-    return window.matchMedia(DARK_QUERY).matches ? "dark" : "light";
-  } catch {
-    return "dark";
-  }
-}
-
-export function watchSystemTheme(onChange: (mode: ThemeMode) => void): () => void {
-  let mql: MediaQueryList;
-  try {
-    mql = window.matchMedia(DARK_QUERY);
-  } catch {
-    return () => {};
-  }
-  const handler = (e: MediaQueryListEvent) => onChange(e.matches ? "dark" : "light");
-  mql.addEventListener("change", handler);
-  return () => mql.removeEventListener("change", handler);
-}
-
 export function applyAndStore(mode: ThemeMode) {
   applyTheme(mode);
   writeStoredTheme(mode);
 }
 
+// Dark is Damson's default; light only when someone has chosen it.
 export function resolveInitialTheme(): ThemeMode {
-  return readStoredTheme() ?? systemTheme();
+  return readStoredTheme() ?? "dark";
 }

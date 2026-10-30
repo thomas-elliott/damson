@@ -10,7 +10,7 @@ import { applyAndStore, readStoredTheme } from "@/lib/theme";
 import "@/styles/globals.css";
 
 // Apply the stored theme before React mounts so a `light`-themed user never
-// sees a single dark frame. With nothing stored, useTheme follows the OS.
+// sees a single dark frame. With nothing stored, useTheme defaults to dark.
 const stored = readStoredTheme();
 if (stored) applyAndStore(stored);
 

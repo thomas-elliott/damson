@@ -19,7 +19,6 @@ import { IconButton } from "@/design-system/primitives/IconButton";
 import { Pill } from "@/design-system/primitives/Pill";
 import { SegmentedControl } from "@/design-system/primitives/SegmentedControl";
 import { Separator } from "@/design-system/primitives/Separator";
-import { StatusDot } from "@/design-system/primitives/StatusDot";
 import { Chip } from "@/design-system/primitives/Chip";
 import { Tag } from "@/design-system/primitives/Tag";
 import { contrastDebt } from "@/design-system/_a11yDebt";
@@ -114,7 +113,7 @@ export const DetailPanelExample: Story = {
           <div className="aspect-video rounded-md border border-border bg-muted" />
           <div className="flex items-center gap-2">
             <Pill mono tone="ok">
-              <StatusDot tone="ok" /> CC-BY-4.0
+              CC-BY-4.0
             </Pill>
             <Tag>sprites</Tag>
             <Tag>ui/icons</Tag>
@@ -172,7 +171,7 @@ export const FullPageViewExample: Story = {
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <Pill mono tone="ok">
-                <StatusDot tone="ok" /> CC-BY-4.0
+                CC-BY-4.0
               </Pill>
               <Tag>sprites</Tag>
               <Tag>ui/icons</Tag>

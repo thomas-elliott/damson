@@ -7,7 +7,14 @@ code in `web/src/pages/` and `web/src/components/` composes the system rather th
 and design-system components do no data fetching: a caller passes data in.
 
 The token vocabulary is shadcn's, extended; the values are Damson's, and every colour value lives in `web/src/design-system/tokens/tokens.css`. Light is the
-base (`:root`); dark opts in through the `.dark` class.
+CSS base (`:root`) and dark opts in through the `.dark` class, but dark is the product default:
+`index.html` and `lib/theme.ts` add `.dark` unless the user has chosen light. The OS setting is
+not consulted.
+
+Colour has fixed jobs. Yellow `--primary` is for actions and selection only. Orange `--warning`
+means needs review, blue `--info` means new or unread, and neither is ever yellow. Tags take a
+background from `--category-*`, picked by the tag's top-level store category (3d, 2d, audio, vfx,
+tools; anything else is `other`).
 
 ---
 
@@ -27,8 +34,25 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
   error message is never shown. Retry stays disabled until the retry it started settles.
 - **`LoadingState` is the loading counterpart.** It sets `role="status"` and says "Loading…"
   unless the caller passes a label; `variant="inline"` is the one-line form inside a section.
-- **`Input` is a wrapping `<div>`** that carries the border and background, with icon and
-  keyboard-hint slots; it takes the `--text-field` token and the 16px floor from the contract.
+- **`Input` is a wrapping `<div>`** that carries the fill, with icon and keyboard-hint slots; it
+  takes the `--text-field` token and the 16px floor from the contract.
+- **Controls carry no outline.** Buttons, fields, chips, tabs and segmented controls are tinted
+  `--control` fills, and focus is a solid `--ring` with a 2px gap. A pressed `secondary` button
+  inverts, so an open picker's trigger reads as on.
+- **`Badge` is a status: a lit dot in a sunken pill.** The tone colours the dot and the text stays
+  `foreground`, so never nest a `StatusDot` inside one. `neutral` has no dot and is for plain
+  labels; `accent` is a solid yellow fill for counts and labels, not a status.
+- **`AssetCard` is a 3:4 cover with the name over the art.** With no image and no `thumb` it
+  shows a `TypesetCover`: the name set large on a colour picked from the publisher. Those colours
+  are generated, so they live in the component rather than `tokens.css`, and the hue list leaves
+  out yellow and orange so a cover never reads as the brand or as needs review.
+- **`TagPicker` and `TagIndexCard` are built but not yet on a page.** The picker takes tag paths
+  with counts and fills in any level that exists only as part of a deeper path; the first level
+  is too broad to filter by, so it can be opened but not ticked. A page wraps the picker in a
+  `Popover`.
+- **`Tag` reads a string child as a path** (`3d/character/humanoid`), shows it step by step and
+  takes its colour from the first step. The luggage-tag shape is on an inner span because
+  `clip-path` on the button would clip its focus outline.
 
 ### Tokens and Tailwind
 
@@ -40,7 +64,8 @@ overrides the first.
 
 Colour tokens map `--color-x: var(--x)`, two different names, so their values live in
 `tokens.css`. The scales (radius, type, duration) are literals in Damson's block. The font stacks
-(`--sans-stack`, `--mono-stack`) and per-theme shadows (`--elevation-sm/md/lg`) are values in
+(`--sans-stack` for Barlow, `--display-stack` for Barlow Semi Condensed, `--mono-stack` for
+JetBrains Mono) and per-theme shadows (`--elevation-sm/md/lg`) are values in
 `tokens.css` mapped across in Damson's block. Prefer the utility over `var(--token)` — `bg-card`,
 `text-muted-foreground`, `border-border`, `rounded-md`.
 
@@ -48,6 +73,8 @@ Type is two-layered. The contract's role sizes (`text-display` … `text-label`)
 height only. Damson's composed `@utility` rules in `globals.css` add a weight, family or transform
 on top: weight variants such as `text-title-semibold`, and roles such as `text-mono`,
 `text-overline` and `text-num`. There is no bare alias: `text-title` is the contract's plain size.
+`font-display` is the condensed face for titles and labels set in capitals, and `text-overline`
+uses it. It is a family, unrelated to `text-display`, which is a size.
 
 Surfaces: an element that positions itself (popover, dropdown, dialog, tooltip, context menu,
 selection bar) takes `--popover`; everything else takes `--card`. The two are equal in both themes
@@ -68,8 +95,8 @@ components rendered with their real hooks against a stubbed `window.fetch` — l
 
 There are two Vitest projects. `unit` (`just test frontend`) is jsdom. `storybook`
 (`just test stories`) runs every story in Playwright Chromium with axe-core, and
-`a11y.test = "error"` fails it on any violation; `STORYBOOK_THEME=light pnpm run test:stories`
-runs it in light. `just check` and CI both run the storybook project.
+`a11y.test = "error"` fails it on any violation. `just test stories`, `just check` and CI run
+it twice, in dark and then with `STORYBOOK_THEME=light`, so a colour has to pass in both themes.
 
 If axe flags contrast, fix the token or reach for a brighter tier before adding an exception. A
 legitimate decorative exception is `parameters.a11y.test = "todo"` on the story, with the reason in
@@ -99,9 +126,9 @@ Then run `just test stories` yourself — nothing else will.
   palette to the end of `globals.css` as an unlayered `:root` / `.dark`, which beats `tokens.css`
   in the cascade and silently repaints the app. `just lint frontend` and CI catch it.
 - **Never give a `tokens.css` value the contract's own name, and never rename `--sans-stack`,
-  `--mono-stack` or `--elevation-*` to the contract's spelling.** The contract block maps
+  `--display-stack`, `--mono-stack` or `--elevation-*` to the contract's spelling.** The contract block maps
   `--radius-md: var(--radius-md)` — a self-reference, invalid at computed-value time, which
-  invalidates every declaration of that name whatever the cascade layer says. Inter stops loading
+  invalidates every declaration of that name whatever the cascade layer says. Barlow stops loading
   and every shadow disappears, with no error anywhere.
 - **Register every new composed `text-*` utility with tailwind-merge in
   `design-system/utils/cn.ts`.** A role name fails tailwind-merge's t-shirt-size test, falls
@@ -117,5 +144,8 @@ Then run `just test stories` yourself — nothing else will.
 - **`--accent` is not the brand.** In the contract's vocabulary `--accent` is the hover / selected
   surface and `--primary` is the brand. Getting it backwards looks wrong rather than broken, which
   is much harder to spot.
+- **Brand as text is `text-primary-text`, not `text-primary`.** Yellow `--primary` is a fill; as
+  text it fails contrast on the light theme, so links and markers such as "Current" take the
+  darker `--primary-text`.
 - **Use `subtle-foreground` for anything informational.** `faint-foreground` is decorative only:
   it falls below WCAG AA in the light theme.

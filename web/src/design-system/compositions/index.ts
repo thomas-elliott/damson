@@ -1,4 +1,5 @@
 export * from "./AppShell";
+export * from "./BrandMark";
 export * from "./Breadcrumb";
 export * from "./ConfirmDialog";
 export * from "./DetailPanel";

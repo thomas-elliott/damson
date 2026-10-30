@@ -7,6 +7,7 @@ import { StatusDot } from "@/design-system/primitives/StatusDot";
 import { TooltipProvider } from "@/design-system/primitives/Tooltip";
 
 import { AppShell } from "./AppShell";
+import { BrandMark } from "./BrandMark";
 import { FilterRow, FilterSidebar } from "./FilterSidebar";
 import { Breadcrumb, BreadcrumbItem } from "./Breadcrumb";
 import { NavRail, NavRailItem, NavRailSpacer } from "./NavRail";
@@ -29,17 +30,9 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-function DamsonBrand() {
-  return (
-    <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-primary to-primary-hover font-mono text-ui font-bold text-primary-foreground">
-      D
-    </div>
-  );
-}
-
 function RailSample({ route, setRoute }: { route: string; setRoute: (r: string) => void }) {
   return (
-    <NavRail brand={<DamsonBrand />}>
+    <NavRail brand={<BrandMark />}>
       <NavRailItem
         label="Library"
         icon={<Library size={16} />}

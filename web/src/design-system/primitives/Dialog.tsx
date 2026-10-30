@@ -80,7 +80,7 @@ function DialogContent({
           "fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
           // A column, so DialogBody takes the slack and the footer stays put.
           "flex flex-col overflow-hidden p-0",
-          "rounded-lg border border-border bg-popover text-popover-foreground shadow-lg",
+          "rounded-xl border border-border bg-popover text-popover-foreground shadow-lg",
           "w-[calc(100vw-3rem)] max-h-[calc(100vh-3rem)] sm:w-lg",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           className,
@@ -146,7 +146,7 @@ function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimit
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-title font-semibold", className)}
+      className={cn("font-display text-title font-bold uppercase tracking-wide", className)}
       {...props}
     />
   );

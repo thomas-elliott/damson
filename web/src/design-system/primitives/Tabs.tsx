@@ -12,7 +12,7 @@ export const TabsList = forwardRef<
   return (
     <RadixTabs.List
       ref={ref}
-      className={cn("flex items-center gap-2 border-b border-border", className)}
+      className={cn("flex w-fit items-center gap-0.5 rounded-full bg-control p-0.5", className)}
       {...props}
     />
   );
@@ -26,8 +26,8 @@ export const TabsTrigger = forwardRef<
     <RadixTabs.Trigger
       ref={ref}
       className={cn(
-        "-mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-ui text-subtle-foreground transition-colors duration-fast ease-standard hover:text-foreground",
-        "data-[state=active]:border-primary data-[state=active]:text-primary",
+        "inline-flex h-7 items-center gap-1.5 rounded-full px-3 font-display text-label font-semibold uppercase tracking-wider text-subtle-foreground transition-colors duration-fast ease-standard hover:text-foreground",
+        "data-[state=active]:bg-popover data-[state=active]:text-foreground data-[state=active]:shadow-sm",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
@@ -41,7 +41,7 @@ export const TabsContent = RadixTabs.Content;
 /** Small count badge to sit alongside a TabsTrigger label. */
 export function TabCount({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-[20px] items-center rounded-full bg-muted px-1.5 text-mono text-subtle-foreground">
+    <span className="text-mono font-normal normal-case tracking-normal text-subtle-foreground">
       {children}
     </span>
   );

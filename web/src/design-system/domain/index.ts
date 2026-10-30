@@ -1,6 +1,7 @@
 export * from "./ActivityRow";
 export * from "./AssetCard";
 export * from "./AssetThumb";
+export * from "./TypesetCover";
 export * from "./CollectionCard";
 export * from "./FieldRow";
 export * from "./FileBrowserList";
@@ -20,4 +21,6 @@ export * from "./LicencePill";
 export * from "./ProjectCard";
 export * from "./ProjectGlyph";
 export * from "./QueueItem";
+export * from "./TagIndexCard";
+export * from "./TagPicker";
 export * from "./VersionItem";

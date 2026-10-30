@@ -104,7 +104,7 @@ function PreviewQueueRow({ row, onOpen }: { row: PreviewRow; onOpen: () => void 
       thumb={thumb}
       sub={
         <>
-          <Badge size="sm" mono tone={processing ? "warn" : "ok"}>
+          <Badge size="sm" mono tone={processing ? "unk" : "ok"}>
             {row.status}
           </Badge>
           <span className="tabular-nums text-subtle-foreground">

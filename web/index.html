@@ -4,17 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Damson</title>
-    <!-- Blocking on purpose: light is the base theme, so a dark user sees a white
-         flash if this waits for React. The catch falls back to dark rather than
-         light — localStorage and matchMedia both throw under some privacy modes. -->
+    <!-- Blocking on purpose: light is the CSS base theme but dark is the default,
+         so this must add `dark` before first paint or everyone sees a white flash.
+         The catch also lands on dark: localStorage throws under some privacy modes. -->
     <script>
       (function () {
         try {
-          var stored = window.localStorage.getItem("damson.theme");
-          var dark =
-            stored === "dark" ||
-            (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-          if (dark) document.documentElement.classList.add("dark");
+          if (window.localStorage.getItem("damson.theme") !== "light") {
+            document.documentElement.classList.add("dark");
+          }
         } catch (e) {
           document.documentElement.classList.add("dark");
         }

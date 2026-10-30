@@ -48,7 +48,7 @@ export function LibraryPicker({ current }: { current: MeLibrary }) {
               className="justify-between gap-3"
             >
               <span className="flex min-w-0 items-center gap-2">
-                <span className="grid h-3.5 w-3.5 place-items-center text-primary">
+                <span className="grid h-3.5 w-3.5 place-items-center text-primary-text">
                   {active ? <Check size={12} strokeWidth={3} /> : null}
                 </span>
                 <span className="truncate">{lib.name}</span>

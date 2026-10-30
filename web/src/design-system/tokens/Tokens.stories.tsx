@@ -52,6 +52,14 @@ const status = [
   { name: "unknown", v: "--unknown" },
   { name: "unknown-soft", v: "--unknown-soft" },
 ];
+const category = [
+  { name: "category-3d", v: "--category-3d" },
+  { name: "category-2d", v: "--category-2d" },
+  { name: "category-audio", v: "--category-audio" },
+  { name: "category-vfx", v: "--category-vfx" },
+  { name: "category-tools", v: "--category-tools" },
+  { name: "category-other", v: "--category-other" },
+];
 
 function Group({
   heading,
@@ -62,7 +70,7 @@ function Group({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-overline font-semibold text-faint-foreground">{heading}</h3>
+      <h3 className="text-overline font-semibold text-subtle-foreground">{heading}</h3>
       <div className="grid grid-cols-2 gap-3">
         {swatches.map((s) => (
           <Swatch key={s.v} name={s.name} cssVar={s.v} />
@@ -78,7 +86,8 @@ export const Palette: Story = {
       <Group heading="Surfaces" swatches={surfaces} />
       <Group heading="Text" swatches={text} />
       <Group heading="Accent (yellow)" swatches={accent} />
-      <Group heading="Licence status" swatches={status} />
+      <Group heading="Status" swatches={status} />
+      <Group heading="Tag category" swatches={category} />
     </div>
   ),
 };
@@ -96,6 +105,9 @@ export const Typography: Story = {
       <section className="flex flex-col gap-2">
         <p className="text-overline text-subtle-foreground">
           Layer 2 — headings (paired with HTML h1/h2/h3)
+        </p>
+        <p className="font-display text-title-bold uppercase tracking-wide">
+          font-display — titles in capitals
         </p>
         <p className="text-title-semibold">text-title-semibold — 22px / semibold</p>
         <p className="text-title-bold">text-title-bold — 22px / bold</p>

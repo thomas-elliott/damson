@@ -89,7 +89,7 @@ export function LibraryMembersSection({
                   <div className="truncate text-caption">{m.email}</div>
                 </div>
                 {m.global_role === "sysadmin" && (
-                  <Badge size="sm" tone="warn">
+                  <Badge size="sm" tone="accent">
                     sysadmin
                   </Badge>
                 )}

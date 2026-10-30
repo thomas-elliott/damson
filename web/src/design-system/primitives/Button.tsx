@@ -8,9 +8,9 @@ import { cn } from "@/design-system/utils";
 const buttonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
-    "rounded-md font-medium transition-colors",
+    "rounded-md font-semibold transition-colors",
     "outline-none focus-visible:ring-2 focus-visible:ring-ring",
-    "focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+    "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
   ],
@@ -21,21 +21,22 @@ const buttonVariants = cva(
           "bg-primary text-primary-foreground border border-transparent",
           "hover:bg-primary/90 active:bg-primary/85 data-[pressed=true]:bg-primary/85",
         ],
+        // Pressed inverts, so an open toggle (a picker's trigger) reads as on.
         secondary: [
-          "bg-card text-foreground border border-border",
-          "hover:bg-accent hover:border-border-strong",
-          "active:bg-background-active data-[pressed=true]:bg-accent",
+          "bg-control text-foreground border border-transparent",
+          "hover:bg-control-hover active:bg-control-hover",
+          "data-[pressed=true]:bg-foreground data-[pressed=true]:text-background",
         ],
         ghost: [
           "bg-transparent text-muted-foreground border border-transparent",
-          "hover:bg-accent hover:text-foreground",
-          "active:bg-background-active data-[pressed=true]:bg-accent data-[pressed=true]:text-foreground",
+          "hover:bg-control hover:text-foreground",
+          "active:bg-control-hover data-[pressed=true]:bg-control data-[pressed=true]:text-foreground",
         ],
         // A soft tint, not a fill: a filled red reads fine in a confirm dialog
         // and shouts in a toolbar.
         destructive: [
-          "bg-destructive-soft text-destructive border border-destructive/40",
-          "hover:bg-destructive/20 hover:border-destructive/60",
+          "bg-destructive-soft text-destructive border border-transparent",
+          "hover:bg-destructive/20",
           "active:bg-destructive/25 data-[pressed=true]:bg-destructive/25",
         ],
       },

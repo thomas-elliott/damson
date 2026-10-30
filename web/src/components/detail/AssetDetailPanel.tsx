@@ -292,7 +292,7 @@ function AssetDetailBody({
             <button
               type="button"
               onClick={() => review.mutate(asset.id)}
-              className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-soft px-2 py-0.5 text-mono text-warning"
+              className="inline-flex h-6 items-center gap-1.5 rounded-full bg-background-inset px-2.5 text-label font-medium text-foreground inset-shadow-well transition-colors duration-fast ease-standard hover:bg-control"
             >
               <StatusDot tone="warn" /> Needs review
               <Check size={11} />
@@ -640,8 +640,8 @@ function OverviewSection({ asset }: { asset: AssetDetailView }) {
 // scan for doesn't need the section opened. Expanded, LicenceEditor shows the
 // same pill, so the accessory drops away.
 function LicenceSummary({ licence }: { licence: LicenceView | null }) {
-  if (!licence) return <span className="text-label text-faint-foreground">Not set</span>;
-  return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} noDot />;
+  if (!licence) return <span className="text-label text-subtle-foreground">Not set</span>;
+  return <LicencePill status={licence.status} spdx={licence.detected_type || "Unknown"} />;
 }
 
 function OverviewRead({ asset }: { asset: AssetDetailView }) {
@@ -662,7 +662,7 @@ function OverviewRead({ asset }: { asset: AssetDetailView }) {
             target="_blank"
             rel="noreferrer noopener"
             title={source}
-            className="inline-flex min-w-0 items-center gap-1 pt-1 text-label text-primary hover:underline"
+            className="inline-flex min-w-0 items-center gap-1 pt-1 text-label text-primary-text hover:underline"
           >
             <span className="truncate">{sourceLabel(source)}</span>
             <ExternalLink size={11} className="shrink-0" />
@@ -718,7 +718,7 @@ function ClampedDescription({ children }: { children: string }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="self-start text-label text-primary hover:underline"
+          className="self-start text-label text-primary-text hover:underline"
         >
           {expanded ? "Show less" : "Read more"}
         </button>
