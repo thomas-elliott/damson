@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 
+import { tidyAssetName } from "@/design-system/utils";
+
 import { AssetCard } from "./AssetCard";
 import { LicencePill } from "./LicencePill";
 import { ASSET_FIXTURES, formatBytes } from "./_fixtures";
@@ -81,16 +83,12 @@ export const TypesetCovers: Story = {
   parameters: { layout: "padded" },
   render: () => (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+      <AssetCard name="Modular Dungeon Kit" publisher="Polyforge" />
       <AssetCard
-        name="Modular Dungeon Kit"
-        publisher="Polyforge"
-        sub={<span className="font-mono">Reference</span>}
-      />
-      <AssetCard
-        name="POLYGON_Fantasy_Village_URP"
-        publisher="Synty Studios"
+        name={tidyAssetName("POLYGON_Fantasy_Village_URP")}
+        publisher="Synty Studios Limited Interactive"
         needsReview
-        sub={<span className="font-mono">Reference</span>}
+        updateAvailable
       />
       <AssetCard
         name="Ambient Caves Loop Pack"
