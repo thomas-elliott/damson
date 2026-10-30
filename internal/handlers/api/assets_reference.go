@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -54,6 +55,8 @@ type referenceRecordRequest struct {
 	// QueueLookup queues the store lookup to run in the background instead of
 	// making it in the request, adding it to LookupBatchID when that is set and
 	// to a new batch otherwise. It fills blanks only, as the immediate one does.
+	// A new asset not named by the caller is named from its path, else its
+	// link, until the lookup gives it the store's title.
 	QueueLookup   bool `json:"queue_lookup"`
 	LookupBatchID uint `json:"lookup_batch_id"`
 }
@@ -121,6 +124,27 @@ func (h *Handler) applyReferenceListing(ctx context.Context, asset *models.Asset
 		}
 		return plan.SaveRecord(tx, link, res.Applied, enrich.ConflictFields(res.Conflicts))
 	})
+}
+
+// nameFromLink names a reference from its store link while its lookup is
+// queued: the last segment of the link's path holding a letter, so a trailing
+// numeric id is passed over, else the host.
+func nameFromLink(link string) string {
+	u, err := url.Parse(link)
+	if err != nil {
+		return ""
+	}
+	segs := strings.Split(u.Path, "/")
+	for i := len(segs) - 1; i >= 0; i-- {
+		seg, err := url.PathUnescape(segs[i])
+		if err != nil {
+			seg = segs[i]
+		}
+		if seg = strings.TrimSpace(seg); strings.ContainsFunc(seg, unicode.IsLetter) {
+			return seg
+		}
+	}
+	return u.Hostname()
 }
 
 // referenceName picks a new reference asset's name: the caller's, else the
@@ -229,6 +253,8 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		asset   models.Asset
 		outcome string
 		batch   models.StoreLookupBatch
+		// provisional is the name a new asset holds until its queued lookup.
+		provisional string
 	)
 	// recordTx records or updates the asset. It and the queued lookup commit
 	// together, so a recorded asset is never left without the lookup a rerun
@@ -258,7 +284,14 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 				return err
 			}
 		}
-		name := referenceName(strings.TrimSpace(req.Name), path, meta)
+		given := strings.TrimSpace(req.Name)
+		name := referenceName(given, path, meta)
+		if given == "" && req.QueueLookup && link != "" {
+			if name == "" {
+				name = nameFromLink(link)
+			}
+			provisional = name
+		}
 		if name == "" {
 			return errReferenceNameRequired
 		}
@@ -322,7 +355,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
 			return err
 		}
-		return h.queueStoreLookupTx(tx, batch, asset.ID)
+		return h.queueStoreLookupTx(tx, batch, asset.ID, provisional)
 	})
 	switch {
 	case errors.Is(err, errReferenceNameRequired):
