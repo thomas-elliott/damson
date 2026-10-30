@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Download, Library, LayoutGrid, List, RotateCw } from "lucide-react";
 
 import { cn } from "@/design-system/utils";
@@ -13,10 +13,13 @@ import { fileTypeMeta, type FileType } from "./fileTypes";
 export type FileBrowserView = "grid" | "list";
 
 export interface FileBrowserToolbarProps {
+  /** Rendered before the breadcrumb, such as a narrow layout's tree toggle. */
+  leading?: ReactNode;
   assetName: string;
   /** Current folder path; empty = pack root. */
   path: string[];
   onNavigate: (path: string[]) => void;
+  /** Adds a Library crumb that leaves the browser. */
   onExit?: () => void;
   /** Item/match count for the current listing. */
   count: number;
@@ -45,6 +48,7 @@ const crumbButton =
 
 /** Breadcrumb path navigation + active filter chips + grid/list toggle. */
 export function FileBrowserToolbar({
+  leading,
   assetName,
   path,
   onNavigate,
@@ -64,6 +68,7 @@ export function FileBrowserToolbar({
   const trimmedQuery = query?.trim();
   return (
     <Toolbar>
+      {leading}
       <Breadcrumb
         count={
           resultsMode
@@ -71,14 +76,18 @@ export function FileBrowserToolbar({
             : `${count} ${count === 1 ? "item" : "items"}`
         }
       >
-        <button
-          type="button"
-          onClick={onExit}
-          className={cn("flex items-center gap-1", crumbButton)}
-        >
-          <Library size={12} /> Library
-        </button>
-        <BreadcrumbSeparator />
+        {onExit && (
+          <>
+            <button
+              type="button"
+              onClick={onExit}
+              className={cn("flex items-center gap-1", crumbButton)}
+            >
+              <Library size={12} /> Library
+            </button>
+            <BreadcrumbSeparator />
+          </>
+        )}
         <button type="button" onClick={() => onNavigate([])} className={crumbButton}>
           {assetName}
         </button>

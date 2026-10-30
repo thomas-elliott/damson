@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   AlertTriangle,
   Check,
@@ -52,6 +52,7 @@ function plainSnippet(md: string): string {
  * and mark-reviewed actions without leaving the queue.
  */
 export function QueuePage() {
+  const navigate = useNavigate();
   const { data: imports, finished, loading, failed, reload } = useImports("in_flight");
   const { data: me } = useMe();
   useImportEvents(me?.current_library?.id);
@@ -128,6 +129,7 @@ export function QueuePage() {
           <AssetDetailPanel
             assetId={reviewing}
             onClose={() => setReviewing(null)}
+            onOpenPackage={(id) => navigate(`/library/${id}/package`)}
             onReservedWidthChange={onReservedWidthChange}
           />
         </>

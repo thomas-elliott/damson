@@ -102,16 +102,18 @@ export function FileTreeSidebar({
       className={className}
       header={
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={onExit}
-            title="Back to library"
-            className="flex items-center gap-1.5 rounded-sm text-ui font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <ChevronLeft size={13} className="shrink-0 text-subtle-foreground" />
-            {assetIcon}
-            <span className="truncate">{assetName}</span>
-          </button>
+          {onExit && (
+            <button
+              type="button"
+              onClick={onExit}
+              title="Back to library"
+              className="flex items-center gap-1.5 rounded-sm text-ui font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChevronLeft size={13} className="shrink-0 text-subtle-foreground" />
+              {assetIcon}
+              <span className="truncate">{assetName}</span>
+            </button>
+          )}
           <SearchInput
             placeholder="Search files in this pack…"
             value={query}

@@ -136,6 +136,21 @@ export function nodesAtPath(tree: TreeNode[], path: string[]): TreeNode[] {
 }
 
 /**
+ * The folders a pack wraps everything in (Assets/, or the pack's own name),
+ * which a browser should open inside rather than onto a grid holding one
+ * folder. Empty when the root holds more than one thing.
+ */
+export function loneRootPath(tree: TreeNode[]): string[] {
+  const path: string[] = [];
+  let nodes = tree;
+  while (nodes.length === 1 && nodes[0].type === "folder") {
+    path.push(nodes[0].name);
+    nodes = nodes[0].children;
+  }
+  return path;
+}
+
+/**
  * Keys of every folder shallower than `depth`, "/"-joined. Expanding exactly
  * these leaves folders at `depth` visible but shut.
  */
