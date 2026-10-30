@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
-import { Button, FieldRow, Input } from "@/design-system";
+import { BrandMark, Button, FieldRow, Input } from "@/design-system";
 import { useAuthMode } from "@/hooks/useDataQueries";
 import { localLogin } from "@/lib/localAuth";
 import { safeReturnTo } from "@/lib/returnTo";
@@ -40,9 +40,7 @@ export function LoginPage() {
     <div className="grid min-h-screen place-items-center bg-background px-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-md">
         <div className="mb-5 flex items-center gap-2.5">
-          <div className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-primary to-primary-hover font-mono text-ui font-bold text-primary-foreground">
-            D
-          </div>
+          <BrandMark />
           <h1 className="text-subhead-semibold text-foreground">Damson</h1>
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
