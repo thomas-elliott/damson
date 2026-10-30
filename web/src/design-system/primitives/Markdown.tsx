@@ -190,7 +190,7 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
         href={href}
         target="_blank"
         rel="noreferrer noopener"
-        className="break-words text-primary hover:underline"
+        className="break-words text-primary-text hover:underline"
       >
         {label}
       </a>
@@ -209,7 +209,7 @@ function renderNode(node: SyntaxNode, src: string, key: number): ReactNode {
         href={href}
         target="_blank"
         rel="noreferrer noopener"
-        className="text-primary hover:underline"
+        className="text-primary-text hover:underline"
       >
         {alt}
       </a>

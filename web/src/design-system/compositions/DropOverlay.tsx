@@ -31,7 +31,7 @@ export function DropOverlay({
       {...props}
     >
       <div className="flex flex-col items-center gap-2 text-ui">
-        <UploadCloud size={28} className="text-primary" />
+        <UploadCloud size={28} className="text-primary-text" />
         <span className="font-medium">{caption}</span>
       </div>
     </div>

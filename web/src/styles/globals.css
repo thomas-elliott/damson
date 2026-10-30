@@ -108,6 +108,7 @@
   --color-unknown-soft: var(--unknown-soft);
   --color-primary-hover: var(--primary-hover);
   --color-swatch-foreground: var(--swatch-foreground);
+  --color-primary-text: var(--primary-text);
   --color-control: var(--control);
   --color-control-hover: var(--control-hover);
   --color-category-3d: var(--category-3d);
