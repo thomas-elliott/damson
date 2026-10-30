@@ -15,6 +15,7 @@ import {
   FieldRow,
   Input,
 } from "@/design-system";
+import { useStoreLookupBatch } from "@/hooks/useDataQueries";
 import {
   usePreviewMetadata,
   useRecordReference,
@@ -43,9 +44,15 @@ const RESULT_TITLE: Record<ReferenceRecordResult["outcome"], string> = {
 /**
  * AddByLocationButton opens the dialog that records an asset by where it lives
  * (a path on the NFS store and/or a store link) without importing its data.
+ * It outlives the dialog, so it follows the store lookups recorded links
+ * queue and refreshes the library when they land.
  */
 export function AddByLocationButton({ onOpenAsset }: { onOpenAsset: (id: number) => void }) {
   const [open, setOpen] = useState(false);
+  // The server runs lookups one at a time, in order, so once the latest
+  // record's lookup is done the earlier ones are too.
+  const [lookupBatchId, setLookupBatchId] = useState<number | null>(null);
+  useStoreLookupBatch(lookupBatchId);
   return (
     <>
       <Button variant="secondary" leadingIcon={<MapPin size={12} />} onClick={() => setOpen(true)}>
@@ -55,6 +62,7 @@ export function AddByLocationButton({ onOpenAsset }: { onOpenAsset: (id: number)
       {open && (
         <AddByLocationDialog
           onOpenChange={setOpen}
+          onLookupQueued={setLookupBatchId}
           onOpenAsset={(id) => {
             setOpen(false);
             onOpenAsset(id);
@@ -68,9 +76,11 @@ export function AddByLocationButton({ onOpenAsset }: { onOpenAsset: (id: number)
 export function AddByLocationDialog({
   onOpenChange,
   onOpenAsset,
+  onLookupQueued,
 }: {
   onOpenChange: (open: boolean) => void;
   onOpenAsset: (id: number) => void;
+  onLookupQueued?: (batchId: number) => void;
 }) {
   const record = useRecordReference();
   const preview = usePreviewMetadata();
@@ -84,7 +94,8 @@ export function AddByLocationDialog({
   const lookupURL = isHttpURL(trimmedLink) ? trimmedLink : "";
   const { mutate: lookup, reset: resetLookup } = preview;
 
-  // The store match shows before adding: look the link up once it settles.
+  // The store match shows while the form is filled in: look the link up once
+  // it settles. Adding never waits for it; the record queues its own lookup.
   useEffect(() => {
     resetLookup();
     if (!lookupURL) return;
@@ -102,9 +113,15 @@ export function AddByLocationDialog({
         location_path: path.trim() || undefined,
         source_url: trimmedLink || undefined,
         name: name.trim() || undefined,
+        // The store lookup runs in the background, so adding doesn't wait on
+        // the store; the details fill in when it lands.
+        queue_lookup: trimmedLink ? true : undefined,
       },
       {
-        onSuccess: setResult,
+        onSuccess: (res) => {
+          setResult(res);
+          if (res.lookup_batch_id) onLookupQueued?.(res.lookup_batch_id);
+        },
         onError: (err) => {
           if (err instanceof ApiError && err.status === 422) setNeedsName(true);
         },
@@ -129,6 +146,11 @@ export function AddByLocationDialog({
             <div className="flex flex-col gap-1" role="status">
               <p className="text-ui font-medium text-foreground">{RESULT_TITLE[result.outcome]}</p>
               <p className="text-label text-muted-foreground">{result.name}</p>
+              {result.lookup_batch_id ? (
+                <p className="text-label text-subtle-foreground">
+                  The store details fill in once the store link has been looked up.
+                </p>
+              ) : null}
             </div>
           ) : (
             <form
@@ -231,7 +253,11 @@ function StoreMatch({
   cover?: string;
 }) {
   if (pending) {
-    return <p className="text-label text-subtle-foreground">Looking up the store link…</p>;
+    return (
+      <p className="text-label text-subtle-foreground">
+        Looking up the store link… You can add it now; the details fill in afterwards.
+      </p>
+    );
   }
   if (failed) {
     return (
