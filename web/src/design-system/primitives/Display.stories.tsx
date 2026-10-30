@@ -22,18 +22,10 @@ export const Badges: Story = {
       <div className="flex items-center gap-2">
         <Badge>Neutral</Badge>
         <Badge tone="accent">Accent</Badge>
-        <Badge tone="ok">
-          <StatusDot tone="ok" /> Compliant
-        </Badge>
-        <Badge tone="warn">
-          <StatusDot tone="warn" /> Review
-        </Badge>
-        <Badge tone="err">
-          <StatusDot tone="err" /> Violation
-        </Badge>
-        <Badge tone="unk">
-          <StatusDot tone="unk" /> Unknown
-        </Badge>
+        <Badge tone="ok">Compliant</Badge>
+        <Badge tone="warn">Review</Badge>
+        <Badge tone="err">Violation</Badge>
+        <Badge tone="unk">Unknown</Badge>
       </div>
       <div className="flex items-center gap-2">
         <Badge size="sm">Small</Badge>
@@ -51,16 +43,16 @@ export const Pills: Story = {
   render: () => (
     <div className="flex items-center gap-2">
       <Pill mono tone="ok">
-        <StatusDot tone="ok" /> MIT
+        MIT
       </Pill>
       <Pill mono tone="warn">
-        <StatusDot tone="warn" /> CC-BY-NC
+        CC-BY-NC
       </Pill>
       <Pill mono tone="err">
-        <StatusDot tone="err" /> Unity EULA
+        Unity EULA
       </Pill>
       <Pill mono tone="unk">
-        <StatusDot tone="unk" /> Unknown
+        Unknown
       </Pill>
       <Pill tone="accent">
         <Sliders size={10} /> Smart
@@ -88,8 +80,12 @@ export const Chips: Story = {
 export const Tags: Story = {
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
-      <Tag>sprites</Tag>
-      <Tag>ui/icons</Tag>
+      <Tag>3d/environment/fantasy</Tag>
+      <Tag>3d/character/humanoid/human</Tag>
+      <Tag>2d/gui</Tag>
+      <Tag>audio/sound-fx</Tag>
+      <Tag>vfx/particles</Tag>
+      <Tag>tools/utilities</Tag>
       <Tag>game-ready</Tag>
       <Tag variant="add">Add tag</Tag>
     </div>

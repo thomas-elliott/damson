@@ -3,10 +3,10 @@ import { cn, cva, type VariantProps } from "@/design-system/utils";
 const dot = cva("inline-block rounded-full", {
   variants: {
     tone: {
-      accent: "bg-primary",
-      ok: "bg-success",
-      warn: "bg-warning",
-      err: "bg-destructive",
+      accent: "bg-primary shadow-[0_0_6px_var(--primary)]",
+      ok: "bg-success shadow-[0_0_6px_var(--success)]",
+      warn: "bg-warning shadow-[0_0_6px_var(--warning)]",
+      err: "bg-destructive shadow-[0_0_6px_var(--destructive)]",
       unk: "bg-unknown",
       neutral: "bg-subtle-foreground",
     },

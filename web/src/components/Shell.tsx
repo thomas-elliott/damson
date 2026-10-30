@@ -11,7 +11,14 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 
-import { AppShell, LoadingState, NavRail, NavRailItem, NavRailSpacer } from "@/design-system";
+import {
+  AppShell,
+  BrandMark,
+  LoadingState,
+  NavRail,
+  NavRailItem,
+  NavRailSpacer,
+} from "@/design-system";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { UserMenu } from "@/components/UserMenu";
 import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
@@ -53,7 +60,7 @@ function DamsonRail({ displayName, email }: { displayName: string; email: string
   const { unreadCount, inFlightCount, toggleOpen } = useNotifications();
   const notifBadge = unreadCount + inFlightCount;
   return (
-    <NavRail brand={<DamsonBrand />}>
+    <NavRail brand={<BrandMark />}>
       <RailLink
         to="/library"
         icon={<Library size={16} />}
@@ -129,16 +136,5 @@ function RailLink({
         <NavRailItem icon={icon} label={label} active={active ?? isActive} badge={badge} />
       )}
     </NavLink>
-  );
-}
-
-function DamsonBrand() {
-  return (
-    <div
-      aria-label="Damson"
-      className="grid h-[30px] w-[30px] place-items-center rounded-md bg-gradient-to-br from-primary to-primary-hover font-mono text-ui font-bold text-primary-foreground"
-    >
-      D
-    </div>
   );
 }

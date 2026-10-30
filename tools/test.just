@@ -71,11 +71,12 @@ e2e *ARGS: _e2e-server
       pnpm run e2e -- {{ ARGS }}
     fi
 
-# Every *.stories.tsx as a test in real Chromium, with axe-core a11y checks
+# Every *.stories.tsx as a test in real Chromium, with axe-core a11y checks, in both themes
 [working-directory('../web')]
 stories:
     just _web-deps
     pnpm run test:stories -- --run
+    STORYBOOK_THEME=light pnpm run test:stories -- --run
 
 # Vitest watch mode (unit project)
 [working-directory('../web')]
