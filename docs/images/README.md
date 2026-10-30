@@ -7,6 +7,7 @@ The images in this directory are used by the README, `docs/getting-started.md` a
 - A real instance: the built server and SPA, Postgres, local storage, signed in as a local-mode admin.
 - 1440×900 viewport, device scale factor 1, light theme, headless Chrome with no browser chrome in the frame. The one exception is `dmsn-sync-scan.png`, which is real `dmsn sync scan` output set in a terminal box.
 - Auto-enrich was off while importing. With it on, a pack whose name resembles a storefront listing picks up that listing's publisher, description and licence, and can be renamed.
+- Every person, email and company in the images is a placeholder: the admin is `admin@example.com`, the invited member is `member@example.com` ("Example Member"), and publishers are names like "Example Studio" and "Sample Works". Use `example.com` for any email address and keep names obviously fictional. Do not use a real person's or studio's name, or a domain you did not make up.
 - Sample packs were generated, not downloaded: stylised cover art, textures, fake meshes, short WAV loops, and licence files holding real licence text (Unity Asset Store EULA, MIT, Apache-2.0, CC0-1.0, GPL-3.0). Nothing in them comes from a third party's product.
 - Pack versions carry a version label equal to their store version, because the project page shows labels, not store versions. See [Pin a project to a version you have tested](../how-to/pin-versions.md).
 

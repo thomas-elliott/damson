@@ -47,8 +47,8 @@ TOKEN=$(curl -sS -X POST localhost:8080/api/auth/login \
 curl -sS -X POST localhost:8080/api/libraries \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Hollow Client Work","description":"Licensed material, do not reuse"}'
-# {"id":2,"name":"Hollow Client Work","description":"Licensed material, do not reuse"}
+  -d '{"name":"Client Work","description":"Licensed material, do not reuse"}'
+# {"id":2,"name":"Client Work","description":"Licensed material, do not reuse"}
 ```
 
 The creator becomes its admin. It does not become your current library; switching is a separate step.
@@ -59,7 +59,7 @@ No instance-wide setting restricts creation, so any authenticated user can creat
 
 The **Switch library** button in the header lists every library you belong to, with your role in each. Picking one changes your current library for every screen and API call.
 
-![The Switch library menu open, listing Personal and Project Hollow with their role badges and a tick on the current library](../images/library-switcher.png)
+![The Switch library menu open, listing Personal and Sample Library with their role badges and a tick on the current library](../images/library-switcher.png)
 
 Over the API:
 
