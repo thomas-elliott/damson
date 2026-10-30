@@ -353,7 +353,8 @@ carries `library_id`, and a server-level event carries `NULL`. Diffs use `audit.
   is URL-addressable (`/library/:assetId`).
 - Server state goes through TanStack Query. Keys are in `lib/queryKeys.ts`, read hooks in
   `hooks/useDataQueries.ts` and mutations in `hooks/useMutations.ts`. Filter, search and paging
-  state is kept in the URL (`lib/libraryFilters.ts`: `page` and `page_size` beside the filters).
+  state is kept in the URL (`lib/libraryFilters.ts`: `page` and `page_size` beside the filters;
+  each ticked tag is a repeated `tag`, sent to the API as a repeated `tag_path`).
   Anything that changes the filters, search or sort writes through `withPage(search, 1)` so the
   view starts again from page 1; a page past the end is moved to the last page once the total is
   known.

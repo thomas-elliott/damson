@@ -86,13 +86,13 @@ The bulk action always runs the detector over the pasted text and stores its ans
 
 ## Find the assets that need you
 
-The **Licence** section of the library filter sidebar has one chip per status: **Compliant**, **Review**, **Violation**, **Unknown**. Click one to filter the grid and click it again to clear.
+Open **Filters** on the library toolbar. Its **Licence** section has one row per status: **Compliant**, **Review**, **Violation**, **Unknown**. Click one to filter the grid, and click it again, or the chip under the toolbar, to clear it.
 
-![The filter sidebar with the Licence section expanded and Unknown active, and four matching assets in the grid](../images/library-filter-licence-unknown.png)
+![The Filters popover with Unknown active under Licence, its chip under the toolbar, and the matching assets in the grid](../images/library-filter-licence-unknown.png)
 
 Start with **Unknown**. Damson knows nothing about those assets, whereas the answer for an amber one is merely unreviewed.
 
-To filter by one exact licence type, add `spdx=` to the library URL by hand. The page reads the parameter, but nothing in the sidebar sets it.
+To filter by one exact licence type, add `spdx=` to the library URL by hand. The page reads the parameter and shows it as a chip, but nothing in **Filters** sets it.
 
 ```
 /library?spdx=GPL-3.0
