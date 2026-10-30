@@ -251,6 +251,13 @@ person's fetch and apply, recording a reference, and background store lookups (`
 which the queue runs). `Prepare` does the reads and downloads; `Plan.Write` does every write in the
 caller's transaction, so an apply that fails writes nothing.
 
+Recording a reference with `queue_lookup` (the SPA's Add by location, `dmsn` purchase runs) answers
+before the store does. A new asset the caller didn't name is named from its path, else its link,
+and that name is saved on the `store_lookups` row as `provisional_name`. When the lookup runs, it
+replaces that name with the store's title, the same title an immediate lookup would have given.
+It doesn't replace the name if someone has renamed the asset since, or if only the generic scraper
+answered.
+
 ### Traps
 
 - Fetch remote URLs only through `metadata.Client`. It is the SSRF guard (checked at dial time, so
