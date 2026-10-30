@@ -1,4 +1,10 @@
-import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useEffect } from "react";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 
 import { fetchJson, isAuthRedirectError } from "@/api";
 import { fetchAuthMode, type AuthModeInfo } from "@/lib/authMode";
@@ -829,6 +835,48 @@ export function useImports(
     loading: q.isPending,
     error: q.error,
     failed: failedToLoad(q),
+    reload: q.refetch,
+  };
+}
+
+// -- /api/store-lookups/batches/:id ---------------------------------------
+
+export interface StoreLookupBatchView {
+  batch_id: number;
+  total: number;
+  queued: number;
+  done: number;
+  failed: number;
+}
+
+// How often a batch with lookups still queued is asked about. The server
+// spaces lookups to one store a couple of seconds apart, so a record's lookup
+// lands within a few polls.
+const LOOKUP_POLL_MS = 2000;
+
+// useStoreLookupBatch follows a batch of background store lookups until none
+// is queued, then refetches the assets, so what the lookups filled in shows.
+export function useStoreLookupBatch(batchId: number | null) {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: batchId ? queryKeys.storeLookupBatch(batchId) : ["storeLookupBatch", "none"],
+    queryFn: () => fetchJson<StoreLookupBatchView>(`/api/store-lookups/batches/${batchId}`),
+    enabled: batchId != null,
+    refetchInterval: (query) => (query.state.data?.queued === 0 ? false : LOOKUP_POLL_MS),
+    gcTime: 5 * MINUTE,
+  });
+  const finishedAt = q.data?.queued === 0 ? q.dataUpdatedAt : 0;
+  useEffect(() => {
+    if (!finishedAt) return;
+    qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    qc.invalidateQueries({ queryKey: queryKeys.anyAsset });
+    qc.invalidateQueries({ queryKey: queryKeys.assetFacets });
+    qc.invalidateQueries({ queryKey: queryKeys.tags });
+  }, [finishedAt, qc]);
+  return {
+    data: q.data ?? null,
+    loading: q.isPending,
+    error: q.error,
     reload: q.refetch,
   };
 }

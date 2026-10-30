@@ -43,8 +43,12 @@ type StoreLookup struct {
 	Applied   json.RawMessage `gorm:"type:jsonb;not null;default:'[]'"`
 	Conflicts json.RawMessage `gorm:"type:jsonb;not null;default:'[]'"`
 	Error     string          `gorm:"not null;default:''"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// ProvisionalName is the name a reference was recorded under while this
+	// lookup was queued (migration 032). The lookup may replace it with the
+	// store's title while the asset still has it. Empty for every other lookup.
+	ProvisionalName string `gorm:"not null;default:''"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func (StoreLookup) TableName() string { return "store_lookups" }

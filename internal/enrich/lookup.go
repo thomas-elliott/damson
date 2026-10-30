@@ -33,7 +33,8 @@ type Lookups struct {
 // what it found, saves the source record and records the outcome on the row,
 // all in one transaction. A refresh may replace fields a person hasn't
 // changed, and marks the asset Needs review when it changes one; any other
-// lookup fills blanks only. An error is returned only for what a retry could
+// lookup fills blanks only, and replaces the name a reference was recorded
+// under only while it waited for this lookup. An error is returned only for what a retry could
 // fix; a lookup the store can't answer is recorded as failed.
 func (l *Lookups) Run(ctx context.Context, lookupID uint) error {
 	db := l.DB.WithContext(ctx)
@@ -74,7 +75,14 @@ func (l *Lookups) Run(ctx context.Context, lookupID uint) error {
 	// A generic-scraper answer is not the store's details, so even a refresh
 	// only fills blanks with it, and it never replaces a record a store lookup
 	// left: the next refresh would read the store's values as a person's.
+	// A name the asset was given only until this lookup ran gives way to the
+	// store's title, but not to a page title, and not once someone renamed it.
+	var confirm map[string]bool
+	if lk.ProvisionalName != "" && asset.Name == lk.ProvisionalName && !meta.StoreLookupFailed {
+		confirm = map[string]bool{"name": true}
+	}
 	plan, err := Prepare(ctx, Deps{DB: l.DB, Storage: l.Storage, Images: l.Metadata}, &asset, meta, Options{
+		Confirm: confirm,
 		Refresh: batch.Refresh && !meta.StoreLookupFailed,
 		UserID:  batch.CreatedByUserID,
 		By:      licence.Automatic,

@@ -17,7 +17,7 @@ vi.mock("@/components/filebrowser/useFileObjectUrl", () => ({
   useBlobUrl: () => undefined,
 }));
 
-const { AddByLocationDialog } = await import("./AddByLocationDialog");
+const { AddByLocationButton, AddByLocationDialog } = await import("./AddByLocationDialog");
 
 type Route = (init?: RequestInit) => unknown;
 let routes: Record<string, Route>;
@@ -126,10 +126,74 @@ describe("AddByLocationDialog", () => {
     expect(onOpenAsset).toHaveBeenCalledWith(9);
   });
 
+  it("adds a store link without waiting for the store lookup", async () => {
+    // The lookup never answers: adding must not wait on it.
+    routes["/api/metadata/preview"] = () => new Promise(() => {});
+    routes["/api/assets/references"] = () => ({
+      outcome: "created",
+      asset_id: 41,
+      name: "polygon-fantasy-kingdom",
+      lookup_batch_id: 7,
+    });
+    renderDialog();
+    fireEvent.change(screen.getByLabelText("Path"), { target: { value: "/mnt/nfs/Kingdom" } });
+    fireEvent.change(screen.getByLabelText("Store link"), {
+      target: { value: "https://assetstore.unity.com/packages/polygon-fantasy-kingdom" },
+    });
+    expect(await screen.findByText(/You can add it now/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("Added to your library")).toBeInTheDocument();
+    expect(screen.getByText(/The store details fill in/)).toBeInTheDocument();
+    expect(postedBodies()).toEqual([
+      {
+        location_path: "/mnt/nfs/Kingdom",
+        source_url: "https://assetstore.unity.com/packages/polygon-fantasy-kingdom",
+        queue_lookup: true,
+      },
+    ]);
+  });
+
+  it("refreshes the library once a queued store lookup has run", async () => {
+    routes["/api/metadata/preview"] = () => ({});
+    routes["/api/assets/references"] = () => ({
+      outcome: "created",
+      asset_id: 41,
+      name: "k-1",
+      lookup_batch_id: 7,
+    });
+    routes["/api/store-lookups/batches/7"] = () => ({
+      batch_id: 7,
+      total: 1,
+      queued: 0,
+      done: 1,
+      failed: 0,
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    render(
+      <QueryClientProvider client={client}>
+        <AddByLocationButton onOpenAsset={() => {}} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add by location" }));
+    fireEvent.change(screen.getByLabelText("Store link"), {
+      target: { value: "https://assetstore.unity.com/packages/k-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Done" }));
+
+    await waitFor(() =>
+      expect(fetchJson).toHaveBeenCalledWith("/api/store-lookups/batches/7", undefined),
+    );
+    await waitFor(() =>
+      // Recording invalidates only the new asset's own queries; every asset's
+      // are refetched once the lookup has run.
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["asset"] }),
+    );
+  });
+
   it("asks for a name only when the server can't derive one", async () => {
-    routes["/api/metadata/preview"] = () => {
-      throw new ApiError(502, {}, "could not fetch listing");
-    };
     let calls = 0;
     routes["/api/assets/references"] = () => {
       calls++;
@@ -138,9 +202,7 @@ describe("AddByLocationDialog", () => {
     };
     renderDialog();
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Store link"), {
-      target: { value: "https://example.com/broken" },
-    });
+    fireEvent.change(screen.getByLabelText("Path"), { target: { value: "/" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     const nameField = await screen.findByLabelText("Name");
@@ -149,21 +211,15 @@ describe("AddByLocationDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(screen.getByText("Added to your library")).toBeInTheDocument());
-    expect(postedBodies()[1]).toEqual({
-      source_url: "https://example.com/broken",
-      name: "Hand Named",
-    });
+    expect(postedBodies()[1]).toEqual({ location_path: "/", name: "Hand Named" });
   });
 
   it("stops requiring a name once the path changes", async () => {
-    routes["/api/metadata/preview"] = () => ({});
     routes["/api/assets/references"] = () => {
       throw new ApiError(422, {}, "name is required");
     };
     renderDialog();
-    fireEvent.change(screen.getByLabelText("Store link"), {
-      target: { value: "https://example.com/broken" },
-    });
+    fireEvent.change(screen.getByLabelText("Path"), { target: { value: "/" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     await screen.findByLabelText("Name");
     fireEvent.change(screen.getByLabelText("Path"), { target: { value: "/mnt/nfs/Pack" } });
