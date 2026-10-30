@@ -43,7 +43,7 @@ An asset cannot hold two versions with the same store version. A second upload a
 
 ## Fix a version's numbers
 
-Expand **Versions** on the asset panel and press the pencil on a row. Edit the store version and label, then press the tick to save or the cross to cancel (Enter saves, Escape cancels).
+Open the asset's package page, expand **Versions** and press the pencil on a row. Edit the store version and label, then press the tick to save or the cross to cancel (Enter saves, Escape cancels).
 
 The store version must be a dotted number. `2.1-beta` is rejected with "store_version must be a dotted number like 1.1". Put it in the label instead.
 
@@ -70,7 +70,7 @@ dmsn bulk refresh --store unity            # everything matching a filter
 
 A refresh fills blanks and replaces what the last lookup wrote, but never a field a person has edited. It reports those as kept. Lookups run one at a time on the server, and stopping `dmsn` stops the waiting, not the work. `dmsn bulk refresh --batch <id>` picks the report up later.
 
-You can also type the number yourself. The asset panel's **Edit details** form has a **Store version** field that writes the same `latest_store_version`.
+You can also type the number yourself. The package page's **Edit details** form has a **Store version** field that writes the same `latest_store_version`.
 
 Then find the assets:
 

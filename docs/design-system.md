@@ -50,6 +50,9 @@ and now live in `primitives/` and `compositions/` like everything else. They kee
   with counts and fills in any level that exists only as part of a deeper path; the first level
   is too broad to filter by, so it can be opened but not ticked. A page wraps the picker in a
   `Popover`.
+- **`LicencePill` shows `warn` as a plain label.** `warn` is a licence with terms to read, such as
+  a store EULA, not a fault, and orange is needs review, so the pill drops its dot. `ok`, `err`
+  and `unk` keep theirs. `LicenceBar` still colours `warn` segments orange.
 - **`Tag` reads a string child as a path** (`3d/character/humanoid`), shows it step by step and
   takes its colour from the first step. The luggage-tag shape is on an inner span because
   `clip-path` on the button would clip its focus outline.
