@@ -146,7 +146,7 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 				skipped++
 				continue
 			}
-			if err := h.queueStoreLookupTx(tx, batch, a.ID); err != nil {
+			if err := h.queueStoreLookupTx(tx, batch, a.ID, ""); err != nil {
 				return err
 			}
 		}
@@ -191,9 +191,13 @@ func lookupKind(refresh bool) string {
 }
 
 // queueStoreLookupTx adds one queued lookup to the batch and enqueues its
-// job in the same transaction, so neither outlives the other.
-func (h *Handler) queueStoreLookupTx(tx *gorm.DB, batch models.StoreLookupBatch, assetID uint) error {
-	lk := models.StoreLookup{BatchID: batch.ID, LibraryID: batch.LibraryID, AssetID: assetID, Status: models.StoreLookupQueued}
+// job in the same transaction, so neither outlives the other. A non-empty
+// provisionalName lets the lookup rename the asset; see models.StoreLookup.
+func (h *Handler) queueStoreLookupTx(tx *gorm.DB, batch models.StoreLookupBatch, assetID uint, provisionalName string) error {
+	lk := models.StoreLookup{
+		BatchID: batch.ID, LibraryID: batch.LibraryID, AssetID: assetID,
+		Status: models.StoreLookupQueued, ProvisionalName: provisionalName,
+	}
 	if err := tx.Create(&lk).Error; err != nil {
 		return err
 	}
