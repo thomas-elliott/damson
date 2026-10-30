@@ -1,5 +1,6 @@
 import { cn } from "@/design-system/utils";
 
+import { leafOf, parentOf } from "./tagPath";
 import { TypesetCover } from "./TypesetCover";
 
 export interface TagIndexCover {
@@ -47,9 +48,8 @@ export function TagIndexCard({
   onOpen,
   className,
 }: TagIndexCardProps) {
-  const i = path.lastIndexOf("/");
-  const parent = i < 0 ? null : path.slice(0, i);
-  const name = path.slice(i + 1);
+  const parent = parentOf(path);
+  const name = leafOf(path);
   return (
     <button
       type="button"

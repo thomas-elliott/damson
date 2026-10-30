@@ -50,7 +50,12 @@ export const Tag = forwardRef<HTMLButtonElement, TagProps>(function Tag(
   return (
     // The shape sits on an inner span: clip-path on the button would clip its
     // focus outline too.
-    <button ref={ref} type={type} className={cn("inline-flex rounded-xs", className)} {...props}>
+    <button
+      ref={ref}
+      type={type}
+      className={cn("group inline-flex rounded-xs", className)}
+      {...props}
+    >
       <span
         className={cn(
           "inline-flex h-[22px] items-center gap-1 rounded-r-xs pl-3.5 pr-2 text-label font-semibold text-foreground transition-[filter] duration-fast ease-standard hover:brightness-110",
@@ -58,12 +63,18 @@ export const Tag = forwardRef<HTMLButtonElement, TagProps>(function Tag(
           "[clip-path:polygon(6px_0,100%_0,100%_100%,6px_100%,0_50%)]",
           "[mask-image:radial-gradient(circle_at_7px_50%,transparent_2px,black_2.5px)]",
           path ? categoryBg(path) : "bg-category-other",
+          // A pressed tag (ticked, in a picker) takes the brand fill.
+          "group-aria-pressed:bg-primary group-aria-pressed:text-primary-foreground",
         )}
       >
         {path
           ? path.split("/").map((step, i) => (
               <span key={i} className="inline-flex items-center gap-1">
-                {i > 0 && <span className="font-normal text-subtle-foreground">/</span>}
+                {i > 0 && (
+                  <span className="font-normal text-subtle-foreground group-aria-pressed:text-primary-foreground">
+                    /
+                  </span>
+                )}
                 {step}
               </span>
             ))
