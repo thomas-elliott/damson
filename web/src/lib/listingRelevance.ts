@@ -1,7 +1,9 @@
 // A store search for an unmatched asset returns whatever the store ranks
 // highest, which for a name like "Sample Terrain Textures" is Gaia Pro and
-// Behavior Designer. A suggestion is worth showing only when it shares most of
-// the asset's words; the rest are noise the user would have to read past.
+// Behavior Designer. A suggestion is worth showing only when the two names are
+// mostly the same words, both ways round: most of the asset's name is in the
+// title, and most of the title is the asset's name. One way round lets "Sample
+// Props" match every listing with "Props" in it.
 
 // Words that say nothing about which pack this is.
 const FILLER = new Set([
@@ -35,7 +37,8 @@ function words(s: string): Set<string> {
 /**
  * Whether a store listing is plausibly the asset: more than half of the asset
  * name's meaningful words appear in the listing title, so a two-word name needs
- * both. A name with no meaningful words matches nothing.
+ * both, and at least half of the title's are the asset's. A name with no
+ * meaningful words matches nothing.
  */
 export function isRelevantListing(assetName: string, listingTitle: string): boolean {
   const name = words(assetName);
@@ -43,7 +46,7 @@ export function isRelevantListing(assetName: string, listingTitle: string): bool
   const title = words(listingTitle);
   let shared = 0;
   for (const w of name) if (title.has(w)) shared++;
-  return shared / name.size > 0.5;
+  return shared / name.size > 0.5 && shared / title.size >= 0.5;
 }
 
 /** The candidates worth showing for an asset, in the store's order. */

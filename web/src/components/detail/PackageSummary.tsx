@@ -187,7 +187,9 @@ export function PackageSummary({
 function PackageCover({ asset }: { asset: AssetDetailView }) {
   if (asset.images.length > 0) return <AssetGallery images={asset.images} />;
   return (
-    <div className="aspect-video w-full overflow-hidden rounded-md">
+    // Capped, so on a reference asset's wide single column the path stays in
+    // the first screen.
+    <div className="aspect-video max-h-48 w-full overflow-hidden rounded-md">
       <TypesetCover name={asset.name} publisher={asset.publisher} />
     </div>
   );
