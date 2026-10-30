@@ -44,7 +44,7 @@ The first three are automatic writers. An automatic writer never replaces a lice
 
 A person's write always replaces what was there and clears the review mark, because the reviewed licence is gone.
 
-> _[Screenshot: the asset detail panel's Licence section showing a `unity-eula` pill, a "95% match" badge, the six-row attribute grid, and the **Mark reviewed** button.]_
+![The Licence section of the asset panel: a unity-eula pill, a 95% match badge, six attribute rows and a Mark reviewed button](../images/asset-licence-panel.png)
 
 ## Set a licence by hand
 
@@ -80,7 +80,7 @@ When assets share a licence, such as everything from one publisher, set it in on
 3. Press **Licence** on the bulk bar at the bottom.
 4. Paste the text and press **Apply licence**.
 
-> _[Screenshot: the Library grid with four cards selected and the bulk action bar showing Mark reviewed / Needs review / Tag / Collection / Licence / Delete / Clear.]_
+![The Library grid with four cards selected and the bulk action bar at the bottom](../images/library-bulk-bar.png)
 
 The bulk action always runs the detector over the pasted text and stores its answer, with no "save as custom". It is one transaction over up to 1000 assets. It counts as a person's write, so it replaces reviewed licences too. Each asset gets its own audit entry.
 
@@ -88,7 +88,7 @@ The bulk action always runs the detector over the pasted text and stores its ans
 
 The **Licence** section of the library filter sidebar has one chip per status: **Compliant**, **Review**, **Violation**, **Unknown**. Click one to filter the grid and click it again to clear.
 
-> _[Screenshot: the library filter sidebar with the Licence section expanded and **Unknown** active.]_
+![The filter sidebar with the Licence section expanded and Unknown active, and four matching assets in the grid](../images/library-filter-licence-unknown.png)
 
 Start with **Unknown**. Damson knows nothing about those assets, whereas the answer for an amber one is merely unreviewed.
 
@@ -109,7 +109,7 @@ dmsn assets --licence GPL-3.0
 
 A project is a set of pinned asset versions (see [Pin a project to a version you have tested](pin-versions.md)). Once something is pinned, its page opens with a **Licence mix** bar: a stacked bar with counts of compliant, review, violation and unknown across every pin.
 
-> _[Screenshot: a project page's Licence mix bar with its four counts underneath, above the Pinned assets table.]_
+![A project page's Licence mix bar and its four counts above the Pinned assets table](../images/project-page.png)
 
 Each row in the **Pinned assets** table shows its asset's licence pill. A non-zero violation count on a project whose target distribution is `commercial` means stop and look.
 

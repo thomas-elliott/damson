@@ -19,7 +19,7 @@ The current version is the one the asset's Files section and grid tile describe,
 
 A version with a store version always outranks one without, whatever the dates. A version whose files have not finished landing is passed over, so a half-finished import never becomes current.
 
-> _[Screenshot: the asset panel's Versions section with three versions, the current one marked, each showing its file count, size and import date.]_
+![The asset panel's Versions section listing 2.2 (current), 2.1 and 1.8 with file counts, sizes and import dates](../images/asset-versions-panel.png)
 
 ## Add a version
 
@@ -37,7 +37,7 @@ In the web UI there is an extra step. An upload always creates a new asset. Dams
 
 Press **Add as version** and Damson re-sends the file attached to that asset, then deletes the standalone asset it created. If you ignore the notification, you keep two assets.
 
-> _[Screenshot: the notification centre showing the "Possible new version of…" card with its **Add as version** action.]_
+![The notification centre with a Possible new version card offering Add as version](../images/notification-new-version.png)
 
 An asset cannot hold two versions with the same store version. A second upload at `2.1` is refused with a 409 telling you to delete or replace the existing one. Two versions with no store version are fine.
 
@@ -77,7 +77,7 @@ Then find the assets:
 - **Library → filter sidebar → Updates → Updates available**, or
 - `dmsn assets --updates-available`.
 
-> _[Screenshot: the library filter sidebar with the Updates section expanded and "Updates available" ticked, and the grid behind it showing flagged assets.]_
+![The filter sidebar with Updates available selected and three flagged assets in the grid](../images/library-filter-updates.png)
 
 ## Set up a project and pin to it
 
@@ -89,7 +89,7 @@ To pin:
 2. Press **Pin asset**.
 3. Search for the asset, pick a version from the dropdown, and confirm.
 
-> _[Screenshot: the Pin an asset dialog with an asset chosen and the version dropdown open.]_
+![The Pin an asset dialog with Mossy Forest Environment chosen and the version dropdown open](../images/project-pin-dialog.png)
 
 Over the API, omitting the version pins the asset's current version:
 
@@ -111,15 +111,17 @@ The **Pinned assets** table has a row per pin:
 | Column | What it tells you |
 |---|---|
 | Asset | Links to the asset |
-| Pinned | The store version or label this project is on |
-| Latest | The asset's current version, amber with an ↑ when it differs from Pinned |
+| Pinned | The version label of the pinned version. Blank if it has none |
+| Latest | The version label of the asset's current version, amber with an ↑ when it differs from Pinned. `—` if that version has no label |
 | Licence | The licence pill, so a problem is visible without leaving the page |
 | Size | The pinned version's bytes |
 | Status | **Up to date**, or an **Upgrade to 2.2** button |
 
 **Upgrade to 2.2** moves the pin to the asset's current version in one click. Nothing is downloaded or deleted, because a pin is a pointer.
 
-> _[Screenshot: a project's Pinned assets table with one row showing an "Upgrade to 2.2" action and the rest up to date.]_
+The table shows the version label, not the store version. A version that has only a store version, which is every version an upload creates, shows a blank Pinned cell and `—` under Latest, and its upgrade button reads "Upgrade to" with nothing after it. Give each version a label (see [Fix a version's numbers](#fix-a-versions-numbers)) and the table reads as above. The screenshot's labels match its store versions.
+
+![A project page whose Pinned assets table shows Mossy Forest Environment with an Upgrade to 2.2 action and every other row up to date](../images/project-page.png)
 
 "Latest" means the newest version in your library, not on the store. The project page answers "am I on the newest version we have imported"; the Updates available filter answers "is there a newer one we have not imported". A pack can be current by one and behind by the other.
 

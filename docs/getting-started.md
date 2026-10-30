@@ -138,8 +138,7 @@ becomes the `sysadmin` and gets a library called **Personal**.
 Open <http://localhost:8080>. With no users in the database, the app routes you
 to `/bootstrap` and shows a **Create the first admin** form.
 
-> _[Screenshot: the `/bootstrap` "Create the first admin" form on a fresh
-> install.]_
+![The Create the first admin form with email, password and confirm password filled in](images/first-run-bootstrap.png)
 
 Fill in **Email**, **Password** and **Confirm password**, then press **Create
 account**. The password must be at least 8 characters. You land in `/library`,
@@ -194,8 +193,8 @@ TOKEN=$(curl -sS -X POST localhost:8080/api/auth/login \
 curl -sS -X POST localhost:8080/api/libraries \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Project Hollow","description":"Assets for the Hollow build"}'
-# {"id":2,"name":"Project Hollow","description":"Assets for the Hollow build"}
+  -d '{"name":"Sample Library","description":"Assets for the sample build"}'
+# {"id":2,"name":"Sample Library","description":"Assets for the sample build"}
 ```
 
 Whoever creates a library becomes its admin. The new library does not become
@@ -203,8 +202,7 @@ your current one. Switch to it from the library picker in the header (the
 **Switch library** button, which lists every library you belong to), or post the
 id to `/api/me/current-library`.
 
-> _[Screenshot: the library picker dropdown open, showing two libraries with
-> their role badges.]_
+![The Switch library menu open, listing Personal and Sample Library with their role badges and a tick on the current library](images/library-switcher.png)
 
 Local-mode login tokens last one hour, so log in again when you return to a
 shell the next day.
@@ -225,7 +223,7 @@ to go.
 Go to **Library** in the left rail. Drag files onto the page, or press
 **Upload** in the toolbar and pick them.
 
-> _[Screenshot: the Library page with the drop overlay active during a drag.]_
+![The Library page with the dashed Drop files to import overlay showing during a drag](images/library-drop-overlay.png)
 
 What you can upload:
 
@@ -269,8 +267,7 @@ Watch it on the **Import queue** page. Preview rendering has its own
 its stage and can be retried. Thumbnailing and enrichment are best-effort, and
 neither failing fails the import.
 
-> _[Screenshot: the Import queue page with one import mid-pipeline and one
-> finished.]_
+![The Import queue with one pack in the extracting stage and finished imports below it](images/import-queue.png)
 
 Click the finished asset to open its panel: files, versions, tags, licence, and
 the storefront listing if enrichment found one. Tags are paths

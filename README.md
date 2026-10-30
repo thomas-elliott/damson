@@ -30,9 +30,9 @@ It is not a general-purpose DAM for marketing collateral, and it is not version 
 
 Signing in opens **Library**: a paged, virtualised grid of asset tiles, with a detail panel that opens over it and a **Filter** sidebar you toggle on. The sidebar has ten sections, including tags, licence status, projects, file kind, publisher, store and release date. The left rail links to **Import queue** and **Processing queue** (both live-updating), **Projects**, **Collections**, the **Audit log**, **Settings**, and a **Notifications** panel, where Damson offers to fold a new upload into a pack you already have.
 
-> _[Screenshot: the Library grid with the filter sidebar open and an asset detail panel over it.]_
+![The Library grid with the filter sidebar open and an asset detail panel over it](docs/images/library-overview.png)
 
-> _[Screenshot: an asset detail panel showing files, versions, tags and the detected licence with its six attributes.]_
+![An asset panel showing tags, versions, the file count and the detected licence with its six attributes](docs/images/asset-detail-panel.png)
 
 ## Documentation
 
