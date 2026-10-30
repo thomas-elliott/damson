@@ -429,6 +429,7 @@ export function useAssetFacets(enabled: boolean = true) {
     data: q.data ?? { publishers: [], stores: [], engines: [] },
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -445,6 +446,7 @@ export function useTags(enabled: boolean = true) {
     data: q.data?.tags ?? [],
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -860,6 +862,7 @@ export function useLibraryMembers(libraryId: number | null) {
     data: q.data?.members ?? [],
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -885,6 +888,7 @@ export function useAdminUsers(enabled: boolean = true) {
     data: q.data?.users ?? [],
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
@@ -908,6 +912,7 @@ export function useServerSettings(enabled: boolean = true) {
     data: q.data ?? null,
     loading: q.isPending,
     error: q.error,
+    failed: failedToLoad(q),
     reload: q.refetch,
   };
 }
