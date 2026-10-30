@@ -21,4 +21,6 @@ export * from "./LicencePill";
 export * from "./ProjectCard";
 export * from "./ProjectGlyph";
 export * from "./QueueItem";
+export * from "./TagIndexCard";
+export * from "./TagPicker";
 export * from "./VersionItem";

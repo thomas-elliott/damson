@@ -13,6 +13,8 @@ function hueFor(key: string) {
 export interface TypesetCoverProps {
   name: string;
   publisher?: string;
+  /** For small tiles such as a mosaic: the name only, no publisher or rule. */
+  compact?: boolean;
   className?: string;
 }
 
@@ -22,7 +24,7 @@ export interface TypesetCoverProps {
  * `glyph_color`, so they sit outside the theme tokens and read the same in
  * both themes.
  */
-export function TypesetCover({ name, publisher, className }: TypesetCoverProps) {
+export function TypesetCover({ name, publisher, compact, className }: TypesetCoverProps) {
   const hue = hueFor(publisher || name);
   return (
     // Decorative: the card that holds it carries the name for screen readers.
@@ -31,7 +33,7 @@ export function TypesetCover({ name, publisher, className }: TypesetCoverProps) 
       className={cn("flex h-full w-full flex-col justify-between p-[8%] @container", className)}
       style={{ background: `oklch(0.36 0.07 ${hue})`, color: `oklch(0.93 0.04 ${hue})` }}
     >
-      {publisher ? (
+      {publisher && !compact ? (
         <span className="truncate font-display text-label font-semibold uppercase tracking-widest opacity-80">
           {publisher}
         </span>
@@ -39,8 +41,10 @@ export function TypesetCover({ name, publisher, className }: TypesetCoverProps) 
         <span />
       )}
       {/* Bottom margin leaves room for the card's caption. */}
-      <div className="mb-[28%] flex flex-col gap-2">
-        <span className="h-0.5 w-7" style={{ background: `oklch(0.75 0.12 ${hue})` }} />
+      <div className={cn("flex flex-col gap-2", !compact && "mb-[28%]")}>
+        {!compact && (
+          <span className="h-0.5 w-7" style={{ background: `oklch(0.75 0.12 ${hue})` }} />
+        )}
         <span
           className="line-clamp-4 font-display font-bold uppercase leading-none break-words"
           style={{ fontSize: "clamp(14px, 13cqw, 26px)" }}
