@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 import { Tag as TagIcon } from "lucide-react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { Button } from "@/design-system/primitives/Button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/design-system/primitives/Popover";
@@ -62,6 +63,32 @@ export const Picker: Story = {
         />
       </div>
     );
+  },
+};
+
+// A narrow screen: two columns, and a column's heading steps back up a level.
+export const PickerNarrow: Story = {
+  parameters: { layout: "padded" },
+  render: function PickerNarrowDemo() {
+    const [selected, setSelected] = useState(["3d/character/humanoid/human"]);
+    return (
+      <div className="w-[384px] rounded-lg border border-border bg-popover">
+        <TagPicker
+          tags={TAGS}
+          selected={selected}
+          onSelectedChange={setSelected}
+          onApply={() => {}}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("list", { name: "Tags in 3d/character/humanoid" })).toBeVisible();
+    // Hidden columns are out of the accessibility tree too.
+    await expect(canvas.queryByRole("list", { name: "Top-level tags" })).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: /Up a level from\s*humanoid/ }));
+    await expect(canvas.getByRole("list", { name: "Tags in 3d/character" })).toBeVisible();
   },
 };
 

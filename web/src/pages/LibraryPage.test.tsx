@@ -76,7 +76,14 @@ vi.mock("@/components/detail/AssetDetailPanel", () => ({
   AssetDetailPanel: ({ assetId }: { assetId: number | null }) =>
     assetId == null ? null : <aside aria-label="Details">panel</aside>,
 }));
-vi.mock("@/components/LibraryFilterSidebar", () => ({ LibraryFilterSidebar: () => null }));
+vi.mock("@/components/LibraryFilters", () => ({ LibraryFiltersButton: () => null }));
+vi.mock("@/components/ActiveFilterChips", () => ({ ActiveFilterChips: () => null }));
+// Stands in for the picker: says whether it is open and what is ticked.
+vi.mock("@/components/LibraryTagsButton", () => ({
+  LibraryTagsButton: ({ open, selected }: { open: boolean; selected: string[] }) => (
+    <output aria-label="tags">{`${open ? "open" : "closed"}: ${selected.join(",")}`}</output>
+  ),
+}));
 vi.mock("@/components/LibraryPicker", () => ({ LibraryPicker: () => null }));
 vi.mock("@/components/AddByLocationDialog", () => ({ AddByLocationButton: () => null }));
 vi.mock("@/components/BulkAssetBar", () => ({
@@ -368,5 +375,58 @@ describe("LibraryPage density", () => {
     mount("/library");
     expect(screen.getByText("grid")).toBeInTheDocument();
     expect(settings.densities.every((d) => d === undefined)).toBe(true);
+  });
+});
+
+describe("LibraryPage tags", () => {
+  it("hands the ticked tags from the URL to the Tags button", () => {
+    mount("/library?tag=3d/props&tag=2d/ui");
+    expect(screen.getByLabelText("tags")).toHaveTextContent("closed: 3d/props,2d/ui");
+  });
+
+  it("opens the tag picker on T", async () => {
+    mount("/library");
+    await userEvent.keyboard("t");
+    expect(screen.getByLabelText("tags")).toHaveTextContent("open:");
+  });
+
+  it("leaves T to the search box while typing", async () => {
+    mount("/library");
+    await typeSearch("t");
+    expect(screen.getByLabelText("tags")).toHaveTextContent("closed:");
+  });
+});
+
+describe("LibraryPage keys in an overlay", () => {
+  it("leaves Enter and the arrows to a popover or dialog", async () => {
+    mount("/library");
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    const button = document.createElement("button");
+    dialog.append(button);
+    document.body.append(dialog);
+    button.focus();
+    await userEvent.keyboard("{Enter}{ArrowRight}");
+    expect(screen.getByLabelText("location")).toHaveTextContent("/library");
+    expect(screen.getByLabelText("location")).not.toHaveTextContent("/library/");
+    dialog.remove();
+  });
+});
+
+describe("LibraryPage no match", () => {
+  it("says nothing matches, and clears the search and filters, when a filtered page is empty", async () => {
+    library.total = 0;
+    mount("/library?q=castle&tag=3d/props&licence=err&sort=name_asc");
+    expect(screen.getByText("No assets match")).toBeInTheDocument();
+    expect(screen.queryByText("grid")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Clear search and filters" }));
+    expect(query()).toBe("?sort=name_asc");
+  });
+
+  it("leaves an unfiltered empty library to the grid's empty state", () => {
+    library.total = 0;
+    mount("/library?sort=name_asc");
+    expect(screen.queryByText("No assets match")).toBeNull();
+    expect(screen.getByText("grid")).toBeInTheDocument();
   });
 });

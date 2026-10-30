@@ -9,6 +9,7 @@ import {
   Inbox,
   Library,
   Settings as SettingsIcon,
+  Tags,
 } from "lucide-react";
 
 import {
@@ -66,6 +67,12 @@ function DamsonRail({ displayName, email }: { displayName: string; email: string
         icon={<Library size={16} />}
         label="Library"
         active={pathname.startsWith("/library")}
+      />
+      <RailLink
+        to="/tags"
+        icon={<Tags size={16} />}
+        label="Tags"
+        active={pathname.startsWith("/tags")}
       />
       <RailLink
         to="/queue"

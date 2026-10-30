@@ -39,13 +39,19 @@ const REFERENCE: AssetRow = {
   is_reference: true,
 };
 
-/** A stored pack beside a reference asset: the reference shows its mark, never "0 B". */
+/**
+ * A stored pack beside a reference asset: the reference shows no size, never
+ * "0 B", and its folder-style name reads with spaces.
+ */
 export const WithReferenceAsset: Story = {
   args: { assets: [STORED, REFERENCE] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText("Reference")).toBeVisible();
-    await expect(canvas.getByText("1284 files")).toBeVisible();
+    await expect(await canvas.findByText("1284 files")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /^POLYGON Fantasy Characters/ }),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByText("Reference")).not.toBeInTheDocument();
     await expect(canvas.queryByText("0 B")).not.toBeInTheDocument();
   },
 };
@@ -85,5 +91,15 @@ export const LargeDensity: Story = {
   decorators: [FixedWidth],
   play: async ({ canvasElement }) => {
     await waitFor(() => expect(firstRowCards(canvasElement)).toBe(3));
+  },
+};
+
+/** A panel over the grid's right edge: the cards reflow into the space beside it. */
+export const BesidePanel: Story = {
+  args: { assets: MANY, density: "medium", reservedRight: 440 },
+  decorators: [FixedWidth],
+  play: async ({ canvasElement }) => {
+    // 800px less the 440px panel leaves room for one 180px card, not four.
+    await waitFor(() => expect(firstRowCards(canvasElement)).toBe(1));
   },
 };
