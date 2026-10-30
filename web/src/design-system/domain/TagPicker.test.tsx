@@ -75,4 +75,20 @@ describe("TagPicker", () => {
     await userEvent.type(screen.getByRole("searchbox", { name: "Filter tags" }), "item");
     expect(screen.getByText(/Showing 50 of 60 matches/)).toBeInTheDocument();
   });
+
+  it("steps up a level from a column's heading", async () => {
+    render(
+      <TagPicker
+        tags={TAGS}
+        selected={["3d/character/humanoid/human"]}
+        onSelectedChange={() => {}}
+      />,
+    );
+    expect(screen.getByRole("list", { name: "Tags in 3d/character/humanoid" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Up a level from\s*humanoid/ }));
+    expect(
+      screen.queryByRole("list", { name: "Tags in 3d/character/humanoid" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Tags in 3d/character" })).toBeInTheDocument();
+  });
 });

@@ -15,6 +15,7 @@ import { ProjectsPage } from "@/pages/ProjectsPage";
 import { PreviewQueuePage } from "@/pages/PreviewQueuePage";
 import { QueuePage } from "@/pages/QueuePage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { TagIndexPage } from "@/pages/TagIndexPage";
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/library/:assetId" element={<LibraryPage />} />
           <Route path="/library/:assetId/browse" element={<LibraryPage browse />} />
+          <Route path="/tags" element={<TagIndexPage />} />
           <Route path="/queue" element={<QueuePage />} />
           <Route path="/processing" element={<PreviewQueuePage />} />
           <Route path="/projects" element={<ProjectsPage />} />

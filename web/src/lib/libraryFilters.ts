@@ -1,5 +1,32 @@
 import type { AssetFilters, AssetSort, LicenceStatus } from "@/hooks/useDataQueries";
 
+export const LICENCE_STATUSES: { value: LicenceStatus; label: string }[] = [
+  { value: "ok", label: "Compliant" },
+  { value: "warn", label: "Review" },
+  { value: "err", label: "Violation" },
+  { value: "unk", label: "Unknown" },
+];
+
+export const PACKAGE_KINDS: { value: string; label: string }[] = [
+  { value: "unitypackage", label: "Unity package" },
+  { value: "loose", label: "Loose file" },
+  { value: "zip", label: "Zip archive" },
+];
+
+// Boundaries resolve when clicked, so a long-lived session never pins a stale
+// date.
+export const RELEASED_AFTER_PRESETS: { years: number; label: string }[] = [
+  { years: 1, label: "Last year" },
+  { years: 2, label: "Last 2 years" },
+  { years: 5, label: "Last 5 years" },
+];
+
+export function yearsAgoISODate(years: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  return d.toISOString().slice(0, 10);
+}
+
 const ASSET_SORTS: AssetSort[] = [
   "created_desc",
   "created_asc",
@@ -8,14 +35,12 @@ const ASSET_SORTS: AssetSort[] = [
   "name_asc",
 ];
 
-export const FILTERS_OPEN_KEY = "damson.library.filters";
-
 export function parseAssetFilters(search: URLSearchParams): AssetFilters {
   const f: AssetFilters = {};
   const q = search.get("q");
   if (q) f.q = q;
-  const tag = search.get("tag");
-  if (tag) f.tag_path = tag;
+  const tags = [...new Set(search.getAll("tag").filter(Boolean))];
+  if (tags.length > 0) f.tag_path = tags;
   const lic = search.get("licence");
   if (lic) f.licence_status = lic as LicenceStatus;
   const spdx = search.get("spdx");
@@ -79,20 +104,25 @@ export function withoutPaging(search: URLSearchParams): string {
   return next.toString();
 }
 
-// Counts the sidebar filters only: the search term has its own visible input,
-// so badging it would flag something already on screen.
+// Counts the Filters popover's filters. The search term has its own visible
+// input and the tags their own button, so badging them would flag something
+// already on screen.
 export function activeFilterCount(filters: AssetFilters): number {
   return Object.entries(filters).filter(
-    ([key, value]) => key !== "q" && key !== "sort" && value !== undefined,
+    ([key, value]) => key !== "q" && key !== "sort" && key !== "tag_path" && value !== undefined,
   ).length;
 }
 
-export function readFiltersOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(FILTERS_OPEN_KEY) === "true";
-}
+// The URL params that filter the library, tags included; the search, the
+// sort and the paging are not filters.
+const NOT_FILTERS = new Set(["q", "sort", "page", "page_size"]);
 
-export function writeFiltersOpen(open: boolean): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(FILTERS_OPEN_KEY, String(open));
+// Returns a copy of `search` with every filter and tag dropped, back on the
+// first page. The search term, sort and page size stay.
+export function withoutFilters(search: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams();
+  for (const [key, value] of search) {
+    if (NOT_FILTERS.has(key) && key !== "page") next.append(key, value);
+  }
+  return next;
 }
