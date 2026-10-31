@@ -10,8 +10,7 @@ import { NotificationProvider } from "./notifications/NotificationProvider";
 
 vi.mock("@/hooks/useDataQueries", () => ({
   useMe: () => ({ data: { id: 1, email: "a@b.c", display_name: "Ada B" }, loading: false }),
-  useImports: () => ({ total: 0 }),
-  usePreviewQueue: () => ({ total: 0 }),
+  useTriage: () => ({ total: 0 }),
 }));
 vi.mock("@/hooks/useTheme", () => ({
   useTheme: () => ({ mode: "dark", setTheme: vi.fn(), toggle: vi.fn() }),

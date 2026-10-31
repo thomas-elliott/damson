@@ -11,11 +11,10 @@ import type { AssetDetailView } from "@/hooks/useDataQueries";
 
 import { CollectionDetailPage } from "./CollectionDetailPage";
 import { CollectionsPage } from "./CollectionsPage";
-import { PreviewQueuePage } from "./PreviewQueuePage";
 import { ProjectDetailPage } from "./ProjectDetailPage";
 import { ProjectsPage } from "./ProjectsPage";
-import { QueuePage } from "./QueuePage";
 import { SettingsPage } from "./SettingsPage";
+import { TriagePage } from "./TriagePage";
 
 vi.mock("@/lib/token", () => ({ getAccessToken: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/components/Shell", () => ({
@@ -70,20 +69,12 @@ function renderAt(path: string, route: string, element: ReactNode) {
 
 describe.each<[string, ComponentType, string, string, unknown, string]>([
   [
-    "Queue",
-    QueuePage,
-    "/api/imports",
-    "Couldn't load the import queue",
-    { imports: [] },
-    "Nothing waiting for review",
-  ],
-  [
-    "Processing",
-    PreviewQueuePage,
-    "/api/previews",
-    "Couldn't load the processing queue",
-    { previews: [] },
-    "No previews processing",
+    "Triage",
+    TriagePage,
+    "/api/triage",
+    "Couldn't load the triage queue",
+    { assets: [], reviewed: [], total: 0 },
+    "Nothing to triage",
   ],
   [
     "Projects",
@@ -278,8 +269,7 @@ describe("Project detail's toolbar", () => {
 
 // Every screen names itself with one h1, for screen-reader heading navigation.
 describe.each<[string, ComponentType, string, unknown]>([
-  ["Import queue", QueuePage, "/api/imports", { imports: [] }],
-  ["Processing queue", PreviewQueuePage, "/api/previews", { previews: [] }],
+  ["Triage", TriagePage, "/api/triage", { assets: [], reviewed: [], total: 0 }],
   ["Projects", ProjectsPage, "/api/projects", { projects: [] }],
   ["Collections", CollectionsPage, "/api/collections", { collections: [] }],
 ])("%s", (heading, Page, path, emptyBody) => {

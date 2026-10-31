@@ -209,7 +209,13 @@ the bytes, then enqueues an `import` job in the transaction that records them.
 `internal/ingest.Run` moves the import through the stages (`internal/importstage`):
 `uploaded` → `extracting` → `detecting` → `thumbnailing` → `enriching` → `done` | `failed`.
 `asset_imports.stage` is the record. SSE on
-`/api/imports/events` only announces transitions. The steps are the `stages` list in
+`/api/imports/events` only announces transitions.
+
+The triage queue (`GET /api/triage`) is asset-shaped: every asset with `needs_review`, plus any
+whose latest import is in flight, or failed with no `dismissed_at`. Only the latest import counts,
+so a failure a retry superseded leaves on its own. Dismissing a failed import also marks its asset
+reviewed, or the asset would keep its place and the dismissal would look like it did nothing. The
+recently reviewed tail comes from `audit_log`, as the asset keeps no reviewed-at. The steps are the `stages` list in
 `pipeline.go`, and `ingest.Reextract` runs its extract, cover and write steps on a retained Unity
 package.
 

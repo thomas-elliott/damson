@@ -34,7 +34,9 @@ local login, a deep link surviving local and OIDC sign-in, the library page rend
 asset, paging through the library with the page in the URL (reload, back/forward, page size,
 clamping, reset on search), ticking two tags in the Tags picker to filter the library to either (a
 sibling tag left out, the chips, a reload, removing one chip, Clear all) and the picker at a 400px
-viewport, a tag index card opening the library filtered to its tag, a UI upload accepted and shown
+viewport, a tag index card opening the library filtered to its tag, triage (a needs-review reference with no
+import listed, marked reviewed into Recently reviewed, the old `/processing` address, and every row
+action whole on screen at 400px), a UI upload accepted and shown
 as a placeholder, library switching without leaking the other library's assets, the package page
 (opened from the quick look onto a pack's files inside its lone root folder, Back to the results,
 the old `/browse` address, next and previous across a library page boundary by button and arrow
@@ -48,6 +50,8 @@ and library settings surviving a reload.
 
 Not covered:
 
+- No spec fails an import, so Retry and Dismiss on a failed row are covered by
+  `internal/handlers/api/triage_test.go` and `web/src/pages/TriagePage.test.tsx` only.
 - No spec watches an import reach `done` through the UI. The upload spec stops at the 202 and the
   placeholder; `uploadImport` reaches `done` only as API seeding.
 - Accessibility is checked only by the story suite (`just test stories`, axe at
