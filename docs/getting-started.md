@@ -262,10 +262,14 @@ tile appears in the grid while the rest happens in the background:
 `uploaded` → `extracting` → `detecting` → `thumbnailing` → `enriching` →
 `done` (or `failed`)
 
-Watch it on the **Import queue** page. Preview rendering has its own
-**Processing queue** page. Both update live. A failed import stays listed with
-its stage and can be retried. Thumbnailing and enrichment are best-effort, and
-neither failing fails the import.
+Watch it on the **Triage** page. It lists every asset marked needs review,
+however it got into the library, along with imports still running and imports
+that failed, and below them any previews still rendering. It updates live. A
+failed import shows its error and can be retried, or dismissed to take it out of
+the queue. Thumbnailing and enrichment are best-effort, and neither failing
+fails the import. **Mark reviewed** on an asset's row clears its needs review
+flag. The row's **Find listing** searches the stores by name first if the asset
+has no store match.
 
 ![The Import queue with one pack in the extracting stage and finished imports below it](images/import-queue.png)
 

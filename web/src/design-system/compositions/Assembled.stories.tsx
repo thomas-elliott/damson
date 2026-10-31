@@ -96,7 +96,7 @@ export const LibraryView: Story = {
               onSelect={() => setRoute("collections")}
             />
             <NavRailItem
-              label="Import queue"
+              label="Triage"
               icon={<Inbox size={16} />}
               badge={3}
               active={route === "queue"}

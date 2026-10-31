@@ -117,8 +117,8 @@ func (h *Handler) getImports(c *gin.Context) {
 
 	switch stageFilter {
 	case "":
-		// Review backlog: not-done, or done-but-still-needs-review.
-		q = q.Where("i.stage <> ? OR a.needs_review", "done")
+		// Review backlog: not-done and not dismissed, or still needs review.
+		q = q.Where("(i.stage <> ? AND i.dismissed_at IS NULL) OR a.needs_review", "done")
 	case "all":
 		// no stage filter
 	default:

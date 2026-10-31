@@ -26,6 +26,10 @@ export const queryKeys = {
   adminAudit: (filters?: Record<string, string | number | boolean>) =>
     filters ? (["adminAudit", filters] as const) : (["adminAudit"] as const),
   imports: ["imports"] as const,
+  // Under imports, so everything that refreshes the imports refreshes the
+  // triage queue built on them.
+  triage: (page?: number) =>
+    page != null ? (["imports", "triage", page] as const) : (["imports", "triage"] as const),
   storeLookupBatch: (id: number) => ["storeLookupBatch", id] as const,
   previews: ["previews"] as const,
   libraries: ["libraries"] as const,
