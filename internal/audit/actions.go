@@ -26,6 +26,7 @@ var ActionTypes = []string{
 	"asset.version.subset",
 	"asset.version.reextract",
 	"asset.import.retry",
+	"asset.import.dismiss",
 	"tag.create",
 	"tag.delete",
 	"project.create",

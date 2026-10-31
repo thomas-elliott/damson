@@ -47,7 +47,8 @@ func TestGetTriage_ListsEveryNeedsReviewAsset(t *testing.T) {
 	other := seedLibrary(t, db, "Other")
 
 	// A reference recorded by path has no import, and still needs review.
-	ref := seedTriageAsset(t, h, models.Asset{LibraryID: lib.ID, Name: "ref", NeedsReview: true, IsReference: true})
+	refPath := "/mnt/nfs/ref"
+	ref := seedTriageAsset(t, h, models.Asset{LibraryID: lib.ID, Name: "ref", NeedsReview: true, IsReference: true, LocationPath: &refPath})
 	imported := seedTriageAsset(t, h, models.Asset{
 		LibraryID: lib.ID, Name: "imported", NeedsReview: true,
 		SourceMetadataJSON: []byte(`{"matched":true}`),
