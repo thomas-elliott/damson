@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { Check, FileAudio2, Image, Package, Search, X } from "lucide-react";
 
+import { Badge } from "@/design-system/primitives/Badge";
 import { Button } from "@/design-system/primitives/Button";
 import { IconButton } from "@/design-system/primitives/IconButton";
 import { Input } from "@/design-system/primitives/Input";
@@ -210,27 +211,35 @@ export const ActivityAuditTimestamps: Story = {
   ),
 };
 
-// The import queue's review row: peer actions share one weight in one row.
-export const QueueReviewActions: Story = {
-  parameters: { layout: "padded" },
-  render: () => (
+// The triage queue's review row: peer actions share one weight in one row.
+function ReviewRow() {
+  return (
     <QueueItem
       thumb={<Package size={20} />}
+      thumbSize={80}
       name="POLYGON - Fantasy Kingdom"
       sub={
         <>
-          <span>652 MB</span>
-          <span>·</span>
-          <span>needs review</span>
+          <Badge size="sm" tone="warn">
+            Needs review
+          </Badge>
+          <Badge size="sm">No store match</Badge>
+          <span>updated 30/10/2026, 12:00:00</span>
         </>
+      }
+      detail={
+        <p className="line-clamp-3 text-label text-subtle-foreground">
+          A low poly kingdom of castles, villages and docks, with modular walls and a set of
+          medieval characters to fill them.
+        </p>
       }
       actions={
         <>
           <Button variant="secondary" size="sm">
-            Review
+            Open
           </Button>
           <Button variant="secondary" size="sm" leadingIcon={<Search size={12} />}>
-            Re-match
+            Find listing
           </Button>
           <Button variant="secondary" size="sm" leadingIcon={<Check size={12} />}>
             Mark reviewed
@@ -238,6 +247,22 @@ export const QueueReviewActions: Story = {
         </>
       }
     />
+  );
+}
+
+export const QueueReviewActions: Story = {
+  parameters: { layout: "padded" },
+  render: () => <ReviewRow />,
+};
+
+// Below 32rem of its own width the row's actions wrap under the meta, so the
+// buttons stay whole and the description keeps its measure. 400px is a phone.
+export const QueueReviewActionsNarrow: Story = {
+  parameters: { layout: "padded" },
+  render: () => (
+    <div className="w-[340px]">
+      <ReviewRow />
+    </div>
   ),
 };
 

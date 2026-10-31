@@ -793,44 +793,47 @@ export function useProjectAudit(projectId: number | null) {
   };
 }
 
-// -- /api/imports -----------------------------------------------------------
+// -- /api/triage ------------------------------------------------------------
 
-export interface ImportRow {
-  id: number;
+export type ImportStage =
+  "uploaded" | "extracting" | "detecting" | "thumbnailing" | "done" | "failed";
+
+// TriageRow is one asset in the triage queue. `import` is set only while the
+// asset's latest import is in flight, or failed and not dismissed.
+export interface TriageRow {
   asset_id: number;
   asset_name: string;
-  stage: "uploaded" | "extracting" | "detecting" | "thumbnailing" | "done" | "failed";
-  error?: string;
-  updated_at: string;
-  created_at: string;
   needs_review: boolean;
+  is_reference: boolean;
   description?: string;
   thumbnail_object_key?: string;
-  source_url?: string;
-  has_metadata: boolean;
+  matched: boolean;
+  import?: { id: number; stage: ImportStage; error?: string };
+  updated_at: string;
 }
 
-interface ImportListResponse {
-  imports: ImportRow[];
-  finished?: ImportRow[];
+interface TriageResponse {
+  assets: TriageRow[];
+  reviewed: TriageRow[];
   total: number;
 }
 
-export function useImports(
-  stage: "in_flight" | "all" | "done" | "failed" = "in_flight",
-  enabled: boolean = true,
-) {
-  const search = stage === "in_flight" ? "" : `?stage=${stage}`;
+export const TRIAGE_PAGE = 50;
+
+// useTriage reads one page of the triage queue (1-based). The rail's badge
+// reads page 1 for its total, so it shares the page's cache.
+export function useTriage(page: number = 1) {
+  const offset = (page - 1) * TRIAGE_PAGE;
   const q = useQuery({
-    queryKey: [...queryKeys.imports, stage],
-    queryFn: () => fetchJson<ImportListResponse>(`/api/imports${search}`),
+    queryKey: queryKeys.triage(page),
+    queryFn: () => fetchJson<TriageResponse>(`/api/triage?limit=${TRIAGE_PAGE}&offset=${offset}`),
     staleTime: 15 * 1000,
     gcTime: 5 * MINUTE,
-    enabled,
+    placeholderData: keepPreviousData,
   });
   return {
-    data: q.data?.imports ?? [],
-    finished: q.data?.finished ?? [],
+    data: q.data?.assets ?? [],
+    reviewed: q.data?.reviewed ?? [],
     total: q.data?.total ?? 0,
     loading: q.isPending,
     error: q.error,

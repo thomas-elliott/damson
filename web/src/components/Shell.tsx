@@ -5,7 +5,6 @@ import {
   Boxes,
   FileSearch,
   FolderGit2,
-  Images,
   Inbox,
   Library,
   Settings as SettingsIcon,
@@ -22,7 +21,7 @@ import {
 } from "@/design-system";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { UserMenu } from "@/components/UserMenu";
-import { useImports, useMe, usePreviewQueue } from "@/hooks/useDataQueries";
+import { useMe, useTriage } from "@/hooks/useDataQueries";
 
 /**
  * Damson's top-level layout. Wraps every authenticated page with the nav
@@ -53,11 +52,10 @@ function LoadingShell() {
 
 function DamsonRail({ displayName, email }: { displayName: string; email: string }) {
   const { pathname } = useLocation();
-  const { total: queueCount } = useImports("in_flight");
   // Badge count comes from the query (refreshed on its staleTime); the live SSE
-  // stream is subscribed on the Processing queue page itself, mirroring how the
-  // import queue works — so no always-open EventSource hangs off every page.
-  const { total: processingCount } = usePreviewQueue();
+  // streams are subscribed on the triage page itself, so no always-open
+  // EventSource hangs off every page.
+  const { total: triageCount } = useTriage();
   const { unreadCount, inFlightCount, toggleOpen } = useNotifications();
   const notifBadge = unreadCount + inFlightCount;
   return (
@@ -77,16 +75,9 @@ function DamsonRail({ displayName, email }: { displayName: string; email: string
       <RailLink
         to="/queue"
         icon={<Inbox size={16} />}
-        label="Import queue"
+        label="Triage"
         active={pathname.startsWith("/queue")}
-        badge={queueCount > 0 ? queueCount : undefined}
-      />
-      <RailLink
-        to="/processing"
-        icon={<Images size={16} />}
-        label="Processing queue"
-        active={pathname.startsWith("/processing")}
-        badge={processingCount > 0 ? processingCount : undefined}
+        badge={triageCount > 0 ? triageCount : undefined}
       />
       <RailLink
         to="/projects"

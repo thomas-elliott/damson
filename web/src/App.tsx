@@ -13,10 +13,9 @@ import { LoginPage } from "@/pages/LoginPage";
 import { PackagePage } from "@/pages/PackagePage";
 import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
-import { PreviewQueuePage } from "@/pages/PreviewQueuePage";
-import { QueuePage } from "@/pages/QueuePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { TagIndexPage } from "@/pages/TagIndexPage";
+import { TriagePage } from "@/pages/TriagePage";
 
 export default function App() {
   return (
@@ -32,8 +31,9 @@ export default function App() {
           <Route path="/library/:assetId/package" element={<PackagePage />} />
           <Route path="/library/:assetId/browse" element={<BrowseRedirect />} />
           <Route path="/tags" element={<TagIndexPage />} />
-          <Route path="/queue" element={<QueuePage />} />
-          <Route path="/processing" element={<PreviewQueuePage />} />
+          <Route path="/queue" element={<TriagePage />} />
+          {/* Preview processing folded into the triage queue. */}
+          <Route path="/processing" element={<Navigate to="/queue" replace />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
