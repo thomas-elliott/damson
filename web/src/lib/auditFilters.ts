@@ -11,7 +11,7 @@ export const ACTION_FILTERS = [
     value:
       "asset.update,asset.reference.update,asset.version.update,asset.version.subset,asset.version.reextract,asset.metadata.apply,asset.rescan",
   },
-  { label: "Reviews", value: "asset.review,asset.unreview" },
+  { label: "Reviews", value: "asset.review,asset.unreview,asset.import.dismiss" },
   { label: "Licences", value: "asset.licence.*" },
   { label: "Tags", value: "asset.tag,asset.untag,tag.*" },
   { label: "Merges", value: "asset.merge" },
