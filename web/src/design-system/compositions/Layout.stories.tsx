@@ -52,7 +52,7 @@ function RailSample({ route, setRoute }: { route: string; setRoute: (r: string) 
         onSelect={() => setRoute("collections")}
       />
       <NavRailItem
-        label="Import queue"
+        label="Triage"
         icon={<Inbox size={16} />}
         badge={3}
         active={route === "queue"}

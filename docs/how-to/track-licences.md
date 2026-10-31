@@ -69,7 +69,7 @@ Press **Mark reviewed** in the licence header. It records you and the timestamp 
 
 Reviewing does not change the status. A reviewed `unity-eula` is still **Review**: the status describes the terms, and the review mark records that a human read them.
 
-> This differs from the asset-level **Needs review** chip. A new import sets that flag, and it covers the whole asset (name, tags, metadata), not just the licence. Clear it by clicking the chip, or with **Mark reviewed** on the bulk bar.
+> This differs from the asset-level **Needs review** chip. A new import sets that flag, and it covers the whole asset (name, tags, metadata), not just the licence. Clear it with **Mark reviewed** on the asset's row in **Triage**, or on the bulk bar.
 
 ## Do a whole batch at once
 

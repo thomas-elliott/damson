@@ -20,42 +20,56 @@ export interface QueueItemProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * Single row in the import queue view. Fixed 56px thumbnail, flexible meta,
- * optional progress bar on the bottom. Actions sit on the right.
+ * Single row in the triage queue. Fixed-size thumbnail, flexible meta,
+ * optional progress bar on the bottom. It is a container query: from 32rem of
+ * its own width the actions sit on the right, and below that they wrap onto a
+ * line of their own under the meta, so a narrow row keeps its text readable
+ * and its buttons whole.
  */
 export const QueueItem = forwardRef<HTMLDivElement, QueueItemProps>(function QueueItem(
   { className, thumb, name, sub, progress, actions, detail, thumbSize = 56, ...props },
   ref,
 ) {
+  const align = detail ? "items-start" : "items-center";
   return (
     <div
       ref={ref}
       className={cn(
-        "flex gap-3.5 rounded-md border border-border bg-card p-3.5 transition-colors duration-fast ease-standard hover:border-border-strong",
-        detail ? "items-start" : "items-center",
+        "@container rounded-md border border-border bg-card p-3.5 transition-colors duration-fast ease-standard hover:border-border-strong",
         className,
       )}
       {...props}
     >
-      {thumb && (
-        <div
-          style={{ width: thumbSize, height: thumbSize }}
-          className="grid shrink-0 place-items-center overflow-hidden rounded-sm border border-border bg-muted text-subtle-foreground"
-        >
-          {thumb}
+      <div
+        className={cn(
+          "flex flex-col gap-3 @lg:flex-row @lg:gap-3.5",
+          detail ? "@lg:items-start" : "@lg:items-center",
+        )}
+      >
+        <div className={cn("flex min-w-0 flex-1 gap-3.5", align)}>
+          {thumb && (
+            <div
+              style={{ width: thumbSize, height: thumbSize }}
+              className="grid shrink-0 place-items-center overflow-hidden rounded-sm border border-border bg-muted text-subtle-foreground"
+            >
+              {thumb}
+            </div>
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="truncate text-list-row font-medium text-foreground">{name}</div>
+            {sub && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-subtle-foreground">
+                {sub}
+              </div>
+            )}
+            {detail}
+            {typeof progress === "number" && (
+              <ProgressBar value={progress} aria-label={`${Math.round(progress)}% uploaded`} />
+            )}
+          </div>
         </div>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="truncate text-list-row font-medium text-foreground">{name}</div>
-        {sub && (
-          <div className="flex items-center gap-2 text-label text-subtle-foreground">{sub}</div>
-        )}
-        {detail}
-        {typeof progress === "number" && (
-          <ProgressBar value={progress} aria-label={`${Math.round(progress)}% uploaded`} />
-        )}
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-1">{actions}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
     </div>
   );
 });

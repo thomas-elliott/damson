@@ -105,6 +105,7 @@ export function useRecordReference() {
       qc.invalidateQueries({ queryKey: queryKeys.asset(res.asset_id) });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
       qc.invalidateQueries({ queryKey: queryKeys.assetFacets });
+      qc.invalidateQueries({ queryKey: queryKeys.imports });
     },
   });
 }
@@ -214,6 +215,8 @@ export function useBulkAssets() {
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
       qc.invalidateQueries({ queryKey: queryKeys.tags });
       qc.invalidateQueries({ queryKey: queryKeys.collections });
+      // Bulk review and needs-review move assets in and out of triage.
+      qc.invalidateQueries({ queryKey: queryKeys.imports });
     },
   });
 }
@@ -471,6 +474,23 @@ export function useRetryImport() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.imports });
       qc.invalidateQueries({ queryKey: queryKeys.assets() });
+    },
+  });
+}
+
+// useDismissImport takes a failed import out of the triage queue; the server
+// marks its asset reviewed in the same step.
+export function useDismissImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { importId: number; assetId: number }) => {
+      await fetchMaybeJson(`/api/imports/${input.importId}/dismiss`, { method: "POST" });
+      return input;
+    },
+    onSuccess: ({ assetId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.asset(assetId) });
+      qc.invalidateQueries({ queryKey: queryKeys.assets() });
+      qc.invalidateQueries({ queryKey: queryKeys.imports });
     },
   });
 }
