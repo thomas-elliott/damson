@@ -45,7 +45,7 @@ Drag the file onto the **Library** page, or press **Upload**. The upload returns
 
 `uploaded` → `extracting` → `detecting` → `thumbnailing` → `enriching` → `done`
 
-Watch it on the **Import queue** page. A failed import keeps its stage and error and can be retried from there.
+Watch it on the **Triage** page. A failed import shows its error there and can be retried, or dismissed to take it out of the queue.
 
 Name the file before you upload it. Damson peels a trailing version token off the filename, so `Forest_Pack_v2.1.unitypackage` becomes an asset called "Forest Pack" with store version `2.1`. A bare trailing integer is not a version: `Rock Set 2.unitypackage` is "Rock Set 2".
 
