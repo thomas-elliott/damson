@@ -107,6 +107,9 @@ type AssetImport struct {
 	Stage          string `gorm:"not null;index"`
 	Error          string
 	UpdatedAt      time.Time
+	// DismissedAt is set when someone dismisses a failed import from the
+	// triage queue (migration 033).
+	DismissedAt *time.Time
 }
 
 func (AssetImport) TableName() string { return "asset_imports" }
