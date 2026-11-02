@@ -22,7 +22,6 @@ export * from "./Markdown";
 
 // Radix atoms
 export * from "./Checkbox";
-export * from "./Slider";
 export * from "./Separator";
 
 // Radix composites

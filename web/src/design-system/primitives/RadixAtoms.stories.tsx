@@ -3,7 +3,6 @@ import { useState } from "react";
 
 import { Checkbox } from "./Checkbox";
 import { Separator } from "./Separator";
-import { Slider } from "./Slider";
 
 const meta: Meta = {
   title: "Primitives/RadixAtoms",
@@ -32,18 +31,6 @@ export const Checkboxes: Story = {
           <Checkbox disabled />
           <span>Disabled</span>
         </label>
-      </div>
-    );
-  },
-};
-
-export const Sliders: Story = {
-  render: function SlidersDemo() {
-    const [v, setV] = useState([40]);
-    return (
-      <div className="flex min-w-[280px] flex-col gap-4">
-        <Slider value={v} onValueChange={setV} min={0} max={100} step={1} aria-label="Density" />
-        <div className="text-mono text-subtle-foreground">value: {v[0]}</div>
       </div>
     );
   },
