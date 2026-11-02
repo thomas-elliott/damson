@@ -16,7 +16,7 @@ The result depends on whether the person has an account:
 
 The next time they sign in or reload the page, they land in the library. There is nothing for them to choose.
 
-Inviting an existing member returns 409.
+Inviting someone who already belongs to a library, this one or another, returns 409. A second library could never be reached, because nobody can switch library. Only an install that created libraries before Damson stopped allowing it can have more than one.
 
 ## Two role hierarchies
 

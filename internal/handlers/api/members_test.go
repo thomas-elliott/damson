@@ -62,6 +62,33 @@ func TestPostLibraryMember_AddsExistingUser(t *testing.T) {
 	requireStatus(t, w2, http.StatusConflict)
 }
 
+// Nobody can switch library, so a membership of a second library could never
+// be reached. Only an install from before libraries stopped being created can
+// have one.
+func TestPostLibraryMember_RejectsUserOfAnotherLibrary(t *testing.T) {
+	h, db := newTestHandler(t)
+	u := seedUser(t, db, "admin@example.com")
+	lib := seedLibraryAndSwitch(t, h, u)
+	target := seedUser(t, db, "member@example.com")
+	seedLibraryForUser(t, db, target, "Elsewhere")
+
+	r := setupRouter(h, u)
+	w := performRequest(r, http.MethodPost, fmt.Sprintf("/api/libraries/%d/members", lib.ID), addMemberRequest{
+		Email: "member@example.com",
+		Role:  "member",
+	})
+	requireStatus(t, w, http.StatusConflict)
+
+	var n int64
+	if err := db.Model(&models.LibraryMembership{}).
+		Where("library_id = ? AND user_id = ?", lib.ID, target.ID).Count(&n).Error; err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("membership created despite 409")
+	}
+}
+
 func TestPostLibraryMember_RequiresAdmin(t *testing.T) {
 	h, db := newTestHandler(t)
 	admin := seedUser(t, db, "admin@example.com")
