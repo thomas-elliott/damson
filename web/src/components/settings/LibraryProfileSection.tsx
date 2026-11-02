@@ -37,34 +37,34 @@ export function LibraryProfileSection({
 
   return (
     <Section
-        title="Library profile"
-        defaultOpen
-        accessory={
-          saved ? (
-            <Badge size="sm" tone="ok">
-              Saved
-            </Badge>
-          ) : null
-        }
-      >
-        <FieldRow label="Name">
-          <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!isAdmin} />
-        </FieldRow>
-        <FieldRow label="Description" hint="Optional. Visible to all members.">
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            disabled={!isAdmin}
-          />
-        </FieldRow>
-        {isAdmin && (
-          <div className="flex justify-end">
-            <Button variant="primary" disabled={patch.isPending || !name.trim()} onClick={submit}>
-              Save
-            </Button>
-          </div>
-        )}
-      </Section>
+      title="Library profile"
+      defaultOpen
+      accessory={
+        saved ? (
+          <Badge size="sm" tone="ok">
+            Saved
+          </Badge>
+        ) : null
+      }
+    >
+      <FieldRow label="Name">
+        <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!isAdmin} />
+      </FieldRow>
+      <FieldRow label="Description" hint="Optional. Visible to all members.">
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          disabled={!isAdmin}
+        />
+      </FieldRow>
+      {isAdmin && (
+        <div className="flex justify-end">
+          <Button variant="primary" disabled={patch.isPending || !name.trim()} onClick={submit}>
+            Save
+          </Button>
+        </div>
+      )}
+    </Section>
   );
 }
