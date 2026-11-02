@@ -96,7 +96,6 @@ export function SettingsPage() {
 interface SettingsView {
   grid_density_default: "small" | "medium" | "large";
   retain_original_packages: boolean;
-  dedupe_enabled: boolean;
   thumbnails_raster_enabled: boolean;
   thumbnails_audio_enabled: boolean;
   thumbnails_font_enabled: boolean;
@@ -136,7 +135,6 @@ function ReadOnlySettings({ settings }: { settings: SettingsView }) {
               key: "Retain original packages",
               value: boolBadge(settings.retain_original_packages),
             },
-            { key: "Dedupe enabled", value: boolBadge(settings.dedupe_enabled) },
           ]}
         />
       </Section>
@@ -222,12 +220,6 @@ function AdminSettingsForm({ settings }: { settings: SettingsView }) {
           help="Keep the uploaded archive after extraction so re-extraction is possible."
           checked={settings.retain_original_packages}
           onChange={(v) => apply({ retain_original_packages: v })}
-        />
-        <ToggleRow
-          label="Dedupe enabled"
-          help="Within this library, identical re-uploads collapse onto the same asset."
-          checked={settings.dedupe_enabled}
-          onChange={(v) => apply({ dedupe_enabled: v })}
         />
       </Section>
 

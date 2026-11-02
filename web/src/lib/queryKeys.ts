@@ -6,9 +6,8 @@ export const queryKeys = {
   assets: (filters?: Record<string, string | number | boolean | string[]>) =>
     filters ? (["assets", filters] as const) : (["assets"] as const),
   asset: (id: number) => ["asset", id] as const,
-  /** Every asset's detail, licence and audit queries, for invalidating together. */
+  /** Every asset's detail and audit queries, for invalidating together. */
   anyAsset: ["asset"] as const,
-  assetLicence: (id: number) => ["asset", id, "licence"] as const,
   assetAudit: (id: number) => ["asset", id, "audit"] as const,
   assetFacets: ["assetFacets"] as const,
   tags: ["tags"] as const,

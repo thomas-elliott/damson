@@ -106,7 +106,7 @@ Their next request fails and the SPA sends them to sign in. Removing someone fro
 
 **Settings** configures your current library and names it under the heading. A library admin gets the form. A member sees the same values read-only, with "You have read-only access — ask a library admin to edit."
 
-The sections are **Appearance** (grid density default), **Storage** (retain original packages, dedupe), **Thumbnails** (raster, audio waveform, font sample, Unity preview harvest), **Metadata** (auto-enrich on import, preferred store) and **Audit** (retention in days).
+The sections are **Appearance** (grid density default), **Storage** (retain original packages), **Thumbnails** (raster, audio waveform, font sample, Unity preview harvest), **Metadata** (auto-enrich on import, preferred store) and **Audit** (retention in days).
 
 ![The library Settings page showing the Appearance, Storage, Thumbnails and Metadata sections](../images/settings-page.png)
 

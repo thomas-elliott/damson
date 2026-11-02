@@ -39,10 +39,6 @@ test.describe("Triage", () => {
     await expect(page.getByRole("heading", { name: "Recently reviewed" })).toBeVisible();
     await expect(page.getByText("Nothing waiting for review.")).toBeVisible();
     await expect(page.getByText("Reviewed", { exact: true })).toBeVisible();
-
-    // The old processing queue address lands here.
-    await page.goto("/processing");
-    await expect(page).toHaveURL(/\/queue$/);
   });
 
   test("fits a 400px screen", async ({ page, request, noConsoleErrors }) => {

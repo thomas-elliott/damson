@@ -81,7 +81,7 @@ Then find the assets:
 
 ## Set up a project and pin to it
 
-A project is a named set of pinned asset versions inside one library: a game, a build, a demo. Go to **Projects → New project**. Give it a name and optionally a target distribution: `commercial`, `open-source`, `personal` or `unspecified`. Damson records and displays it but enforces nothing against it.
+A project is a named set of pinned asset versions inside one library: a game, a build, a demo. Go to **Projects → New project**. Give it a name and optionally a target distribution: Commercial, Open source, Personal or Unspecified. Damson records and displays it but enforces nothing against it.
 
 To pin:
 

@@ -617,7 +617,6 @@ export interface LibrarySettings {
   library_id: number;
   grid_density_default: "small" | "medium" | "large";
   retain_original_packages: boolean;
-  dedupe_enabled: boolean;
   thumbnails_raster_enabled: boolean;
   thumbnails_audio_enabled: boolean;
   thumbnails_font_enabled: boolean;
@@ -986,7 +985,6 @@ export function useAdminUsers(enabled: boolean = true) {
 
 export interface ServerSettings {
   max_upload_bytes: number;
-  licence_kb_auto_update: boolean;
 }
 
 export function useServerSettings(enabled: boolean = true) {

@@ -32,7 +32,7 @@ export const Cards: Story = {
           glyph={p.glyph}
           color={p.color}
           path={p.path}
-          engine={p.engine}
+          distribution={p.distribution}
         >
           <LicenceBar counts={{ ok: 110, warn: 12, err: 0, unk: 6 }} />
           <div className="flex justify-between text-mono text-subtle-foreground">

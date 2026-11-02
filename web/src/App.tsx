@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation, useParams } from "react-router";
+import { Navigate, Route, Routes } from "react-router";
 
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import { AdminAuditPage } from "@/pages/AdminAuditPage";
@@ -29,11 +29,8 @@ export default function App() {
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/library/:assetId" element={<LibraryPage />} />
           <Route path="/library/:assetId/package" element={<PackagePage />} />
-          <Route path="/library/:assetId/browse" element={<BrowseRedirect />} />
           <Route path="/tags" element={<TagIndexPage />} />
           <Route path="/queue" element={<TriagePage />} />
-          {/* Preview processing folded into the triage queue. */}
-          <Route path="/processing" element={<Navigate to="/queue" replace />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
@@ -45,12 +42,4 @@ export default function App() {
       </Routes>
     </NotificationProvider>
   );
-}
-
-// The file browser was its own page before the package page took it in; old
-// links land on the package page with their library query intact.
-function BrowseRedirect() {
-  const { assetId } = useParams();
-  const { search } = useLocation();
-  return <Navigate to={`/library/${assetId}/package${search}`} replace />;
 }
