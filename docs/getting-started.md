@@ -25,17 +25,9 @@ database and the object store, and read the release notes before upgrading.
 - Docker with Compose v2. Everything below uses `docker compose`.
 - Postgres 16. The quickstart runs one for you. `compose.yaml` and CI both run
   16, so it is the tested version.
-- Access to the container image. Images are published to
-  `ghcr.io/thomas-elliott/damson`, but the repository and package are private,
-  so an anonymous `docker pull` is refused. Log in with a GitHub personal access
-  token that has `read:packages` and access to the package:
-
-  ```sh
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USERNAME" --password-stdin
-  ```
-
-  With a checkout instead, `just image-build` builds the same image locally as
-  `damson:local`. Use that name in the Compose file below.
+- The container image, `ghcr.io/thomas-elliott/damson`. With a checkout
+  instead, `just image-build` builds the same image locally as `damson:local`.
+  Use that name in the Compose file below.
 - Disk. Damson keeps the uploaded archive, the files extracted from it, and the
   derived thumbnails and previews, so budget several times the size of your
   packages. Nothing on the write path deletes an object. Reclaiming space is a

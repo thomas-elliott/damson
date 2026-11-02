@@ -64,10 +64,9 @@ Damson is pre-alpha:
 - No backup tooling. Back up the Postgres database and the object store (`/data/blobs` in local mode, or your bucket) together, the database *after* storage. See [Backups](docs/getting-started.md#backups).
 - Gaps with no UI yet. Creating a library is an API call; the web UI can only rename, delete and switch between them. The how-tos name these gaps.
 - No upgrade guarantees. Migrations run forward automatically at startup and there is no downgrade path. Nothing stops you upgrading across several versions at once, and nothing promises it will work.
-- Private repository. The `ghcr.io/thomas-elliott/damson` images are private too, so `docker pull` needs a GitHub token with `read:packages`, or build the image yourself with `just image-build`.
 
-Releases are the `v*.*.*` git tags. The published images drop the `v`: each release is tagged `X.Y.Z`, `X.Y` and `X`, so `:0.4.0` pins exactly and `:0.4` follows the patches. Every commit that passes CI on `main` is also pushed as `main-<sha7>` and `latest`.
+Releases are the `v*.*.*` git tags, published as images at `ghcr.io/thomas-elliott/damson`. The image tags drop the `v`: each release is tagged `X.Y.Z`, `X.Y` and `X`, so `:0.5.0` pins exactly and `:0.5` follows the patches. Every commit that passes CI on `main` is also pushed as `main-<sha7>` and `latest`.
 
 ## Licence
 
-This repository has no licence file yet, so default copyright applies and there is no grant of use beyond what you have been given explicitly. That is an omission rather than a decision.
+Damson is licensed under the [GNU Affero General Public License v3.0](LICENSE). If you run a modified version as a network service, the AGPL requires you to offer its users the modified source.

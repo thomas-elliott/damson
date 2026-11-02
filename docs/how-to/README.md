@@ -8,4 +8,4 @@ Task guides for a running Damson. Each assumes a library with assets in it. If y
 - [Keep two teams' assets apart](separate-libraries.md): what a library separates and what it does not, creating one, switching, membership and roles.
 - [Group assets you keep coming back to](collections.md): collections versus tags versus projects, and how to build and use one.
 
-These describe Damson 0.3.0, which is pre-alpha. Where a feature has a gap, such as an action that exists only over the API or a setting with no control surface, the guide says so.
+These describe Damson 0.5.0, which is pre-alpha. Where a feature has a gap, such as an action that exists only over the API or a setting with no control surface, the guide says so.
