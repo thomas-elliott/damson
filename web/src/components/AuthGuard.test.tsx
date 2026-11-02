@@ -19,6 +19,10 @@ vi.mock("@/hooks/useDataQueries", () => ({
 }));
 vi.mock("@/lib/localAuth", () => ({ readLocalSession: () => ({ token: "t" }) }));
 vi.mock("@/lib/logout", () => ({ logout: vi.fn() }));
+const signinRedirect = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/oidc", () => ({
+  getUserManager: () => ({ getUser: async () => ({ expired: false }), signinRedirect }),
+}));
 
 const { logout } = await import("@/lib/logout");
 
@@ -29,6 +33,7 @@ function mount() {
         <Route element={<AuthGuard />}>
           <Route path="/library" element={<div>app</div>} />
         </Route>
+        <Route path="/login" element={<div>sign-in page</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -38,6 +43,7 @@ beforeEach(() => {
   auth.mode = { mode: "local", loading: false, error: null, reload: vi.fn() };
   auth.me = { data: { id: 1, needs_profile: false }, loading: false, error: null, reload: vi.fn() };
   vi.mocked(logout).mockClear();
+  signinRedirect.mockClear();
 });
 
 describe("AuthGuard", () => {
@@ -65,12 +71,23 @@ describe("AuthGuard", () => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 
-  it("keeps loading while an auth redirect leaves the page", async () => {
+  // A local session the server has revoked (a removed member, say) cannot be
+  // renewed, and nothing else leaves the page.
+  it("sends a revoked local session to sign in", async () => {
+    auth.me = { data: null, loading: false, error: new AuthRedirectError(), reload: vi.fn() };
+    mount();
+    expect(await screen.findByText("sign-in page")).toBeInTheDocument();
+  });
+
+  // An OIDC session that silent renewal could not save goes back to the IdP.
+  it("sends a revoked OIDC session to the IdP and keeps loading", async () => {
+    auth.mode = { mode: "oidc", loading: false, error: null, reload: vi.fn() };
     auth.me = { data: null, loading: false, error: new AuthRedirectError(), reload: vi.fn() };
     mount();
     // Past AuthGuard's own session check, into the account load.
     await act(() => Promise.resolve());
     expect(screen.getByText("Loading…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(signinRedirect).toHaveBeenCalledWith({ state: { returnTo: "/" } });
   });
 });

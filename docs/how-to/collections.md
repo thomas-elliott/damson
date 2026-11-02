@@ -122,7 +122,6 @@ Collections are cheap. Counts show on the Collections page and in `dmsn`'s home 
 - The collection page has no per-asset remove, so unlinking many assets at once means the CLI or API. Check the selection before you add 900 assets to the wrong collection.
 - There is no ordering. The grid sorts by the library's rules, not the order you added things.
 - Collections are flat. For a hierarchy, use tags.
-- A collection belongs to one library and cannot span two. See [Keep two teams' assets apart](separate-libraries.md).
 - Every change is audited (`collection.create`, `collection.update`, `collection.delete`, `collection.add`, `collection.remove`), so an accidental bulk add is traceable in the library audit log.
 
 ## Where to go next

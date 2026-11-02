@@ -18,10 +18,9 @@ A screenshot goes stale when the UI around it changes. When you change a screen 
 | Image | Used by |
 |---|---|
 | `first-run-bootstrap.png` | getting-started |
-| `library-switcher.png` | getting-started, separate-libraries |
 | `library-drop-overlay.png`, `import-queue.png` | getting-started |
 | `library-overview.png`, `asset-detail-panel.png` | README |
-| `settings-page.png`, `settings-invite-member.png` | separate-libraries |
+| `settings-page.png`, `settings-invite-member.png` | invite-your-team |
 | `dmsn-sync-scan.png`, `browse-files.png` | import-unity-packages |
 | `asset-versions-panel.png`, `notification-new-version.png`, `library-filter-updates.png`, `project-pin-dialog.png` | pin-versions |
 | `project-page.png` | pin-versions, track-licences |
