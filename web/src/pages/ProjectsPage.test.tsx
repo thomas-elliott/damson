@@ -11,12 +11,17 @@ vi.mock("@/components/Shell", () => ({
   Shell: ({ main }: { main: ReactNode }) => <main>{main}</main>,
 }));
 
-function project(id: number, name: string, licence_counts: Record<string, number>) {
+function project(
+  id: number,
+  name: string,
+  licence_counts: Record<string, number>,
+  target_distribution = "unspecified",
+) {
   return {
     id,
     name,
     description: "",
-    target_distribution: "",
+    target_distribution,
     glyph: "",
     glyph_color: "",
     asset_count: 10,
@@ -37,7 +42,7 @@ beforeEach(() => {
         Response.json({
           projects: [
             project(1, "Keep", { ok: 1, warn: 2, err: 3, unk: 4 }),
-            project(2, "Moat", { ok: 7, warn: 5, err: 6, unk: 8 }),
+            project(2, "Moat", { ok: 7, warn: 5, err: 6, unk: 8 }, "open-source"),
           ],
         }),
       );
@@ -64,5 +69,18 @@ describe("ProjectsPage", () => {
     expect(
       screen.getByRole("img", { name: "7 compliant, 5 review, 6 violation, 8 unknown" }),
     ).toBeInTheDocument();
+  });
+
+  it("captions a card with its target distribution only when one was chosen", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ProjectsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Open source")).toBeInTheDocument();
+    expect(screen.queryByText("Unspecified")).not.toBeInTheDocument();
   });
 });
