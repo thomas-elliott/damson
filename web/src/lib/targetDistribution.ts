@@ -7,6 +7,8 @@ export const TARGET_DISTRIBUTIONS = [
   { value: "personal", label: "Personal" },
 ] as const;
 
+export const DEFAULT_TARGET_DISTRIBUTION = "unspecified";
+
 // targetDistributionLabel falls back to the raw value, so a value added
 // server-side still renders.
 export function targetDistributionLabel(value: string): string {

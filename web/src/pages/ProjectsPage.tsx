@@ -34,7 +34,11 @@ import {
 } from "@/design-system";
 import { useProjects } from "@/hooks/useDataQueries";
 import { useCreateProject } from "@/hooks/useMutations";
-import { TARGET_DISTRIBUTIONS, targetDistributionLabel } from "@/lib/targetDistribution";
+import {
+  DEFAULT_TARGET_DISTRIBUTION,
+  TARGET_DISTRIBUTIONS,
+  targetDistributionLabel,
+} from "@/lib/targetDistribution";
 
 export function ProjectsPage() {
   const { data: projects, loading, failed, reload } = useProjects();
@@ -89,7 +93,11 @@ export function ProjectsPage() {
                     name={p.name}
                     glyph={p.glyph || p.name.slice(0, 1).toUpperCase()}
                     color={p.glyph_color || "oklch(0.4 0.14 260)"}
-                    distribution={targetDistributionLabel(p.target_distribution)}
+                    distribution={
+                      p.target_distribution === DEFAULT_TARGET_DISTRIBUTION
+                        ? undefined
+                        : targetDistributionLabel(p.target_distribution)
+                    }
                     onOpen={() => navigate(`/projects/${p.id}`)}
                   >
                     <div className="flex items-center justify-between gap-2 text-label text-subtle-foreground">
@@ -127,7 +135,7 @@ function NewProjectDialog({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [dist, setDist] = useState("unspecified");
+  const [dist, setDist] = useState(DEFAULT_TARGET_DISTRIBUTION);
   const [error, setError] = useState<string | null>(null);
   const create = useCreateProject();
   const navigate = useNavigate();
@@ -141,7 +149,7 @@ function NewProjectDialog({
           onOpenChange(false);
           setName("");
           setDescription("");
-          setDist("unspecified");
+          setDist(DEFAULT_TARGET_DISTRIBUTION);
           navigate(`/projects/${p.id}`);
         },
         onError: (err) => setError(err instanceof Error ? err.message : "failed"),
