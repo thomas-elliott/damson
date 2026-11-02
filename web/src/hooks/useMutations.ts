@@ -688,21 +688,6 @@ export function usePatchServerSettings() {
   });
 }
 
-export function useCreateLibrary() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: { name: string; description?: string }) => {
-      return fetchJson<{ id: number; name: string; description: string }>(`/api/libraries`, {
-        method: "POST",
-        body: JSON.stringify(input),
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.libraries });
-    },
-  });
-}
-
 // Switching library flips the server-side current_library_id; the client
 // caches keyed on the previous scope (assets, tags, projects, collections,
 // settings) must be dropped or the SPA will momentarily render the old
