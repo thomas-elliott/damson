@@ -84,7 +84,6 @@ vi.mock("@/components/LibraryTagsButton", () => ({
     <output aria-label="tags">{`${open ? "open" : "closed"}: ${selected.join(",")}`}</output>
   ),
 }));
-vi.mock("@/components/LibraryPicker", () => ({ LibraryPicker: () => null }));
 vi.mock("@/components/AddByLocationDialog", () => ({ AddByLocationButton: () => null }));
 vi.mock("@/components/BulkAssetBar", () => ({
   BulkAssetBar: () => <div role="status">bulk bar</div>,
@@ -225,9 +224,10 @@ describe("LibraryPage paging", () => {
 // The count is the first number on the screen, so it never shows a total the
 // library doesn't have.
 describe("LibraryPage heading", () => {
-  it("names the page with an h1", () => {
+  it("names the page after the library, with no way to switch library", () => {
     mount("/library");
-    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Main" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /switch library/i })).toBeNull();
   });
 });
 

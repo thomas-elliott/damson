@@ -1,30 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
-import { Trash2 } from "lucide-react";
 
-import {
-  Badge,
-  Button,
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FieldRow,
-  Input,
-  Section,
-  Textarea,
-} from "@/design-system";
+import { Badge, Button, FieldRow, Input, Section, Textarea } from "@/design-system";
 import { type MeLibrary } from "@/hooks/useDataQueries";
-import { useDeleteLibrary, usePatchLibrary } from "@/hooks/useMutations";
+import { usePatchLibrary } from "@/hooks/useMutations";
 import { useSavedFlash } from "@/hooks/useSavedFlash";
 
 /**
  * Library name + description editor. Admins can save changes; everyone else
  * sees the values rendered as a read-only summary.
- *
- * Admins also see a danger zone with the library deletion action.
  */
 export function LibraryProfileSection({
   library,
@@ -53,8 +36,7 @@ export function LibraryProfileSection({
   };
 
   return (
-    <>
-      <Section
+    <Section
         title="Library profile"
         defaultOpen
         accessory={
@@ -84,116 +66,5 @@ export function LibraryProfileSection({
           </div>
         )}
       </Section>
-      {isAdmin && <DangerZone library={library} />}
-    </>
-  );
-}
-
-function DangerZone({ library }: { library: MeLibrary }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Section title="Danger zone" defaultOpen={false}>
-      <div className="flex items-start justify-between gap-4 rounded-md border border-destructive/40 bg-destructive-soft/30 p-3">
-        <div className="flex flex-col">
-          <span className="text-ui text-foreground">Delete this library</span>
-          <span className="text-caption">
-            Removes every asset, project, collection, tag, setting, and member of{" "}
-            <span className="font-mono">{library.name}</span>. Blob storage is untouched. This can't
-            be undone.
-          </span>
-        </div>
-        <Button
-          variant="destructive"
-          leadingIcon={<Trash2 size={12} />}
-          onClick={() => setOpen(true)}
-        >
-          Delete library
-        </Button>
-      </div>
-      <DeleteLibraryDialog library={library} open={open} onOpenChange={setOpen} />
-    </Section>
-  );
-}
-
-function DeleteLibraryDialog({
-  library,
-  open,
-  onOpenChange,
-}: {
-  library: MeLibrary;
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-}) {
-  // The form's confirm/error state lives in DeleteLibraryForm, which Radix
-  // only mounts while the dialog is open — so it starts fresh on every open
-  // without a reset effect.
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DeleteLibraryForm library={library} onOpenChange={onOpenChange} />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DeleteLibraryForm({
-  library,
-  onOpenChange,
-}: {
-  library: MeLibrary;
-  onOpenChange: (v: boolean) => void;
-}) {
-  const navigate = useNavigate();
-  const del = useDeleteLibrary();
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const matches = confirm === library.name;
-  const submit = () => {
-    if (!matches) return;
-    setError(null);
-    del.mutate(library.id, {
-      onSuccess: () => {
-        onOpenChange(false);
-        // Server cleared current_library_id; bouncing the user to the root
-        // re-runs the boot-up flow (no library → bootstrap or login).
-        navigate("/", { replace: true });
-      },
-      onError: (e: unknown) => {
-        setError(e instanceof Error ? e.message : "Delete failed");
-      },
-    });
-  };
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Delete library?</DialogTitle>
-      </DialogHeader>
-      <DialogBody>
-        <p className="text-ui text-muted-foreground">
-          All assets, projects, collections, tags, settings, and member roles for{" "}
-          <span className="font-mono">{library.name}</span> will be removed. Members will be signed
-          out of any open sessions.
-        </p>
-        <FieldRow label="Type the library name to confirm" hint="Case-sensitive.">
-          <Input
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoFocus
-            placeholder={library.name}
-          />
-        </FieldRow>
-        {error && <p className="text-label text-destructive">{error}</p>}
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancel
-        </Button>
-        <Button variant="destructive" disabled={!matches || del.isPending} onClick={submit}>
-          {del.isPending ? "Deleting…" : "Delete library"}
-        </Button>
-      </DialogFooter>
-    </>
   );
 }

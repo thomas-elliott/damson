@@ -9,7 +9,6 @@ import { BulkAssetBar } from "@/components/BulkAssetBar";
 import { AssetDetailPanel } from "@/components/detail/AssetDetailPanel";
 import { DropZone, useDropZoneOpen } from "@/components/DropZone";
 import { LibraryFiltersButton } from "@/components/LibraryFilters";
-import { LibraryPicker } from "@/components/LibraryPicker";
 import { LibraryTagsButton } from "@/components/LibraryTagsButton";
 import { Shell } from "@/components/Shell";
 import { UrlPager } from "@/components/UrlPager";
@@ -208,9 +207,7 @@ export function LibraryPage() {
         lib ? (
           <DropZone>
             <Toolbar>
-              {/* The library picker names the page visually. */}
-              <h1 className="sr-only">Library</h1>
-              <LibraryPicker current={lib} />
+              <h1 className="min-w-0 truncate text-ui font-medium text-foreground">{lib.name}</h1>
               {/* Until the first page settles the hook's total is 0, which is
                   wrong rather than absent; show the pager's total otherwise, so
                   a failed page change keeps the last count. */}
