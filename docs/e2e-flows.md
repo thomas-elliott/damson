@@ -21,9 +21,9 @@ effectively off. It adds two test-only routes: `POST /api/test/reset` and `POST 
 (seed a user, optionally sysadmin or with a library membership).
 
 Specs import `test` from `web/e2e/fixtures.ts`, which resets the backend before every test. They
-seed through the real API (`bootstrapAdmin`, `createLibrary`, `switchCurrentLibrary`,
+seed through the real API (`bootstrapAdmin`,
 `uploadImport`, `createReferenceAsset`, `tagAsset`, `createTestUser`) and authenticate by writing the session
-into local storage before the SPA loads (`installSession`); only the login and bootstrap specs drive the forms.
+into local storage before the SPA loads (`installSession`); only the login, bootstrap and team-invite specs drive the forms.
 `uploadImport` blocks until the import row is `done`. The OIDC spec runs entirely in the browser:
 it intercepts `/api/auth/mode` and the IdP endpoints with `page.route`.
 
@@ -37,7 +37,7 @@ sibling tag left out, the chips, a reload, removing one chip, Clear all) and the
 viewport, a tag index card opening the library filtered to its tag, triage (a needs-review reference with no
 import listed, marked reviewed into Recently reviewed, and every row
 action whole on screen at 400px), a UI upload accepted and shown
-as a placeholder, library switching without leaking the other library's assets, the package page
+as a placeholder, an invited member signing in straight into the team's library, the package page
 (opened from the quick look onto a pack's files inside its lone root folder, Back to the results,
 next and previous across a library page boundary by button and arrow
 key, a reference asset's page, and the stacked layout at 400px), tag and licence edits surviving a
