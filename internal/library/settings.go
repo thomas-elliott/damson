@@ -26,7 +26,6 @@ func Settings(tx *gorm.DB, libID uint) (*models.LibrarySettings, error) {
 		LibraryID:               libID,
 		GridDensityDefault:      "medium",
 		RetainOriginalPackages:  true,
-		DedupeEnabled:           true,
 		ThumbnailsRasterEnabled: true,
 		ThumbnailsAudioEnabled:  true,
 		ThumbnailsFontEnabled:   true,

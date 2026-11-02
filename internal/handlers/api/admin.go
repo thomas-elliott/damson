@@ -162,8 +162,7 @@ func (h *Handler) patchAdminUser(c *gin.Context) {
 }
 
 type serverSettingsView struct {
-	MaxUploadBytes      int64 `json:"max_upload_bytes"`
-	LicenceKBAutoUpdate bool  `json:"licence_kb_auto_update"`
+	MaxUploadBytes int64 `json:"max_upload_bytes"`
 }
 
 func (h *Handler) getServerSettings(c *gin.Context) {
@@ -176,14 +175,12 @@ func (h *Handler) getServerSettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, serverSettingsView{
-		MaxUploadBytes:      s.MaxUploadBytes,
-		LicenceKBAutoUpdate: s.LicenceKBAutoUpdate,
+		MaxUploadBytes: s.MaxUploadBytes,
 	})
 }
 
 type serverSettingsPatchRequest struct {
-	MaxUploadBytes      *int64 `json:"max_upload_bytes,omitempty"`
-	LicenceKBAutoUpdate *bool  `json:"licence_kb_auto_update,omitempty"`
+	MaxUploadBytes *int64 `json:"max_upload_bytes,omitempty"`
 }
 
 func (h *Handler) patchServerSettings(c *gin.Context) {
@@ -203,14 +200,10 @@ func (h *Handler) patchServerSettings(c *gin.Context) {
 			return err
 		}
 		before := serverSettingsView{
-			MaxUploadBytes:      s.MaxUploadBytes,
-			LicenceKBAutoUpdate: s.LicenceKBAutoUpdate,
+			MaxUploadBytes: s.MaxUploadBytes,
 		}
 		if req.MaxUploadBytes != nil {
 			s.MaxUploadBytes = *req.MaxUploadBytes
-		}
-		if req.LicenceKBAutoUpdate != nil {
-			s.LicenceKBAutoUpdate = *req.LicenceKBAutoUpdate
 		}
 		var actorID *uint
 		if actor != nil {
@@ -222,8 +215,7 @@ func (h *Handler) patchServerSettings(c *gin.Context) {
 		}
 		out = *s
 		after := serverSettingsView{
-			MaxUploadBytes:      s.MaxUploadBytes,
-			LicenceKBAutoUpdate: s.LicenceKBAutoUpdate,
+			MaxUploadBytes: s.MaxUploadBytes,
 		}
 		return audit.Write(tx, audit.Entry{
 			LibraryID:  nil,
@@ -238,8 +230,7 @@ func (h *Handler) patchServerSettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, serverSettingsView{
-		MaxUploadBytes:      out.MaxUploadBytes,
-		LicenceKBAutoUpdate: out.LicenceKBAutoUpdate,
+		MaxUploadBytes: out.MaxUploadBytes,
 	})
 }
 
@@ -255,9 +246,8 @@ func loadOrCreateServerSettings(tx *gorm.DB) (*models.ServerSettings, error) {
 		return nil, err
 	}
 	s = models.ServerSettings{
-		ID:                  1,
-		MaxUploadBytes:      68719476736, // 64 GiB
-		LicenceKBAutoUpdate: false,
+		ID:             1,
+		MaxUploadBytes: 68719476736, // 64 GiB
 	}
 	if err := tx.Create(&s).Error; err != nil {
 		return nil, err

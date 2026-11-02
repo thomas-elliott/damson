@@ -17,7 +17,6 @@ type librarySettingsView struct {
 	LibraryID               uint   `json:"library_id"`
 	GridDensityDefault      string `json:"grid_density_default"`
 	RetainOriginalPackages  bool   `json:"retain_original_packages"`
-	DedupeEnabled           bool   `json:"dedupe_enabled"`
 	ThumbnailsRasterEnabled bool   `json:"thumbnails_raster_enabled"`
 	ThumbnailsAudioEnabled  bool   `json:"thumbnails_audio_enabled"`
 	ThumbnailsFontEnabled   bool   `json:"thumbnails_font_enabled"`
@@ -45,7 +44,6 @@ func settingsViewFrom(s *models.LibrarySettings) librarySettingsView {
 		LibraryID:               s.LibraryID,
 		GridDensityDefault:      s.GridDensityDefault,
 		RetainOriginalPackages:  s.RetainOriginalPackages,
-		DedupeEnabled:           s.DedupeEnabled,
 		ThumbnailsRasterEnabled: s.ThumbnailsRasterEnabled,
 		ThumbnailsAudioEnabled:  s.ThumbnailsAudioEnabled,
 		ThumbnailsFontEnabled:   s.ThumbnailsFontEnabled,
@@ -90,7 +88,6 @@ func (h *Handler) withMaxUpload(c *gin.Context, v librarySettingsView) (libraryS
 type librarySettingsPatchRequest struct {
 	GridDensityDefault      *string `json:"grid_density_default,omitempty"`
 	RetainOriginalPackages  *bool   `json:"retain_original_packages,omitempty"`
-	DedupeEnabled           *bool   `json:"dedupe_enabled,omitempty"`
 	ThumbnailsRasterEnabled *bool   `json:"thumbnails_raster_enabled,omitempty"`
 	ThumbnailsAudioEnabled  *bool   `json:"thumbnails_audio_enabled,omitempty"`
 	ThumbnailsFontEnabled   *bool   `json:"thumbnails_font_enabled,omitempty"`
@@ -128,9 +125,6 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		}
 		if req.RetainOriginalPackages != nil {
 			s.RetainOriginalPackages = *req.RetainOriginalPackages
-		}
-		if req.DedupeEnabled != nil {
-			s.DedupeEnabled = *req.DedupeEnabled
 		}
 		if req.ThumbnailsRasterEnabled != nil {
 			s.ThumbnailsRasterEnabled = *req.ThumbnailsRasterEnabled
