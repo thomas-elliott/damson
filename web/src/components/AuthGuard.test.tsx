@@ -19,8 +19,9 @@ vi.mock("@/hooks/useDataQueries", () => ({
 }));
 vi.mock("@/lib/localAuth", () => ({ readLocalSession: () => ({ token: "t" }) }));
 vi.mock("@/lib/logout", () => ({ logout: vi.fn() }));
+const signinRedirect = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/oidc", () => ({
-  getUserManager: () => ({ getUser: async () => ({ expired: false }), signinRedirect: vi.fn() }),
+  getUserManager: () => ({ getUser: async () => ({ expired: false }), signinRedirect }),
 }));
 
 const { logout } = await import("@/lib/logout");
@@ -42,6 +43,7 @@ beforeEach(() => {
   auth.mode = { mode: "local", loading: false, error: null, reload: vi.fn() };
   auth.me = { data: { id: 1, needs_profile: false }, loading: false, error: null, reload: vi.fn() };
   vi.mocked(logout).mockClear();
+  signinRedirect.mockClear();
 });
 
 describe("AuthGuard", () => {
@@ -77,7 +79,8 @@ describe("AuthGuard", () => {
     expect(await screen.findByText("sign-in page")).toBeInTheDocument();
   });
 
-  it("keeps loading while an OIDC sign-in redirect leaves the page", async () => {
+  // An OIDC session that silent renewal could not save goes back to the IdP.
+  it("sends a revoked OIDC session to the IdP and keeps loading", async () => {
     auth.mode = { mode: "oidc", loading: false, error: null, reload: vi.fn() };
     auth.me = { data: null, loading: false, error: new AuthRedirectError(), reload: vi.fn() };
     mount();
@@ -85,5 +88,6 @@ describe("AuthGuard", () => {
     await act(() => Promise.resolve());
     expect(screen.getByText("Loading…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(signinRedirect).toHaveBeenCalledWith({ state: { returnTo: "/" } });
   });
 });
