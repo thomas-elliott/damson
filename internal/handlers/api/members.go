@@ -306,9 +306,8 @@ func (h *Handler) deleteLibraryMember(c *gin.Context) {
 			Update("tokens_valid_after", &now).Error; err != nil {
 			return err
 		}
-		// If the removed user had this library as their current library,
-		// clear it so their next request lands on requireLibrary's "no
-		// current library" path rather than 403-on-membership.
+		// Don't leave the removed user pointing at a library they no longer
+		// belong to; requireLibrary would skip it anyway.
 		if err := tx.Model(&models.User{}).
 			Where("id = ? AND current_library_id = ?", userID, libID).
 			Update("current_library_id", nil).Error; err != nil {

@@ -156,7 +156,9 @@ On an empty system, the first user to sign in becomes `sysadmin` and gets a "Per
 - `authed` runs `auth.Middleware`. Every authentication failure is a generic 401.
 - `admin` is `authed` plus `auth.RefuseTokens()`, for the sysadmin surface.
 - `scoped` is `authed` plus `requireLibrary()`. This scopes the request to the caller's current
-  library and answers 403 on any gap, never 404.
+  library, or to the library they belong to when the current one is unset or no longer theirs (as
+  for a newly invited member). A token stays on its pinned library. It answers 403 on any gap,
+  never 404.
 
 Routes that address a library by `:id` stay on `authed` and gate inside the handler
 (`userCanAdminLibrary`), so that a sysadmin can administer any library.
