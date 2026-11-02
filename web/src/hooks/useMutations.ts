@@ -688,34 +688,6 @@ export function usePatchServerSettings() {
   });
 }
 
-// Switching library flips the server-side current_library_id; the client
-// caches keyed on the previous scope (assets, tags, projects, collections,
-// settings) must be dropped or the SPA will momentarily render the old
-// library's data under the new library's name.
-export function useSwitchCurrentLibrary() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (libraryId: number) => {
-      return fetchJson<{ library_id: number }>(`/api/me/current-library`, {
-        method: "POST",
-        body: JSON.stringify({ library_id: libraryId }),
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.me });
-      qc.invalidateQueries({ queryKey: queryKeys.libraries });
-      qc.invalidateQueries({ queryKey: queryKeys.assets() });
-      qc.invalidateQueries({ queryKey: queryKeys.tags });
-      qc.invalidateQueries({ queryKey: queryKeys.projects });
-      qc.invalidateQueries({ queryKey: queryKeys.collections });
-      // Marked stale, not refetched: until me refetches, the settings on
-      // screen are keyed by the old library, and /api/settings would answer
-      // for the new one into that key.
-      qc.invalidateQueries({ queryKey: queryKeys.librarySettings(), refetchType: "none" });
-    },
-  });
-}
-
 export function usePatchLibrary() {
   const qc = useQueryClient();
   return useMutation({
@@ -728,25 +700,6 @@ export function usePatchLibrary() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.me });
-    },
-  });
-}
-
-// Library deletion is irreversible — the danger-zone confirm dialog gates
-// the call. Server bumps every former member's tokens_valid_after, so the
-// next request from any open tab fails 401 and bounces to login.
-export function useDeleteLibrary() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (libraryId: number) => {
-      await fetchMaybeJson(`/api/libraries/${libraryId}`, { method: "DELETE" });
-      return libraryId;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.me });
-      qc.invalidateQueries({ queryKey: queryKeys.assets() });
-      qc.invalidateQueries({ queryKey: queryKeys.projects });
-      qc.invalidateQueries({ queryKey: queryKeys.collections });
     },
   });
 }

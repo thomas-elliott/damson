@@ -72,32 +72,6 @@ export function useMe(enabled: boolean = true) {
   };
 }
 
-// -- /api/libraries ---------------------------------------------------------
-
-export interface LibrarySummary {
-  library_id: number;
-  name: string;
-  description?: string;
-  role: "admin" | "member";
-  is_current: boolean;
-}
-
-export function useLibraries(enabled: boolean = true) {
-  const q = useQuery({
-    queryKey: queryKeys.libraries,
-    queryFn: () => fetchJson<{ libraries: LibrarySummary[] }>("/api/libraries"),
-    staleTime: 5 * MINUTE,
-    gcTime: 1 * HOUR,
-    enabled,
-  });
-  return {
-    data: q.data?.libraries ?? [],
-    loading: q.isPending,
-    error: q.error,
-    reload: q.refetch,
-  };
-}
-
 // -- /api/assets ------------------------------------------------------------
 
 export type LicenceStatus = "ok" | "warn" | "err" | "unk";

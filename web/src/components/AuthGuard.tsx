@@ -48,17 +48,12 @@ export function AuthGuard() {
       };
     }
 
-    // OIDC path. The requested page rides along in the sign-in state, which
-    // oidc-client-ts keeps in local storage and hands back to the callback.
-    const { pathname, search, hash } = window.location;
-    const signIn = () =>
-      void getUserManager().signinRedirect({ state: { returnTo: pathname + search + hash } });
     getUserManager()
       .getUser()
       .then((user) => {
         if (cancelled) return;
         if (!user || user.expired) {
-          signIn();
+          oidcSignIn();
         } else {
           setState("ready");
         }
@@ -68,7 +63,7 @@ export function AuthGuard() {
         // bounce into the login flow rather than stalling on the spinner.
         if (cancelled) return;
         console.error("OIDC getUser failed", err);
-        signIn();
+        oidcSignIn();
       });
     return () => {
       cancelled = true;
@@ -92,18 +87,27 @@ export function AuthGuard() {
     }
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
-  return <ProfileGate />;
+  return <ProfileGate mode={mode} />;
 }
 
 // ProfileGate sits between a valid session and the app. It holds the user on
 // the first-login profile step until they've set an email (needs_profile),
 // then falls through to the routed app. Separate component so useMe only runs
 // once we know the session is ready.
-function ProfileGate() {
+function ProfileGate({ mode }: { mode: string | null }) {
   const { data: me, loading, error, reload } = useMe();
+  const location = useLocation();
 
-  // An auth redirect is already leaving the page, so it keeps the loading state.
-  if (!loading && !me && error && !isAuthRedirectError(error)) {
+  // A session the server revoked (a removed member, say) and could not renew
+  // signs in again. OIDC leaves for the IdP and keeps the loading state.
+  const revoked = isAuthRedirectError(error);
+  useEffect(() => {
+    if (revoked && mode === "oidc") oidcSignIn();
+  }, [revoked, mode]);
+  if (revoked && mode === "local") {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+  if (!loading && !me && error && !revoked) {
     return <AuthFailure title="Couldn't load your account" onRetry={reload} />;
   }
   if (loading || !me) {
@@ -113,6 +117,13 @@ function ProfileGate() {
     return <ProfileSetupPage me={me} />;
   }
   return <Outlet />;
+}
+
+// The requested page rides along in the sign-in state, which oidc-client-ts
+// keeps in local storage and hands back to the callback.
+function oidcSignIn() {
+  const { pathname, search, hash } = window.location;
+  void getUserManager().signinRedirect({ state: { returnTo: pathname + search + hash } });
 }
 
 // The queries that gate the whole app have no page to fall back to, so their

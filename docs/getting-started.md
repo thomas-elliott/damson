@@ -164,37 +164,12 @@ allow-list. See the OIDC section of [`docs/configuration.md`](configuration.md).
 Local auth uses bcrypt passwords and one-hour JWTs. It suits a trial or a small
 trusted team. Prefer OIDC where account security matters.
 
-## Your first library
+## Your library
 
-A library is Damson's tenancy boundary. Assets, tags, projects, collections,
-settings and the audit log each belong to exactly one library, and you see only
-libraries you are a member of. Most small teams never need a second one.
-
-Bootstrap created **Personal**, so you can skip to uploading.
-
-To add another, for example one per game, use the API, because the web UI can
-rename, delete and switch libraries but cannot create them. Authenticate and
-post to `/api/libraries`:
-
-```sh
-TOKEN=$(curl -sS -X POST localhost:8080/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"you@example.com","password":"your-password"}' \
-  | jq -r .token)
-
-curl -sS -X POST localhost:8080/api/libraries \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Sample Library","description":"Assets for the sample build"}'
-# {"id":2,"name":"Sample Library","description":"Assets for the sample build"}
-```
-
-Whoever creates a library becomes its admin. The new library does not become
-your current one. Switch to it from the library picker in the header (the
-**Switch library** button, which lists every library you belong to), or post the
-id to `/api/me/current-library`.
-
-![The Switch library menu open, listing Personal and Sample Library with their role badges and a tick on the current library](images/library-switcher.png)
+A team shares one library. Assets, tags, projects, collections, settings and the
+audit log all belong to it, and only its members see them. Bootstrap created
+**Personal**, so you can skip to uploading. Rename it under **Settings →
+Library profile**.
 
 Local-mode login tokens last one hour, so log in again when you return to a
 shell the next day.
@@ -204,7 +179,8 @@ shell the next day.
 Under **Settings → Members**, a library admin presses **Invite** and enters an
 email, an optional display name, and a role (`admin` or `member`). In local auth
 mode, set an initial password for a new user. For someone who already has an
-account, leave it blank and they are added to this library.
+account, leave it blank and they are added to the library. They land in it the
+next time they sign in.
 
 Membership is the only source of access, and there is no "everyone can see
 everything" mode. A user who belongs to no library can sign in but has nowhere
@@ -279,7 +255,7 @@ descriptions, publishers, tags and locations.
   [tracking licences](how-to/track-licences.md),
   [Unity packages](how-to/import-unity-packages.md),
   [versions and pins](how-to/pin-versions.md),
-  [more than one library](how-to/separate-libraries.md) and
+  [inviting your team](how-to/invite-your-team.md) and
   [collections](how-to/collections.md).
 - [`docs/configuration.md`](configuration.md): every environment variable, its
   default, and the OIDC and S3 setups.
@@ -293,8 +269,8 @@ descriptions, publishers, tags and locations.
 `dmsn sync` imports Unity's local Asset Store cache in bulk, which is usually
 the fastest way to fill a new library. It authenticates with a personal access
 token. Create one under **Settings → Access tokens**, choosing `read` or
-`write` scope and an optional expiry. A token is pinned to the library that was
-current when you created it.
+`write` scope and an optional expiry. A token is pinned to the library it was
+created in.
 
 ### Backups
 

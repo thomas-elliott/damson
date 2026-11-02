@@ -1,13 +1,11 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/models"
@@ -122,37 +120,19 @@ func (h *Handler) respondMe(c *gin.Context, u *models.User) {
 		}
 	}
 
-	if u.CurrentLibraryID != nil {
-		// Resolve library + role in one query; if the user's current_library
-		// points to a library they're no longer a member of, omit the block
-		// (the SPA then surfaces the "no library access yet" state).
-		type row struct {
-			Name        string
-			Description string
-			Role        string
-		}
-		var r row
-		err := h.db.WithContext(c.Request.Context()).
-			Table("library_memberships AS lm").
-			Select("l.name, l.description, lm.role").
-			Joins("JOIN libraries l ON l.id = lm.library_id").
-			Where("lm.library_id = ? AND lm.user_id = ?", *u.CurrentLibraryID, u.ID).
-			Take(&r).Error
-		switch {
-		case err == nil:
-			resp.CurrentLibrary = &currentLibrary{
-				ID:          *u.CurrentLibraryID,
-				Name:        r.Name,
-				Description: r.Description,
-				Role:        r.Role,
-			}
-		case errors.Is(err, gorm.ErrRecordNotFound):
-			// User's current_library points at a library they've been removed
-			// from. Omit the block so the SPA surfaces the "no library access
-			// yet" state.
-		default:
-			respond500(c, err)
-			return
+	// A user who belongs to no library gets no block, and the SPA shows the
+	// "No library access yet" state.
+	lib, mem, err := h.resolveLibrary(c, u)
+	if err != nil {
+		respond500(c, err)
+		return
+	}
+	if lib != nil {
+		resp.CurrentLibrary = &currentLibrary{
+			ID:          lib.ID,
+			Name:        lib.Name,
+			Description: lib.Description,
+			Role:        mem.Role,
 		}
 	}
 

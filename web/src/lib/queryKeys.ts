@@ -31,7 +31,6 @@ export const queryKeys = {
     page != null ? (["imports", "triage", page] as const) : (["imports", "triage"] as const),
   storeLookupBatch: (id: number) => ["storeLookupBatch", id] as const,
   previews: ["previews"] as const,
-  libraries: ["libraries"] as const,
   libraryMembers: (libraryId: number) => ["libraries", libraryId, "members"] as const,
   apiTokens: ["apiTokens"] as const,
   adminUsers: ["adminUsers"] as const,

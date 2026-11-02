@@ -138,9 +138,6 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	authed.Use(authMiddleware)
 	authed.GET("/me", h.getMe)
 	authed.PATCH("/me", h.patchMe)
-	authed.GET("/libraries", h.getLibraries)
-	authed.POST("/libraries", h.postLibrary)
-	authed.POST("/me/current-library", h.postCurrentLibrary)
 
 	// Token management is closed to tokens themselves: a leaked token must not
 	// be able to mint its own replacements. noTokens is applied per route
@@ -162,7 +159,6 @@ func AddRoutes(root *gin.RouterGroup, authMiddleware gin.HandlerFunc, h *Handler
 	// handlers because these routes don't share the current_library_id
 	// requirement (a sysadmin can administer any library).
 	authed.PATCH("/libraries/:id", h.patchLibrary)
-	authed.DELETE("/libraries/:id", h.deleteLibrary)
 	authed.GET("/libraries/:id/members", h.getLibraryMembers)
 	authed.POST("/libraries/:id/members", h.postLibraryMember)
 	authed.PATCH("/libraries/:id/members/:userId", h.patchLibraryMember)

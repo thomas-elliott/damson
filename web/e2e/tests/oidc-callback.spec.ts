@@ -136,13 +136,6 @@ async function setupOidcRoutes(
   await page.route("**/api/me", (route) =>
     route.fulfill(jsonRoute(route.request().method() === "PATCH" && patchedMe ? patchedMe : me)),
   );
-  await page.route("**/api/libraries", (route) =>
-    route.fulfill(
-      jsonRoute({
-        libraries: [{ library_id: 1, name: "OIDC Test Library", role: "admin", is_current: true }],
-      }),
-    ),
-  );
   await page.route(
     /\/api\/(assets|tags|projects|collections|imports|triage|previews|settings|audit|admin|files|thumbs)/,
     (route) => route.fulfill(jsonRoute({})),
@@ -246,17 +239,6 @@ test.describe("OIDC sign-in callback", () => {
           display_name: "OIDC Test User",
           role: "user",
           current_library: { id: 1, name: "OIDC Test Library", role: "admin" },
-        }),
-      }),
-    );
-    await page.route("**/api/libraries", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          libraries: [
-            { library_id: 1, name: "OIDC Test Library", role: "admin", is_current: true },
-          ],
         }),
       }),
     );
