@@ -1,13 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
 import { BrandMark, Button, FieldRow, Input } from "@/design-system";
 import { useAuthMode } from "@/hooks/useDataQueries";
 import { localLogin } from "@/lib/localAuth";
+import { queryKeys } from "@/lib/queryKeys";
 import { safeReturnTo } from "@/lib/returnTo";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // AuthGuard sends a signed-out visitor here with the page they asked for.
   const from = (useLocation().state as { from?: unknown } | null)?.from;
   const { mode, needsBootstrap, loading: modeLoading } = useAuthMode();
@@ -28,6 +31,9 @@ export function LoginPage() {
     setError(null);
     try {
       await localLogin(email, password);
+      // A revoked session leaves `me` failed; AuthGuard would read that
+      // error and send the user straight back here.
+      queryClient.removeQueries({ queryKey: queryKeys.me });
       navigate(safeReturnTo(from), { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
