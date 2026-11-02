@@ -163,13 +163,6 @@ func run() error {
 		cancelBackground()
 		waitBackground(&background, shutdownTimeout)
 	}()
-	// Off the startup path: each refetch waits on the storefront's rate limit.
-	background.Go(func() error {
-		if err := enrich.RepairGallery(bgCtx, gormDB, store, metaRegistry); err != nil {
-			slog.Warn("gallery repair failed", "err", err)
-		}
-		return nil
-	})
 	// Off the startup path: it reads blobs.
 	background.Go(func() error {
 		if covered, err := ingest.BackfillCovers(bgCtx, gormDB, store); err != nil {
