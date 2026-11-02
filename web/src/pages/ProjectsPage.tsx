@@ -34,6 +34,11 @@ import {
 } from "@/design-system";
 import { useProjects } from "@/hooks/useDataQueries";
 import { useCreateProject } from "@/hooks/useMutations";
+import {
+  DEFAULT_TARGET_DISTRIBUTION,
+  TARGET_DISTRIBUTIONS,
+  targetDistributionLabel,
+} from "@/lib/targetDistribution";
 
 export function ProjectsPage() {
   const { data: projects, loading, failed, reload } = useProjects();
@@ -88,7 +93,11 @@ export function ProjectsPage() {
                     name={p.name}
                     glyph={p.glyph || p.name.slice(0, 1).toUpperCase()}
                     color={p.glyph_color || "oklch(0.4 0.14 260)"}
-                    engine={p.target_distribution || undefined}
+                    distribution={
+                      p.target_distribution === DEFAULT_TARGET_DISTRIBUTION
+                        ? undefined
+                        : targetDistributionLabel(p.target_distribution)
+                    }
                     onOpen={() => navigate(`/projects/${p.id}`)}
                   >
                     <div className="flex items-center justify-between gap-2 text-label text-subtle-foreground">
@@ -126,7 +135,7 @@ function NewProjectDialog({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [dist, setDist] = useState("unspecified");
+  const [dist, setDist] = useState(DEFAULT_TARGET_DISTRIBUTION);
   const [error, setError] = useState<string | null>(null);
   const create = useCreateProject();
   const navigate = useNavigate();
@@ -140,7 +149,7 @@ function NewProjectDialog({
           onOpenChange(false);
           setName("");
           setDescription("");
-          setDist("unspecified");
+          setDist(DEFAULT_TARGET_DISTRIBUTION);
           navigate(`/projects/${p.id}`);
         },
         onError: (err) => setError(err instanceof Error ? err.message : "failed"),
@@ -154,8 +163,7 @@ function NewProjectDialog({
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>
-            Projects pin specific asset versions and track licence compatibility with a distribution
-            target.
+            Projects pin specific asset versions for a game or build.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -175,19 +183,17 @@ function NewProjectDialog({
               rows={3}
             />
           </FieldRow>
-          <FieldRow
-            label="Target distribution"
-            description="Used later for licence compliance checks."
-          >
+          <FieldRow label="Target distribution" description="How you plan to release the project.">
             <Select value={dist} onValueChange={setDist}>
               <SelectTrigger aria-label="Target distribution">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unspecified">Unspecified</SelectItem>
-                <SelectItem value="commercial">Commercial</SelectItem>
-                <SelectItem value="open-source">Open source</SelectItem>
-                <SelectItem value="personal">Personal</SelectItem>
+                {TARGET_DISTRIBUTIONS.map((d) => (
+                  <SelectItem key={d.value} value={d.value}>
+                    {d.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FieldRow>

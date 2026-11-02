@@ -3,11 +3,10 @@ package models
 import "time"
 
 type ServerSettings struct {
-	ID                  uint  `gorm:"primarykey;default:1"`
-	MaxUploadBytes      int64 `gorm:"not null;default:68719476736"`
-	LicenceKBAutoUpdate bool  `gorm:"not null;default:false"`
-	UpdatedAt           time.Time
-	UpdatedByUserID     *uint
+	ID              uint  `gorm:"primarykey;default:1"`
+	MaxUploadBytes  int64 `gorm:"not null;default:68719476736"`
+	UpdatedAt       time.Time
+	UpdatedByUserID *uint
 }
 
 func (ServerSettings) TableName() string { return "server_settings" }
@@ -16,7 +15,6 @@ type LibrarySettings struct {
 	LibraryID               uint   `gorm:"primarykey"`
 	GridDensityDefault      string `gorm:"not null;default:medium"`
 	RetainOriginalPackages  bool   `gorm:"not null;default:true"`
-	DedupeEnabled           bool   `gorm:"not null;default:true"`
 	ThumbnailsRasterEnabled bool   `gorm:"not null;default:true"`
 	ThumbnailsAudioEnabled  bool   `gorm:"not null;default:true"`
 	ThumbnailsFontEnabled   bool   `gorm:"not null;default:true"`

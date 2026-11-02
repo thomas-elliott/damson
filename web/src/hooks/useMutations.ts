@@ -438,7 +438,6 @@ export function useRemoveAssetFromCollection() {
 export interface LibrarySettingsPatch {
   grid_density_default?: "small" | "medium" | "large";
   retain_original_packages?: boolean;
-  dedupe_enabled?: boolean;
   thumbnails_raster_enabled?: boolean;
   thumbnails_audio_enabled?: boolean;
   thumbnails_font_enabled?: boolean;
@@ -677,7 +676,7 @@ export function useResetUserPassword() {
 export function usePatchServerSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { max_upload_bytes?: number; licence_kb_auto_update?: boolean }) => {
+    mutationFn: async (input: { max_upload_bytes?: number }) => {
       return fetchJson<unknown>(`/api/admin/settings`, {
         method: "PATCH",
         body: JSON.stringify(input),
@@ -685,21 +684,6 @@ export function usePatchServerSettings() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.adminSettings });
-    },
-  });
-}
-
-export function useCreateLibrary() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: { name: string; description?: string }) => {
-      return fetchJson<{ id: number; name: string; description: string }>(`/api/libraries`, {
-        method: "POST",
-        body: JSON.stringify(input),
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.libraries });
     },
   });
 }

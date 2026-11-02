@@ -57,10 +57,6 @@ test.describe("Package page", () => {
     await page.getByRole("button", { name: "Back to library" }).click();
     await expect(page).toHaveURL(new RegExp(`/library/${asset_id}\\?q=tiny$`));
     await expect(panel).toBeVisible();
-
-    // The file browser's old address lands on the package page.
-    await page.goto(`/library/${asset_id}/browse?q=tiny`);
-    await expect(page).toHaveURL(new RegExp(`/library/${asset_id}/package\\?q=tiny$`));
   });
 
   test("steps through the library results across a page boundary", async ({

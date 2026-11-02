@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import {
   Badge,
   Button,
-  Checkbox,
   Dialog,
   DialogBody,
   DialogContent,
@@ -114,21 +113,6 @@ function ServerSettingsFormBody({ settings }: { settings: ServerSettings }) {
           className="w-48"
         />
       </FieldRow>
-      <div className="flex items-center justify-between gap-4 py-2">
-        <div className="flex flex-col">
-          <span className="text-ui text-foreground">Auto-update licence knowledge base</span>
-          <span className="text-caption">
-            When supported, periodically refresh the SPDX overlay from upstream.
-          </span>
-        </div>
-        <Checkbox
-          aria-label="Auto-update licence knowledge base"
-          checked={settings.licence_kb_auto_update}
-          onCheckedChange={(v) =>
-            patch.mutate({ licence_kb_auto_update: !!v }, { onSuccess: flash })
-          }
-        />
-      </div>
     </Section>
   );
 }

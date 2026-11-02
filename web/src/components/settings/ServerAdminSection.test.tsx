@@ -13,7 +13,7 @@ vi.mock("@/api", async (importOriginal) => {
   return { ...actual, fetchJson: (...args: unknown[]) => fetchJsonMock(...args) };
 });
 
-const SETTINGS = { max_upload_bytes: 1024, licence_kb_auto_update: false };
+const SETTINGS = { max_upload_bytes: 1024 };
 const USER = { id: 1, email: "thomas@example.com", display_name: "Thomas", role: "sysadmin" };
 
 // Each admin endpoint fails while its flag is set.

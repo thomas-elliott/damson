@@ -52,12 +52,16 @@ test.describe("Project pin + upgrade flow", () => {
     // Empty-state CTA opens the create dialog.
     await page.getByRole("button", { name: "New project" }).first().click();
     await page.getByPlaceholder("Ashfall").fill("Pinning project");
+    await page.getByRole("combobox", { name: "Target distribution" }).click();
+    await page.getByRole("option", { name: "Open source" }).click();
     await Promise.all([
       page.waitForURL(/\/projects\/\d+$/),
       page.getByRole("button", { name: "Create", exact: true }).click(),
     ]);
     const projectId = Number(new URL(page.url()).pathname.split("/").pop());
     expect(projectId).toBeGreaterThan(0);
+    // The stored target distribution comes back and shows as its label.
+    await expect(page.locator("header").getByText("Open source", { exact: true })).toBeVisible();
 
     // Pin the asset's current version (v1), which the dialog preselects.
     await page.getByRole("button", { name: "Pin asset" }).first().click();

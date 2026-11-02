@@ -148,7 +148,7 @@ export interface ProjectFixture {
   glyph: string;
   color: string;
   path: string;
-  engine: string;
+  distribution: string;
   assets: number;
   updated: string;
 }
@@ -162,7 +162,7 @@ export const PROJECT_FIXTURES: ProjectFixture[] = [
     glyph: "A",
     color: "oklch(0.4 0.14 20)",
     path: "~/Dev/ashfall",
-    engine: "Unity 2023.3",
+    distribution: "Commercial",
     assets: 128,
     updated: "2026-04-20",
   },
@@ -172,7 +172,7 @@ export const PROJECT_FIXTURES: ProjectFixture[] = [
     glyph: "G",
     color: "oklch(0.4 0.1 155)",
     path: "~/Dev/grove",
-    engine: "Godot 4.3",
+    distribution: "Open source",
     assets: 64,
     updated: "2026-04-14",
   },
@@ -182,7 +182,7 @@ export const PROJECT_FIXTURES: ProjectFixture[] = [
     glyph: "SS",
     color: "oklch(0.4 0.14 260)",
     path: "~/Dev/salt-stars",
-    engine: "Unity 6.0",
+    distribution: "Personal",
     assets: 42,
     updated: "2026-03-28",
   },

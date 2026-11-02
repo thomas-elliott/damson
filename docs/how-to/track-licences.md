@@ -111,9 +111,9 @@ A project is a set of pinned asset versions (see [Pin a project to a version you
 
 ![A project page's Licence mix bar and its four counts above the Pinned assets table](../images/project-page.png)
 
-Each row in the **Pinned assets** table shows its asset's licence pill. A non-zero violation count on a project whose target distribution is `commercial` means stop and look.
+Each row in the **Pinned assets** table shows its asset's licence pill. A non-zero violation count on a project whose target distribution is Commercial means stop and look.
 
-Set the target in the project's **Target distribution** field: `commercial`, `open-source`, `personal` or `unspecified`. Damson records and shows it but enforces nothing against it. You enforce it by reading the bar.
+Set the target in the project's **Target distribution** field: Commercial, Open source, Personal or Unspecified. Damson records and shows it but enforces nothing against it. You enforce it by reading the bar.
 
 ## Things that will catch you out
 
