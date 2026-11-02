@@ -52,11 +52,14 @@ describe("LoginPage", () => {
     expect(await screen.findByText("Landed on /")).toBeInTheDocument();
   });
 
-  // A revoked session leaves the account query failed with the old account
-  // still cached; carried past sign-in, it sends the user back to sign in.
-  it("forgets the previous session's account", async () => {
+  // A revoked session reaches sign-in without a reload, with the old account
+  // failed and the old library still cached. Kept past sign-in, the account
+  // sends the user back to sign in and the library shows them what they lost.
+  it("forgets the previous session's data", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(queryKeys.me, { id: 1 });
+    queryClient.setQueryData(["tags"], [{ id: 1 }]);
+    queryClient.setQueryData(queryKeys.authMode, { mode: "local" });
     await queryClient
       .fetchQuery({
         queryKey: queryKeys.me,
@@ -68,5 +71,7 @@ describe("LoginPage", () => {
     await signIn(undefined, queryClient);
     await screen.findByText("Landed on /");
     expect(queryClient.getQueryState(queryKeys.me)).toBeUndefined();
+    expect(queryClient.getQueryData(["tags"])).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.authMode)).toEqual({ mode: "local" });
   });
 });

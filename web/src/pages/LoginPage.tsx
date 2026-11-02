@@ -31,9 +31,12 @@ export function LoginPage() {
     setError(null);
     try {
       await localLogin(email, password);
-      // A revoked session leaves `me` failed; AuthGuard would read that
-      // error and send the user straight back here.
-      queryClient.removeQueries({ queryKey: queryKeys.me });
+      // A revoked session reaches this page without a reload, so the cache
+      // still holds the old session's data, and its failed `me` would send
+      // the user straight back here. Only the auth mode outlives a session.
+      queryClient.removeQueries({
+        predicate: (q) => q.queryKey[0] !== queryKeys.authMode[0],
+      });
       navigate(safeReturnTo(from), { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
