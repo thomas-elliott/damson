@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -86,8 +87,8 @@ type addMemberRequest struct {
 //     have signed in at least once first — there's no admin-driven account
 //     creation path because identity lives in the IdP.
 //
-// Library admins can invite. Sysadmins can invite anywhere. Duplicate
-// memberships are 409.
+// Library admins can invite. Sysadmins can invite anywhere. A user who
+// already belongs to a library, this one or another, is 409.
 func (h *Handler) postLibraryMember(c *gin.Context) {
 	libID, ok := parseIDParam(c, "id")
 	if !ok {
@@ -147,17 +148,22 @@ func (h *Handler) postLibraryMember(c *gin.Context) {
 		return
 	}
 
-	// Reject duplicate memberships.
-	var existing models.LibraryMembership
-	err = h.db.WithContext(c.Request.Context()).
-		Where("library_id = ? AND user_id = ?", libID, u.ID).
-		First(&existing).Error
-	if err == nil {
+	// A user works in one library and cannot switch, so a second membership
+	// could never be reached.
+	var memberOf []uint
+	if err := h.db.WithContext(c.Request.Context()).
+		Model(&models.LibraryMembership{}).
+		Where("user_id = ?", u.ID).
+		Pluck("library_id", &memberOf).Error; err != nil {
+		respond500(c, err)
+		return
+	}
+	if slices.Contains(memberOf, libID) {
 		respond409(c, "user is already a member of this library")
 		return
 	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		respond500(c, err)
+	if len(memberOf) > 0 {
+		respond409(c, "user already belongs to another library")
 		return
 	}
 
