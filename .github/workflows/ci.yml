@@ -68,7 +68,8 @@ jobs:
       - run: pnpm run test -- --run
 
   # Browser jobs use the Playwright image: a run-time browser download can hang with no timeout.
-  # Its tag must match the exact @playwright/test version in web/package.json.
+  # Its tag must match the exact @playwright/test version in web/package.json. The tag does not
+  # pin Node: a rebuild can move it to a release without corepack, so set Node up as `web` does.
   stories:
     runs-on: ubuntu-latest
     container: mcr.microsoft.com/playwright:v1.64.1-noble
@@ -77,6 +78,9 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:stories -- --run
@@ -108,6 +112,9 @@ jobs:
       # -buildvcs=false: inside the container git refuses a checkout owned by another user.
       - name: Build the e2e server
         run: mkdir -p web/e2e/.bin && go build -buildvcs=false -o web/e2e/.bin/damson-e2e ./cmd/e2e-server
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
         working-directory: web
