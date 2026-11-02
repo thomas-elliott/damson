@@ -92,17 +92,23 @@ export function AuthGuard() {
     }
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
-  return <ProfileGate />;
+  return <ProfileGate mode={mode} />;
 }
 
 // ProfileGate sits between a valid session and the app. It holds the user on
 // the first-login profile step until they've set an email (needs_profile),
 // then falls through to the routed app. Separate component so useMe only runs
 // once we know the session is ready.
-function ProfileGate() {
+function ProfileGate({ mode }: { mode: string | null }) {
   const { data: me, loading, error, reload } = useMe();
+  const location = useLocation();
 
-  // An auth redirect is already leaving the page, so it keeps the loading state.
+  // A local session the server revoked (a removed member, say) cannot be
+  // renewed, so sign in again. In OIDC mode the IdP redirect is already
+  // leaving the page, so it keeps the loading state.
+  if (isAuthRedirectError(error) && mode === "local") {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
   if (!loading && !me && error && !isAuthRedirectError(error)) {
     return <AuthFailure title="Couldn't load your account" onRetry={reload} />;
   }
