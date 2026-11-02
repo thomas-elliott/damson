@@ -17,7 +17,6 @@ To run it, start with [Getting started](docs/getting-started.md).
 - Pulls the storefront listing. Where it can, Damson finds the Unity Asset Store page for a pack and brings back the description, publisher, cover art and tags.
 - Versions assets. Uploading a newer build of a pack you already have never overwrites it: it is stored as its own asset, and when Damson recognises the match it offers to fold it in as a new version. Projects pin the version they ship.
 - Organises three ways. Tags are hierarchical paths describing what an asset *is*; collections are flat bookmarks recording what you *decided* about it; projects pin versions for a build. They are not interchangeable.
-- Keeps libraries apart. A library is the tenancy boundary: assets, tags, projects, settings and the audit log each belong to exactly one, and you only see a library you are a member of.
 - Has a CLI. `dmsn` uses the same HTTP API for scripts and agents. `dmsn sync` bulk-imports Unity's local Asset Store cache, usually the fastest way to fill a new library.
 
 ## Who it is for
@@ -43,7 +42,7 @@ Running Damson:
 - [How-tos](docs/how-to/README.md): [licences](docs/how-to/track-licences.md),
   [Unity packages](docs/how-to/import-unity-packages.md),
   [versions and pins](docs/how-to/pin-versions.md),
-  [multiple libraries](docs/how-to/separate-libraries.md),
+  [inviting your team](docs/how-to/invite-your-team.md),
   [collections](docs/how-to/collections.md)
 - [Observability](docs/observability.md): log shape, request correlation, and useful queries
 
@@ -62,7 +61,6 @@ Damson is pre-alpha:
 
 - One process, no HA. There is no clustering or read replica story. Scaling means a bigger box.
 - No backup tooling. Back up the Postgres database and the object store (`/data/blobs` in local mode, or your bucket) together, the database *after* storage. See [Backups](docs/getting-started.md#backups).
-- Gaps with no UI yet. Creating a library is an API call; the web UI can only rename, delete and switch between them. The how-tos name these gaps.
 - No upgrade guarantees. Migrations run forward automatically at startup and there is no downgrade path. Nothing stops you upgrading across several versions at once, and nothing promises it will work.
 
 Releases are the `v*.*.*` git tags, published as images at `ghcr.io/thomas-elliott/damson`. The image tags drop the `v`: each release is tagged `X.Y.Z`, `X.Y` and `X`, so `:0.5.0` pins exactly and `:0.5` follows the patches. Every commit that passes CI on `main` is also pushed as `main-<sha7>` and `latest`.
