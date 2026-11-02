@@ -90,7 +90,9 @@ export function ProjectsPage() {
                     glyph={p.glyph || p.name.slice(0, 1).toUpperCase()}
                     color={p.glyph_color || "oklch(0.4 0.14 260)"}
                     distribution={
-                      p.target_distribution ? targetDistributionLabel(p.target_distribution) : undefined
+                      p.target_distribution
+                        ? targetDistributionLabel(p.target_distribution)
+                        : undefined
                     }
                     onOpen={() => navigate(`/projects/${p.id}`)}
                   >
