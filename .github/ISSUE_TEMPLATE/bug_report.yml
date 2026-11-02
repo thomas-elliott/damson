@@ -42,7 +42,7 @@ body:
       description: >-
         The image tag you are running, or the commit you built from.
         `/api/health` reports `"dev"` for the published images, so use the tag.
-      placeholder: "ghcr.io/thomas-elliott/damson:0.4.0"
+      placeholder: "ghcr.io/thomas-elliott/damson:0.5.0"
     validations:
       required: true
 
