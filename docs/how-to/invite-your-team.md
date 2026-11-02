@@ -35,7 +35,7 @@ A sysadmin can administer the library (invite, re-role, rename) without being a 
 
 Both are on the **Members** list. Damson refuses to demote or remove the last admin. The UI disables those controls with an explanatory tooltip, and the API returns 409.
 
-Removing a member deletes the membership and invalidates every token and session that user holds, so an open tab cannot keep reading from cache. Their next request fails and the SPA sends them to sign in. If they sign in again, they see "No library access yet".
+Removing a member deletes the membership and invalidates every token and session that user holds, so an open tab cannot keep reading from cache. Their next request fails and the SPA sends them to sign in. If they sign in again, the Library page shows "No library access yet".
 
 ## Settings
 
