@@ -10,14 +10,15 @@ export interface ProjectCardProps extends Omit<HTMLAttributes<HTMLButtonElement>
   glyph: string;
   color: string;
   path?: string;
-  engine?: string;
+  /** The project's target distribution, as a display label. */
+  distribution?: string;
   /** Arbitrary secondary content below the header (stats, licence bar, etc.). */
   children?: ReactNode;
   onOpen?: () => void;
 }
 
 export const ProjectCard = forwardRef<HTMLButtonElement, ProjectCardProps>(function ProjectCard(
-  { className, name, glyph, color, path, engine, children, onOpen, onClick, ...props },
+  { className, name, glyph, color, path, distribution, children, onOpen, onClick, ...props },
   ref,
 ) {
   return (
@@ -40,10 +41,10 @@ export const ProjectCard = forwardRef<HTMLButtonElement, ProjectCardProps>(funct
         <ProjectGlyph size="md" glyph={glyph} color={color} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-ui font-medium text-foreground">{name}</div>
-          {(path || engine) && (
+          {(path || distribution) && (
             <div className="mt-0.5 flex items-center gap-1.5 text-caption">
-              {engine && <span>{engine}</span>}
-              {engine && path && <span className="text-subtle-foreground">·</span>}
+              {distribution && <span>{distribution}</span>}
+              {distribution && path && <span className="text-subtle-foreground">·</span>}
               {path && <span className="truncate font-mono text-subtle-foreground">{path}</span>}
             </div>
           )}
