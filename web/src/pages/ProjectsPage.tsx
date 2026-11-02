@@ -89,11 +89,7 @@ export function ProjectsPage() {
                     name={p.name}
                     glyph={p.glyph || p.name.slice(0, 1).toUpperCase()}
                     color={p.glyph_color || "oklch(0.4 0.14 260)"}
-                    distribution={
-                      p.target_distribution
-                        ? targetDistributionLabel(p.target_distribution)
-                        : undefined
-                    }
+                    distribution={targetDistributionLabel(p.target_distribution)}
                     onOpen={() => navigate(`/projects/${p.id}`)}
                   >
                     <div className="flex items-center justify-between gap-2 text-label text-subtle-foreground">
