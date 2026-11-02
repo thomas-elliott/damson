@@ -134,7 +134,7 @@ A push to `main` that passes every CI job builds and pushes an image tagged `mai
 
 `just release` gates nothing locally. Run `just check` first.
 
-The build does not read the root `VERSION` file; the version the server reports comes from the VCS stamp. The git tags are the source of truth.
+The version the server reports comes from the VCS stamp. The git tags are the source of truth.
 
 ## Reporting a bug or proposing a feature
 
