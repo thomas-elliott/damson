@@ -1,14 +1,26 @@
-import { MutationCache, QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
 import { isAuthRedirectError } from "@/api";
 import { MINUTE } from "@/lib/cachePolicy";
 import { emitNotification } from "@/lib/notificationBridge";
+import { queryKeys } from "@/lib/queryKeys";
 
-export const queryClient = new QueryClient({
+export const queryClient: QueryClient = new QueryClient({
+  // A revoked session on any query rechecks the account, whose failure is
+  // where AuthGuard sends the tab to sign in.
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      if (!isAuthRedirectError(error) || query.queryKey[0] === queryKeys.me[0]) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+    },
+  }),
   // Mutation errors only — routing query errors here would be noisy on every background refetch.
   mutationCache: new MutationCache({
     onError: (error: unknown) => {
-      if (isAuthRedirectError(error)) return;
+      if (isAuthRedirectError(error)) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+        return;
+      }
       emitNotification({
         tone: "error",
         title: "Something went wrong",
