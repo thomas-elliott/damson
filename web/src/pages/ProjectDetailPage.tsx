@@ -50,6 +50,7 @@ import {
   usePinAssetToProject,
   useUnpinAssetFromProject,
 } from "@/hooks/useMutations";
+import { targetDistributionLabel } from "@/lib/targetDistribution";
 
 export function ProjectDetailPage() {
   const { id } = useParams();
@@ -133,9 +134,7 @@ export function ProjectDetailPage() {
                 <div className="flex-1">
                   <h1 className="text-heading-semibold text-foreground">{project.name}</h1>
                   <div className="mt-1 flex items-center gap-2 text-caption">
-                    <Badge size="sm" mono>
-                      {project.target_distribution}
-                    </Badge>
+                    <Badge size="sm">{targetDistributionLabel(project.target_distribution)}</Badge>
                     <span>· {project.asset_count} assets pinned</span>
                     {project.updates_available > 0 && (
                       <span className="text-warning">

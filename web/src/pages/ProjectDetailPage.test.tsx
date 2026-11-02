@@ -11,7 +11,7 @@ const reloadDetail = vi.fn();
 const project = {
   id: 7,
   name: "Ashfall",
-  target_distribution: "internal",
+  target_distribution: "open-source",
   asset_count: 1,
   updates_available: 0,
   pins: [
@@ -131,6 +131,14 @@ beforeEach(() => {
   pinMutate.mockReset();
   unpinMutate.mockReset();
   reloadDetail.mockReset();
+});
+
+describe("ProjectDetailPage header", () => {
+  it("names the target distribution rather than showing its stored value", () => {
+    mount();
+    expect(screen.getByText("Open source")).toBeInTheDocument();
+    expect(screen.queryByText("open-source")).toBeNull();
+  });
 });
 
 describe("ProjectDetailPage pin dialog", () => {
