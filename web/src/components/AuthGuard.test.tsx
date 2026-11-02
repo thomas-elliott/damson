@@ -19,6 +19,9 @@ vi.mock("@/hooks/useDataQueries", () => ({
 }));
 vi.mock("@/lib/localAuth", () => ({ readLocalSession: () => ({ token: "t" }) }));
 vi.mock("@/lib/logout", () => ({ logout: vi.fn() }));
+vi.mock("@/lib/oidc", () => ({
+  getUserManager: () => ({ getUser: async () => ({ expired: false }), signinRedirect: vi.fn() }),
+}));
 
 const { logout } = await import("@/lib/logout");
 
@@ -29,6 +32,7 @@ function mount() {
         <Route element={<AuthGuard />}>
           <Route path="/library" element={<div>app</div>} />
         </Route>
+        <Route path="/login" element={<div>sign-in page</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -65,7 +69,16 @@ describe("AuthGuard", () => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 
-  it("keeps loading while an auth redirect leaves the page", async () => {
+  // A local session the server has revoked (a removed member, say) cannot be
+  // renewed, and nothing else leaves the page.
+  it("sends a revoked local session to sign in", async () => {
+    auth.me = { data: null, loading: false, error: new AuthRedirectError(), reload: vi.fn() };
+    mount();
+    expect(await screen.findByText("sign-in page")).toBeInTheDocument();
+  });
+
+  it("keeps loading while an OIDC sign-in redirect leaves the page", async () => {
+    auth.mode = { mode: "oidc", loading: false, error: null, reload: vi.fn() };
     auth.me = { data: null, loading: false, error: new AuthRedirectError(), reload: vi.fn() };
     mount();
     // Past AuthGuard's own session check, into the account load.
