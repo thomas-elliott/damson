@@ -390,7 +390,6 @@ Server-wide settings (sysadmin only, **Settings → Server settings**):
 | Setting | Default | What it does |
 |---|---|---|
 | Max upload bytes | `68719476736` (64 GiB) | Hard ceiling on any single upload. |
-| Auto-update licence knowledge base | off | Refresh the SPDX licence overlay from upstream. The UI labels this "when supported"; treat it as not yet doing anything. |
 
 The same screen carries **Users** (role changes and local password resets) and
 **Storage cleanup**.
@@ -401,7 +400,6 @@ Per-library settings (library admin, **Settings**):
 |---|---|---|
 | Grid density default | `medium` | Starting density of the asset grid. |
 | Retain original packages | on | Keep the uploaded archive after extraction. Turning it off reclaims a lot of space but makes re-extraction impossible. |
-| Dedupe enabled | on | Store identical content once. |
 | Raster / audio / font thumbnails | all on | Per-kind thumbnail generation for loose files. |
 | Unity preview harvest | on | Use the preview image inside a `.unitypackage` as the asset's cover. |
 | Auto-enrich | on | Fetch storefront metadata during import. |

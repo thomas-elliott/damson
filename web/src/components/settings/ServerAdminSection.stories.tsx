@@ -47,7 +47,7 @@ const fakeApi =
     if (scenario === "loading") return new Promise<Response>(() => {});
     if (scenario === "failed") return json({ error: "internal error" }, 500);
     if (path === "/api/admin/settings") {
-      return json({ max_upload_bytes: 68_719_476_736, licence_kb_auto_update: true });
+      return json({ max_upload_bytes: 68_719_476_736 });
     }
     return json({ users: scenario === "empty" ? [] : USERS });
   };

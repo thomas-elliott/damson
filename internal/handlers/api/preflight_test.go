@@ -220,7 +220,7 @@ func TestPatchLibrarySettings_AuditDiffExcludesMaxUploadBytes(t *testing.T) {
 	lib := seedLibraryForUser(t, db, u, "Main")
 
 	w := performRequest(setupRouter(h, u), http.MethodPatch, "/api/settings",
-		map[string]any{"dedupe_enabled": false})
+		map[string]any{"retain_original_packages": false})
 	requireStatus(t, w, http.StatusOK)
 
 	var entry models.AuditLog
