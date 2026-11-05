@@ -326,3 +326,39 @@ func TestSPDXMappers(t *testing.T) {
 		t.Error("unknown label must map to empty")
 	}
 }
+
+// A Creative Commons licence keeps its version: the attributes match between
+// 3.0 and 4.0, but the recorded id must be the one the asset carries. A
+// version the licence table doesn't know, or a NoDerivatives licence, maps to
+// nothing rather than to a licence that grants more.
+func TestSPDXMappersKeepTheCCVersion(t *testing.T) {
+	for in, want := range map[string]string{
+		"cc-by-3.0":       "CC-BY-3.0",
+		"by-sa-3.0":       "CC-BY-SA-3.0",
+		"cc-by-nc-sa-3.0": "CC-BY-NC-SA-3.0",
+		"cc-by-4.0":       "CC-BY-4.0",
+		"by-nc":           "CC-BY-NC-4.0",
+		"cc-by-2.0":       "",
+	} {
+		if got := spdxFromSlug(in); got != want {
+			t.Errorf("spdxFromSlug(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{
+		"https://creativecommons.org/licenses/by/3.0/":       "CC-BY-3.0",
+		"https://creativecommons.org/licenses/by-sa/3.0/":    "CC-BY-SA-3.0",
+		"https://creativecommons.org/licenses/by-nc/3.0/":    "CC-BY-NC-3.0",
+		"https://creativecommons.org/licenses/by-nc-sa/3.0/": "CC-BY-NC-SA-3.0",
+		"https://creativecommons.org/licenses/by/4.0/":       "CC-BY-4.0",
+		"https://creativecommons.org/licenses/by/2.5/":       "",
+		"https://creativecommons.org/licenses/by-nd/4.0/":    "",
+		"https://creativecommons.org/licenses/by-nc-nd/3.0/": "",
+	} {
+		if got := spdxFromLicenceURL(in); got != want {
+			t.Errorf("spdxFromLicenceURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := spdxFromLabel("Creative Commons Attribution 3.0 Unported"); got != "CC-BY-3.0" {
+		t.Errorf("3.0 label = %q, want CC-BY-3.0", got)
+	}
+}
