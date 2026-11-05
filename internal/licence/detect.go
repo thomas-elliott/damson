@@ -197,10 +197,11 @@ func isUnityEULA(text string) bool {
 	return unityHeadingRE.MatchString(head) && unityEULARE.MatchString(head)
 }
 
-// UnityEULAAttributes returns the canonical attribute set for the Unity
-// Asset Store EULA. These are the Asset Store's published terms — single
-// seat, royalty-free use within a single Unity project, no redistribution
-// of the raw asset. Published here so the knowledge base is code-visible.
+// UnityEULAAttributes returns the attribute set for the standard Unity Asset
+// Store EULA: an asset may be used commercially and modified as part of a
+// product, but not redistributed on its own, and needs no attribution. Seat
+// terms differ by asset type and are not captured here; the EULA itself is
+// the authority.
 func UnityEULAAttributes() Attributes {
 	return Attributes{
 		CommercialUse:       boolPtr(true),
