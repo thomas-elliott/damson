@@ -194,6 +194,51 @@ type planRow struct {
 	Decided   bool   // the link column holds a URL or "no match"
 }
 
+// tsvLine joins columns into one tab-separated line, folding any tab or
+// newline inside a value (a store title can hold one) into a space.
+func tsvLine(cols ...string) string {
+	clean := make([]string, len(cols))
+	for i, c := range cols {
+		clean[i] = strings.Join(strings.Fields(c), " ")
+	}
+	return strings.Join(clean, "\t")
+}
+
+// readTSV reads a tab-separated file that must start with header, returning
+// each non-blank row with its line number. what names the file in errors.
+func readTSV(path, what string, header []string) ([]tsvRow, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, axi.Wrap(axi.CodeIO, err, "cannot read %s %s", what, path)
+	}
+	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
+	want := strings.Join(header, "\t")
+	if strings.TrimSpace(lines[0]) != want {
+		return nil, axi.Usagef([]string{"first line: " + strings.ReplaceAll(want, "\t", "<tab>")},
+			"%s %s does not start with the %s header", what, path, what)
+	}
+	var rows []tsvRow
+	for i, line := range lines[1:] {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		cols := strings.Split(line, "\t")
+		if len(cols) != len(header) {
+			return nil, axi.Usagef(nil, "%s line %d has %d columns, want %d (tab-separated)", what, i+2, len(cols), len(header))
+		}
+		for j := range cols {
+			cols[j] = strings.TrimSpace(cols[j])
+		}
+		rows = append(rows, tsvRow{Line: i + 2, Cols: cols})
+	}
+	return rows, nil
+}
+
+type tsvRow struct {
+	Line int
+	Cols []string
+}
+
 // readPlan parses a plan file. Every problem is reported with its line, so the
 // file can be fixed by hand and read again.
 func readPlan(path string) ([]planRow, error) {

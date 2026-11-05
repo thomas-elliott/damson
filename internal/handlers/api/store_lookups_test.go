@@ -362,9 +362,9 @@ func conflictFields(b storeLookupBatchResponse) []string {
 	return out
 }
 
-// The purchase run's case: an asset whose last lookup was the generic
-// scraper's. A refresh replaces what that lookup wrote and fills blanks, but
-// keeps what a person wrote, reporting it.
+// An asset whose last lookup was the generic scraper's. A refresh replaces
+// what that lookup wrote and fills blanks, but keeps what a person wrote,
+// reporting it.
 func TestStoreRefresh_ReplacesOnlyWhatAPersonHasNotChanged(t *testing.T) {
 	released := time.Date(2015, 3, 16, 7, 40, 35, 0, time.UTC)
 	last := &metadata.Metadata{Store: metadata.StoreGeneric, Title: "Page Title | Unity Asset Store", Description: "Short page text."}

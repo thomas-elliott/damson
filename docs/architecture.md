@@ -51,8 +51,7 @@ filesystem.
 The backend is Go with Gin and GORM, on Postgres. Postgres is the only database, in production and
 in tests. River works background jobs on its own `pgx` pool and inserts them over GORM's. Auth uses
 `coreos/go-oidc` or HS256 JWTs, and S3 goes through `aws-sdk-go-v2`. Images are decoded in pure Go.
-Both binaries build with `CGO_ENABLED=0`. `modernc.org/sqlite` is in `go.mod` only so that the CLI
-can read Unity's local purchases cache.
+Both binaries build with `CGO_ENABLED=0`.
 
 The frontend is React, strict TypeScript, Vite, TanStack Query, React Router and Tailwind, with
 Radix plus hand-rolled components in `web/src/design-system/` (see `design-system.md`). The
@@ -259,7 +258,7 @@ person's fetch and apply, recording a reference, and background store lookups (`
 which the queue runs). `Prepare` does the reads and downloads; `Plan.Write` does every write in the
 caller's transaction, so an apply that fails writes nothing.
 
-Recording a reference with `queue_lookup` (the SPA's Add by location, `dmsn` purchase runs) answers
+Recording a reference with `queue_lookup` (the SPA's Add by location) answers
 before the store does. A new asset the caller didn't name is named from its path, else its link,
 and that name is saved on the `store_lookups` row as `provisional_name`. When the lookup runs, it
 replaces that name with the store's title, the same title an immediate lookup would have given.
