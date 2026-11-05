@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// unityListingProductID is the product whose real page is captured in
-// testdata/unity_listing_page.html.
+// unityListingProductID is the product in testdata/unity_listing_page.html,
+// which keeps only the listing payload entities the parser reads.
 const unityListingProductID = "162153"
 
 func parseUnityFixture(t *testing.T) *unityListing {
