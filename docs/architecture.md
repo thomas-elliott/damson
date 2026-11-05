@@ -412,8 +412,24 @@ tags, which the server parses with `unitycache.ParseCachePath` when it applies s
 Re-runs stay idempotent through `POST /api/imports/preflight`, which matches on path and size, not
 on hash.
 
-Output follows the AXI contract (`internal/axi` over the TOON encoder in `internal/toon`), which
-supports TOON or JSON, `--fields`, truncation and an error envelope.
+The CLI's main user is an agent, so it follows the [AXI principles](https://axi.md/), ten rules
+for CLIs that agents drive, built around keeping each call's token cost low. Code comments cite
+them by number:
+
+1. Token-efficient output: TOON by default, `--json` on request.
+2. Minimal default schemas: few columns by default, more through `--fields`.
+3. Content truncation: long text is clipped, and `--full` shows all of it.
+4. Pre-computed aggregates: totals and counts in the output, so the agent does not count rows.
+5. Definitive empty states: an empty result says what was searched and what exists.
+6. Structured errors and exit codes: an `error:` block on stdout, exit 2 for usage, no prompts,
+   `--yes` on destructive verbs.
+7. Ambient context: `dmsn setup` installs a skill and a session hook.
+8. Content first: a bare `dmsn` shows live library state, not help.
+9. Contextual disclosure: a `help[]` block of concrete next commands after every output.
+10. Consistent help: `--help` on every subcommand, one screen.
+
+`internal/axi` holds the contract over the TOON encoder in `internal/toon`: the TOON/JSON switch,
+`--fields`, truncation, `help[]` and the error envelope.
 
 ### Traps
 
