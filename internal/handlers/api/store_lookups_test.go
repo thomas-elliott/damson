@@ -167,8 +167,6 @@ func TestStoreLookups_ScopedToTheLibrary(t *testing.T) {
 	requireStatus(t, performRequest(r, http.MethodPost, "/api/store-lookups",
 		map[string]any{"asset_ids": []uint{mine.ID, theirs.ID}}), http.StatusNotFound)
 	requireStatus(t, performRequest(r, http.MethodGet, "/api/store-lookups/batches/"+uintStr(theirBatch), nil), http.StatusNotFound)
-	requireStatus(t, performRequest(r, http.MethodPost, "/api/store-lookups",
-		map[string]any{"asset_ids": []uint{mine.ID}, "batch_id": theirBatch}), http.StatusNotFound)
 }
 
 func TestStoreLookups_ReportFailuresAndGenericFallbacks(t *testing.T) {
@@ -182,14 +180,16 @@ func TestStoreLookups_ReportFailuresAndGenericFallbacks(t *testing.T) {
 	scraped := seedLinkedAsset(t, db, lib.ID, "Scraped", "https://example.com/b", nil)
 	r := setupRouter(h, u)
 
-	w := performRequest(r, http.MethodPost, "/api/store-lookups", map[string]any{"asset_ids": []uint{broken.ID}})
+	w := performRequest(r, http.MethodPost, "/api/store-lookups", map[string]any{"asset_ids": []uint{broken.ID, scraped.ID}})
 	requireStatus(t, w, http.StatusAccepted)
 	batchID := jsonResponse[storeLookupBatchResponse](t, w).BatchID
+	queued := q.ids // in asset id order: broken, then scraped
+
+	q.ids = queued[:1]
 	fake.fetchErr = errors.New("unity: no product 1 in coveo, and its listing page could not be read")
 	q.runAll(t, h)
 
-	requireStatus(t, performRequest(r, http.MethodPost, "/api/store-lookups",
-		map[string]any{"asset_ids": []uint{scraped.ID}, "batch_id": batchID}), http.StatusAccepted)
+	q.ids = queued[1:]
 	fake.fetchErr = nil
 	fake.meta = &metadata.Metadata{Store: metadata.StoreGeneric, StoreLookupFailed: true}
 	q.runAll(t, h)
@@ -205,8 +205,8 @@ func TestStoreLookups_ReportFailuresAndGenericFallbacks(t *testing.T) {
 	}
 }
 
-// Recording with queue_lookup answers without a store lookup, joins the
-// recording's batch, and the queued lookup saves the source record.
+// Recording with queue_lookup answers without a store lookup, queues the
+// lookup in a new batch, and the queued lookup saves the source record.
 func TestRecordReference_QueuedLookup(t *testing.T) {
 	h, db := newTestHandler(t)
 	q := &heldLookups{}
@@ -225,20 +225,12 @@ func TestRecordReference_QueuedLookup(t *testing.T) {
 	if first.LookupBatchID == 0 || len(q.ids) != 1 {
 		t.Fatalf("got batch %d and %d queued, want a new batch with one lookup", first.LookupBatchID, len(q.ids))
 	}
-	second := recordReference(t, r, map[string]any{
-		"source_url": "https://assetstore.unity.com/packages/slug/11021", "name": "Other", "queue_lookup": true,
-		"lookup_batch_id": first.LookupBatchID,
-	}, http.StatusCreated)
-	if second.LookupBatchID != first.LookupBatchID {
-		t.Fatalf("second record joined batch %d, want %d", second.LookupBatchID, first.LookupBatchID)
-	}
 
 	// A record of a link already held queues nothing.
 	again := recordReference(t, r, map[string]any{
 		"source_url": "https://assetstore.unity.com/packages/slug/11020", "name": "Toony Skies", "queue_lookup": true,
-		"lookup_batch_id": first.LookupBatchID,
 	}, http.StatusOK)
-	if again.Outcome != referenceExists || len(q.ids) != 2 {
+	if again.Outcome != referenceExists || len(q.ids) != 1 {
 		t.Fatalf("got %q with %d queued, want exists and nothing more queued", again.Outcome, len(q.ids))
 	}
 
@@ -247,17 +239,6 @@ func TestRecordReference_QueuedLookup(t *testing.T) {
 	db.First(&a, first.AssetID)
 	if len(a.SourceMetadataJSON) == 0 || derefString(a.Publisher) != "Arkham" {
 		t.Fatalf("recorded asset: publisher %v, source record %d bytes; want both from the lookup", a.Publisher, len(a.SourceMetadataJSON))
-	}
-
-	// A batch that isn't the library's is refused before anything is recorded.
-	w := performRequest(r, http.MethodPost, "/api/assets/references", map[string]any{
-		"source_url": "https://assetstore.unity.com/packages/slug/9", "name": "Nine", "queue_lookup": true, "lookup_batch_id": 9999,
-	})
-	requireStatus(t, w, http.StatusNotFound)
-	var n int64
-	db.Model(&models.Asset{}).Where("name = ?", "Nine").Count(&n)
-	if n != 0 {
-		t.Fatal("a refused record must not create the asset")
 	}
 }
 
