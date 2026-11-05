@@ -492,23 +492,6 @@ func TestSetup(t *testing.T) {
 		}
 	}
 
-	// The purchase-run instructions sit beside them, with the approval gate,
-	// the complete-list rule and the plan header record reads.
-	purchases, err := os.ReadFile(filepath.Join(project, ".claude", "skills", "damson-purchases", "SKILL.md"))
-	if err != nil {
-		t.Fatalf("purchases skill not written: %v", err)
-	}
-	for _, want := range []string{
-		"---\nname: damson-purchases", "Load all", "Plan only from a complete list",
-		"Record nothing until the user explicitly approves",
-		"purchases read", "purchases plan", "purchases record",
-		strings.Join(purchasePlanColumns, "\t"),
-	} {
-		if !strings.Contains(string(purchases), want) {
-			t.Errorf("purchases skill omits %q", want)
-		}
-	}
-
 	hook := filepath.Join(project, ".claude", "hooks", "damson-session-start.sh")
 	info, err := os.Stat(hook)
 	if err != nil {

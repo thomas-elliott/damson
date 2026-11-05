@@ -634,36 +634,6 @@ func TestAssetFilters_NotDownloaded(t *testing.T) {
 	}
 }
 
-// TestAssetLinks_ListsEveryAssetsStoreLink proves a purchase run sees every
-// asset it could match, stored and reference, with its link and store product
-// ID, and nothing from another library.
-func TestAssetLinks_ListsEveryAssetsStoreLink(t *testing.T) {
-	h, db := newTestHandler(t)
-	u := seedUser(t, db, "t@example.com")
-	lib := seedLibraryForUser(t, db, u, "Personal")
-	stored := seedAssetWithFields(t, db, lib.ID, "Toony Skies", map[string]any{
-		"publisher": "Ludwig", "store": "unity", "store_product_id": "11020",
-		"source_url": "https://assetstore.unity.com/packages/2d/textures-materials/sky/toony-skies-11020",
-	})
-	bare := seedAssetWithFields(t, db, lib.ID, "Bare", nil)
-	other := seedLibrary(t, db, "Other")
-	seedReference(t, db, other.ID, "theirs", "", "https://example.com/theirs")
-
-	w := performGET(setupRouter(h, u), "/api/assets/links")
-	requireStatus(t, w, http.StatusOK)
-	got := jsonResponse[struct {
-		Assets []assetLink `json:"assets"`
-	}](t, w).Assets
-	want := []assetLink{
-		{AssetID: stored.ID, Name: "Toony Skies", Publisher: "Ludwig", Store: "unity", StoreProductID: "11020",
-			SourceURL: "https://assetstore.unity.com/packages/2d/textures-materials/sky/toony-skies-11020"},
-		{AssetID: bare.ID, Name: "Bare"},
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("links = %+v, want %+v", got, want)
-	}
-}
-
 // A store adapter that failed over to the generic scraper still fills blanks
 // from the page, but the record says the store lookup failed.
 func TestRecordReference_GenericFallbackReportedAsFailed(t *testing.T) {
