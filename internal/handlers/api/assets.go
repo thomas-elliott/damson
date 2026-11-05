@@ -72,7 +72,7 @@ type assetListFilters struct {
 	Store           string     // exact store match
 	ReleasedAfter   *time.Time // released_at >= this instant
 	UpdatesOnly     bool       // latest_store_version is newer than every version held
-	NotDownloaded   bool       // Purchased, not downloaded: a reference asset with no path
+	NotDownloaded   bool       // a reference asset with no path
 	Sort            string     // created_desc (default) | released_desc | released_asc | name_asc | relevance
 }
 

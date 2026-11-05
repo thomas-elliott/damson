@@ -3,6 +3,9 @@
 /damson
 /dmsn
 /cmd/dmsn/dmsn
+/damson.exe
+/dmsn.exe
+/cmd/dmsn/dmsn.exe
 /coverage.out
 /coverage.html
 *.test
@@ -34,3 +37,6 @@ node_modules/
 
 # Specs
 .lavish
+
+# dmsn scan plan and match files hold a user's own library data
+/*.tsv

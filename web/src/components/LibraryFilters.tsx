@@ -108,7 +108,7 @@ export function LibraryFilterList({ filters }: { filters: AssetFilters }) {
           </li>
           <li>
             <FilterRow
-              label="Purchased, not downloaded"
+              label="Not downloaded"
               active={!!filters.not_downloaded}
               onClick={() => setParam("not_downloaded", filters.not_downloaded ? null : "true")}
             />

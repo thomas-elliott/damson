@@ -24,11 +24,11 @@ func init() {
 		summary: "install the Claude Code skills for this CLI in this project",
 		usage: "usage: dmsn setup [--no-hook]\n\n" +
 			"Writes a skill describing dmsn to ./.claude/skills/damson/, the scan\n" +
-			"and purchase instructions to damson-scan/ and damson-purchases/\n" +
-			"beside it, plus a SessionStart hook script that prints the home\n" +
-			"view. Run it in the folder you work on the library from: the skills\n" +
-			"are only offered in sessions started there. Idempotent: rerunning\n" +
-			"overwrites the same paths and prints every one it touched.\n\n" +
+			"instructions to damson-scan/ beside it, plus a SessionStart hook\n" +
+			"script that prints the home view. Run it in the folder you work on\n" +
+			"the library from: the skills are only offered in sessions started\n" +
+			"there. Idempotent: rerunning overwrites the same paths and prints\n" +
+			"every one it touched.\n\n" +
 			"The hook script is written but not registered — registering it\n" +
 			"means editing your settings.json, which is yours to edit.",
 		flags: func(fs *flag.FlagSet) {
@@ -62,11 +62,14 @@ func runSetup(_ context.Context, e *Env, noHook bool) error {
 	}
 	written = append(written, map[string]any{"path": displayPath(scanPath), "kind": "skill"})
 
-	purchasesPath := filepath.Join(root, "skills", purchasesSkillDirName, skillFileName)
-	if err := writeFileAt(purchasesPath, purchasesSkillDocument(), 0o644); err != nil {
-		return err
+	// Earlier versions installed a skill for the removed purchases commands.
+	oldPurchases := filepath.Join(root, "skills", "damson-purchases")
+	if _, err := os.Stat(oldPurchases); err == nil {
+		if err := os.RemoveAll(oldPurchases); err != nil {
+			return axi.Wrap(axi.CodeIO, err, "cannot remove %s", oldPurchases)
+		}
+		written = append(written, map[string]any{"path": displayPath(oldPurchases), "kind": "removed"})
 	}
-	written = append(written, map[string]any{"path": displayPath(purchasesPath), "kind": "skill"})
 
 	if !noHook {
 		hookPath := filepath.Join(root, "hooks", hookFileName)
@@ -166,7 +169,6 @@ alternatives in its help block.
     ` + binaryName + ` asset edit|review|tag|rm     modify one asset
     ` + binaryName + ` asset record --location-path record an asset by where it lives
     ` + binaryName + ` scan known|match|record      catalogue a folder of packs (damson-scan skill)
-    ` + binaryName + ` purchases read|plan|record   catalogue Unity Asset Store purchases (damson-purchases skill)
     ` + binaryName + ` bulk tag|review|rm --assets  modify many at once
     ` + binaryName + ` asset refresh <id>           look one asset's store details up again
     ` + binaryName + ` bulk refresh [filters]       look many up again, paced by the server

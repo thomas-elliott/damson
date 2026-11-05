@@ -87,7 +87,7 @@ function describeFilters(
   if (f.licence_spdx) add("spdx", "Licence type", f.licence_spdx);
   if (f.needs_review) add("needs_review", "Status", "Needs review");
   if (f.updates_available) add("updates_available", "Status", "Updates available");
-  if (f.not_downloaded) add("not_downloaded", "Status", "Purchased, not downloaded");
+  if (f.not_downloaded) add("not_downloaded", "Status", "Not downloaded");
   if (f.project_id != null) {
     add("project_id", "Project", projectName(f.project_id) ?? `#${f.project_id}`);
   }

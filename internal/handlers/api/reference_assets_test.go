@@ -605,7 +605,7 @@ func TestReferenceAsset_TagsCollectsAndPinsWithoutAVersion(t *testing.T) {
 	}
 }
 
-// TestAssetFilters_NotDownloaded proves Purchased, not downloaded is exactly
+// TestAssetFilters_NotDownloaded proves Not downloaded is exactly
 // the reference assets with no path: a stored asset, or a reference asset on a
 // path (with or without a link), is downloaded somewhere.
 func TestAssetFilters_NotDownloaded(t *testing.T) {
@@ -631,36 +631,6 @@ func TestAssetFilters_NotDownloaded(t *testing.T) {
 	}
 	if got := listAssetIDs(t, r, "/api/assets"); len(got) != 4 {
 		t.Fatalf("unfiltered list = %v, want all 4", got)
-	}
-}
-
-// TestAssetLinks_ListsEveryAssetsStoreLink proves a purchase run sees every
-// asset it could match, stored and reference, with its link and store product
-// ID, and nothing from another library.
-func TestAssetLinks_ListsEveryAssetsStoreLink(t *testing.T) {
-	h, db := newTestHandler(t)
-	u := seedUser(t, db, "t@example.com")
-	lib := seedLibraryForUser(t, db, u, "Personal")
-	stored := seedAssetWithFields(t, db, lib.ID, "Toony Skies", map[string]any{
-		"publisher": "Ludwig", "store": "unity", "store_product_id": "11020",
-		"source_url": "https://assetstore.unity.com/packages/2d/textures-materials/sky/toony-skies-11020",
-	})
-	bare := seedAssetWithFields(t, db, lib.ID, "Bare", nil)
-	other := seedLibrary(t, db, "Other")
-	seedReference(t, db, other.ID, "theirs", "", "https://example.com/theirs")
-
-	w := performGET(setupRouter(h, u), "/api/assets/links")
-	requireStatus(t, w, http.StatusOK)
-	got := jsonResponse[struct {
-		Assets []assetLink `json:"assets"`
-	}](t, w).Assets
-	want := []assetLink{
-		{AssetID: stored.ID, Name: "Toony Skies", Publisher: "Ludwig", Store: "unity", StoreProductID: "11020",
-			SourceURL: "https://assetstore.unity.com/packages/2d/textures-materials/sky/toony-skies-11020"},
-		{AssetID: bare.ID, Name: "Bare"},
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("links = %+v, want %+v", got, want)
 	}
 }
 

@@ -492,23 +492,6 @@ func TestSetup(t *testing.T) {
 		}
 	}
 
-	// The purchase-run instructions sit beside them, with the approval gate,
-	// the complete-list rule and the plan header record reads.
-	purchases, err := os.ReadFile(filepath.Join(project, ".claude", "skills", "damson-purchases", "SKILL.md"))
-	if err != nil {
-		t.Fatalf("purchases skill not written: %v", err)
-	}
-	for _, want := range []string{
-		"---\nname: damson-purchases", "Load all", "Plan only from a complete list",
-		"Record nothing until the user explicitly approves",
-		"purchases read", "purchases plan", "purchases record",
-		strings.Join(purchasePlanColumns, "\t"),
-	} {
-		if !strings.Contains(string(purchases), want) {
-			t.Errorf("purchases skill omits %q", want)
-		}
-	}
-
 	hook := filepath.Join(project, ".claude", "hooks", "damson-session-start.sh")
 	info, err := os.Stat(hook)
 	if err != nil {
@@ -529,6 +512,26 @@ func TestSetup(t *testing.T) {
 		again, err := os.ReadFile(skill)
 		if err != nil || string(again) != string(body) {
 			t.Fatal("rerunning setup should reproduce the same skill")
+		}
+	})
+
+	t.Run("removes the old purchases skill", func(t *testing.T) {
+		old := filepath.Join(project, ".claude", "skills", "damson-purchases")
+		if err := os.MkdirAll(old, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(old, "SKILL.md"), []byte("dmsn purchases read"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, code := exec(t, "setup")
+		if code != axi.ExitOK {
+			t.Fatalf("exit = %d: %s", code, out)
+		}
+		if _, err := os.Stat(old); !os.IsNotExist(err) {
+			t.Fatal("setup left the purchases skill installed")
+		}
+		if !strings.Contains(out, "removed") {
+			t.Errorf("setup should report the removal:\n%s", out)
 		}
 	})
 

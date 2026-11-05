@@ -53,12 +53,11 @@ type referenceRecordRequest struct {
 	Publisher string   `json:"publisher"`
 	Tags      []string `json:"tags"`
 	// QueueLookup queues the store lookup to run in the background instead of
-	// making it in the request, adding it to LookupBatchID when that is set and
-	// to a new batch otherwise. It fills blanks only, as the immediate one does.
+	// making it in the request, in a new batch. It fills blanks only, as the
+	// immediate one does.
 	// A new asset not named by the caller is named from its path, else its
 	// link, until the lookup gives it the store's title.
-	QueueLookup   bool `json:"queue_lookup"`
-	LookupBatchID uint `json:"lookup_batch_id"`
+	QueueLookup bool `json:"queue_lookup"`
 }
 
 type referenceRecordResponse struct {
@@ -352,7 +351,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 			return nil
 		}
 		var err error
-		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
+		if batch, err = newLookupBatchTx(tx, lib.ID, u.ID, false); err != nil {
 			return err
 		}
 		return h.queueStoreLookupTx(tx, batch, asset.ID, provisional)
@@ -367,7 +366,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respond409(c, "that path was recorded at the same moment; record it again to update it")
 		return
 	case err != nil:
-		respondGORM(c, err, "asset or lookup batch not found")
+		respondGORM(c, err, "asset not found")
 		return
 	}
 	if meta != nil && outcome != referenceExists {
@@ -423,37 +422,6 @@ func (h *Handler) getAssetLocations(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"locations": locations})
-}
-
-type assetLink struct {
-	AssetID        uint   `json:"asset_id"`
-	Name           string `json:"name"`
-	Publisher      string `json:"publisher"`
-	SourceURL      string `json:"source_url"`
-	Store          string `json:"store"`
-	StoreProductID string `json:"store_product_id"`
-}
-
-// getAssetLinks lists every asset in the library with its store link and
-// store product ID, stored and reference alike, unpaged: a purchase run
-// matches its whole purchase list against the whole library at once.
-func (h *Handler) getAssetLinks(c *gin.Context) {
-	lib := getLibrary(c)
-	if lib == nil {
-		respond500(c, errRequestContextIncomplete)
-		return
-	}
-	links := []assetLink{}
-	err := h.db.WithContext(c.Request.Context()).Model(&models.Asset{}).
-		Select(`id AS asset_id, name, COALESCE(publisher, '') AS publisher, COALESCE(source_url, '') AS source_url,
-			COALESCE(store, '') AS store, COALESCE(store_product_id, '') AS store_product_id`).
-		Where("library_id = ?", lib.ID).
-		Order("id").Scan(&links).Error
-	if err != nil {
-		respond500(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"assets": links})
 }
 
 // updateReferenceTx applies a re-record of a known path: a store link given now
