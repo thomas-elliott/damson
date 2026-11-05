@@ -37,3 +37,6 @@ node_modules/
 
 # Specs
 .lavish
+
+# dmsn scan plan and match files hold a user's own library data
+/*.tsv
