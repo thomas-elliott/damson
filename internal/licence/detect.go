@@ -148,7 +148,7 @@ func spdxAttributes(id string) Attributes {
 			ShareAlike:          f,
 			OpenSourceRequired:  f,
 		}
-	case "CC-BY-NC-SA-4.0":
+	case "CC-BY-NC-SA-4.0", "CC-BY-NC-SA-3.0":
 		return Attributes{
 			CommercialUse:       f,
 			Modification:        t,
