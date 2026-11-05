@@ -88,7 +88,7 @@ function Harness({ assetIds, showCentre }: { assetIds: number[]; showCentre?: bo
 /** Three assets selected in the library grid. */
 export const Default: Story = {
   parameters: {
-    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    // Known contrast debt: destructive on destructive-soft, 4.42:1.
     a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2, 3]} />,
@@ -103,7 +103,7 @@ export const Default: Story = {
 /** The tag dialog, opened from the bar. */
 export const TagDialog: Story = {
   parameters: {
-    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    // Known contrast debt: destructive on destructive-soft, 4.42:1.
     a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2, 3]} />,
@@ -118,7 +118,7 @@ export const TagDialog: Story = {
 /** The collection dialog, with the library's collections in the picker. */
 export const CollectionDialog: Story = {
   parameters: {
-    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    // Known contrast debt: destructive on destructive-soft, 4.42:1.
     a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2]} />,
@@ -134,7 +134,7 @@ export const CollectionDialog: Story = {
 /** Delete asks first. */
 export const ConfirmDelete: Story = {
   parameters: {
-    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    // Known contrast debt: destructive on destructive-soft, 4.42:1.
     a11y: contrastDebt("destructive-soft"),
   },
   render: () => <Harness assetIds={[1, 2, 3]} />,
@@ -148,8 +148,8 @@ export const ConfirmDelete: Story = {
 /** A failed bulk action keeps the selection and reports in the notification centre. */
 export const Failed: Story = {
   parameters: {
-    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22);
-    // the notification's timestamp, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    // Known contrast debt: destructive on destructive-soft, 4.42:1;
+    // the notification's timestamp, faint-foreground on card, 4.34:1.
     a11y: contrastDebt("destructive-soft", "faint-foreground"),
   },
   render: () => <Harness assetIds={[1, FAILING_ID]} showCentre />,

@@ -45,7 +45,7 @@ export function BootstrapPage() {
       // needs_bootstrap=false on the next render. Awaiting
       // invalidateQueries here previously hung under React 19 + RQ5 when
       // the authMode query had no active subscriber, leaving the user on
-      // a frozen submit button (PER-68). setQueryData is synchronous and
+      // a frozen submit button. setQueryData is synchronous and
       // avoids that path entirely; the no-await invalidate keeps any
       // future subscribers honest.
       queryClient.setQueryData<AuthModeInfo>(queryKeys.authMode, {

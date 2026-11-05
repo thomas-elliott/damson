@@ -13,7 +13,7 @@ test.describe("First-run bootstrap", () => {
     await expect(page.getByRole("heading", { name: /create the first admin/i })).toBeVisible();
   });
 
-  // PER-68 fix: BootstrapPage.onSubmit no longer awaits invalidateQueries
+  // BootstrapPage.onSubmit does not await invalidateQueries
   // (which previously hung under React 19 + RQ5 when the authMode query
   // had no active subscriber). It seeds the new mode synchronously via
   // queryClient.setQueryData and fires invalidate without awaiting. The

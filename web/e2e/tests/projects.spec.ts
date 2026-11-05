@@ -17,7 +17,7 @@ import {
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
 
-// PER-79 — project pin/upgrade arithmetic. Two failure modes the spec
+// Project pin/upgrade arithmetic. Two failure modes the spec
 // guards against:
 //   1. updates_available drifts — a pin pointing at v1 of an asset whose
 //      current_version is now v2 must show as "1 update available". Lose
@@ -127,7 +127,7 @@ test.describe("Project pin + upgrade flow", () => {
   });
 });
 
-// DAM-45 — the pin dialog searches the whole library, not its first page,
+// The pin dialog searches the whole library, not its first page,
 // lets the user pin an older version, and the pin table links and confirms.
 test.describe("Pinning from the whole library", () => {
   test("finds an asset past the first page and pins a chosen version", async ({

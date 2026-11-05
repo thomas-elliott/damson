@@ -130,7 +130,7 @@ export const Error: Story = {
 /** The create dialog, as New token opens it. */
 export const Creating: Story = {
   parameters: {
-    // Known contrast debt: FieldRow hints, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    // Known contrast debt: FieldRow hints, faint-foreground on card, 4.34:1.
     a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {

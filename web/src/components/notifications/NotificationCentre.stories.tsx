@@ -111,7 +111,7 @@ export const Empty: Story = {
 /** One of each tone waiting to be read. */
 export const Unread: Story = {
   parameters: {
-    // Known contrast debt: timestamps, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    // Known contrast debt: timestamps, faint-foreground on card, 4.34:1.
     a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
@@ -128,7 +128,7 @@ export const Unread: Story = {
 /** The Read tab: no Mark read, and its own Clear all. */
 export const Read: Story = {
   parameters: {
-    // Known contrast debt: timestamps, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    // Known contrast debt: timestamps, faint-foreground on card, 4.34:1.
     a11y: contrastDebt("faint-foreground"),
   },
   beforeEach: () => {
