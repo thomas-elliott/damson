@@ -515,6 +515,26 @@ func TestSetup(t *testing.T) {
 		}
 	})
 
+	t.Run("removes the old purchases skill", func(t *testing.T) {
+		old := filepath.Join(project, ".claude", "skills", "damson-purchases")
+		if err := os.MkdirAll(old, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(old, "SKILL.md"), []byte("dmsn purchases read"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, code := exec(t, "setup")
+		if code != axi.ExitOK {
+			t.Fatalf("exit = %d: %s", code, out)
+		}
+		if _, err := os.Stat(old); !os.IsNotExist(err) {
+			t.Fatal("setup left the purchases skill installed")
+		}
+		if !strings.Contains(out, "removed") {
+			t.Errorf("setup should report the removal:\n%s", out)
+		}
+	})
+
 	t.Run("--no-hook", func(t *testing.T) {
 		fresh := t.TempDir()
 		t.Chdir(fresh)

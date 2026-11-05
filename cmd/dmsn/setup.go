@@ -62,6 +62,15 @@ func runSetup(_ context.Context, e *Env, noHook bool) error {
 	}
 	written = append(written, map[string]any{"path": displayPath(scanPath), "kind": "skill"})
 
+	// Earlier versions installed a skill for the removed purchases commands.
+	oldPurchases := filepath.Join(root, "skills", "damson-purchases")
+	if _, err := os.Stat(oldPurchases); err == nil {
+		if err := os.RemoveAll(oldPurchases); err != nil {
+			return axi.Wrap(axi.CodeIO, err, "cannot remove %s", oldPurchases)
+		}
+		written = append(written, map[string]any{"path": displayPath(oldPurchases), "kind": "removed"})
+	}
+
 	if !noHook {
 		hookPath := filepath.Join(root, "hooks", hookFileName)
 		if err := writeFileAt(hookPath, hookScript(), 0o755); err != nil {
