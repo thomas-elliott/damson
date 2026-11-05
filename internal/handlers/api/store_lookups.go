@@ -25,9 +25,6 @@ type storeLookupsRequest struct {
 	// Refresh lets each lookup replace fields a person hasn't changed. Without
 	// it a lookup fills blanks only.
 	Refresh bool `json:"refresh"`
-	// BatchID adds the lookups to an existing batch, so one run's lookups can
-	// be followed together.
-	BatchID uint `json:"batch_id"`
 }
 
 // storeLookupProblem is one lookup the caller should hear about: it failed,
@@ -138,7 +135,7 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 	)
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.BatchID, req.Refresh); err != nil {
+		if batch, err = newLookupBatchTx(tx, lib.ID, u.ID, req.Refresh); err != nil {
 			return err
 		}
 		for _, a := range found {
@@ -166,28 +163,10 @@ func (h *Handler) postStoreLookups(c *gin.Context) {
 	c.JSON(http.StatusAccepted, resp)
 }
 
-// lookupBatchTx returns the batch to add lookups to: the one named, which
-// must be the library's and of the same kind, or a new one.
-func lookupBatchTx(tx *gorm.DB, libID, userID, batchID uint, refresh bool) (models.StoreLookupBatch, error) {
-	var batch models.StoreLookupBatch
-	if batchID != 0 {
-		if err := tx.Where("id = ? AND library_id = ?", batchID, libID).First(&batch).Error; err != nil {
-			return batch, err
-		}
-		if batch.Refresh != refresh {
-			return batch, errBadRequestf("batch %d is a %s batch", batchID, lookupKind(batch.Refresh))
-		}
-		return batch, nil
-	}
-	batch = models.StoreLookupBatch{LibraryID: libID, CreatedByUserID: &userID, Refresh: refresh}
+// newLookupBatchTx creates the batch a request's lookups are followed in.
+func newLookupBatchTx(tx *gorm.DB, libID, userID uint, refresh bool) (models.StoreLookupBatch, error) {
+	batch := models.StoreLookupBatch{LibraryID: libID, CreatedByUserID: &userID, Refresh: refresh}
 	return batch, tx.Create(&batch).Error
-}
-
-func lookupKind(refresh bool) string {
-	if refresh {
-		return "refresh"
-	}
-	return "fill-blanks"
 }
 
 // queueStoreLookupTx adds one queued lookup to the batch and enqueues its

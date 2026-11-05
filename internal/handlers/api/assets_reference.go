@@ -53,12 +53,11 @@ type referenceRecordRequest struct {
 	Publisher string   `json:"publisher"`
 	Tags      []string `json:"tags"`
 	// QueueLookup queues the store lookup to run in the background instead of
-	// making it in the request, adding it to LookupBatchID when that is set and
-	// to a new batch otherwise. It fills blanks only, as the immediate one does.
+	// making it in the request, in a new batch. It fills blanks only, as the
+	// immediate one does.
 	// A new asset not named by the caller is named from its path, else its
 	// link, until the lookup gives it the store's title.
-	QueueLookup   bool `json:"queue_lookup"`
-	LookupBatchID uint `json:"lookup_batch_id"`
+	QueueLookup bool `json:"queue_lookup"`
 }
 
 type referenceRecordResponse struct {
@@ -352,7 +351,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 			return nil
 		}
 		var err error
-		if batch, err = lookupBatchTx(tx, lib.ID, u.ID, req.LookupBatchID, false); err != nil {
+		if batch, err = newLookupBatchTx(tx, lib.ID, u.ID, false); err != nil {
 			return err
 		}
 		return h.queueStoreLookupTx(tx, batch, asset.ID, provisional)
@@ -367,7 +366,7 @@ func (h *Handler) postReferenceAsset(c *gin.Context) {
 		respond409(c, "that path was recorded at the same moment; record it again to update it")
 		return
 	case err != nil:
-		respondGORM(c, err, "asset or lookup batch not found")
+		respondGORM(c, err, "asset not found")
 		return
 	}
 	if meta != nil && outcome != referenceExists {
