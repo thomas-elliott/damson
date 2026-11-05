@@ -36,8 +36,8 @@ go to **My Assets**, and choose **Load all** at the bottom of the list. Then:
 It reports ` + "`found`" + ` against the list's ` + "`total`" + `. If it reports a
 ` + "`shortfall`" + `, tell the user how many are missing, ask them to run Load all
 again, and read again. **Plan only from a complete list**, unless the user
-says to go ahead with a partial one. If the cache isn't in its usual place
-(Windows, Linux), pass ` + "`--cache <path to CurlRequestCache.db>`" + `.
+says to go ahead with a partial one. On Linux, or if the cache isn't in its usual
+place, pass ` + "`--cache <path to CurlRequestCache.db>`" + `.
 
 ## 2. Draft the plan
 
