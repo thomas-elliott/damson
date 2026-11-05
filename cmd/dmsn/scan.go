@@ -211,7 +211,9 @@ func readTSV(path, what string, header []string) ([]tsvRow, error) {
 	if err != nil {
 		return nil, axi.Wrap(axi.CodeIO, err, "cannot read %s %s", what, path)
 	}
-	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
+	// Spreadsheets and Windows editors save UTF-8 with a byte order mark.
+	text := strings.TrimPrefix(string(raw), "\ufeff")
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	want := strings.Join(header, "\t")
 	if strings.TrimSpace(lines[0]) != want {
 		return nil, axi.Usagef([]string{"first line: " + strings.ReplaceAll(want, "\t", "<tab>")},

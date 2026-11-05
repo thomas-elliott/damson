@@ -207,6 +207,20 @@ func TestReadPlan_RefusesAMalformedPlan(t *testing.T) {
 	}
 }
 
+// Excel and Notepad on Windows save UTF-8 with a byte order mark and CRLF
+// line endings; the plan must still read.
+func TestReadPlan_AcceptsAWindowsSavedPlan(t *testing.T) {
+	body := "\ufeff" + strings.Join(planColumns, "\t") + "\r\n/nfs/a\tA\t\t\t\r\n"
+	p := filepath.Join(t.TempDir(), "plan.tsv")
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := readPlan(p)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("got %d rows, err %v; want one row", len(rows), err)
+	}
+}
+
 // The approved plan is what gets recorded: each new row in one call carrying
 // its name, publisher, tags and link, marked Needs review, and a path the
 // library already records is left alone.
