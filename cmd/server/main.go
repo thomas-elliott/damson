@@ -163,15 +163,6 @@ func run() error {
 		cancelBackground()
 		waitBackground(&background, shutdownTimeout)
 	}()
-	// Off the startup path: it reads blobs.
-	background.Go(func() error {
-		if covered, err := ingest.BackfillCovers(bgCtx, gormDB, store); err != nil {
-			slog.Warn("cover backfill failed", "err", err)
-		} else if covered > 0 {
-			slog.Info("cover backfill", "covered", covered)
-		}
-		return nil
-	})
 	purger := &audit.Purger{DB: gormDB, Interval: cfg.AuditPurgeInterval}
 	background.Go(func() error { purger.Run(bgCtx); return nil })
 	janitor := &uploads.Janitor{DB: gormDB, Storage: store, Interval: cfg.UploadJanitorInterval}

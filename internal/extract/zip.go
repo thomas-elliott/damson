@@ -150,7 +150,7 @@ func readZipEntry(f *zip.File, limit int64) ([]byte, error) {
 // shows, like any other thumbnail. No entry decoding means no cover.
 func (e *ZipExtractor) pickCover(ctx context.Context, candidates []*zip.File) (string, string) {
 	sort.SliceStable(candidates, func(i, j int) bool {
-		return IsCoverName(candidates[i].Name) && !IsCoverName(candidates[j].Name)
+		return isCoverName(candidates[i].Name) && !isCoverName(candidates[j].Name)
 	})
 	gen := &thumbnail.Generator{Storage: e.Storage}
 	for _, f := range candidates {
@@ -168,9 +168,9 @@ func (e *ZipExtractor) pickCover(ctx context.Context, candidates []*zip.File) (s
 	return "", ""
 }
 
-// IsCoverName reports whether a file name reads like a cover image. A zip's
-// import tries these first for its cover, and so does the cover backfill.
-func IsCoverName(name string) bool {
+// isCoverName reports whether a file name reads like a cover image. A zip's
+// import tries these first for its cover.
+func isCoverName(name string) bool {
 	base := strings.ToLower(path.Base(name))
 	for _, word := range []string{"cover", "preview", "thumbnail"} {
 		if strings.Contains(base, word) {
