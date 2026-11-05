@@ -410,8 +410,7 @@ Per-library settings (library admin, **Settings**):
 
 `library_settings.previews_enabled` (default `true`) works: when it is off,
 Damson refuses to queue preview jobs for that library's assets and skips them in
-the backfill sweep. Unlike the inert licence-KB toggle above, it does what its
-name says.
+the backfill sweep.
 
 It is not reachable from the UI or API. It appears in neither the settings API
 response nor its PATCH payload, and the **Settings** screen has no control for

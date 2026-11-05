@@ -10,7 +10,7 @@ import {
 const REGULAR_EMAIL = "regular@e2e.local";
 const REGULAR_PASSWORD = "hunter2hunter2";
 
-// PER-82 — sysadmin gating for /admin/audit. The page is defended in
+// Sysadmin gating for /admin/audit. The page is defended in
 // depth: the SPA bounces non-sysadmins (Navigate to="/audit" replace) and
 // the API returns 403 (requireSysadmin in audit.go). The spec proves both
 // the redirect and the rendered page in a single test by swapping local-

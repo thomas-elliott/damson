@@ -114,7 +114,7 @@ export const Glyphs: Story = {
 export const Thumbnails: Story = {
   parameters: {
     layout: "padded",
-    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    // Known contrast debt: faint-foreground on muted, 3.96:1.
     a11y: contrastDebt("faint-foreground"),
   },
   render: () => (
@@ -139,7 +139,7 @@ export const Thumbnails: Story = {
 export const Cards: Story = {
   parameters: {
     layout: "padded",
-    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    // Known contrast debt: faint-foreground on muted, 3.96:1.
     a11y: contrastDebt("faint-foreground"),
   },
   render: function CardsStory() {
@@ -278,7 +278,7 @@ export const SelectionBar: Story = {
 export const FullLayout: Story = {
   parameters: {
     layout: "fullscreen",
-    // Known contrast debt: faint-foreground on muted, 3.96:1 (SMO-3 finding 5).
+    // Known contrast debt: faint-foreground on muted, 3.96:1.
     a11y: contrastDebt("faint-foreground"),
   },
   render: function FullLayoutStory() {

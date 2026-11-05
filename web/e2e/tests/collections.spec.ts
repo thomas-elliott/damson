@@ -16,7 +16,7 @@ import {
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
 
-// PER-80 — collections CRUD + membership rendering. The product surface
+// Collections CRUD + membership rendering. The product surface
 // today only exposes a UI for collection create + delete + detail view; the
 // add/remove side runs through the API (the SPA hooks exist but no page
 // wires them yet). The flow this spec protects: create a collection
@@ -85,7 +85,7 @@ test.describe("Collection create + asset add/remove", () => {
   });
 });
 
-// DAM-45 — a collection larger than a page pages with the Library pager.
+// A collection larger than a page pages with the Library pager.
 test.describe("Collection paging", () => {
   test("shows a collection's assets across pages", async ({ page, request, noConsoleErrors }) => {
     void noConsoleErrors;

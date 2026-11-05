@@ -139,7 +139,7 @@ export const Failed: Story = {
 /** Local mode: inviting an unknown email can set the new user's password. */
 export const Inviting: Story = {
   parameters: {
-    // Known contrast debt: FieldRow hints, faint-foreground on card, 4.34:1 (SMO-3 finding 5).
+    // Known contrast debt: FieldRow hints, faint-foreground on card, 4.34:1.
     a11y: contrastDebt("faint-foreground"),
   },
   render: () => <Harness libraryId={LIBRARY} isAdmin />,

@@ -364,7 +364,7 @@ export const ConfirmDialogExample: Story = {
 export const ConfirmDialogDestructive: Story = {
   parameters: {
     layout: "centered",
-    // Known contrast debt: destructive on destructive-soft, 4.42:1 (SMO-22).
+    // Known contrast debt: destructive on destructive-soft, 4.42:1.
     a11y: contrastDebt("destructive-soft"),
   },
   render: () => <ConfirmDemo tone="destructive" />,

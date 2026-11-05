@@ -332,6 +332,10 @@ func firstHref(n *html.Node) string {
 // there's no confident mapping — the caller keeps the raw label as a hint.
 func spdxFromLabel(label string) string {
 	l := strings.ToLower(label)
+	version := "4.0"
+	if strings.Contains(l, "3.0") {
+		version = "3.0"
+	}
 	switch {
 	// NoDerivatives has no id in the detector's attribute table, and it also
 	// contains "attribution", so without this guard it would fall through to
@@ -343,13 +347,13 @@ func spdxFromLabel(label string) string {
 		strings.Contains(l, "public domain"):
 		return "CC0-1.0"
 	case strings.Contains(l, "attribution") && strings.Contains(l, "noncommercial") && strings.Contains(l, "sharealike"):
-		return "CC-BY-NC-SA-4.0"
+		return "CC-BY-NC-SA-" + version
 	case strings.Contains(l, "attribution") && strings.Contains(l, "noncommercial"):
-		return "CC-BY-NC-4.0"
+		return "CC-BY-NC-" + version
 	case strings.Contains(l, "attribution") && strings.Contains(l, "sharealike"):
-		return "CC-BY-SA-4.0"
+		return "CC-BY-SA-" + version
 	case strings.Contains(l, "attribution"):
-		return "CC-BY-4.0"
+		return "CC-BY-" + version
 	case strings.Contains(l, "mit"):
 		return "MIT"
 	case strings.Contains(l, "apache"):

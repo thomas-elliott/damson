@@ -206,7 +206,7 @@ export async function tagAsset(
 
 // createTestUser hits the /api/test/users endpoint exposed by the e2e
 // binary. There's no public admin-invite flow yet, so multi-user specs
-// (e.g. PER-82's sysadmin-vs-member gating) need this lever.
+// (e.g. sysadmin-vs-member gating) need this lever.
 export async function createTestUser(
   request: APIRequestContext,
   opts: {
@@ -235,7 +235,7 @@ export async function createTestUser(
 }
 
 // subsetVersion creates a new asset version via the subset endpoint. The
-// new version becomes the asset's current_version. Used in PER-79 to seed
+// new version becomes the asset's current_version. Used by the projects spec to seed
 // a v2 against an asset whose v1 came from an import — without a public
 // "add version" API this is the only way to get pin-upgrade arithmetic
 // without a second multipart upload.
@@ -287,7 +287,7 @@ export async function getAssetDetail(
 }
 
 // addAssetToCollection / removeAssetFromCollection wrap the membership
-// API. PER-80 uses these because the SPA doesn't expose an add-to-
+// API. The collections spec uses these because the SPA doesn't expose an add-to-
 // collection UI yet (the hooks exist in useMutations but no page wires
 // them).
 export async function addAssetToCollection(
@@ -321,7 +321,7 @@ export async function removeAssetFromCollection(
 
 // listAuditEntries returns the library-scoped audit feed. Tests use it to
 // assert specific action_type rows exist (e.g. project.pin.change in
-// PER-79) without depending on the audit UI's pagination.
+// the projects spec) without depending on the audit UI's pagination.
 export async function listAuditEntries(
   request: APIRequestContext,
   session: Session,
