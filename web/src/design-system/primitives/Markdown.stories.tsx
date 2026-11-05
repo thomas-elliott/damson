@@ -61,7 +61,7 @@ export const Rendered: Story = {
 export const UntrustedInput: Story = {
   parameters: {
     // Known contrast debt: links differ from body text by colour alone,
-    // 1.13:1 where link-in-text-block needs 3:1 (SMO-23).
+    // 1.13:1 where link-in-text-block needs 3:1.
     a11y: contrastDebt("markdown-link"),
   },
   render: () => (
