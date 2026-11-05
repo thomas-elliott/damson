@@ -38,18 +38,29 @@ type purchasePage struct {
 	} `json:"results"`
 }
 
-// defaultUnityCachePath is where the Editor keeps its HTTP cache on macOS.
-// Elsewhere it hasn't been checked, so --cache is required there.
+// defaultUnityCachePath is where the Editor keeps its HTTP cache on macOS and
+// Windows. On Windows it is under Local, not Roaming: a Roaming copy can be
+// left behind by an older Editor. Linux hasn't been checked, so --cache is
+// required there.
 func defaultUnityCachePath() (string, error) {
-	if runtime.GOOS != "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", axi.Wrap(axi.CodeIO, err, "cannot find the home folder")
+		}
+		return filepath.Join(home, "Library", "Caches", "com.unity3d.UnityEditor", "CurlRequestCache.db"), nil
+	case "windows":
+		local := os.Getenv("LOCALAPPDATA")
+		if local == "" {
+			return "", axi.Usagef([]string{"dmsn purchases read --cache <path to CurlRequestCache.db> --out purchases.tsv"},
+				"LOCALAPPDATA is not set, so the Unity Editor cache can't be found; give it with --cache")
+		}
+		return filepath.Join(local, "Unity", "Caches", "CurlRequestCache.db"), nil
+	default:
 		return "", axi.Usagef([]string{"dmsn purchases read --cache <path to CurlRequestCache.db> --out purchases.tsv"},
-			"the Unity Editor cache's location is only known on macOS; give it with --cache")
+			"the Unity Editor cache's location is only known on macOS and Windows; give it with --cache")
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", axi.Wrap(axi.CodeIO, err, "cannot find the home folder")
-	}
-	return filepath.Join(home, "Library", "Caches", "com.unity3d.UnityEditor", "CurlRequestCache.db"), nil
 }
 
 // readCachedPurchases merges every cached purchase-list page by purchase. The

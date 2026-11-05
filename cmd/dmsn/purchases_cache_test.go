@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -123,5 +124,24 @@ func TestPurchasesRead_IgnoresASearchsTotal(t *testing.T) {
 	got, code := exec(t, "purchases", "read", "--cache", cache, "--out", filepath.Join(t.TempDir(), "p.tsv"))
 	if code == axi.ExitOK || !strings.Contains(got, "holds no purchase list") {
 		t.Fatalf("exit = %d\n%s", code, got)
+	}
+}
+
+func TestDefaultUnityCachePathWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("the Windows default is read from LOCALAPPDATA")
+	}
+	t.Setenv("LOCALAPPDATA", `C:\Users\someone\AppData\Local`)
+	got, err := defaultUnityCachePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `C:\Users\someone\AppData\Local\Unity\Caches\CurlRequestCache.db`; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+
+	t.Setenv("LOCALAPPDATA", "")
+	if _, err := defaultUnityCachePath(); err == nil {
+		t.Error("an unset LOCALAPPDATA should ask for --cache")
 	}
 }
