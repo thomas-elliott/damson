@@ -605,7 +605,7 @@ func TestReferenceAsset_TagsCollectsAndPinsWithoutAVersion(t *testing.T) {
 	}
 }
 
-// TestAssetFilters_NotDownloaded proves Purchased, not downloaded is exactly
+// TestAssetFilters_NotDownloaded proves Not downloaded is exactly
 // the reference assets with no path: a stored asset, or a reference asset on a
 // path (with or without a link), is downloaded somewhere.
 func TestAssetFilters_NotDownloaded(t *testing.T) {
