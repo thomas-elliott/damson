@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -94,7 +95,24 @@ type librarySettingsPatchRequest struct {
 	ThumbnailsUnityPreview  *bool   `json:"thumbnails_unity_preview,omitempty"`
 	AutoEnrichEnabled       *bool   `json:"auto_enrich_enabled,omitempty"`
 	PreferredStore          *string `json:"preferred_store,omitempty"`
-	AuditRetentionDays      *int    `json:"audit_retention_days,omitempty"`
+	// AuditRetentionDays is raw so an explicit null, which keeps every entry,
+	// is told apart from leaving the field out.
+	AuditRetentionDays json.RawMessage `json:"audit_retention_days,omitempty"`
+}
+
+// auditRetention reads the patch's retention: set reports whether the field
+// was sent, and days is nil when it was sent as null.
+func (r librarySettingsPatchRequest) auditRetention() (days *int, set bool, err error) {
+	if r.AuditRetentionDays == nil {
+		return nil, false, nil
+	}
+	if err := json.Unmarshal(r.AuditRetentionDays, &days); err != nil {
+		return nil, false, asError("audit_retention_days must be a whole number of days or null")
+	}
+	if days != nil && *days < 1 {
+		return nil, false, asError("audit_retention_days must be at least 1")
+	}
+	return days, true, nil
 }
 
 // patchLibrarySettings is library-admin-only. Members get 403.
@@ -113,8 +131,13 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		respond400(c, asError("invalid preferred_store"))
 		return
 	}
+	retentionDays, retentionSet, err := req.auditRetention()
+	if err != nil {
+		respond400(c, err)
+		return
+	}
 	var out models.LibrarySettings
-	err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		s, err := library.Settings(tx, lib.ID)
 		if err != nil {
 			return err
@@ -144,8 +167,8 @@ func (h *Handler) patchLibrarySettings(c *gin.Context) {
 		if req.PreferredStore != nil {
 			s.PreferredStore = *req.PreferredStore
 		}
-		if req.AuditRetentionDays != nil {
-			s.AuditRetentionDays = req.AuditRetentionDays
+		if retentionSet {
+			s.AuditRetentionDays = retentionDays
 		}
 		s.UpdatedByUserID = &u.ID
 		if err := tx.Save(s).Error; err != nil {

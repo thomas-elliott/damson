@@ -1,7 +1,7 @@
 import { test, expect, bootstrapAdmin, installSession } from "../fixtures";
 
-// PER-83 — library settings persistence. The class of bug the issue calls
-// out is "PATCH succeeded but the GET cache wasn't invalidated": the SPA
+// Library settings persistence. The class of bug this guards
+// against is "PATCH succeeded but the GET cache wasn't invalidated": the SPA
 // optimistically updates state, the user moves on, but a hard reload
 // rehydrates from the cache (or a stale GET response) and the change
 // vanishes. The hard reload at the end is the actual test — every

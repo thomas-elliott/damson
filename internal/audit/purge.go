@@ -14,7 +14,7 @@ import (
 // Purger sweeps audit_log against per-library
 // `library_settings.audit_retention_days`. Server-level events
 // (`library_id IS NULL`) are deliberately untouched — `server_settings` has
-// no retention column yet (see PER-73).
+// no retention column yet.
 type Purger struct {
 	DB       *gorm.DB
 	Interval time.Duration

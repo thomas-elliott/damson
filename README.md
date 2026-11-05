@@ -12,8 +12,8 @@ To run it, start with [Getting started](docs/getting-started.md).
 
 ## What it does
 
-- Extracts what you upload. A `.unitypackage` or `.zip` is unpacked into its individual files; anything else is stored whole. Thumbnails and previews are rendered from the contents: resampled images, waveforms for audio, type specimens for fonts.
-- Tracks the licence. Each asset has one licence, with the terms broken out as six yes/no/*unknown* attributes: commercial use, modification, redistribution, attribution, share-alike, open-source required. *Unknown* is a third state, never silently a "no". Filter a library by what it permits, or open a project and see whether anything in it blocks a commercial release.
+- Extracts what you upload. A `.unitypackage` or `.zip` is unpacked into its individual files; anything else is stored whole. Images inside a package become its cover and file previews. A single uploaded audio file or font gets a waveform or a type specimen as its cover.
+- Tracks the licence. Each asset has one licence, with the terms broken out as six yes/no/*unknown* attributes: commercial use, modification, redistribution, attribution, share-alike, open-source required. *Unknown* is a third state, never silently a "no". Filter a library by what it permits, or open a project and see whether anything in it blocks a commercial release. The licence record is a guide, not legal advice: read the licence itself before you ship.
 - Pulls the storefront listing. Where it can, Damson finds the Unity Asset Store page for a pack and brings back the description, publisher, cover art and tags.
 - Versions assets. Uploading a newer build of a pack you already have never overwrites it: it is stored as its own asset, and when Damson recognises the match it offers to fold it in as a new version. Projects pin the version they ship.
 - Organises three ways. Tags are hierarchical paths describing what an asset *is*; collections are flat bookmarks recording what you *decided* about it; projects pin versions for a build. They are not interchangeable.

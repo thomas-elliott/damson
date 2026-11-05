@@ -23,7 +23,7 @@ copies of the Software.`;
 
 const TAG_PATH = "qa/persist-test";
 
-// PER-77 — most common write path post-import. Add a tag, save a licence,
+// Most common write path post-import. Add a tag, save a licence,
 // reload the page, confirm both stuck. Catches the optimistic-update
 // masking-a-failed-backend-write class of bug: the assertions run after a
 // real reload so the SPA has to refetch from the backend rather than
@@ -98,7 +98,7 @@ test.describe("Asset edits persist across reload", () => {
     await expect(page.getByText("Original text")).toBeVisible();
     await expect(page.getByPlaceholder(/MIT License\.\.\./)).toHaveCount(0);
   });
-  // DAM-47: editing a set licence replaces it, and the replacement starts
+  // Editing a set licence replaces it, and the replacement starts
   // unreviewed. The licence and its review are seeded through the API; the
   // edit itself is the journey.
   test("a licence edit survives a reload and clears the review", async ({

@@ -7,7 +7,7 @@ import { test, expect, bootstrapAdmin, installSession, uploadImport } from "../f
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
 
-// PER-81 — search returns filtered results, exercising the Postgres
+// Search returns filtered results, exercising the Postgres
 // `to_tsquery` branch in applyAssetFilters and the trigger-maintained
 // `assets.search_vector` (gin-indexed). The SQLite fallback in the same
 // file uses a LIKE on name/description; tier-1/2/3 SQLite specs cover

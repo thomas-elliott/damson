@@ -1,6 +1,7 @@
 package licence
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -86,6 +87,17 @@ func TestCoverageNote(t *testing.T) {
 	for pct, want := range cases {
 		if got := coverageNote(pct); got != want {
 			t.Errorf("coverageNote(%v) = %q, want %q", pct, got, want)
+		}
+	}
+}
+
+// The store lookups record CC 3.0 licences under their own ids, so each needs
+// the same attributes as its 4.0 counterpart.
+func TestAttributesForType_CC30MatchesCC40(t *testing.T) {
+	for _, base := range []string{"CC-BY", "CC-BY-SA", "CC-BY-NC", "CC-BY-NC-SA"} {
+		v3, v4 := AttributesForType(base+"-3.0"), AttributesForType(base+"-4.0")
+		if v3.CommercialUse == nil || !reflect.DeepEqual(v3, v4) {
+			t.Errorf("%s-3.0 attributes = %+v, want those of %s-4.0", base, v3, base)
 		}
 	}
 }

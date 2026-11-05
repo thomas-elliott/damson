@@ -1,25 +1,38 @@
 package metadata
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
+
+// ccVersions are the Creative Commons versions the licence package has
+// attributes for. Any other version maps to nothing.
+var ccVersions = []string{"4.0", "3.0"}
 
 // spdxFromSlug maps a storefront licence slug (Sketchfab, itch info-table,
 // CC URLs) to an SPDX id the licence subsystem understands. Returns "" when
 // there's no confident mapping — the caller keeps the raw label as a hint.
+// A Creative Commons slug without a version is taken as 4.0.
 func spdxFromSlug(slug string) string {
 	s := strings.ToLower(strings.TrimSpace(slug))
-	s = strings.TrimSuffix(s, "-4.0")
-	s = strings.TrimSuffix(s, "-3.0")
+	version := "4.0"
+	for _, v := range ccVersions {
+		if base, ok := strings.CutSuffix(s, "-"+v); ok {
+			s, version = base, v
+			break
+		}
+	}
 	switch s {
 	case "cc0", "cc-0", "publicdomain", "public-domain", "pd":
 		return "CC0-1.0"
 	case "cc-by", "by":
-		return "CC-BY-4.0"
+		return "CC-BY-" + version
 	case "cc-by-sa", "by-sa":
-		return "CC-BY-SA-4.0"
+		return "CC-BY-SA-" + version
 	case "cc-by-nc", "by-nc":
-		return "CC-BY-NC-4.0"
+		return "CC-BY-NC-" + version
 	case "cc-by-nc-sa", "by-nc-sa":
-		return "CC-BY-NC-SA-4.0"
+		return "CC-BY-NC-SA-" + version
 	case "mit":
 		return "MIT"
 	case "apache-2.0", "apache":
@@ -30,21 +43,26 @@ func spdxFromSlug(slug string) string {
 	return ""
 }
 
-// spdxFromLicenceURL extracts an SPDX id from a Creative Commons (or similar)
-// licence URL, e.g. https://creativecommons.org/licenses/by-sa/4.0/.
+// ccLicenceURL matches a Creative Commons licence path and its version, e.g.
+// /licenses/by-sa/4.0/.
+var ccLicenceURL = regexp.MustCompile(`/licenses/([a-z-]+)(?:/(\d+\.\d+))?`)
+
+// spdxFromLicenceURL extracts an SPDX id from a Creative Commons licence URL,
+// e.g. https://creativecommons.org/licenses/by-sa/4.0/. A URL without a
+// version is taken as 4.0. NoDerivatives licences map to nothing: the licence
+// table has no id for them.
 func spdxFromLicenceURL(raw string) string {
 	u := strings.ToLower(raw)
-	switch {
-	case strings.Contains(u, "publicdomain/zero") || strings.Contains(u, "/cc0"):
+	if strings.Contains(u, "publicdomain/zero") || strings.Contains(u, "/cc0") {
 		return "CC0-1.0"
-	case strings.Contains(u, "/licenses/by-nc-sa"):
-		return "CC-BY-NC-SA-4.0"
-	case strings.Contains(u, "/licenses/by-nc"):
-		return "CC-BY-NC-4.0"
-	case strings.Contains(u, "/licenses/by-sa"):
-		return "CC-BY-SA-4.0"
-	case strings.Contains(u, "/licenses/by"):
-		return "CC-BY-4.0"
 	}
-	return ""
+	m := ccLicenceURL.FindStringSubmatch(u)
+	if m == nil {
+		return ""
+	}
+	version := m[2]
+	if version == "" {
+		version = "4.0"
+	}
+	return spdxFromSlug("cc-" + m[1] + "-" + version)
 }

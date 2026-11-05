@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { test, expect } from "../fixtures";
 
-// PER-78 — OIDC sign-in callback. The full code-exchange dance is faked
+// OIDC sign-in callback. The full code-exchange dance is faked
 // purely on the SPA side: /api/auth/mode is intercepted to return "oidc"
 // (the e2e backend itself stays in local mode), the IdP discovery, JWKS,
 // and token endpoints are all served by page.route() against a fake

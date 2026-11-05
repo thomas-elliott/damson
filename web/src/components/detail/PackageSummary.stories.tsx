@@ -110,7 +110,7 @@ function Harness({ id }: { id: number }) {
   );
 }
 
-// Delete is on every story here: destructive on destructive-soft, 4.42:1 (SMO-22).
+// Delete is on every story here: destructive on destructive-soft, 4.42:1.
 const deleteDebt = contrastDebt("destructive-soft");
 
 /** A stored asset: cover, get-it, overview, versions; projects and collections link out. */
