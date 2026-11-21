@@ -13,7 +13,7 @@ import (
 )
 
 func (s *S3) BeginMultipart(ctx context.Context, prefix Prefix, objectKey string, meta ObjectMeta) (MultipartUpload, error) {
-	key := objectPath(prefix, objectKey)
+	key := s.objectPath(prefix, objectKey)
 	out, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
 		Bucket:   &s.bucket,
 		Key:      &key,
@@ -31,7 +31,7 @@ func (s *S3) ResumeMultipart(_ context.Context, prefix Prefix, objectKey, upload
 	}
 	return &s3Multipart{
 		s:        s,
-		key:      objectPath(prefix, objectKey),
+		key:      s.objectPath(prefix, objectKey),
 		bare:     objectKey,
 		uploadID: uploadID,
 	}, nil
