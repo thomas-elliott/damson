@@ -2,7 +2,7 @@
 // internal/handlers/api Handler used by cmd/server. It runs against Postgres,
 // applying the embedded SQL migrations through internal/db.Migrate so triggers,
 // tsvector, advisory locks, and schema_migrations bookkeeping all match
-// production. DAMSON_TEST_POSTGRES_DSN is required.
+// production. The PG* variables name its database and are required.
 //
 // Trade-offs vs cmd/server:
 //   - Adds /api/test/reset (truncates the data tables) and /api/test/users
@@ -15,7 +15,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -39,11 +38,6 @@ import (
 	"github.com/thomas-elliott/damson/internal/queue"
 	"github.com/thomas-elliott/damson/internal/storage"
 )
-
-// PostgresDSNEnv is the required env var pointing the e2e binary at its
-// Postgres instance. Mirrors the constant in internal/testdb so the two paths
-// agree on the env-var name.
-const PostgresDSNEnv = "DAMSON_TEST_POSTGRES_DSN"
 
 // Deterministic signing key — this binary is test-only, so a fixed key is
 // fine and lets tests issue tokens without coordinating with the backend.
@@ -71,7 +65,12 @@ func main() {
 	storeRoot := filepath.Join(dataDir, "storage")
 	baseURL := envOr("E2E_BASE_URL", "http://localhost"+addr)
 
-	gormDB, err := openDB()
+	dsn, err := db.DSNFromEnv()
+	if err != nil {
+		slog.Error("open db", "err", err)
+		os.Exit(1)
+	}
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{DSN: dsn}), &gorm.Config{})
 	if err != nil {
 		slog.Error("open db", "err", err)
 		os.Exit(1)
@@ -97,7 +96,7 @@ func main() {
 	broadcaster := ingest.NewBroadcaster()
 
 	jobQueue, err := queue.New(context.Background(), queue.Config{
-		DSN:         os.Getenv(PostgresDSNEnv),
+		DSN:         dsn,
 		DB:          gormDB,
 		ImportDeps:  ingest.Deps{DB: gormDB, Storage: store, Broadcaster: broadcaster},
 		PreviewDeps: preview.Deps{DB: gormDB, Storage: store, Broadcaster: previewBroadcaster},
@@ -184,17 +183,6 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-// openDB connects to the Postgres instance named by DAMSON_TEST_POSTGRES_DSN,
-// which is required. The embedded SQL migrations are applied by setupSchema so
-// triggers, tsvector, and GIN indexes match production.
-func openDB() (*gorm.DB, error) {
-	dsn := os.Getenv(PostgresDSNEnv)
-	if dsn == "" {
-		return nil, fmt.Errorf("%s must be set", PostgresDSNEnv)
-	}
-	return gorm.Open(postgres.New(postgres.Config{DSN: dsn}), &gorm.Config{})
 }
 
 // setupSchema brings the database up to a queryable state by running the SQL

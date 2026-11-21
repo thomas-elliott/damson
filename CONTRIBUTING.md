@@ -14,7 +14,8 @@ This file is the short version. The long version is in [`AGENTS.md`](AGENTS.md) 
 | [Node](https://nodejs.org) | 24+ | the SPA |
 | [pnpm](https://pnpm.io) | 12.6.0 | frontend package manager; `corepack enable` picks up the version pinned in `web/package.json` |
 | [just](https://just.systems) | 1.52.0+ | every workflow in this repo goes through it |
-| Docker with Compose v2 | n/a | the dev Postgres |
+| Postgres client tools | any | `psql`, `createdb` and `dropdb`, which the database recipes call |
+| A Postgres server | 16+ | any server where your role can create databases; see Setup |
 
 The `just` minimum is a hard one. `tools/release.just` uses `set default-list`, which arrived in just 1.52.0. An older `just` fails to parse the justfile, so every command, including `just install`, dies with `Unknown setting 'default-list'`.
 
@@ -22,37 +23,56 @@ The `just` minimum is a hard one. `tools/release.just` uses `set default-list`, 
 
 ### Setup
 
+The recipes read the standard libpq variables `PGHOST`, `PGPORT`, `PGUSER`, `PGSSLMODE` and `PGDATABASE`, with the password in `~/.pgpass` or `PGPASSWORD`. `PGDATABASE` is only where the recipes connect to create and drop databases. Set them in your shell, or copy [`.env.example`](.env.example) to `.env` (git-ignored), which the recipes load; a variable already in your environment wins. A recipe that needs one and finds it unset fails and names it.
+
+Any Postgres 16 or later will do. For a throwaway one in Docker:
+
 ```sh
-just install   # Go modules, pnpm packages, Playwright browsers
-just dev       # Postgres, the Go API, and the Vite SPA together
+docker run -d --name damson-pg -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=damson postgres:16-alpine
 ```
 
-Then open <http://localhost:5173> and sign in as `dev@example.com` / `password1`.
+and in `.env`:
 
-`just dev` needs no `.env` and no configuration. It starts this checkout's own Postgres from `compose.yaml`, applies migrations, seeds that throwaway local admin, installs [air](https://github.com/air-verse/air) for Go hot-reload if it is missing, serves the API on `127.0.0.1:8080`, and runs Vite on `:5173` proxying `/api` to it. Anything you set in `.env` or the environment wins over those defaults; see [`.env.example`](.env.example).
+```sh
+PGHOST=127.0.0.1
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=damson
+PGSSLMODE=disable
+PGDATABASE=postgres
+```
 
-With `just dev` up, `just seed` loads three sample packs into the dev admin's library and writes about 300 generated reference assets straight into Postgres. A second run adds nothing.
+Then:
+
+```sh
+just install   # Go modules, pnpm packages, Playwright's Chromium
+just dev       # the Go API and the Vite SPA together
+```
+
+Open <http://localhost:5173> and sign in as `dev@example.com` / `password1`.
+
+`just dev` creates and migrates your own dev database, `damson_dev_<user>` (or `DEV_DATABASE`), and seeds that throwaway local admin. It installs [air](https://github.com/air-verse/air) for Go hot-reload if it is missing, serves the API on `127.0.0.1:$PORT` (default 8080), and runs Vite on `$WEB_PORT` (default 5173), proxying `/api` to `PORT`.
+
+To sign in through your own identity provider instead, set `DAMSON_OIDC_ISSUER_URL` and `DAMSON_OIDC_CLIENT_ID` in `.env`. The client must be a public PKCE client, with no secret, that accepts `/auth/callback` on `http://localhost:*`. The first person to sign in becomes the sysadmin.
+
+If `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `E2E_S3_BUCKET` are all set, files go to that S3-compatible bucket under `damson/<dev database>/`; otherwise they stay in `./data`.
+
+With `just dev` up, `just seed` loads three sample packs into the admin's library and writes about 300 generated reference assets straight into Postgres. A second run adds nothing. In OIDC mode, sign in once first.
 
 Other recipes:
 
 ```sh
-just backend        # the Go API alone (air hot-reload)
-just frontend       # the Vite SPA alone
-just storybook      # the design system on :6006
-just db reset       # empty the dev and test databases
-just db dsn         # print this checkout's Postgres address
+just backend         # the Go API alone (air hot-reload)
+just frontend        # the Vite SPA alone
+just storybook       # the design system on :6006
+just db reset        # empty your dev database
+just db psql         # psql on your dev database
+just db drop-leaked  # drop test databases a killed run left behind
 ```
-
-### Each checkout gets its own Postgres
-
-`just db` names the Compose project after a hash of the checkout's path and lets Docker pick a free loopback port, so clones and worktrees never share a database.
-
-- After deleting a clone or worktree, run `just db prune` to remove the Postgres and data of every checkout whose directory is gone.
-- Docker installed as a snap cannot see `/tmp`, so a worktree there cannot start its Postgres. Keep worktrees under your home directory.
 
 ### Everything goes through `just`
 
-Do not run `go`, `pnpm` or `docker` directly for build, test, lint or format. The recipes set up databases, DSNs and browser paths that a bare command lacks. Run `just` with no argument to list everything.
+Do not run `go` or `pnpm` directly for build, test, lint or format. The recipes set up databases, DSNs and browser paths that a bare command lacks. Run `just` with no argument to list everything.
 
 Recipe names use a fixed vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `dev`, `install`), with the backend/frontend split as the second word (`lint backend`, `format frontend`). When in doubt, use the umbrella recipe.
 
@@ -77,7 +97,7 @@ just test frontend src/path/to/file.test.tsx
 just test e2e --ui
 ```
 
-`just test backend` resolves `DAMSON_TEST_POSTGRES_DSN` itself and starts the checkout's Postgres if needed. There is no SQLite backend: every Go test runs against real Postgres in its own schema. `just test e2e` uses its own servers on 5174/8081 and the `damson_test` database, so it can run while `just dev` is up.
+`just test backend` and `just test e2e` each create a database for the run on the `PG*` server and drop it afterwards, so two checkouts never share one. There is no SQLite backend and no skip: every Go test runs against real Postgres in its own schema inside the run's database. `just test e2e` uses its own servers on 5174/8081, so it can run while `just dev` is up.
 
 ## Before you push
 
@@ -117,7 +137,7 @@ Both:
 
 ## What a good pull request looks like here
 
-- One change, described in the title. Commit subjects are imperative, sentence case, with no `feat:` / `fix:` prefix, and describe the behaviour rather than the files: "Draw the grid at the library's density on a cold load", "Give every checkout its own compose Postgres". Do the same for the PR title.
+- One change, described in the title. Commit subjects are imperative, sentence case, with no `feat:` / `fix:` prefix, and describe the behaviour rather than the files: "Draw the grid at the library's density on a cold load", "Give every test run its own database". Do the same for the PR title.
 - Scoped to its stated purpose. A drive-by rename buried in a bug fix makes the fix harder to review and to revert.
 - `just check` passes locally before you push.
 - Tests that would have caught it. Go tests live beside the handler (`assets_test.go` next to `assets.go`). The core helpers are in `api_test.go` (`newTestHandler`, `setupRouter`, `performGET`, `requireStatus`, …) and the seed helpers sit beside the feature they seed (`seedLibrary` in `library_test.go`). A user-visible frontend change wants a Vitest test or a story; a flow worth protecting wants an e2e. [`docs/e2e-flows.md`](docs/e2e-flows.md) lists what the suite covers and what it leaves out on purpose.

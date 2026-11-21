@@ -1,9 +1,9 @@
 # The test suites.
 #
-# Every Go-side recipe resolves its database through `just _test-dsn` (see the
-# root justfile) rather than hardcoding a DSN, so an exported
-# DAMSON_TEST_POSTGRES_DSN always wins and the local default gets its database
-# created on first use.
+# Every Go-side recipe creates a database for its run on the server the PG*
+# variables name, points PGDATABASE at it, and drops it on exit (see
+# `_test-db-create` in the root justfile). The Go suite then gives each test its
+# own schema inside it. Nothing falls back to localhost, and nothing skips.
 #
 # `[working-directory]` in a module is relative to THIS file, so the frontend is
 # `../web`; it cannot be combined with `[no-cd]`.
@@ -27,7 +27,9 @@ unit: backend frontend
 backend *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    export DAMSON_TEST_POSTGRES_DSN="$(just _test-dsn)"
+    db="$(just _test-db-create)"
+    trap 'dropdb --if-exists "$db"' EXIT
+    export PGDATABASE="$db"
     race=-race
     if ! command -v "$(go env CC)" >/dev/null; then
       echo "warning: no C compiler ($(go env CC)), so running without -race" >&2
@@ -64,7 +66,10 @@ e2e *ARGS: _e2e-server
     #!/usr/bin/env bash
     set -euo pipefail
     just _web-deps
-    export DAMSON_TEST_POSTGRES_DSN="$(just _test-dsn)"
+    db="$(just _test-db-create)"
+    trap 'dropdb --if-exists "$db"' EXIT
+    # Playwright's webServer inherits the environment, so the e2e server opens this.
+    export PGDATABASE="$db"
     if [ -z "{{ ARGS }}" ]; then
       pnpm run e2e
     else
@@ -87,7 +92,11 @@ watch:
 # Go coverage report → coverage.html
 [no-cd]
 coverage:
-    DAMSON_TEST_POSTGRES_DSN="$(just _test-dsn)" go test -coverprofile=coverage.out ./...
+    #!/usr/bin/env bash
+    set -euo pipefail
+    db="$(just _test-db-create)"
+    trap 'dropdb --if-exists "$db"' EXIT
+    PGDATABASE="$db" go test -coverprofile=coverage.out ./...
     go tool cover -html=coverage.out -o coverage.html
 
 # Only `e2e` uses this, so it is a dependency rather than a name of its own.

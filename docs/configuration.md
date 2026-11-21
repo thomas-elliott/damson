@@ -10,10 +10,8 @@ Damson reads configuration once, at startup, from environment variables
 (`internal/config/config.go`, plus the logging variables in
 `cmd/server/main.go`). A change needs a restart.
 
-A `.env` file in the server's working directory is loaded if present, but real
-environment variables win on a conflict. In the container image the working
-directory is `/`, so the file would be `/.env`. Set the environment directly
-instead.
+The server does not read a `.env` file. Set the environment directly. (The
+`just` recipes load a `.env` for development; see `.env.example`.)
 
 Damson reports every configuration problem at once and then exits 1. Each
 problem (a missing required value, an unparseable duration, an invalid mode) gets
@@ -311,6 +309,7 @@ variables are required in S3 mode:
 | `DAMSON_S3_ACCESS_KEY` | — | **In S3 mode** | Access key id. Supports `_FILE`. |
 | `DAMSON_S3_SECRET_KEY` | — | **In S3 mode** | Secret access key. Supports `_FILE`. |
 | `DAMSON_S3_FORCE_PATH_STYLE` | `true` | No | `true` sends `endpoint/bucket/key` (what MinIO and Garage want). Set `false` for virtual-host-style addressing, which real AWS S3 expects. |
+| `DAMSON_S3_PREFIX` | empty | No | Put in front of every object key, so several servers can share one bucket. `just dev` sets it; a deployment with a bucket of its own leaves it empty. Changing it on a running library hides every stored file. |
 
 Create the bucket yourself first. Damson does not create it or check that it
 exists at startup, and only exercises the credentials on the first object read
@@ -433,8 +432,9 @@ not show its state.
 - No `DATABASE_URL`. Use `DAMSON_POSTGRES_DSN`.
 - No `AWS_*` credentials. S3 credentials come only from the `DAMSON_S3_*`
   variables.
-- `DAMSON_TEST_POSTGRES_DSN` is for the Go and Playwright test suites, not the
-  server.
+- No `PG*` variables. The Go and Playwright test suites and the `just` recipes
+  read `PGHOST`, `PGPORT`, `PGUSER`, `PGSSLMODE` and `PGDATABASE`; the server
+  reads only `DAMSON_POSTGRES_DSN`.
 - `DAMSON_SERVER`, `DAMSON_TOKEN` and `DAMSON_CONFIG` configure the `dmsn` CLI,
   not the server.
 

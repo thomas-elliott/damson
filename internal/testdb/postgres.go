@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -18,24 +17,22 @@ import (
 	"github.com/thomas-elliott/damson/internal/db"
 )
 
-// PostgresDSNEnv is the env var that points the test suite at a Postgres
-// instance. It is required: with it unset the suite fails fast rather than
-// silently skipping, because Postgres is the only supported backend.
-const PostgresDSNEnv = "DAMSON_TEST_POSTGRES_DSN"
-
-// RequireDSN returns the Postgres DSN from the environment, failing the test
-// if it is unset. Use it in tests that open their own connection(s) rather
-// than going through NewPostgres.
+// RequireDSN returns the DSN the PG* variables name, failing the test with
+// the missing variables if any are unset. The suite never skips and never
+// falls back to localhost, because Postgres is the only supported backend.
+// `just test backend` points PGDATABASE at a database it creates for the run.
+// Use it in tests that open their own connection(s) rather than going through
+// NewPostgres.
 func RequireDSN(t *testing.T) string {
 	t.Helper()
-	dsn := os.Getenv(PostgresDSNEnv)
-	if dsn == "" {
-		t.Fatalf("%s must be set: the test suite requires a Postgres instance", PostgresDSNEnv)
+	dsn, err := db.DSNFromEnv()
+	if err != nil {
+		t.Fatalf("the test suite needs a Postgres server: %v", err)
 	}
 	return dsn
 }
 
-// NewPostgres opens a Postgres connection from $DAMSON_TEST_POSTGRES_DSN,
+// NewPostgres opens a Postgres connection from the PG* variables,
 // creates a fresh per-test schema (test_<random>), runs all SQL migrations
 // against that schema, and registers a Cleanup to drop it. Each test gets an
 // isolated namespace on the same Postgres instance — no per-test container.
@@ -64,7 +61,7 @@ func OpenSchema(t *testing.T, dsn, schema string, migrate bool) *gorm.DB {
 			t.Fatalf("open bootstrap connection: %v", err)
 		}
 		if err := bootstrap.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %q`, schema)).Error; err != nil {
-			t.Fatalf("create schema %s: %v", schema, err)
+			t.Fatalf("create schema %s in PGDATABASE: %v (run the suite through `just test backend`, which creates a database for the run)", schema, err)
 		}
 		if sql, _ := bootstrap.DB(); sql != nil {
 			_ = sql.Close()
