@@ -15,7 +15,7 @@ This file is the short version. The long version is in [`AGENTS.md`](AGENTS.md) 
 | [pnpm](https://pnpm.io) | 12.6.0 | frontend package manager; `corepack enable` picks up the version pinned in `web/package.json` |
 | [just](https://just.systems) | 1.52.0+ | every workflow in this repo goes through it |
 | Postgres client tools | any | `psql`, `createdb` and `dropdb`, which the database recipes call |
-| A Postgres server | 16+ | one your role can create databases on, named by the `PG*` variables below |
+| A Postgres server | 16+ | any server where your role can create databases; see Setup |
 
 The `just` minimum is a hard one. `tools/release.just` uses `set default-list`, which arrived in just 1.52.0. An older `just` fails to parse the justfile, so every command, including `just install`, dies with `Unknown setting 'default-list'`.
 
@@ -23,27 +23,41 @@ The `just` minimum is a hard one. `tools/release.just` uses `set default-list`, 
 
 ### Setup
 
-There is no `.env` and no Docker. The recipes read the standard libpq variables `PGHOST`, `PGPORT`, `PGUSER`, `PGSSLMODE` and `PGDATABASE`, with the password in `~/.pgpass` or `PGPASSWORD`. `PGDATABASE` is only where the recipes connect to create and drop databases. A recipe that needs one of these and finds it unset fails and names it.
+The recipes read the standard libpq variables `PGHOST`, `PGPORT`, `PGUSER`, `PGSSLMODE` and `PGDATABASE`, with the password in `~/.pgpass` or `PGPASSWORD`. `PGDATABASE` is only where the recipes connect to create and drop databases. Set them in your shell, or copy [`.env.example`](.env.example) to `.env` (git-ignored), which the recipes load; a variable already in your environment wins. A recipe that needs one and finds it unset fails and names it.
+
+Any Postgres 16 or later will do. For a throwaway one in Docker:
+
+```sh
+docker run -d --name damson-pg -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=damson postgres:16-alpine
+```
+
+and in `.env`:
+
+```sh
+PGHOST=127.0.0.1
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=damson
+PGSSLMODE=disable
+PGDATABASE=postgres
+```
+
+Then:
 
 ```sh
 just install   # Go modules, pnpm packages, Playwright's Chromium
 just dev       # the Go API and the Vite SPA together
 ```
 
-`just dev` creates and migrates your own dev database, `damson_dev_<user>` (or `DEV_DATABASE`). It installs [air](https://github.com/air-verse/air) for Go hot-reload if it is missing, serves the API on `127.0.0.1:$PORT` (default 8080), and runs Vite on `$WEB_PORT` (default 5173), proxying `/api` to `PORT`. Open <http://localhost:5173>.
+Open <http://localhost:5173> and sign in as `dev@example.com` / `password1`.
 
-It signs in through OIDC, with a public PKCE client named in an untracked `.dev-oidc` file at the checkout root:
+`just dev` creates and migrates your own dev database, `damson_dev_<user>` (or `DEV_DATABASE`), and seeds that throwaway local admin. It installs [air](https://github.com/air-verse/air) for Go hot-reload if it is missing, serves the API on `127.0.0.1:$PORT` (default 8080), and runs Vite on `$WEB_PORT` (default 5173), proxying `/api` to `PORT`.
 
-```sh
-DEV_OIDC_ISSUER=https://auth.example.com
-DEV_OIDC_CLIENT_ID=your-client-id
-```
+To sign in through your own identity provider instead, set `DAMSON_OIDC_ISSUER_URL` and `DAMSON_OIDC_CLIENT_ID` in `.env`. The client must be a public PKCE client, with no secret, that accepts `/auth/callback` on `http://localhost:*`. The first person to sign in becomes the sysadmin.
 
-Register a client with your identity provider that accepts `/auth/callback` on `http://localhost:*` and needs no client secret. Without the file, `just dev` fails and says what it needs. The first person to sign in becomes the sysadmin.
+If `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `E2E_S3_BUCKET` are all set, files go to that S3-compatible bucket under `damson/<dev database>/`; otherwise they stay in `./data`.
 
-If `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `E2E_S3_BUCKET` are all set, files go to that bucket under `damson/<dev database>/`; otherwise they stay in `./data`.
-
-After you have signed in once, `just seed` loads three sample packs into your library and writes about 300 generated reference assets straight into Postgres. A second run adds nothing.
+With `just dev` up, `just seed` loads three sample packs into the admin's library and writes about 300 generated reference assets straight into Postgres. A second run adds nothing. In OIDC mode, sign in once first.
 
 Other recipes:
 

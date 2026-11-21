@@ -26,10 +26,10 @@ node_modules/
 /web/static/*
 !/web/static/.gitkeep
 
-# Env, and the dev OIDC client (see justfile)
-.dev-oidc
+# Env
 .env
 .env.*
+!.env.example
 
 # OS
 .idea

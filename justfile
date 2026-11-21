@@ -11,11 +11,13 @@
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-# No .env, no Docker. Every recipe reads the agent environment: the libpq
-# variables PGHOST, PGPORT, PGUSER, PGSSLMODE and PGDATABASE name the Postgres
-# server, with the password in ~/.pgpass (or PGPASSWORD in CI), which psql and
-# pgx read themselves. Image storage reads the standard AWS variables plus
-# E2E_S3_BUCKET. See AGENTS.md, Environment.
+# Every recipe reads its settings from the environment: the libpq variables
+# PGHOST, PGPORT, PGUSER, PGSSLMODE and PGDATABASE name the Postgres server,
+# with the password in ~/.pgpass (or PGPASSWORD), which psql and pgx read
+# themselves. Image storage reads the standard AWS variables plus
+# E2E_S3_BUCKET. A gitignored `.env` fills in whatever the environment leaves
+# unset (see .env.example); a variable already set always wins over it.
+set dotenv-load
 
 mod build 'tools/build.just'
 mod check 'tools/check.just'
@@ -50,14 +52,16 @@ WEB_PORT := env("WEB_PORT", "5173")
 DB_USER := `id -un | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_\n' '_'`
 DEV_DB := env("DEV_DATABASE", "damson_dev_" + DB_USER)
 
-# `just dev` signs in through a public PKCE client that accepts /auth/callback
-# on http://localhost:* (and, on the dev box, its tailnet address), any port.
-# Its issuer and client id are in this untracked file, as DEV_OIDC_ISSUER= and
-# DEV_OIDC_CLIENT_ID= lines. Neither is a secret, but they name the maintainer's
-# identity provider, so they stay out of the repository.
-DEV_OIDC_FILE := ".dev-oidc"
-
+# Without OIDC settings, `just dev` signs in locally as this throwaway admin,
+# which the server seeds on first boot.
+DEV_ADMIN_EMAIL := "dev@example.com"
+DEV_ADMIN_PASSWORD := "password1"
 AIR_VERSION := "v1.67.4"
+
+# Sign-in is local with the dev admin unless DAMSON_OIDC_ISSUER_URL is set (in
+# the environment or `.env`), and then OIDC against that issuer with
+# DAMSON_OIDC_CLIENT_ID, a public PKCE client accepting /auth/callback on the
+# address the browser uses. The id_token's audience defaults to the client id.
 
 # Go API with air hot-reload, on PORT, against your dev database
 backend:
@@ -67,15 +71,21 @@ backend:
     # Assigned before export: `export X="$(…)"` reports export's status, not the guard's.
     dsn="$(just _dsn '{{ DEV_DB }}')"
     export DAMSON_POSTGRES_DSN="$dsn"
-    oidc="$(just _dev-oidc)"
-    eval "$oidc"
+    if [ -n "${DAMSON_OIDC_ISSUER_URL:-}" ]; then
+      export DAMSON_AUTH_MODE=oidc
+      export DAMSON_OIDC_AUDIENCE="${DAMSON_OIDC_AUDIENCE:-${DAMSON_OIDC_CLIENT_ID:-}}"
+    else
+      export DAMSON_AUTH_MODE=local
+      export DAMSON_LOCAL_ADMIN_EMAIL="${DAMSON_LOCAL_ADMIN_EMAIL:-{{ DEV_ADMIN_EMAIL }}}"
+      export DAMSON_LOCAL_ADMIN_PASSWORD="${DAMSON_LOCAL_ADMIN_PASSWORD:-{{ DEV_ADMIN_PASSWORD }}}"
+    fi
     export DAMSON_LISTEN_ADDR='127.0.0.1:{{ PORT }}'
     s3="$(just _s3-env)"
     eval "$s3"
     command -v air >/dev/null || go install github.com/air-verse/air@{{ AIR_VERSION }}
     exec air
 
-# Load sample packs and ~300 reference assets into the dev library; run while `just dev` is up, after signing in once
+# Load sample packs and ~300 reference assets into the dev library; run while `just dev` is up (with OIDC, after signing in once)
 seed:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -172,31 +182,9 @@ _pg-required:
 
 PG_UNSET := '''
 Recipes that need Postgres read the libpq variables PGHOST, PGPORT, PGUSER,
-PGSSLMODE and PGDATABASE, with the password in ~/.pgpass or PGPASSWORD. The
-agent environment sets all of them; see AGENTS.md, Environment.
+PGSSLMODE and PGDATABASE, with the password in ~/.pgpass or PGPASSWORD. Set
+them in your environment or in `.env`; see .env.example and CONTRIBUTING.md.
 '''
-
-# Prints exports of DAMSON_OIDC_* from DEV_OIDC_FILE. The id_token's audience
-# is the client id. A missing file or value fails, naming it; there is no
-# sign-in-free mode to fall back to.
-[private]
-_dev-oidc:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    file='{{ DEV_OIDC_FILE }}'
-    value() { [ -f "$file" ] || return 0; sed -n "s/^$1=//p" "$file" | tail -1; }
-    issuer="$(value DEV_OIDC_ISSUER)"
-    client="$(value DEV_OIDC_CLIENT_ID)"
-    if [ -z "$issuer" ] || [ -z "$client" ]; then
-      echo "just dev signs in through OIDC, and needs DEV_OIDC_ISSUER= and DEV_OIDC_CLIENT_ID= lines in $file." >&2
-      echo "Ask the maintainer for the dev client's values, or use your own public PKCE client (CONTRIBUTING.md)." >&2
-      exit 1
-    fi
-    q() { printf '%q' "$1"; }
-    echo "export DAMSON_AUTH_MODE=oidc"
-    echo "export DAMSON_OIDC_ISSUER_URL=$(q "$issuer")"
-    echo "export DAMSON_OIDC_CLIENT_ID=$(q "$client")"
-    echo "export DAMSON_OIDC_AUDIENCE=$(q "$client")"
 
 # Prints exports of DAMSON_S3_* from the standard AWS variables, when they are
 # set. With none set, the server keeps files on local disk under ./data; with

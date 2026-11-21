@@ -1,8 +1,8 @@
 // Command devseed fills a dev library with a few sample packs and about 300
 // reference assets, so a fresh `just dev` has something to browse at scale. Run
-// it as `just seed` while the backend is up, after signing in once: the first
-// person to sign in is the sysadmin, and the seed goes into their current
-// library. It generates the packs into tmp/seed, mints a short-lived personal
+// it as `just seed` while the backend is up. The seed goes into the sysadmin's
+// current library: the dev admin in local mode, or in OIDC mode the first
+// person to sign in, so sign in once first. It generates the packs into tmp/seed, mints a short-lived personal
 // access token for that user straight in the dev Postgres, uploads the packs
 // with dmsn, writes the reference assets into the database, then deletes the
 // token. Packs and references the library already holds are skipped, so it is
@@ -90,7 +90,7 @@ func sysadmin(gdb *gorm.DB) (models.User, error) {
 	var u models.User
 	err := gdb.Where("role = ?", "sysadmin").Order("id").First(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return u, errors.New("the dev database has no users yet: open `just dev` in a browser and sign in once, then run `just seed` again")
+		return u, errors.New("the dev database has no users yet: start `just dev` (with OIDC, also sign in once in a browser), then run `just seed` again")
 	}
 	if err != nil {
 		return u, fmt.Errorf("find the sysadmin: %w", err)

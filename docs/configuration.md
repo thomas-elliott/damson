@@ -10,7 +10,8 @@ Damson reads configuration once, at startup, from environment variables
 (`internal/config/config.go`, plus the logging variables in
 `cmd/server/main.go`). A change needs a restart.
 
-Damson does not read a `.env` file. Set the environment directly.
+The server does not read a `.env` file. Set the environment directly. (The
+`just` recipes load a `.env` for development; see `.env.example`.)
 
 Damson reports every configuration problem at once and then exits 1. Each
 problem (a missing required value, an unparseable duration, an invalid mode) gets
