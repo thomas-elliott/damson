@@ -18,7 +18,6 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/jfreymuth/oggvorbis v1.0.5
-	github.com/joho/godotenv v1.5.1
 	github.com/mdouchement/hdr v0.2.4
 	github.com/mrjoshuak/go-openexr v1.4.38
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f

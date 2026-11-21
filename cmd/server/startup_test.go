@@ -30,7 +30,7 @@ func TestMain_ConfigErrorExitsWithAnSlogLine(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			cmd := exec.Command(os.Args[0], "-test.run=^TestMain_ConfigErrorExitsWithAnSlogLine$")
-			cmd.Dir = t.TempDir() // no .env to load
+			cmd.Dir = t.TempDir()
 			cmd.Env = append(os.Environ(), runMainEnv+"=1", "DAMSON_LOG_FORMAT=json", "DAMSON_POSTGRES_DSN_FILE=")
 			cmd.Env = append(cmd.Env, tc.env...)
 			var stderr strings.Builder

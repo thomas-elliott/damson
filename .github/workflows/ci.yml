@@ -46,9 +46,16 @@ jobs:
       - run: go vet ./...
       - run: go tool golangci-lint run ./...
       # The whole Go suite runs against Postgres; each test isolates itself in its own schema.
+      # The libpq variables are the ones a dev box sets. CI has no ~/.pgpass, so the password
+      # rides PGPASSWORD; it is this job's own throwaway service, not a secret.
       - run: go test -race -count=1 ./...
         env:
-          DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@localhost:5432/damson?sslmode=disable
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: damson
+          PGPASSWORD: damson
+          PGSSLMODE: disable
+          PGDATABASE: damson
 
   web:
     runs-on: ubuntu-latest
@@ -102,8 +109,14 @@ jobs:
           --health-retries 30
     env:
       CI: "true" # playwright.config keys off it
-      # A container job reaches its services by name, not on localhost.
-      DAMSON_TEST_POSTGRES_DSN: postgres://damson:damson@postgres:5432/damson?sslmode=disable
+      # A container job reaches its services by name, not on localhost. The e2e server reads
+      # these libpq variables, as on a dev box.
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: damson
+      PGPASSWORD: damson
+      PGSSLMODE: disable
+      PGDATABASE: damson
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6

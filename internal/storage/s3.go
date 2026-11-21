@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,6 +34,10 @@ type S3Config struct {
 	AccessKey      string
 	SecretKey      string
 	ForcePathStyle bool
+	// KeyPrefix, when set, is put in front of every key in the bucket, so
+	// several dev servers can share one bucket without seeing each other's
+	// objects. Deployments leave it empty: each has a bucket of its own.
+	KeyPrefix string
 }
 
 // S3 implements Service against an S3-compatible bucket. Blobs and thumbs
@@ -41,6 +46,8 @@ type S3 struct {
 	client   *s3.Client
 	uploader *manager.Uploader
 	bucket   string
+	// keyPrefix is S3Config.KeyPrefix with one trailing slash, or empty.
+	keyPrefix string
 }
 
 func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
@@ -61,11 +68,15 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 		o.UsePathStyle = cfg.ForcePathStyle
 	})
 
-	return &S3{client: client, uploader: manager.NewUploader(client), bucket: cfg.Bucket}, nil
+	keyPrefix := strings.Trim(cfg.KeyPrefix, "/")
+	if keyPrefix != "" {
+		keyPrefix += "/"
+	}
+	return &S3{client: client, uploader: manager.NewUploader(client), bucket: cfg.Bucket, keyPrefix: keyPrefix}, nil
 }
 
 func (s *S3) Get(ctx context.Context, prefix Prefix, key string) (io.ReadCloser, error) {
-	objectKey := objectPath(prefix, key)
+	objectKey := s.objectPath(prefix, key)
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: &s.bucket,
 		Key:    &objectKey,
@@ -80,7 +91,7 @@ func (s *S3) List(ctx context.Context, prefix Prefix) ([]ObjectInfo, error) {
 	var out []ObjectInfo
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
 		Bucket: &s.bucket,
-		Prefix: aws.String(string(prefix) + "/"),
+		Prefix: aws.String(s.keyPrefix + string(prefix) + "/"),
 	})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -108,7 +119,7 @@ func (s *S3) List(ctx context.Context, prefix Prefix) ([]ObjectInfo, error) {
 func (s *S3) StatMeta(ctx context.Context, prefix Prefix, key string) (ObjectMeta, error) {
 	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: &s.bucket,
-		Key:    aws.String(objectPath(prefix, key)),
+		Key:    aws.String(s.objectPath(prefix, key)),
 	})
 	if err != nil {
 		return ObjectMeta{}, err
@@ -117,7 +128,7 @@ func (s *S3) StatMeta(ctx context.Context, prefix Prefix, key string) (ObjectMet
 }
 
 func (s *S3) Stat(ctx context.Context, prefix Prefix, key string) (ObjectInfo, bool, error) {
-	objectKey := objectPath(prefix, key)
+	objectKey := s.objectPath(prefix, key)
 	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &objectKey})
 	if isNotFound(err) {
 		return ObjectInfo{}, false, nil
@@ -133,7 +144,7 @@ func (s *S3) Stat(ctx context.Context, prefix Prefix, key string) (ObjectInfo, b
 }
 
 func (s *S3) Touch(ctx context.Context, prefix Prefix, key string) (bool, error) {
-	return s.touch(ctx, objectPath(prefix, key))
+	return s.touch(ctx, s.objectPath(prefix, key))
 }
 
 // touch refreshes an existing object's last-modified time by copying it onto
@@ -156,7 +167,7 @@ func (s *S3) touch(ctx context.Context, objectKey string) (bool, error) {
 func (s *S3) Delete(ctx context.Context, prefix Prefix, key string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: &s.bucket,
-		Key:    aws.String(objectPath(prefix, key)),
+		Key:    aws.String(s.objectPath(prefix, key)),
 	})
 	return err
 }
@@ -203,7 +214,7 @@ func (s *S3) Put(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMet
 func (s *S3) putInline(ctx context.Context, prefix Prefix, body []byte, meta ObjectMeta) (string, int64, error) {
 	sum := sha256.Sum256(body)
 	key := hex.EncodeToString(sum[:])
-	objectKey := objectPath(prefix, key)
+	objectKey := s.objectPath(prefix, key)
 
 	present, err := s.touch(ctx, objectKey)
 	if err != nil {
@@ -226,7 +237,7 @@ func (s *S3) putInline(ctx context.Context, prefix Prefix, body []byte, meta Obj
 }
 
 func (s *S3) putStaged(ctx context.Context, prefix Prefix, r io.Reader, meta ObjectMeta) (string, int64, error) {
-	stagingKey, err := newStagingKey()
+	stagingKey, err := s.newStagingKey()
 	if err != nil {
 		return "", 0, err
 	}
@@ -256,7 +267,7 @@ func (s *S3) putStaged(ctx context.Context, prefix Prefix, r io.Reader, meta Obj
 
 	size := counted.count()
 	key := hex.EncodeToString(h.Sum(nil))
-	objectKey := objectPath(prefix, key)
+	objectKey := s.objectPath(prefix, key)
 
 	present, err := s.touch(ctx, objectKey)
 	if err != nil {
@@ -382,12 +393,12 @@ func (s *S3) dropStaging(ctx context.Context, stagingKey string) {
 	}
 }
 
-func newStagingKey() (string, error) {
+func (s *S3) newStagingKey() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", fmt.Errorf("staging key: %w", err)
 	}
-	return stagingPrefix + "/" + hex.EncodeToString(b[:]), nil
+	return s.keyPrefix + stagingPrefix + "/" + hex.EncodeToString(b[:]), nil
 }
 
 type countingReader struct {
@@ -467,8 +478,8 @@ func metaFromS3(md map[string]string) ObjectMeta {
 }
 
 // objectPath is the bucket key of a content-hash key under prefix.
-func objectPath(prefix Prefix, key string) string {
-	return string(prefix) + "/" + shardedKey(key)
+func (s *S3) objectPath(prefix Prefix, key string) string {
+	return s.keyPrefix + string(prefix) + "/" + shardedKey(key)
 }
 
 func shardedKey(hash string) string {

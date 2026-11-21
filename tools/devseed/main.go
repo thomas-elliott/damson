@@ -1,43 +1,59 @@
 // Command devseed fills a dev library with a few sample packs and about 300
 // reference assets, so a fresh `just dev` has something to browse at scale. Run
-// it as `just seed` while the backend is up. It generates the packs into
-// tmp/seed, signs in as the dev admin and uploads them with dmsn, then writes
-// the reference assets straight into the dev Postgres. Packs and references
-// the library already holds are skipped, so it is safe to run again.
+// it as `just seed` while the backend is up, after signing in once: the first
+// person to sign in is the sysadmin, and the seed goes into their current
+// library. It generates the packs into tmp/seed, mints a short-lived personal
+// access token for that user straight in the dev Postgres, uploads the packs
+// with dmsn, writes the reference assets into the database, then deletes the
+// token. Packs and references the library already holds are skipped, so it is
+// safe to run again.
 package main
 
 import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"cmp"
 	"compress/gzip"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
-	"io"
 	"log"
 	"math"
 	"math/rand/v2"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	"time"
 
+	"gorm.io/gorm"
+
+	"github.com/thomas-elliott/damson/internal/auth"
 	"github.com/thomas-elliott/damson/internal/db"
+	"github.com/thomas-elliott/damson/internal/models"
 )
 
-const (
-	outDir = "tmp/seed"
-	server = "http://localhost:8080"
-)
+const outDir = "tmp/seed"
 
 func main() {
 	log.SetFlags(0)
-	email := os.Getenv("DAMSON_LOCAL_ADMIN_EMAIL")
-	password := os.Getenv("DAMSON_LOCAL_ADMIN_PASSWORD")
+	server := "http://127.0.0.1:" + cmp.Or(os.Getenv("PORT"), "8080")
+
+	dsn := os.Getenv("DAMSON_POSTGRES_DSN")
+	if dsn == "" {
+		log.Fatal("DAMSON_POSTGRES_DSN is not set; run this as `just seed`")
+	}
+	gdb, err := db.Open(dsn)
+	if err != nil {
+		log.Fatalf("open the dev database: %v", err)
+	}
+	admin, err := sysadmin(gdb)
+	if err != nil {
+		log.Fatal(err)
+	}
+	libraryID := *admin.CurrentLibraryID
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		log.Fatal(err)
@@ -48,30 +64,19 @@ func main() {
 		writeUnityPackage("Sample Props.unitypackage", props()),
 	}
 
-	token, err := login(server, email, password)
+	token, cleanup, err := mintToken(gdb, admin.ID, libraryID)
 	if err != nil {
-		log.Fatalf("sign in to %s as %s: %v (is `just dev` running?)", server, email, err)
+		log.Fatal(err)
 	}
-
 	args := append([]string{"run", "./cmd/dmsn", "upload", "--server", server, "--token", token, "--skip-existing", "--wait"}, packs...)
 	cmd := exec.Command("go", args...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
+	uploadErr := cmd.Run()
+	cleanup()
+	if uploadErr != nil {
+		log.Fatalf("upload the sample packs to %s: %v (is `just dev` running?)", server, uploadErr)
 	}
 
-	libraryID, err := currentLibrary(server, token)
-	if err != nil {
-		log.Fatalf("find %s's library: %v", email, err)
-	}
-	dsn, err := postgresDSN()
-	if err != nil {
-		log.Fatal(err)
-	}
-	gdb, err := db.Open(dsn)
-	if err != nil {
-		log.Fatalf("open the dev database: %v", err)
-	}
 	created, skipped, err := writeReferences(gdb, libraryID)
 	if err != nil {
 		log.Fatalf("write reference assets: %v", err)
@@ -79,73 +84,46 @@ func main() {
 	log.Printf("reference assets: %d written, %d already there", created, skipped)
 }
 
-// currentLibrary is the signed-in user's current library, as /api/me reports it.
-func currentLibrary(server, token string) (uint, error) {
-	req, err := http.NewRequest(http.MethodGet, server+"/api/me", nil)
+// sysadmin is the dev database's first sysadmin, who must have a current
+// library. In OIDC mode the first person to sign in becomes both.
+func sysadmin(gdb *gorm.DB) (models.User, error) {
+	var u models.User
+	err := gdb.Where("role = ?", "sysadmin").Order("id").First(&u).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return u, errors.New("the dev database has no users yet: open `just dev` in a browser and sign in once, then run `just seed` again")
+	}
 	if err != nil {
-		return 0, err
+		return u, fmt.Errorf("find the sysadmin: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return 0, err
+	if u.CurrentLibraryID == nil {
+		return u, fmt.Errorf("%s has no current library", u.Email)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		msg, _ := io.ReadAll(resp.Body)
-		return 0, fmt.Errorf("%s: %s", resp.Status, msg)
-	}
-	var me struct {
-		CurrentLibrary *struct {
-			ID uint `json:"id"`
-		} `json:"current_library"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
-		return 0, err
-	}
-	if me.CurrentLibrary == nil {
-		return 0, fmt.Errorf("no current library")
-	}
-	return me.CurrentLibrary.ID, nil
+	return u, nil
 }
 
-// postgresDSN reads the database the server uses, as internal/config does:
-// DAMSON_POSTGRES_DSN, or the file DAMSON_POSTGRES_DSN_FILE names.
-func postgresDSN() (string, error) {
-	direct, file := os.Getenv("DAMSON_POSTGRES_DSN"), os.Getenv("DAMSON_POSTGRES_DSN_FILE")
-	switch {
-	case direct != "" && file != "":
-		return "", fmt.Errorf("set either DAMSON_POSTGRES_DSN or DAMSON_POSTGRES_DSN_FILE, not both")
-	case file != "":
-		b, err := os.ReadFile(file)
-		if err != nil {
-			return "", fmt.Errorf("read DAMSON_POSTGRES_DSN_FILE: %w", err)
+// mintToken writes a write-scoped personal access token for userID, pinned to
+// libraryID, that expires in an hour. Only its hash is stored, as the API
+// stores one. cleanup deletes the row; the expiry covers a seed that is killed
+// before it runs.
+func mintToken(gdb *gorm.DB, userID, libraryID uint) (secret string, cleanup func(), err error) {
+	secret, hash, prefix, err := auth.GenerateToken()
+	if err != nil {
+		return "", nil, err
+	}
+	expires := time.Now().Add(time.Hour)
+	row := models.APIToken{
+		UserID: userID, LibraryID: libraryID, Label: "just seed",
+		TokenHash: hash, Prefix: prefix, Scope: auth.ScopeWrite, ExpiresAt: &expires,
+	}
+	if err := gdb.Create(&row).Error; err != nil {
+		return "", nil, fmt.Errorf("mint a seed token: %w", err)
+	}
+	cleanup = func() {
+		if err := gdb.Delete(&row).Error; err != nil {
+			log.Printf("delete the seed token: %v", err)
 		}
-		return strings.TrimRight(string(b), "\r\n"), nil
-	case direct != "":
-		return direct, nil
 	}
-	return "", fmt.Errorf("DAMSON_POSTGRES_DSN (or DAMSON_POSTGRES_DSN_FILE) is not set")
-}
-
-func login(server, email, password string) (string, error) {
-	body, _ := json.Marshal(map[string]string{"email": email, "password": password})
-	resp, err := http.Post(server+"/api/auth/login", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		msg, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("%s: %s", resp.Status, msg)
-	}
-	var out struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", err
-	}
-	return out.Token, nil
+	return secret, cleanup, nil
 }
 
 // file is one entry in a generated pack.

@@ -7,19 +7,10 @@ import { test, expect, bootstrapAdmin, installSession, uploadImport } from "../f
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(dirname, "../fixtures/tiny.unitypackage");
 
-// Search returns filtered results, exercising the Postgres
-// `to_tsquery` branch in applyAssetFilters and the trigger-maintained
-// `assets.search_vector` (gin-indexed). The SQLite fallback in the same
-// file uses a LIKE on name/description; tier-1/2/3 SQLite specs cover
-// that path. This spec only matters against a real Postgres backend, so
-// it is gated on DAMSON_TEST_POSTGRES_DSN — without it the e2e binary
-// boots SQLite and the assertion below would just retest LIKE.
+// Search returns filtered results, exercising the Postgres `to_tsquery`
+// branch in applyAssetFilters and the trigger-maintained
+// `assets.search_vector` (gin-indexed).
 test.describe("Library search (Postgres tsvector)", () => {
-  test.skip(
-    !process.env.DAMSON_TEST_POSTGRES_DSN,
-    "Postgres-only — set DAMSON_TEST_POSTGRES_DSN to run",
-  );
-
   test("typing in the search box narrows the asset grid", async ({
     page,
     request,

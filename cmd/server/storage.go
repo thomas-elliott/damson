@@ -21,6 +21,7 @@ func newStorage(ctx context.Context, cfg config.Config) (storage.Service, error)
 			AccessKey:      cfg.S3AccessKey,
 			SecretKey:      cfg.S3SecretKey,
 			ForcePathStyle: cfg.S3ForcePathStyle,
+			KeyPrefix:      cfg.S3KeyPrefix,
 		})
 	default:
 		return nil, fmt.Errorf("unknown storage mode %q", cfg.StorageMode)

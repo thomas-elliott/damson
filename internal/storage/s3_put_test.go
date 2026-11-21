@@ -364,3 +364,48 @@ func (c *cancelAfterReader) Read(p []byte) (int, error) {
 	c.off += n
 	return n, nil
 }
+
+// TestS3_KeyPrefixKeepsEveryObjectUnderIt covers the shared dev bucket: with a
+// KeyPrefix, the stored object, the staging object a large body passes through,
+// and the copy between them all stay under that prefix, so two users of one
+// bucket never see each other's objects.
+func TestS3_KeyPrefixKeepsEveryObjectUnderIt(t *testing.T) {
+	fake := newFakeS3()
+	srv := httptest.NewServer(fake)
+	t.Cleanup(srv.Close)
+	s, err := NewS3(context.Background(), S3Config{
+		Endpoint: srv.URL, Region: "us-east-1", Bucket: "bucket",
+		AccessKey: "key", SecretKey: "secret", ForcePathStyle: true,
+		KeyPrefix: "damson/dev_x/",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	small := []byte("a small loose file")
+	smallKey, _, err := s.Put(context.Background(), Blobs, bytes.NewReader(small), ObjectMeta{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	large := bytes.Repeat([]byte("z"), inlinePutBytes+1024)
+	largeKey, _, err := s.Put(context.Background(), Originals, bytes.NewReader(large), ObjectMeta{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, want := range []string{
+		"damson/dev_x/blobs/" + shardedKey(smallKey),
+		"damson/dev_x/originals/" + shardedKey(largeKey),
+	} {
+		if _, ok := fake.objects[want]; !ok {
+			t.Errorf("nothing at %s; objects = %v", want, keysOf(fake.objects))
+		}
+	}
+	touched := append(append(append([]string{}, fake.puts...), fake.multiparts...), fake.deletes...)
+	touched = append(touched, fake.copies...)
+	for _, k := range touched {
+		if !strings.HasPrefix(k, "damson/dev_x/") {
+			t.Errorf("request for %q is outside the key prefix", k)
+		}
+	}
+}

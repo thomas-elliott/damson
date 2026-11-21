@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
 // AuthMode selects the authenticator implementation. Exclusive — one or the
@@ -59,6 +57,9 @@ type Config struct {
 	S3AccessKey      string
 	S3SecretKey      string
 	S3ForcePathStyle bool
+	// S3KeyPrefix is put in front of every object key, so several dev servers
+	// can share one bucket. Deployments leave it empty.
+	S3KeyPrefix string
 
 	// Local storage mode
 	StorageLocalPath string
@@ -105,10 +106,6 @@ type Config struct {
 // that is missing, or a value that does not parse, is an error naming the
 // variable; every such error is reported at once.
 func Load() (Config, error) {
-	// Optional: load ./.env if present. Real environment variables always
-	// win — godotenv.Load does not overwrite existing values.
-	_ = godotenv.Load()
-
 	var l loader
 
 	authMode := AuthMode(getenv("DAMSON_AUTH_MODE", string(AuthModeLocal)))
@@ -172,6 +169,7 @@ func Load() (Config, error) {
 		cfg.S3AccessKey = l.mustGetSecret("DAMSON_S3_ACCESS_KEY")
 		cfg.S3SecretKey = l.mustGetSecret("DAMSON_S3_SECRET_KEY")
 		cfg.S3ForcePathStyle = l.bool("DAMSON_S3_FORCE_PATH_STYLE", true)
+		cfg.S3KeyPrefix = os.Getenv("DAMSON_S3_PREFIX")
 	case StorageModeLocal:
 		cfg.StorageLocalPath = getenv("DAMSON_STORAGE_LOCAL_PATH", "./data/blobs")
 	}
