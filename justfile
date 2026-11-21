@@ -52,8 +52,8 @@ DEV_DB := env("DEV_DATABASE", "damson_dev_" + DB_USER)
 
 # The homelab-dev Zitadel client `just dev` signs in through. Neither value is a
 # secret: it is a public PKCE client that accepts /auth/callback on
-# http://localhost:* and http://127.0.0.1:*, any port. The id_token's audience
-# is the client id.
+# http://localhost:*, http://127.0.0.1:* and https://dev.ghost-eagle.ts.net:*,
+# any port. The id_token's audience is the client id.
 DEV_OIDC_ISSUER := "https://login.smol.cloud"
 DEV_OIDC_CLIENT_ID := "396076555912151326"
 
