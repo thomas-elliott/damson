@@ -16,9 +16,9 @@ Names follow a canonical vocabulary — `build`, `test`, `lint`, `format`, `chec
 **`just check` is the full preflight** and what CI gates on. `just check fast` skips the build
 and the tests, so running only it before a push is what lets a red build through.
 
-Go tests need Postgres. `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` itself,
-defaulting to the shared local instance on 5432 via the `damson_test` database, and
-its arguments go straight to `go test`:
+Go tests need the Postgres the `PG*` variables name. `just test backend` creates a database
+for the run, points `PGDATABASE` at it and drops it afterwards, and its arguments go straight
+to `go test`:
 
 ```
 just test backend ./internal/handlers/api -run '^TestName$'
@@ -70,7 +70,7 @@ Return early on error. Log with `log/slog` (see `cmd/server/main.go`'s JSON hand
 ### Tests
 Tests live alongside handlers (`assets_test.go` next to `assets.go`). Shared helpers live in the package's `*_test.go` files — the core ones in `api_test.go`, seed helpers beside the feature they seed:
 
-- `newTestHandler(t)` — returns `(*Handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires `DAMSON_TEST_POSTGRES_DSN` (see `docs/architecture.md` §4.6)
+- `newTestHandler(t)` — returns `(*Handler, *gorm.DB)` backed by a per-test Postgres schema (OIDC mode) with the real SQL migrations applied (via `internal/testdb`) and a `LocalFS` storage rooted in `t.TempDir()`. Requires the `PG*` variables; a missing one fails the test and names it
 - Import and preview pools are synchronous (`ingesttest.NewSync`, `previewtest.NewSync`), so a 202 import is already terminal when the handler returns; River's async behaviour is only exercised by e2e.
 - `newTestHandlerLocal(t)` — same but in local-auth mode, with a `*auth.LocalAuthenticator` returned alongside
 - `setupRouter(h, asUser)` — registers routes under `/api` behind the real `auth.Middleware`, with an authenticator that signs every request in as `asUser` (401 when nil)

@@ -20,11 +20,11 @@ When a change makes a doc untrue, update the doc in the same change.
 
 ## Development commands
 
-All workflows go through [just](https://just.systems) (`justfile`, plus modules in `tools/`) — do not invoke `go`, `pnpm` or `docker` directly for build/test/lint operations. Run `just` to list everything. Names follow a canonical vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `dev`, `install`), with the backend/frontend split as the second word (`lint backend` / `lint frontend`) — use the umbrella when in doubt.
+All workflows go through [just](https://just.systems) (`justfile`, plus modules in `tools/`) — do not invoke `go` or `pnpm` directly for build/test/lint operations. Run `just` to list everything. Names follow a canonical vocabulary (`build`, `test`, `lint`, `format`, `check`, `clean`, `dev`, `install`), with the backend/frontend split as the second word (`lint backend` / `lint frontend`) — use the umbrella when in doubt.
 
 **`just check` is the full preflight, not a quick one.** Run `just check` before pushing — it is what CI gates on.
 
-Run one Go test — `just test backend` sets `DAMSON_TEST_POSTGRES_DSN` for you, defaulting to the `damson_test` database on this checkout's compose Postgres, which it starts if needed:
+Run one Go test — `just test backend` creates a database for the run on the `PG*` server, points `PGDATABASE` at it and drops it afterwards:
 
 ```
 just test backend ./internal/handlers/api -run '^TestName$'
@@ -45,20 +45,27 @@ Vitest single-file:
 just test frontend src/path/to/file.test.tsx
 ```
 
+## Environment
+
+There is no `.env`, no Docker and no 1Password in the dev or test path. `mise install` then `just install` is the whole setup. Everything else comes from the environment every dev-box shell already loads. It holds test-only credentials for the shared dev services; never print or commit them.
+
+- **Postgres:** `PGHOST`, `PGPORT`, `PGUSER`, `PGSSLMODE` and `PGDATABASE`, with the password in `~/.pgpass` (`PGPASSWORD` in CI). Recipes and the test harness build URLs from these and leave the password out; pgx and psql read it themselves. A missing variable fails with a message naming it. There is no `localhost` default and no skip. The recipes use `psql`, `createdb` and `dropdb` from the system.
+- **Databases:** `just dev` uses `damson_dev_<user>`, or `DEV_DATABASE`, created if missing and migrated on boot. Each `just test backend` and `just test e2e` run creates `damson_test_<user>_<random>` and drops it on exit; the Go suite gives each test its own schema inside it. `just db drop-leaked` drops the ones a killed run left, but only those your `PGUSER` owns. `just db reset` empties your dev database, and `just db psql` opens it.
+- **Storage:** when `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `E2E_S3_BUCKET` are set, `just dev` stores files in that bucket under `damson/<dev database>/`, with path-style addressing. With none of them set it uses `./data`; with only some it fails and names the missing ones. The e2e server always uses a temporary directory.
+- **Ports:** `PORT` (API, default 8080) and `WEB_PORT` (Vite, default 5173). Vite's proxy reads `PORT`, and Vite fails rather than moving to another port.
+- **Sign-in:** `just dev` runs in OIDC mode against the homelab-dev Zitadel client, a public PKCE client whose issuer and client id are committed in the `justfile`. It accepts `/auth/callback` on `http://localhost:*` and `http://127.0.0.1:*`, so open the app on one of those. Agents sign in as `agent-e2e` with `E2E_OIDC_USERNAME` and `E2E_OIDC_PASSWORD`. The first person to sign in to a dev database becomes its sysadmin. The e2e server keeps local sign-in with its own seeded users.
+
 ## Running the app
 
-`just dev` needs no `.env`. It starts the compose Postgres, seeds a throwaway local admin — `dev@example.com` / `password1` — and serves the API on `127.0.0.1:8080` and the SPA on <http://localhost:5173>, which proxies `/api` to it. While it is up, `just seed` loads three sample packs into the admin's library, then writes about 300 generated reference assets (paths, store links or both, with made-up store ids, tagged with store-style categories two to four levels deep) straight into the dev Postgres; a second run adds nothing. Anything set in `.env` or the environment wins over these defaults. `just db reset` empties both databases.
+`just dev` serves the API on `127.0.0.1:$PORT` and the SPA on `http://localhost:$WEB_PORT`, which proxies `/api` to it. After you have signed in once, `just seed` loads three sample packs into the sysadmin's current library. It then writes about 300 generated reference assets (paths, store links or both, with made-up store ids, tagged with store-style categories two to four levels deep) straight into the dev Postgres. It signs its uploads with a personal access token it creates in the database and deletes afterwards. A second run adds nothing.
 
 Driving it as an agent:
 
-1. Start `just dev` as a background process, then poll until `curl -sf localhost:5173/api/health` succeeds. The first run also installs air and the web packages.
-2. Sign in through the SPA with the dev admin. For the API, `POST /api/auth/login` with `{"email","password"}` returns a bearer token, which `dmsn --token` also accepts.
-3. Look at the UI with the Playwright in `web/node_modules`; `just install` fetches its Chromium.
-4. Stop it by killing the whole process group. Killing only `just` leaves Vite holding :5173.
+1. Start `just dev` as a background process, with `PORT` and `WEB_PORT` set if the defaults are taken. Poll until `curl -sf localhost:$WEB_PORT/api/health` succeeds. The first run also installs air and the web packages.
+2. Open `http://localhost:$WEB_PORT` with the Playwright in `web/node_modules` (`just install` fetches its Chromium) and sign in through Zitadel as `agent-e2e`. For the API, create a personal access token in Settings, which `dmsn --token` also accepts.
+3. Start it under `setsid` and stop it with `pkill -s <session id>`. air and pnpm each start their own process group, so killing `just` or its group leaves the API and Vite holding their ports.
 
-`just test e2e` uses its own servers on 5174/8081 and the `damson_test` database, so it can run while `just dev` is up.
-
-Every checkout, clone or worktree gets its own compose Postgres: `just db` names the project after a hash of the checkout's path and lets Docker pick a free loopback port, and `just db dsn [damson|damson_test]` prints the address. Delete a clone, then run `just db prune` to remove the Postgres of every checkout whose directory is gone. Docker installed as a snap cannot see `/tmp`, so a worktree there cannot start its Postgres; keep worktrees under the home directory.
+`just test e2e` uses its own servers on 5174/8081 (`E2E_PORT`, `E2E_BACKEND_PORT`) and its own database, so it can run while `just dev` is up.
 
 ## Conventions
 
