@@ -11,8 +11,8 @@ too slow to reproduce by hand on every change.
 `just test e2e` builds `cmd/e2e-server` into `web/e2e/.bin`, then Playwright starts it and `vite dev`
 through the `webServer` array in `web/playwright.config.ts` (`E2E_TARGET=preview` runs the built
 bundle instead). Arguments go straight to Playwright, so `just test e2e --ui` gets the interactive
-runner. The backend needs `DAMSON_TEST_POSTGRES_DSN`; `just test e2e` defaults it to the shared local
-Postgres. One worker, no parallelism: every test shares the one backend and its database.
+runner. The backend opens the database the `PG*` variables name; `just test e2e` creates one for the run
+and drops it afterwards. One worker, no parallelism: every test shares the one backend and its database.
 
 `cmd/e2e-server` mounts the production `api.Handler` and River queue in local-auth mode, against
 the real SQL migrations. It does not mount `cmd/server`'s middleware (request id, request logging,
